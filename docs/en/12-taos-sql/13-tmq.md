@@ -41,7 +41,7 @@ The preceding command displays all topics in the current database.
 
 ## Create Consumer Group
 
-You can create consumer groups only through the TDengine Client driver or the API provided by a connector.
+You can create consumer groups only through the TDengine Client driver or the API provided by a client library.
 
 ## Delete Consumer Group
 

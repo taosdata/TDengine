@@ -71,6 +71,9 @@ int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *pBlockData
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);
 bool    tsdbSttFileWriterIsOpened(SSttFileWriter *writer);
 
+int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
+
 struct SSttFileWriterConfig {
   STsdb    *tsdb;
   int32_t   maxRow;

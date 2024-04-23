@@ -54,9 +54,11 @@ typedef struct SSessionKey {
   uint64_t    groupId;
 } SSessionKey;
 
+typedef int64_t COUNT_TYPE;
+
 typedef struct SVersionRange {
-  uint64_t minVer;
-  uint64_t maxVer;
+  int64_t minVer;
+  int64_t maxVer;
 } SVersionRange;
 
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
@@ -135,13 +137,11 @@ static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2,
 }
 
 enum {
-  TMQ_MSG_TYPE__DUMMY = 0,
-  TMQ_MSG_TYPE__POLL_DATA_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_RSP = 0,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
-  TMQ_MSG_TYPE__END_RSP,
 };
 
 enum {
@@ -152,6 +152,8 @@ enum {
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
+  STREAM_INPUT__CHECKPOINT_TRIGGER,
+  STREAM_INPUT__TRANS_STATE,
   STREAM_INPUT__REF_DATA_BLOCK,
   STREAM_INPUT__DESTROY,
 };
@@ -168,7 +170,10 @@ typedef enum EStreamType {
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
   STREAM_FILL_OVER,
+  STREAM_CHECKPOINT,
   STREAM_CREATE_CHILD_TABLE,
+  STREAM_TRANS_STATE,
+  STREAM_MID_RETRIEVE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -204,6 +209,7 @@ typedef struct SDataBlockInfo {
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
+  bool        blankFill;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -247,16 +253,16 @@ typedef struct SQueryTableDataCond {
   SColumnInfo* colList;
   int32_t*     pSlotList;  // the column output destation slot, and it may be null
   int32_t      type;       // data block load type:
+  bool         skipRollup;
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
+  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
-void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
@@ -291,7 +297,7 @@ typedef struct STableBlockDistInfo {
   int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
   uint32_t numOfInmemRows;
-  uint32_t numOfSmallBlocks;
+  uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
@@ -361,6 +367,11 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+typedef struct SNonSortExecInfo {
+  int32_t blkNums;
+} SNonSortExecInfo;
+
 
 typedef struct STUidTagInfo {
   char*    name;

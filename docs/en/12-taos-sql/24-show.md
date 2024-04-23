@@ -22,6 +22,14 @@ SHOW CLUSTER;
 
 Shows information about the current cluster.
 
+## SHOW CLUSTER ALIVE
+
+```sql
+SHOW CLUSTER ALIVE;
+```
+
+It is used to check whether the cluster is available or not. Return value: 0 means unavailable, 1 means available, 2 means partially available (some dnodes are offline, the other dnodes are available)
+
 ## SHOW CONNECTIONS
 
 ```sql
@@ -65,10 +73,10 @@ Shows the SQL statement used to create the specified table. This statement can b
 ## SHOW DATABASES
 
 ```sql
-SHOW DATABASES;
+SHOW [USER | SYSTEM] DATABASES;
 ```
 
-Shows all user-created databases.
+Shows all databases. The `USER` qualifier specifies only user-created databases. The `SYSTEM` qualifier specifies only system databases.
 
 ## SHOW DNODES
 
@@ -175,10 +183,10 @@ Shows all subscriptions in the system.
 ## SHOW TABLES
 
 ```sql
-SHOW [db_name.]TABLES [LIKE 'pattern'];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-Shows all standard tables and subtables in the current database. You can use LIKE for fuzzy matching.
+Shows all standard tables and subtables in the current database. You can use LIKE for fuzzy matching. The `Normal` qualifier specifies standard tables. The `CHILD` qualifier specifies subtables.
 
 ## SHOW TABLE DISTRIBUTED
 
@@ -376,7 +384,7 @@ Shows information about all vgroups in the current database.
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES {dnode_id | dnode_endpoint};
+SHOW VNODES [ON DNODE dnode_id];
 ```
 
 Shows information about all vnodes in the system or about the vnodes for a specified dnode.

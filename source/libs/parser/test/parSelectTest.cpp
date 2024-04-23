@@ -381,9 +381,9 @@ TEST_F(ParserSelectTest, semanticCheck) {
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
   run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
 
-  run("SELECT LAST(*) + SUM(c1) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("SELECT LAST(*) + SUM(c1) FROM t1", TSDB_CODE_PAR_NOT_SUPPORT_MULTI_RESULT);
 
-  run("SELECT CEIL(LAST(ts, c1)) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("SELECT CEIL(LAST(ts, c1)) FROM t1", TSDB_CODE_FUNC_FUNTION_PARA_NUM);
 
   // TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION
   run("SELECT c2 FROM t1 tt1 join t1 tt2 on COUNT(*) > 0", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
@@ -412,6 +412,28 @@ TEST_F(ParserSelectTest, semanticCheck) {
   run("SELECT COUNT(*) FROM t1 order by c1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
 
   run("SELECT c1 FROM t1 order by COUNT(*)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+
+  run("SELECT COUNT(*) FROM t1 order by COUNT(*)");
+
+  run("SELECT COUNT(*) FROM t1 order by last(c2)");
+
+  run("SELECT c1 FROM t1 order by last(ts)");
+
+  run("SELECT ts FROM t1 order by last(ts)");
+
+  run("SELECT c2 FROM t1 order by last(ts)");
+
+  run("SELECT * FROM t1 order by last(ts)");
+
+  run("SELECT last(ts) FROM t1 order by last(ts)");
+
+  run("SELECT last(ts), ts, c1 FROM t1 order by last(ts)");
+
+  run("SELECT ts, last(ts) FROM t1 order by last(ts)");
+
+  run("SELECT first(ts), c2 FROM t1 order by last(c1)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+
+  run("SELECT c1 FROM t1 order by concat(c2, 'abc')");
 
   // TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION
   run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);

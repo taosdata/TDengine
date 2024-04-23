@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "osSleep.h"
 #include "query.h"
 #include "qworker.h"
 #include "scheduler.h"
@@ -105,7 +106,15 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
-    }
+    } 
+  }
+
+  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
+  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
+  } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
   }
 
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
@@ -114,6 +123,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
+      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
     }
   }
 
@@ -133,7 +143,8 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   if (NEED_REDIRECT_ERROR(code)) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
-        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK) {
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK ||
+        msgType == TDMT_SCH_TASK_NOTIFY) {
       return false;
     }
     return true;
@@ -169,7 +180,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
-  rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
@@ -223,6 +234,7 @@ void destroyAppInst(SAppInstInfo *pAppInfo) {
 
   taosThreadMutexLock(&appInfo.mutex);
 
+  clientMonitorClose(pAppInfo->instKey);
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
   taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
@@ -282,6 +294,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   pObj->connType = connType;
   pObj->pAppInfo = pAppInfo;
+  pObj->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
 
@@ -315,6 +328,15 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
+  SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (interParam == NULL) {
+    doDestroyRequest(pRequest);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  tsem_init(&interParam->sem, 0, 0);
+  interParam->pRequest = pRequest;
+  pRequest->body.interParam = interParam;
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
@@ -326,6 +348,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
+  pRequest->inCallback = false;
 
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
@@ -379,8 +402,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -397,7 +419,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -437,16 +459,15 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->syncQuery) {
-    if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
-    }
-    taosMemoryFree(pRequest->body.param);
+  if (pRequest->body.interParam) {
+    tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
   }
+  taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
+  taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
@@ -491,8 +512,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -511,7 +531,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       taosStopQueryImpl(pTmp);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -555,6 +575,9 @@ static void *tscCrashReportThreadFp(void *param) {
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
           pFile = NULL;
+
+          taosMsleep(sleepTime);
+          loopTimes = 0;
           continue;
         }
       } else {
@@ -669,8 +692,9 @@ void taos_init_imp(void) {
   snprintf(logDirName, 64, "taoslog");
 #endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    // ignore create log failed, only print
     printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
+    tscInitRes = -1;
+    return;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
@@ -720,11 +744,29 @@ int taos_init() {
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
   if (option == TSDB_OPTION_CONFIGDIR) {
+#ifndef WINDOWS
+    char newstr[PATH_MAX];
+    int  len = strlen(str);
+    if (len > 1 && str[0] != '"' && str[0] != '\'') {
+        if (len + 2 >= PATH_MAX) {
+        tscError("Too long path %s", str);
+        return -1;
+      }
+      newstr[0] = '"';
+      memcpy(newstr+1, str, len);
+      newstr[len + 1] = '"';
+      newstr[len + 2] = '\0';
+      str = newstr;
+    }
+#endif
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
-  } else {
-    taos_init();  // initialize global config
+  }
+
+  // initialize global config
+  if (taos_init() != 0) {
+    return -1;
   }
 
   SConfig     *pCfg = taosGetCfg();
@@ -761,7 +803,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosApplyLocalCfg(pCfg, pItem->name);
+      code = taosCfgDynamicOptions(pCfg, pItem->name, false);
     }
   }
 

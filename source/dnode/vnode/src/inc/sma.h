@@ -108,6 +108,7 @@ struct SRSmaStat {
   int64_t          refId;        // shared by fetch tasks
   volatile int64_t nBufItems;    // number of items in queue buffer
   SRWLatch         lock;         // r/w lock for rsma fs(e.g. qtaskinfo)
+  volatile int32_t execStat;     // 0 succeed, other failed
   volatile int32_t nFetchAll;    // active number of fetch all
   volatile int8_t  triggerStat;  // shared by fetch tasks
   volatile int8_t  commitStat;   // 0 not in committing, 1 in committing
@@ -115,6 +116,7 @@ struct SRSmaStat {
   SRSmaFS          fs;           // for recovery/snapshot r/w
   SHashObj        *infoHash;     // key: suid, value: SRSmaInfo
   tsem_t           notEmpty;     // has items in queue buffer
+  SArray          *blocks;       // SArray<SSDataBlock>
 };
 
 struct SSmaStat {
@@ -136,13 +138,18 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t   level : 4;
-  int8_t   fetchLevel : 4;
-  int8_t   triggerStat;
-  uint16_t nScanned;
-  int32_t  maxDelay;  // ms
-  tmr_h    tmrId;
-  void    *pStreamState;
+  int8_t  level;
+  int8_t  fetchLevel;
+  int8_t  triggerStat;
+  int32_t nScanned;
+  int32_t streamFlushed : 1;
+  int32_t maxDelay : 31;  // ms
+  int64_t submitReqVer;
+  int64_t fetchResultVer;
+  tmr_h   tmrId;
+  void   *pStreamState;
+  void   *pStreamTask;  // SStreamTask
+  SArray *pResList;
 };
 
 struct SRSmaInfo {
@@ -160,12 +167,10 @@ struct SRSmaInfo {
   STaosQall    *qall;                         // buffer qall of SubmitReq
 };
 
-#define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
-#define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
-#define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
-#define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
-#define RSMA_INFO_IQTASK(r, i) ((r)->iTaskInfo[i])
-#define RSMA_INFO_ITEM(r, i)   (&(r)->items[i])
+#define RSMA_INFO_IS_DEL(r)   ((r)->delFlag == 1)
+#define RSMA_INFO_SET_DEL(r)  ((r)->delFlag = 1)
+#define RSMA_INFO_QTASK(r, i) ((r)->taskInfo[i])
+#define RSMA_INFO_ITEM(r, i)  (&(r)->items[i])
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -214,11 +219,11 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 int32_t smaPreClose(SSma *pSma);
 
 // rsma
-void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
+void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
-// int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
+int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback);
 void    tdRSmaQTaskInfoGetFullPath(SVnode *pVnode, tb_uid_t suid, int8_t level, STfs *pTfs, char *outputName);
 

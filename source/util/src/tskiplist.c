@@ -21,7 +21,7 @@
 #include "tutil.h"
 
 static int32_t            initForwardBackwardPtr(SSkipList *pSkipList);
-static SSkipListNode     *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
+static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
 static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
 static void               tSkipListCorrectLevel(SSkipList *pSkipList);
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
@@ -131,12 +131,14 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
   return pNode;
 }
 
+#ifdef BUILD_NO_CALL
+
 void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t iterate) {
   SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
   SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
   bool           hasDup = false;
-  char          *pKey = NULL;
-  char          *pDataKey = NULL;
+  char *         pKey = NULL;
+  char *         pDataKey = NULL;
   int32_t        compare = 0;
 
   tSkipListWLock(pSkipList);
@@ -260,6 +262,7 @@ void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
   tSkipListCorrectLevel(pSkipList);
   tSkipListUnlock(pSkipList);
 }
+#endif
 
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
   if (pSkipList == NULL) return NULL;
@@ -350,6 +353,7 @@ void *tSkipListDestroyIter(SSkipListIterator *iter) {
   return NULL;
 }
 
+#ifdef BUILD_NO_CALL
 void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   if (pSkipList == NULL || pSkipList->level < nlevel || nlevel <= 0) {
     return;
@@ -358,7 +362,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, nlevel - 1);
 
   int32_t id = 1;
-  char   *prev = NULL;
+  char *  prev = NULL;
 
   while (p != pSkipList->pTail) {
     char *key = SL_GET_NODE_KEY(pSkipList, p);
@@ -376,6 +380,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
         fprintf(stdout, "%d: %" PRId64 " \n", id++, *(int64_t *)key);
         break;
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_VARBINARY:
       case TSDB_DATA_TYPE_GEOMETRY:
         fprintf(stdout, "%d: %s \n", id++, key);
         break;
@@ -391,6 +396,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
     p = SL_NODE_GET_FORWARD_POINTER(p, nlevel - 1);
   }
 }
+#endif
 
 static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, SSkipListNode *pNode, bool isForward) {
   for (int32_t i = 0; i < pNode->level; ++i) {
@@ -459,7 +465,7 @@ static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList) {
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData) {
   int32_t compare = 0;
   bool    hasDupKey = false;
-  char   *pDataKey = pSkipList->keyFn(pData);
+  char *  pDataKey = pSkipList->keyFn(pData);
 
   if (pSkipList->size == 0) {
     for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
@@ -515,6 +521,7 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward,
   return hasDupKey;
 }
 
+#ifdef BUILD_NO_CALL
 static void tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode) {
   int32_t level = pNode->level;
   uint8_t dupMode = SL_DUP_MODE(pSkipList);
@@ -539,6 +546,7 @@ static void tSkipListCorrectLevel(SSkipList *pSkipList) {
     pSkipList->level -= 1;
   }
 }
+#endif
 
 UNUSED_FUNC static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList,
                                                          int32_t    level) {  // record link count in each level

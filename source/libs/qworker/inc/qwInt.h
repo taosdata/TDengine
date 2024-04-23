@@ -120,9 +120,11 @@ typedef struct SQWTaskCtx {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   localExec;
+  int8_t   dynamicTask;
   int32_t  queryMsgType;
   int32_t  fetchMsgType;
   int32_t  level;
+  int32_t  dynExecId;
   uint64_t sId;
 
   bool    queryGotData;
@@ -131,6 +133,7 @@ typedef struct SQWTaskCtx {
   bool    queryContinue;
   bool    queryExecDone;
   bool    queryInQueue;
+  bool    explainRsped;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
 
@@ -142,7 +145,7 @@ typedef struct SQWTaskCtx {
   SArray    *explainRes;
   void      *taskHandle;
   void      *sinkHandle;
-  STbVerInfo tbInfo;
+  SArray    *tbInfo; // STbVerInfo
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
@@ -167,6 +170,7 @@ typedef struct SQWMsgStat {
   uint64_t   rspProcessed;
   uint64_t   cancelProcessed;
   uint64_t   dropProcessed;
+  uint64_t   notifyProcessed;
   uint64_t   hbProcessed;
   uint64_t   deleteProcessed;
 } SQWMsgStat;
@@ -385,7 +389,7 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
 int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
-int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status);
+int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask);
 int32_t qwDropTask(QW_FPARAMS_DEF);
 void    qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
 int32_t qwOpenRef(void);
@@ -395,14 +399,16 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type);
 void    qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch);
 int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch);
 void    qwFreeTaskCtx(SQWTaskCtx *ctx);
+int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
 void    qwDbgDumpMgmtInfo(SQWorker *mgmt);
-int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
+int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore, bool dynamicTask);
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
 int32_t qwAddTaskCtx(QW_FPARAMS_DEF);
 void    qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped);
 void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
+int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
 #ifdef __cplusplus
 }

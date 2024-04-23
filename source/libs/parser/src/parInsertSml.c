@@ -18,18 +18,6 @@
 #include "parToken.h"
 #include "ttime.h"
 
-static void clearColValArray(SArray* pCols) {
-  int32_t num = taosArrayGetSize(pCols);
-  for (int32_t i = 0; i < num; ++i) {
-    SColVal* pCol = taosArrayGet(pCols, i);
-    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
-      taosMemoryFreeClear(pCol->value.pData);
-    }
-    pCol->flag = CV_FLAG_NONE;
-    pCol->value.val = 0;
-  }
-}
-
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen) {
   SMsgBuf msg = {.buf = msgBuf, .len = msgBufLen};
@@ -134,7 +122,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     //    strcpy(val.colName, pTagSchema->name);
-    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY ||
+    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
         pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
@@ -181,7 +169,7 @@ STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta) {
   STableDataCxt* pTableCxt = NULL;
   SVCreateTbReq* pCreateTbReq = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTbReq, &pTableCxt, false);
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTbReq, &pTableCxt, false, false);
   if (ret != TSDB_CODE_SUCCESS) {
     return NULL;
   }
@@ -191,6 +179,18 @@ STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta) {
     return NULL;
   }
   return pTableCxt;
+}
+
+void clearColValArraySml(SArray* pCols) {
+  int32_t num = taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pCol = taosArrayGet(pCols, i);
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type || TSDB_DATA_TYPE_GEOMETRY == pCol->type || TSDB_DATA_TYPE_VARBINARY == pCol->type) {
+      taosMemoryFreeClear(pCol->value.pData);
+    }
+    pCol->flag = CV_FLAG_NONE;
+    pCol->value.val = 0;
+  }
 }
 
 int32_t smlBuildRow(STableDataCxt* pTableCxt) {
@@ -210,7 +210,15 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSmlKv*  kv = (SSmlKv*)data;
   if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
     ret = TSDB_CODE_SML_INVALID_DATA;
-    uInfo("SML smlBuildCol error col not same %s", pColSchema->name);
+    char* tmp = taosMemoryCalloc(kv->keyLen + 1, 1);
+    if(tmp){
+      memcpy(tmp, kv->key, kv->keyLen);
+      uInfo("SML data(name:%s type:%s) is not same like the db data(name:%s type:%s)",
+            tmp, tDataTypes[kv->type].name, pColSchema->name, tDataTypes[pColSchema->type].name);
+      taosMemoryFree(tmp);
+    }else{
+      uError("SML smlBuildCol out of memory");
+    }
     goto end;
   }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
@@ -237,9 +245,13 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
     }
     pVal->value.pData = pUcs4;
     pVal->value.nData = len;
-  } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+  } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
     pVal->value.nData = kv->length;
     pVal->value.pData = (uint8_t*)kv->value;
+  } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
+    pVal->value.nData = kv->length;
+    pVal->value.pData = taosMemoryMalloc(kv->length);
+    memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
     memcpy(&pVal->value.val, &(kv->value), kv->length);
   }
@@ -301,7 +313,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   STableDataCxt* pTableCxt = NULL;
   ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false);
+                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false, false);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
     goto end;
@@ -364,9 +376,13 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         pVal->value.pData = pUcs4;
         pVal->value.nData = len;
-      } else if (kv->type == TSDB_DATA_TYPE_BINARY || kv->type == TSDB_DATA_TYPE_GEOMETRY) {
+      } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
         pVal->value.nData = kv->length;
         pVal->value.pData = (uint8_t*)kv->value;
+      } else if (kv->type == TSDB_DATA_TYPE_GEOMETRY || kv->type == TSDB_DATA_TYPE_VARBINARY) {
+        pVal->value.nData = kv->length;
+        pVal->value.pData = taosMemoryMalloc(kv->length);
+        memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
       } else {
         memcpy(&pVal->value.val, &(kv->value), kv->length);
       }
@@ -380,7 +396,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       goto end;
     }
     insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
-    clearColValArray(pTableCxt->pValues);
+    clearColValArraySml(pTableCxt->pValues);
   }
 
 end:
@@ -417,7 +433,7 @@ SQuery* smlInitHandle() {
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(handle)->pRoot;
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks);
+  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks, true);
   if (code != TSDB_CODE_SUCCESS) {
     uError("insMergeTableDataCxt failed");
     return code;

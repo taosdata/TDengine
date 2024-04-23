@@ -9,7 +9,7 @@ import taos
 def before_test(db_name):
     taos_conn = taos.connect()
     taos_conn.execute("drop database if exists %s" % db_name)
-    taos_conn.execute("create database %s" % db_name)
+    taos_conn.execute("create database %s keep 36500" % db_name)
     taos_conn.select_db(db_name)
     taos_conn.execute("create table t1 (ts timestamp, a int, b float, c varchar(10))")
     taos_conn.execute(

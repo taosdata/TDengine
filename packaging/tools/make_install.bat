@@ -48,11 +48,15 @@ if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
 )
 copy %source_dir%\\include\\client\\taos.h %target_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %target_dir%\\include > nul
+copy %source_dir%\\include\\util\\tdef.h %target_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nul
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
+if exist %source_dir%\\tools\\taos_tool\\packaging\\win\\msvcp140d.dll (
+    copy %source_dir%\\tools\\taos_tool\\packaging\\win\\msvcp140d.dll %target_dir% > nul
+)
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %target_dir% > nul
 )

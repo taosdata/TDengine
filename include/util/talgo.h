@@ -55,6 +55,17 @@ typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void 
 void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
 
 /**
+ * merge sort, with the compare function requiring additional parameters support
+ *
+ * @param src
+ * @param numOfElem
+ * @param size
+ * @param comparFn
+ * @return  int32_t 0 for success, other for failure.
+ */
+int32_t taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn);
+
+/**
  * binary search, with range support
  *
  * @param key

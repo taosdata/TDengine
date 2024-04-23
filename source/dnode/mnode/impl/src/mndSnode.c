@@ -257,6 +257,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
 
@@ -291,11 +292,16 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
-  if (pObj != NULL) {
+//  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
+//  if (pObj != NULL) {
+//    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+//    goto _OVER;
+//  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
+//    goto _OVER;
+//  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1){
     terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
-    goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
     goto _OVER;
   }
 
@@ -314,8 +320,9 @@ _OVER:
     return -1;
   }
 
-  mndReleaseSnode(pMnode, pObj);
+//  mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSMCreateQnodeReq(&createReq);
   return code;
 }
 
@@ -377,6 +384,7 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
 
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
   if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
@@ -425,6 +433,7 @@ _OVER:
   }
 
   mndReleaseSnode(pMnode, pObj);
+  tFreeSMCreateQnodeReq(&dropReq);
   return code;
 }
 

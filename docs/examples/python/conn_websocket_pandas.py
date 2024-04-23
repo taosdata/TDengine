@@ -4,7 +4,7 @@ import taos
 
 taos_conn = taos.connect()
 taos_conn.execute('drop database if exists power')
-taos_conn.execute('create database if not exists power wal_retention_period 3600')
+taos_conn.execute('create database if not exists power wal_retention_period 3600 keep 36500 ')
 taos_conn.execute("use power")
 taos_conn.execute(
     "CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")

@@ -26,25 +26,26 @@ extern "C" {
 #endif
 
 typedef enum DirtyEntryType {
-  ENTRY_TYPE_DEL = 1,
+  ENTRY_TYPE_DELETE = 1,
   ENTRY_TYPE_UPSERT = 2,
 } DirtyEntryType;
 
 typedef struct STtlManger {
-  TdThreadRwlock lock;
+  TTB* pOldTtlIdx;  // btree<{deleteTime, tuid}, NULL>
 
-  TTB* pOldTtlIdx;       // btree<{deleteTime, tuid}, NULL>
-
-  SHashObj* pTtlCache;   // key: tuid, value: {ttl, ctime}
-  SHashObj* pDirtyUids;  // dirty tuid
+  SHashObj* pTtlCache;   // hash<tuid, {ttl, ctime}>
+  SHashObj* pDirtyUids;  // hash<dirtyTuid, entryType>
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
 
-  char* logPrefix;
+  char*   logPrefix;
+  int32_t flushThreshold;  // max dirty entry number in memory. if -1, flush will not be triggered by write-ops
 } STtlManger;
 
 typedef struct {
   int64_t ttlDays;
   int64_t changeTimeMs;
+  int64_t ttlDaysDirty;
+  int64_t changeTimeMsDirty;
 } STtlCacheEntry;
 
 typedef struct {
@@ -68,23 +69,24 @@ typedef struct {
 typedef struct {
   tb_uid_t uid;
   int64_t  changeTimeMs;
+  TXN*     pTxn;
 } STtlUpdCtimeCtx;
 
 typedef struct {
   tb_uid_t uid;
   int64_t  changeTimeMs;
   int64_t  ttlDays;
+  TXN*     pTxn;
 } STtlUpdTtlCtx;
 
 typedef struct {
   tb_uid_t uid;
-  TXN*     pTxn;
   int64_t  ttlDays;
+  TXN*     pTxn;
 } STtlDelTtlCtx;
 
-int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix);
+int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix, int32_t flushThreshold);
 void ttlMgrClose(STtlManger* pTtlMgr);
-int  ttlMgrPostOpen(STtlManger* pTtlMgr, void* pMeta);
 
 bool ttlMgrNeedUpgrade(TDB* pEnv);
 int  ttlMgrUpgrade(STtlManger* pTtlMgr, void* pMeta);
@@ -94,7 +96,7 @@ int ttlMgrDeleteTtl(STtlManger* pTtlMgr, const STtlDelTtlCtx* pDelCtx);
 int ttlMgrUpdateChangeTime(STtlManger* pTtlMgr, const STtlUpdCtimeCtx* pUpdCtimeCtx);
 
 int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
-int ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids);
+int ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids, int32_t ttlDropMaxCount);
 
 #ifdef __cplusplus
 }

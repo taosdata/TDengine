@@ -54,15 +54,18 @@ extern "C" {
 
 typedef struct TdFile *TdFilePtr;
 
-#define TD_FILE_CREATE   0x0001
-#define TD_FILE_WRITE    0x0002
-#define TD_FILE_READ     0x0004
-#define TD_FILE_TRUNC    0x0008
-#define TD_FILE_APPEND   0x0010
-#define TD_FILE_TEXT     0x0020
-#define TD_FILE_AUTO_DEL 0x0040
-#define TD_FILE_EXCL     0x0080
-#define TD_FILE_STREAM   0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
+#define TD_FILE_CREATE        0x0001
+#define TD_FILE_WRITE         0x0002
+#define TD_FILE_READ          0x0004
+#define TD_FILE_TRUNC         0x0008
+#define TD_FILE_APPEND        0x0010
+#define TD_FILE_TEXT          0x0020
+#define TD_FILE_AUTO_DEL      0x0040
+#define TD_FILE_EXCL          0x0080
+#define TD_FILE_STREAM        0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
+#define TD_FILE_WRITE_THROUGH 0x0200
+#define TD_FILE_CLOEXEC       0x0400
+
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 
@@ -76,7 +79,7 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime);
+int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
 bool    taosCheckExistFile(const char *pathname);
@@ -111,6 +114,12 @@ bool taosValidFile(TdFilePtr pFile);
 int32_t taosGetErrorFile(TdFilePtr pFile);
 
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
+
+int32_t taosSetFileHandlesLimit();
+
+int32_t taosLinkFile(char *src, char *dst);
+
+bool lastErrorIsFileNotExist();
 
 #ifdef __cplusplus
 }

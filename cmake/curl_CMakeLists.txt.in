@@ -1,0 +1,19 @@
+# curl
+ExternalProject_Add(curl2
+        URL  https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
+        #URL  https://curl.se/download/curl-8.2.1.tar.gz
+        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        #GIT_REPOSITORY https://github.com/curl/curl.git
+        #GIT_TAG curl-7_88_1
+        SOURCE_DIR "${TD_CONTRIB_DIR}/curl2"
+        DEPENDS openssl
+        BUILD_IN_SOURCE TRUE
+        BUILD_ALWAYS 1
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.2 --with-ssl=$ENV{HOME}/.cos-local.2  --enable-shared=no --disable-ldap --disable-ldaps --without-brotli --without-zstd --without-libidn2 --without-nghttp2 #--enable-debug
+        BUILD_COMMAND make -j
+        INSTALL_COMMAND make install
+        TEST_COMMAND ""
+)

@@ -1,5 +1,9 @@
 aux_source_directory(src CLIENT_SRC)
 
+IF (TD_ENTERPRISE)
+  LIST(APPEND CLIENT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/clientView.c)
+ENDIF ()
+
 if(TD_WINDOWS)
     add_library(taos SHARED ${CLIENT_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/src/taos.rc.in)
 else()
@@ -16,7 +20,7 @@ target_include_directories(
 target_link_libraries(
     taos
     INTERFACE api
-    PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
 )
 
 if(TD_DARWIN_ARM64)
@@ -57,7 +61,7 @@ target_include_directories(
 target_link_libraries(
     taos_static
     INTERFACE api
-    PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
 )
 
 if(${BUILD_TEST})

@@ -87,7 +87,7 @@ Ensure that your firewall rules do not block TCP port 6042  on any host in the c
 | Protocol | Default Port | Description                                                                                               | How to configure                                                                               |
 | :------- | :----------- | :-------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP      | 6030         | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
-| TCP      | 6041         | REST connection between client and server                                                                 | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
+| TCP      | 6041         | REST connection between client and server                                                                 | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](../taosadapter/) |
 | TCP      | 6043         | Service Port of taosKeeper                                                                                | The parameter of taosKeeper                                                                    |
 | TCP      | 6044         | Data access port for StatsD                                                                               | Configurable through taosAdapter parameters.                                                   |
 | UDP      | 6045         | Data access for statsd                                                                                    | Configurable through taosAdapter parameters.                                                   |
@@ -226,9 +226,10 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Attribute     | Description                                                                                                     |
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | Applicable    | Client only                                                                                                     |
-| Meaning       | When the Last, First, LastRow function is queried, whether the returned column name contains the function name. |
-| Value Range   | 0 means including the function name, 1 means not including the function name.                                   |
-| Default Value | 0                                                                                                               |
+| Meaning       | When the Last, First, and LastRow functions are queried and no alias is specified, the alias is automatically set to the column name (excluding the function name). Therefore, if the order by clause refers to the column name, it will automatically refer to the function corresponding to the column. |
+| Value Range   | 1 means automatically setting the alias to the column name (excluding the function name), 0 means not automatically setting the alias.                                   |
+| Default Value | 0          |
+| Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
 
 ## Locale Parameters
 
@@ -288,7 +289,7 @@ A specific type "nchar" is provided in TDengine to store non-ASCII characters su
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux/macOS, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-The locale definition standard on Linux/macOS is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
+The locale definition standard on Linux/macOS is: &lt;Language&gt;\_&lt;Region&gt;.&lt;charset&gt;, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
 
 :::
 
@@ -652,6 +653,15 @@ The charset that takes effect is UTF-8.
 | Type          | String                                     |
 | Default Value | None                                       |
 
+### smlAutoChildTableNameDelimiter
+
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Client only                                |
+| Meaning       | Delimiter between tags as table name|
+| Type          | String                                     |
+| Default Value | None                                       |
+
 ### smlTagName
 
 | Attribute     | Description                                                   |
@@ -669,6 +679,15 @@ The charset that takes effect is UTF-8.
 | Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0 |
 | Value Range | 0: not consistent; 1: consistent.                                                   |
 | Default     | 0                                                                                   |
+
+### smlTsDefaultName
+
+| Attribute     | Description                                                     |
+| --------      | --------------------------------------------------------        |
+| Applicable    | Client only                                                     |
+| Meaning       | The name of the time column for schemaless automatic table creation is set through this configuration |
+| Type          | String                                                          |
+| Default Value | _ts                                                             |
 
 ## Compress Parameters
 
@@ -721,16 +740,6 @@ The charset that takes effect is UTF-8.
 | Meaning       | Whether the ttl expiration time changes with the table modification operation |
 | Value Range   | 0: not change; 1: change by modification                                      |
 | Default Value | 0                                                                             |
-
-### keepTimeOffset
-
-| Attribute     | Description               |
-| ------------- | ------------------------- |
-| Applicable    | Server Only               |
-| Meaning       | Latency of data migration |
-| Unit          | hour                      |
-| Value Range   | 0-23                      |
-| Default Value | 0                         |
 
 ### tmqMaxTopicNum
 
@@ -798,4 +807,4 @@ The charset that takes effect is UTF-8.
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
 | 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
-| 56  |     keepTimeOffset     | Yes                    | Yes                          |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes(discarded since 3.2.0.0) |                         |

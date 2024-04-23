@@ -32,6 +32,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
         self.testcasePath = os.path.split(__file__)[0]
+        self.testcasePath = self.testcasePath.replace('\\', '//')
         self.testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         
@@ -1262,7 +1263,6 @@ class TDTestCase:
         tdSql.checkRows(4096)
 
         self.ins_query()
-
 
     def run(self):
         tdSql.prepare()

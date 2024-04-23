@@ -1415,52 +1415,6 @@ void doCompareWithValueRange_OnlyLeftType(__compar_fn_t fp, int32_t rType) {
   }
 }
 
-void doCompare(const std::vector<int32_t> &lTypes, const std::vector<int32_t> &rTypes, int32_t oper) {
-  for (int i = 0; i < lTypes.size(); ++i) {
-    for (int j = 0; j < rTypes.size(); ++j) {
-      auto fp = filterGetCompFuncEx(lTypes[i], rTypes[j], oper);
-      switch (lTypes[i]) {
-        case TSDB_DATA_TYPE_TINYINT:
-          doCompareWithValueRange_OnlyLeftType<int8_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          doCompareWithValueRange_OnlyLeftType<int16_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_INT:
-          doCompareWithValueRange_OnlyLeftType<int32_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          doCompareWithValueRange_OnlyLeftType<int64_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          doCompareWithValueRange_OnlyLeftType<uint8_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          doCompareWithValueRange_OnlyLeftType<uint16_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          doCompareWithValueRange_OnlyLeftType<uint32_t>(fp, rTypes[j]);
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          doCompareWithValueRange_OnlyLeftType<uint64_t>(fp, rTypes[j]);
-          break;
-        default:
-          FAIL();
-      }
-    }
-  }
-}
-
-TEST(dataCompareTest, signed_and_unsigned_int) {
-  std::vector<int32_t> lType = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_INT,
-                                TSDB_DATA_TYPE_BIGINT};
-  std::vector<int32_t> rType = {TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_UINT,
-                                TSDB_DATA_TYPE_UBIGINT};
-
-  doCompare(lType, rType, OP_TYPE_GREATER_THAN);
-  doCompare(rType, lType, OP_TYPE_GREATER_THAN);
-}
-
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);

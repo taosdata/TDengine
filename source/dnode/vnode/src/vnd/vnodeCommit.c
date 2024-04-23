@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
+#include "sync.h"
 #include "vnd.h"
 #include "vnodeInt.h"
 
@@ -154,7 +156,9 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
-    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) || (pVnode->inUse->size > 0 && atExit);
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
+                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed ||
+                             pVnode->state.applied - pVnode->state.committed > 4096));
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
@@ -176,7 +180,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   // save info to a vnode_tmp.json
-  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -200,8 +204,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
 
   return 0;
 
@@ -282,8 +286,12 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
+  int64_t lastCommitted = pInfo->info.state.committed;
 
-  tsem_wait(&pVnode->canCommit);
+  // wait last commit task
+  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+
+  if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -371,11 +379,10 @@ static int32_t vnodeCommitTask(void *arg) {
   vnodeReturnBufPool(pVnode);
 
 _exit:
-  // end commit
-  tsem_post(&pVnode->canCommit);
-  taosMemoryFree(pInfo);
   return code;
 }
+
+static void vnodeCompleteCommit(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
@@ -393,14 +400,14 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeScheduleTask(vnodeCommitTask, pInfo);
+  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
+                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
 
 _exit:
   if (code) {
     if (NULL != pInfo) {
       taosMemoryFree(pInfo);
     }
-    tsem_post(&pVnode->canCommit);
     vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
@@ -412,8 +419,7 @@ _exit:
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
+  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
   return 0;
 }
 
@@ -493,7 +499,7 @@ _exit:
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
-  char tFName[TSDB_FILENAME_LEN] = {0};
+  char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
@@ -504,7 +510,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
 }
 
 void vnodeRollback(SVnode *pVnode) {
-  char tFName[TSDB_FILENAME_LEN] = {0};
+  char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);

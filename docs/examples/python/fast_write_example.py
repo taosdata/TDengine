@@ -160,7 +160,7 @@ def main(infinity):
 
     conn = get_connection()
     conn.execute("DROP DATABASE IF EXISTS test")
-    conn.execute("CREATE DATABASE IF NOT EXISTS test")
+    conn.execute("CREATE DATABASE IF NOT EXISTS test keep 36500")
     conn.execute("CREATE STABLE IF NOT EXISTS test.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
                  "TAGS (location BINARY(64), groupId INT)")
     conn.close()

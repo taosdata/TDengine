@@ -52,18 +52,34 @@ sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) in
 
 print --> show sma
 sql show indexes from stb from d1;
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
-if $data[0][0] != sma_index_name1 then
-  return -1
+
+if $data[0][6] == tag_index then 
+    if $data[1][0] != sma_index_name1 then
+      return -1
+    endi
+    if $data[1][1] != d1 then
+      return -1
+    endi
+    if $data[1][2] != stb then
+      return -1
+    endi
+else
+    if $data[0][0] != sma_index_name1 then
+      return -1
+    endi
+    if $data[0][1] != d1 then
+      return -1
+    endi
+    if $data[0][2] != stb then
+      return -1
+    endi
 endi
-if $data[0][1] != d1 then
-  return -1
-endi
-if $data[0][2] != stb then
-  return -1
-endi
+
+
+
 
 print --> drop stb
 sql drop table stb;
@@ -78,17 +94,30 @@ sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) in
 
 print --> show sma
 sql show indexes from stb from d1;
-if $rows != 1 then
+if $rows != 2 then
   return -1
 endi
-if $data[0][0] != sma_index_name1 then
-  return -1
-endi
-if $data[0][1] != d1 then
-  return -1
-endi
-if $data[0][2] != stb then
-  return -1
+
+if $data[0][6] == tag_index then
+  if $data[1][0] != sma_index_name1 then
+    return -1
+  endi
+  if $data[1][1] != d1 then
+    return -1
+  endi
+  if $data[1][2] != stb then
+    return -1
+  endi
+else 
+  if $data[0][0] != sma_index_name1 then
+    return -1
+  endi
+  if $data[0][1] != d1 then
+    return -1
+  endi
+  if $data[0][2] != stb then
+    return -1
+  endi
 endi
 
 print --> drop stb

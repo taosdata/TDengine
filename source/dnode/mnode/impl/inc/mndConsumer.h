@@ -33,7 +33,7 @@ enum {
 
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
-void    mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId);
+void    mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId, SRpcHandleInfo* info);
 
 SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
 void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
@@ -46,10 +46,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 
-bool mndRebTryStart();
-void mndRebEnd();
-void mndRebCntInc();
-void mndRebCntDec();
+const char *mndConsumerStatusName(int status);
 
 #ifdef __cplusplus
 }

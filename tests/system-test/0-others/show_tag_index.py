@@ -59,14 +59,18 @@ class TDTestCase:
             tdSql.checkData(1, 2, 2)
 
     def check_indexes(self):
-        tdSql.checkRows(1)
-        tdSql.checkCols(7)
-        tdSql.checkData(0, 0, 'idx1')
-        tdSql.checkData(0, 1, 'db')
-        tdSql.checkData(0, 2, 'stb')
-        tdSql.checkData(0, 3, -1)
-        tdSql.checkData(0, 5, 't1')
-        tdSql.checkData(0, 6, 'tag_index')
+        tdSql.checkRows(2)
+        for i in range(2):
+            col_name = tdSql.getData(i, 5)
+            if col_name == "t0":
+                continue
+            tdSql.checkCols(7)
+            tdSql.checkData(i, 0, 'idx1')
+            tdSql.checkData(i, 1, 'db')
+            tdSql.checkData(i, 2, 'stb')
+            tdSql.checkData(i, 3, None)
+            tdSql.checkData(i, 5, 't1')
+            tdSql.checkData(i, 6, 'tag_index')
 
     def run(self):
         tdSql.execute(f'create database db')
@@ -175,6 +179,13 @@ class TDTestCase:
         tdSql.error(f'show indexes from `db`.`stb` from db')
         tdSql.error(f'show indexes from db.ctb1 from db')
         tdSql.error(f'show indexes from `db`.`ctb1` from db')
+
+        # check error information
+        tdSql.error(f'create index idx1 on db2.stb (t1);', expectErrInfo='Database not exist')
+        tdSql.error(f'use db2;', expectErrInfo='Database not exist')
+        tdSql.error(f' alter stable db2.stb add column c2 int;', expectErrInfo='Database not exist')
+
+        
 
     def stop(self):
         tdSql.close()

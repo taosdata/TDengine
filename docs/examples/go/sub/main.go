@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/taosdata/driver-go/v3/af"
 	"github.com/taosdata/driver-go/v3/af/tmq"
@@ -27,16 +28,15 @@ func main() {
 		panic(err)
 	}
 	consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
-		"group.id":                     "test",
-		"auto.offset.reset":            "earliest",
-		"td.connect.ip":                "127.0.0.1",
-		"td.connect.user":              "root",
-		"td.connect.pass":              "taosdata",
-		"td.connect.port":              "6030",
-		"client.id":                    "test_tmq_client",
-		"enable.auto.commit":           "false",
-		"experimental.snapshot.enable": "true",
-		"msg.with.table.name":          "true",
+		"group.id":            "test",
+		"auto.offset.reset":   "latest",
+		"td.connect.ip":       "127.0.0.1",
+		"td.connect.user":     "root",
+		"td.connect.pass":     "taosdata",
+		"td.connect.port":     "6030",
+		"client.id":           "test_tmq_client",
+		"enable.auto.commit":  "false",
+		"msg.with.table.name": "true",
 	})
 	if err != nil {
 		panic(err)
@@ -49,12 +49,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec("insert into example_tmq.t1 values(now,1)")
-	if err != nil {
-		panic(err)
-	}
+	go func() {
+		for {
+			_, err = db.Exec("insert into example_tmq.t1 values(now,1)")
+			if err != nil {
+				panic(err)
+			}
+			time.Sleep(time.Microsecond * 100)
+		}
+	}()
 	for i := 0; i < 5; i++ {
-		ev := consumer.Poll(0)
+		ev := consumer.Poll(500)
 		if ev != nil {
 			switch e := ev.(type) {
 			case *tmqcommon.DataMessage:

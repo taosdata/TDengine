@@ -31,7 +31,7 @@ taosAdapter provides the following features.
 
 ### Install taosAdapter
 
-If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine 3.0 released versions](../../releases/tdengine) to download the TDengine server installation package. If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) documentation.
+If you use the TDengine server, you don't need additional steps to install taosAdapter.  If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) documentation.
 
 ### Start/Stop taosAdapter
 
@@ -166,8 +166,8 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
-  - <http://opentsdb.net/docs/build/html/api_http/put.html>
-  - <http://opentsdb.net/docs/build/html/api_telnet/put.html>
+  - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
+  - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
 - Seamless connection to collectd
   collectd is a system statistics collection daemon, please visit [https://collectd.org/](https://collectd.org/) for more information.
 - Seamless connection with StatsD
@@ -180,13 +180,13 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
   node_export is an exporter for machine metrics. Please visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - Support for Prometheus remote_read and remote_write
   remote_read and remote_write are interfaces for Prometheus data read and write from/to other data storage solution. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
-- Get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
+- Get table's VGroup ID. 
 
 ## Interfaces
 
 ### TDengine RESTful interface
 
-You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/rest/sql`. See the [official documentation](/reference/rest-api/) for details.
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/rest/sql`. See the [official documentation](../rest-api/) for details.
 
 ### InfluxDB
 
@@ -202,7 +202,7 @@ Support InfluxDB query parameters as follows.
 - `precision` The time precision used by TDengine
 - `u` TDengine user name
 - `p` TDengine password
-- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the first data of sub-table to create sub-table. For more information, please refer [Create Table](/taos-sql/table/#create-table)
+- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the first data of sub-table to create sub-table. For more information, please refer [Create Table](../../taos-sql/table/#create-table)
 
 Note:      InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
 Example:   curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
@@ -246,7 +246,7 @@ node_export is an exporter of hardware and OS metrics exposed by the \*NIX kerne
 
 ### Get table's VGroup ID
 
-You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
+You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID. 
 
 ## Memory usage optimization methods
 

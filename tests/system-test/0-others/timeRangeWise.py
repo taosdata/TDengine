@@ -23,7 +23,8 @@ from util.cases import *
 from util.sql import *
 
 class TDTestCase:
-
+    updatecfgDict = {'vdebugFlag': 143, 'qdebugflag':135, 'tqdebugflag':135, 'udebugflag':135, 'rpcdebugflag':135,
+                     'asynclog': 0, 'stdebugflag':135}
     # random string
     def random_string(self, count):
         letters = string.ascii_letters
@@ -210,7 +211,7 @@ class TDTestCase:
 
     # init
     def init(self, conn, logSql, replicaVar=1):
-        seed = time.clock_gettime(time.CLOCK_REALTIME)
+        seed = time.time() % 10000
         random.seed(seed)
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")

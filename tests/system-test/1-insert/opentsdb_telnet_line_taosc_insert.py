@@ -28,10 +28,12 @@ if platform.system().lower() == 'windows':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
 class TDTestCase:
+    updatecfgDict = {'clientCfg': {'smlDot2Underline': 0}}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self._conn = conn
         self.smlChildTableName_value = "id"
 

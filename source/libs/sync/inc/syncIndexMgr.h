@@ -40,6 +40,7 @@ void           syncIndexMgrDestroy(SSyncIndexMgr *pIndexMgr);
 void           syncIndexMgrClear(SSyncIndexMgr *pIndexMgr);
 void           syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index);
 SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);
+void           syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldIndex, SRaftId *oldReplicasId);
 
 void     syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime);
 int64_t  syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId);

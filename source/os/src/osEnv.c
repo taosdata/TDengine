@@ -37,11 +37,12 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsSIMDBuiltins = 0;
+char tsSIMDEnable = 0;
 char tsSSE42Enable = 0;
 char tsAVXEnable = 0;
 char tsAVX2Enable = 0;
 char tsFMAEnable = 0;
+char tsAVX512Enable = 0;
 
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
@@ -95,9 +96,9 @@ void osCleanup() {}
 
 bool osLogSpaceAvailable() { return tsLogSpace.size.avail > 0; }
 
-bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
-
 bool osTempSpaceAvailable() { return tsTempSpace.size.avail > 0; }
+
+bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
 
 bool osLogSpaceSufficient() { return tsLogSpace.size.avail > tsLogSpace.reserved; }
 

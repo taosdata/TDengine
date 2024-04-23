@@ -108,7 +108,7 @@ int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 void    tRowDestroy(SRow *pRow);
-void    tRowSort(SArray *aRowP);
+int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 

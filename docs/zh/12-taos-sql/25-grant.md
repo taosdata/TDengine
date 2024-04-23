@@ -1,26 +1,24 @@
 ---
-sidebar_label: 权限管理
-title: 权限管理
-description: 企业版中才具有的权限管理功能
+title: 用户管理
+sidebar_label: 用户管理
+description: 本节讲述基本的用户管理功能
 ---
 
-本节讲述如何在 TDengine 中进行权限管理的相关操作。
+用户和权限管理是 TDengine 企业版的功能，本节只讲述基本的用户管理部分。要想了解和获取全面的权限管理功能，请联系 TDengine 销售团队。
 
 ## 创建用户
 
 ```sql
-CREATE USER use_name PASS 'password' [SYSINFO {1|0}];
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
 ```
 
-创建用户。
+用户名最长不超过 23 个字节。
 
-use_name 最长为 23 字节。
+密码最长不超过 31 个字节。密码可以包含字母、数字以及除单引号、双引号、反引号、反斜杠和空格以外的特殊字符，密码不能为空字符串。
 
-password 最长为 31 字节，合法字符包括"a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
+`SYSINFO` 表示该用户是否能够查看系统信息。`1` 表示可以查看，`0` 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。缺省值为 `1`。
 
-SYSINFO 表示用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息（如 DNODE、QNODE等）、存储相关的信息等。默认为可以查看系统信息。
-
-例如，创建密码为123456且可以查看系统信息的用户test如下：
+在下面的示例中，我们创建一个密码为 `123456` 且可以查看系统信息的用户。 
 
 ```sql
 taos> create user test pass '123456' sysinfo 1;
@@ -29,11 +27,13 @@ Query OK, 0 of 0 rows affected (0.001254s)
 
 ## 查看用户
 
+可以使用如下命令查看系统中的用户。
+
 ```sql
 SHOW USERS;
 ```
 
-查看用户信息。
+以下是示例：
 
 ```sql
 taos> show users;
@@ -44,7 +44,7 @@ taos> show users;
 Query OK, 2 rows in database (0.001657s)
 ```
 
-也可以通过查询INFORMATION_SCHEMA.INS_USERS系统表来查看用户信息，例如：
+或者，可以查询内置系统表 INFORMATION_SCHEMA.INS_USERS 来获取用户信息。
 
 ```sql
 taos> select * from information_schema.ins_users;
@@ -61,7 +61,7 @@ Query OK, 2 rows in database (0.001953s)
 DROP USER user_name;
 ```
 
-## 修改用户信息
+## 修改用户配置
 
 ```sql
 ALTER USER user_name alter_user_clause
@@ -73,66 +73,17 @@ alter_user_clause: {
 }
 ```
 
-- PASS：修改用户密码。
-- ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
-- SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
+- PASS: 修改密码，后跟新密码
+- ENABLE: 启用或禁用该用户，`1` 表示启用，`0` 表示禁用
+- SYSINFO: 允许或禁止查看系统信息，`1` 表示允许，`0` 表示禁止
 
-例如，禁用 test 用户：
+下面的示例禁用了名为 `test` 的用户:
 
 ```sql
 taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
-## 授权
+## 授权管理
 
-```sql
-GRANT privileges ON priv_level TO user_name
- 
-privileges : {
-    ALL
-  | priv_type [, priv_type] ...
-}
- 
-priv_type : {
-    READ
-  | WRITE
-}
- 
-priv_level : {
-    dbname.*
-  | *.*
-}
-```
-
-对用户授权。授权功能只包含在企业版中。
-
-授权级别支持到DATABASE，权限有READ和WRITE两种。
-
-TDengine 有超级用户和普通用户两类用户。超级用户缺省创建为root，拥有所有权限。使用超级用户创建出来的用户为普通用户。在未授权的情况下，普通用户可以创建DATABASE，并拥有自己创建的DATABASE的所有权限，包括删除数据库、修改数据库、查询时序数据和写入时序数据。超级用户可以给普通用户授予其他DATABASE的读写权限，使其可以在此DATABASE上读写数据，但不能对其进行删除和修改数据库的操作。
-
-对于非DATABASE的对象，如USER、DNODE、UDF、QNODE等，普通用户只有读权限（一般为SHOW命令），不能创建和修改。
-
-## 撤销授权
-
-```sql
-REVOKE privileges ON priv_level FROM user_name
- 
-privileges : {
-    ALL
-  | priv_type [, priv_type] ...
-}
- 
-priv_type : {
-    READ
-  | WRITE
-}
- 
-priv_level : {
-    dbname.*
-  | *.*
-}
-
-```
-
-收回对用户的授权。授权功能只包含在企业版中。
+授权管理仅在 TDengine 企业版中可用，请联系 TDengine 销售团队。

@@ -14,8 +14,8 @@
  */
 
 #include "storageapi.h"
-#include "tstreamUpdate.h"
 #include "streamState.h"
+#include "tstreamUpdate.h"
 
 static void initStateStoreAPI(SStateStore* pStore);
 static void initFunctionStateStore(SFunctionStateStore* pStore);
@@ -29,13 +29,12 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;
   pStore->updateInfoDestoryColseWinSBF = updateInfoDestoryColseWinSBF;
 
-  pStore->streamStateGetByPos = streamStateGetByPos;
-
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
+  pStore->streamStateClearBuff = streamStateClearBuff;
   pStore->streamStateFreeVal = streamStateFreeVal;
 
   pStore->streamStatePut = streamStatePut;
@@ -68,16 +67,25 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionPut = streamStateSessionPut;
   pStore->streamStateSessionGet = streamStateSessionGet;
   pStore->streamStateSessionDel = streamStateSessionDel;
+  pStore->streamStateSessionReset = streamStateSessionReset;
   pStore->streamStateSessionClear = streamStateSessionClear;
   pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
   pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
+  pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
+  pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
+
+  pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
+  pStore->streamStateCountWinAdd = streamStateCountWinAdd;
 
   pStore->updateInfoInit = updateInfoInit;
   pStore->updateInfoFillBlockData = updateInfoFillBlockData;
   pStore->updateInfoIsUpdated = updateInfoIsUpdated;
   pStore->updateInfoIsTableInserted = updateInfoIsTableInserted;
   pStore->updateInfoDestroy = updateInfoDestroy;
+  pStore->windowSBfDelete = windowSBfDelete;
+  pStore->windowSBfAdd = windowSBfAdd;
+  pStore->isIncrementalTimeStamp = isIncrementalTimeStamp;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;
@@ -86,10 +94,9 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
+  pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
-
-  pStore->streamFileStateInit = streamFileStateInit;
 
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;
@@ -99,9 +106,10 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClose = streamStateClose;
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
-  pStore->streamStateDestroy= streamStateDestroy;
+  pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
+  pStore->streamStateCopyBackend = streamStateCopyBackend;
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {

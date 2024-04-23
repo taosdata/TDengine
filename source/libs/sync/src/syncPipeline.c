@@ -25,6 +25,8 @@
 #include "syncRespMgr.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
+#include "syncRaftCfg.h"
+#include "syncVoteMgr.h"
 
 static bool syncIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
@@ -195,6 +197,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   SyncIndex       index = toIndex;
   SSyncRaftEntry* pEntry = NULL;
   bool            takeDummy = false;
+  int             emptySize = (TSDB_SYNC_LOG_BUFFER_SIZE >> 1);
 
   while (true) {
     if (index <= pBuf->commitIndex) {
@@ -203,12 +206,11 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     }
 
     if (pLogStore->syncLogGetEntry(pLogStore, index, &pEntry) < 0) {
-      sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
+      sWarn("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
       break;
     }
 
     bool taken = false;
-    int  emptySize = 5;
     if (toIndex - index + 1 <= pBuf->size - emptySize) {
       SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = -1, .prevLogTerm = -1};
       pBuf->entries[index % pBuf->size] = tmp;
@@ -428,7 +430,7 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   return 0;
 }
 
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm) {
+int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
 
@@ -475,9 +477,6 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     sTrace("vgId:%d, log buffer proceed. start index:%" PRId64 ", match index:%" PRId64 ", end index:%" PRId64,
            pNode->vgId, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
-    // replicate on demand
-    (void)syncNodeReplicateWithoutLock(pNode);
-
     // persist
     if (syncLogStorePersist(pLogStore, pNode, pEntry) < 0) {
       sError("vgId:%d, failed to persist sync log entry from buffer since %s. index:%" PRId64, pNode->vgId, terrstr(),
@@ -485,6 +484,39 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
       taosMsleep(1);
       goto _out;
     }
+    
+    if(pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
+      if(pNode->pLogBuf->commitIndex == pEntry->index -1){
+        sInfo("vgId:%d, to change config at %s. "
+              "current entry, index:%" PRId64 ", term:%" PRId64", "
+              "node, restore:%d, commitIndex:%" PRId64 ", "
+              "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
+              pNode->vgId, str,
+              pEntry->index, pEntry->term, 
+              pNode->restoreFinish, pNode->commitIndex,
+              pEntry->index - 1, pNode->pLogBuf->commitIndex);
+        if(syncNodeChangeConfig(pNode, pEntry, str) != 0){
+          sError("vgId:%d, failed to change config from Append since %s. index:%" PRId64, pNode->vgId, terrstr(),
+             pEntry->index);
+          goto _out;
+        }
+      }
+      else{
+        sInfo("vgId:%d, delay change config from Node %s. "
+              "curent entry, index:%" PRId64 ", term:%" PRId64 ", "
+              "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), "
+              "cond:( pre entry index:%" PRId64" != buf commit index:%" PRId64 ")",
+              pNode->vgId, str,
+              pEntry->index, pEntry->term, 
+              pNode->commitIndex, pNode->pLogBuf->startIndex, pNode->pLogBuf->commitIndex,
+              pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex, 
+              pEntry->index - 1, pNode->pLogBuf->commitIndex);
+      }
+    }
+
+    // replicate on demand
+    (void)syncNodeReplicateWithoutLock(pNode);
+
     ASSERT(pEntry->index == pBuf->matchIndex);
 
     // update my match index
@@ -503,8 +535,16 @@ _out:
 }
 
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
-                          int32_t applyCode) {
-  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1) {
+                          int32_t applyCode, bool force) {
+  //learner need to execute fsm when it catch up entry log
+  //if force is true, keep all contition check to execute fsm
+  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1
+      && pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER
+      && force == false) {
+    sDebug("vgId:%d, not to execute fsm, index:%" PRId64 ", term:%" PRId64 ", type:%s code:0x%x, replicaNum:%d,"
+          "role:%d, restoreFinish:%d",
+           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode,
+           pNode->replicaNum, pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
     return 0;
   }
 
@@ -518,22 +558,31 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
           pEntry->term);
   }
 
-  SRpcMsg rpcMsg = {.code = applyCode};
-  syncEntry2OriginalRpc(pEntry, &rpcMsg);
+  int32_t code = 0;
+  bool    retry = false;
+  do {
+    SRpcMsg rpcMsg = {.code = applyCode};
+    syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-  SFsmCbMeta cbMeta = {0};
-  cbMeta.index = pEntry->index;
-  cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
-  cbMeta.isWeak = pEntry->isWeak;
-  cbMeta.code = applyCode;
-  cbMeta.state = role;
-  cbMeta.seqNum = pEntry->seqNum;
-  cbMeta.term = pEntry->term;
-  cbMeta.currentTerm = term;
-  cbMeta.flag = -1;
+    SFsmCbMeta cbMeta = {0};
+    cbMeta.index = pEntry->index;
+    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pNode, pEntry->index);
+    cbMeta.isWeak = pEntry->isWeak;
+    cbMeta.code = applyCode;
+    cbMeta.state = role;
+    cbMeta.seqNum = pEntry->seqNum;
+    cbMeta.term = pEntry->term;
+    cbMeta.currentTerm = term;
+    cbMeta.flag = -1;
 
-  (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
-  int32_t code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+    (void)syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
+    code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+    retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
+    if (retry) {
+      taosMsleep(10);
+      sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+    }
+  } while (retry);
   return code;
 }
 
@@ -559,6 +608,8 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
   SSyncRaftEntry* pEntry = NULL;
   bool            inBuf = false;
+  SSyncRaftEntry* pNextEntry = NULL;
+  bool            nextInBuf = false;
 
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
@@ -584,7 +635,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0) != 0) {
+    if (syncFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0, false) != 0) {
       sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role:%d, current term:%" PRId64,
              vgId, pEntry->index, pEntry->term, role, currentTerm);
@@ -595,10 +646,51 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
            pEntry->index, pEntry->term, role, currentTerm);
 
+    pNextEntry = syncLogBufferGetOneEntry(pBuf, pNode, index + 1, &nextInBuf);
+    if (pNextEntry != NULL) {
+      if(pNextEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
+        sInfo("vgId:%d, to change config at Commit. "
+              "current entry, index:%" PRId64 ", term:%" PRId64", "
+              "node, role:%d, current term:%" PRId64 ", restore:%d, "
+              "cond, next entry index:%" PRId64 ", msgType:%s",
+              vgId, 
+              pEntry->index, pEntry->term, 
+              role, currentTerm, pNode->restoreFinish,
+              pNextEntry->index, TMSG_INFO(pNextEntry->originalRpcType));
+
+        if(syncNodeChangeConfig(pNode, pNextEntry, "Commit") != 0){
+          sError("vgId:%d, failed to change config from Commit. index:%" PRId64 ", term:%" PRId64
+                ", role:%d, current term:%" PRId64,
+                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+            goto _out;
+        }
+
+        //for 2->1, need to apply config change entry in sync thread,
+        if(pNode->replicaNum == 1){
+          if (syncFsmExecute(pNode, pFsm, role, currentTerm, pNextEntry, 0, true) != 0) {
+            sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
+                ", role:%d, current term:%" PRId64,
+                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+            goto _out;
+          }
+
+          index++;
+          pBuf->commitIndex = index;
+
+          sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
+                pNextEntry->index, pNextEntry->term, role, currentTerm);
+        }
+      }
+      if (!nextInBuf) {
+        syncEntryDestroy(pNextEntry);
+        pNextEntry = NULL;
+      }
+    } 
+    
     if (!inBuf) {
       syncEntryDestroy(pEntry);
       pEntry = NULL;
-    }
+    }  
   }
 
   // recycle
@@ -625,6 +717,10 @@ _out:
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;
+  }
+  if (!nextInBuf) {
+    syncEntryDestroy(pNextEntry);
+    pNextEntry = NULL;
   }
   syncLogBufferValidate(pBuf);
   taosThreadMutexUnlock(&pBuf->mutex);
@@ -710,7 +806,7 @@ _out:
     pMgr->retryBackoff = syncLogReplGetNextRetryBackoff(pMgr);
     SSyncLogBuffer* pBuf = pNode->pLogBuf;
     sInfo("vgId:%d, resend %d sync log entries. dest:%" PRIx64 ", indexes:%" PRId64 " ..., terms: ... %" PRId64
-          ", retryWaitMs:%" PRId64 ", mgr: [%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64
+          ", retryWaitMs:%" PRId64 ", repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64
           " %" PRId64 ", %" PRId64 ")",
           pNode->vgId, count, pDestId->addr, firstIndex, term, retryWaitMs, pMgr->startIndex, pMgr->matchIndex,
           pMgr->endIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
@@ -728,9 +824,9 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     ASSERT(pMgr->matchIndex == 0);
     if (pMsg->matchIndex < 0) {
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl restored. peer: dnode:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
-            ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, DID(&destId), destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+      sInfo("vgId:%d, sync log repl restored. peer: dnode:%d (%" PRIx64 "), repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64
+            "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+            pNode->vgId, DID(&destId), destId.addr, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
@@ -745,21 +841,23 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     if (pMsg->success && pMsg->matchIndex == pMsg->lastSendIndex) {
       pMgr->matchIndex = pMsg->matchIndex;
       pMgr->restored = true;
-      sInfo("vgId:%d, sync log repl restored. peer: dnode:%d (%" PRIx64 "), mgr: rs(%d) [%" PRId64 " %" PRId64
-            ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, DID(&destId), destId.addr, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+      sInfo("vgId:%d, sync log repl restored. peer: dnode:%d (%" PRIx64 "), repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64
+            "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+            pNode->vgId, DID(&destId), destId.addr, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
             pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
       return 0;
     }
 
-    if (pMsg->success == false && pMsg->matchIndex >= pMsg->lastSendIndex) {
-      sWarn("vgId:%d, failed to rollback match index. peer: dnode:%d, match index:%" PRId64 ", last sent:%" PRId64,
-            pNode->vgId, DID(&destId), pMsg->matchIndex, pMsg->lastSendIndex);
+    if (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE || (!pMsg->success && pMsg->matchIndex >= pMsg->lastSendIndex)) {
+      char* msg1 = " rollback match index failure";
+      char* msg2 = " incomplete fsm state";
+      sInfo("vgId:%d, snapshot replication to dnode:%d. reason:%s, match index:%" PRId64 ", last sent:%" PRId64,
+            pNode->vgId, DID(&destId), (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1), pMsg->matchIndex,
+            pMsg->lastSendIndex);
       if (syncNodeStartSnapshot(pNode, &destId) < 0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         return -1;
       }
-      sInfo("vgId:%d, snapshot replication to peer dnode:%d", pNode->vgId, DID(&destId));
       return 0;
     }
   }
@@ -869,10 +967,10 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   pMgr->endIndex = index + 1;
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  sTrace("vgId:%d, probe peer:%" PRIx64 " with msg of index:%" PRId64 " term:%" PRId64 ". mgr (rs:%d): [%" PRId64
-        " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-        pNode->vgId, pDestId->addr, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
-        pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  sTrace("vgId:%d, probe peer:%" PRIx64 " with msg of index:%" PRId64 " term:%" PRId64 ". repl-mgr:[%" PRId64
+         " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+         pNode->vgId, pDestId->addr, index, term, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pBuf->startIndex,
+         pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   return 0;
 }
 
@@ -913,10 +1011,9 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
     pMgr->endIndex = index + 1;
     if (barrier) {
-      sInfo("vgId:%d, replicated sync barrier to dest:%" PRIx64 ". index:%" PRId64 ", term:%" PRId64
-            ", repl mgr: rs(%d) [%" PRId64 " %" PRId64 ", %" PRId64 ")",
-            pNode->vgId, pDestId->addr, index, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex,
-            pMgr->endIndex);
+      sInfo("vgId:%d, replicated sync barrier to dnode:%d. index:%" PRId64 ", term:%" PRId64 ", repl-mgr:[%" PRId64
+            " %" PRId64 ", %" PRId64 ")",
+            pNode->vgId, DID(pDestId), index, term, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
       break;
     }
   }
@@ -925,10 +1022,10 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   sTrace("vgId:%d, replicated %d msgs to peer:%" PRIx64 ". indexes:%" PRId64 "..., terms: ...%" PRId64
-         ", mgr: (rs:%d) [%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+         ", repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
          ")",
-         pNode->vgId, count, pDestId->addr, firstIndex, term, pMgr->restored, pMgr->startIndex, pMgr->matchIndex,
-         pMgr->endIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+         pNode->vgId, count, pDestId->addr, firstIndex, term, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
+         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   return 0;
 }
 
@@ -1140,7 +1237,7 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
   } else {
     *pInBuf = false;
     if (pNode->pLogStore->syncLogGetEntry(pNode->pLogStore, index, &pEntry) < 0) {
-      sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
+      sWarn("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
     }
   }
   return pEntry;
@@ -1156,7 +1253,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
 
   pEntry = syncLogBufferGetOneEntry(pBuf, pNode, index, &inBuf);
   if (pEntry == NULL) {
-    sError("vgId:%d, failed to get raft entry for index:%" PRId64 "", pNode->vgId, index);
+    sWarn("vgId:%d, failed to get raft entry for index:%" PRId64 "", pNode->vgId, index);
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
       if (pMgr) {

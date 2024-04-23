@@ -55,6 +55,7 @@ extern int32_t tmrDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t qDebugFlag;
+extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
@@ -65,6 +66,8 @@ extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
+extern int32_t sndDebugFlag;
+extern int32_t simDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
@@ -117,6 +120,7 @@ void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
 #define uDebugL(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
+#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO) { taosPrintLongString("UTL ", DEBUG_INFO, uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }

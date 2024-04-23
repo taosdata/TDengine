@@ -63,17 +63,11 @@ int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
 }
 
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx) {
-  STbVerInfo     *tbInfo = ctx ? &ctx->tbInfo : NULL;
   int64_t         affectedRows = ctx ? ctx->affectedRows : 0;
   SQueryTableRsp  rsp = {0};
   rsp.code = code;
   rsp.affectedRows = affectedRows;
-
-  if (tbInfo) {
-    strcpy(rsp.tbFName, tbInfo->tbFName);
-    rsp.sversion = tbInfo->sversion;
-    rsp.tversion = tbInfo->tversion;
-  }
+  rsp.tbVerInfo = ctx->tbInfo;
 
   int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   if (msgSize < 0) {
@@ -366,10 +360,24 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && !taosGranted()) {
-    QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
-    tFreeSSubQueryMsg(&msg);
-    QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+  if (chkGrant) {
+    if ((!TEST_SHOW_REWRITE_MASK(msg.msgMask))) {
+      if (!taosGranted(TSDB_GRANT_ALL)) {
+        QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+      if ((TEST_VIEW_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_VIEW)) {
+        QW_ELOG("query failed cause of view grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+      if ((TEST_AUDIT_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_AUDIT)) {
+        QW_ELOG("query failed cause of audit grant expired, msgMask:%d", msg.msgMask);
+        tFreeSSubQueryMsg(&msg);
+        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+      }
+    }
   }
 
   uint64_t sId = msg.sId;
@@ -512,7 +520,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int64_t  rId = 0;
   int32_t  eId = req.execId;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
+  SQWMsg qwMsg = {.node = node, .msg = req.pOpParam, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
 
   QW_SCH_TASK_DLOG("processFetch start, node:%p, handle:%p", node, pMsg->info.handle);
 
@@ -615,6 +623,41 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t       code = 0;
+  SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE);
+  QW_STAT_INC(mgmt->stat.msgStat.notifyProcessed, 1);
+
+  STaskNotifyReq  msg = {0};
+  if (tDeserializeSTaskNotifyReq(pMsg->pCont, pMsg->contLen, &msg) < 0) {
+    QW_ELOG("tDeserializeSTaskNotifyReq failed, contLen:%d", pMsg->contLen);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  uint64_t sId = msg.sId;
+  uint64_t qId = msg.queryId;
+  uint64_t tId = msg.taskId;
+  int64_t  rId = msg.refId;
+  int32_t  eId = msg.execId;
+
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info, .msgType = msg.type};
+
+  QW_SCH_TASK_DLOG("processNotify start, node:%p, handle:%p", node, pMsg->info.handle);
+
+  QW_ERR_RET(qwProcessNotify(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processNotify end, node:%p", node);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {

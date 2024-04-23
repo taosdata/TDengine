@@ -4,6 +4,7 @@ import sys
 import time
 import socket
 import os
+import platform
 import threading
 from enum import Enum
 
@@ -24,7 +25,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -184,6 +185,9 @@ class TDTestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
+        # ARM64：time cost is so long for stopping taosd, so add the pollDdelay to 120s
+        if platform.system() == "Linux" and platform.machine() == "aarch64":
+            paraDict['pollDelay'] = 300
 
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)

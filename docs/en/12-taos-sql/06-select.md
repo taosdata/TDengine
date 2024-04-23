@@ -7,9 +7,9 @@ description: This document describes how to query data in TDengine.
 ## Syntax
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -70,6 +75,35 @@ order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
 ```
 
+## Hints
+
+Hints are a means of user control over query optimization for individual statements. Hints will be ignore automatically if they are not applicable to the current query statement. The specific instructions are as follows:
+
+- Hints syntax starts with `/*+` and ends with `*/`,  spaces are allowed before or after.
+- Hints syntax can only follow the SELECT keyword.
+- Each hints can contain multiple hint, separated by spaces. When multiple hints conflict or are identical, whichever comes first takes effect.
+- When an error occurs with a hint in hints, the effective hint before the error is still valid, and the current and subsequent hints are ignored.
+- hint_param_list are arguments to each hint, which varies according to each hint.
+
+The list of currently supported Hints is as follows:
+
+|    **Hint**   |    **Params**  |         **Comment**        |       **Scope**            |
+| :-----------: | -------------- | -------------------------- | -----------------------------------|
+| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable           |
+| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
+| SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
+| PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
+| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
+
+For example:
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+```
+
 ## Lists
 
 A query can be performed on some or all columns. Data and tag columns can all be included in the SELECT list.
@@ -108,6 +142,11 @@ You can query tag columns in supertables and subtables and receive results in th
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
+
+### Alias Name
+
+The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+
 
 ### Distinct Values
 
@@ -152,7 +191,7 @@ The TBNAME pseudocolumn in a supertable contains the names of subtables within t
 The following SQL statement returns all unique subtable names and locations within the meters supertable:
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 Use the `INS_TAGS` system table in `INFORMATION_SCHEMA` to query the information for subtables in a supertable. For example, the following statement returns the name and tag values for each subtable in the `meters` supertable.
@@ -167,7 +206,7 @@ The following SQL statement returns the number of subtables within the meters su
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. For example:
+In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. 
 
 **\_QSTART and \_QEND**
 
@@ -197,6 +236,14 @@ The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolu
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
+### TAGS Query
+
+The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+```
+
 ## Query Objects
 
 `FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
@@ -209,8 +256,7 @@ You can perform INNER JOIN statements based on the primary key. The following co
 3. For supertables, the ON condition must be equivalent to the primary key. In addition, the tag columns of the tables on which the INNER JOIN is performed must have a one-to-one relationship. You cannot specify an OR condition.
 4. The tables that are included in a JOIN clause must be of the same type (supertable, standard table, or subtable).
 5. You can include subqueries before and after the JOIN keyword.
-6. You cannot include more than ten tables in a JOIN clause.
-7. You cannot include a FILL clause and a JOIN clause in the same statement.
+6. You cannot include a FILL clause and a JOIN clause in the same statement.
 
 ## GROUP BY
 
@@ -230,7 +276,11 @@ The GROUP BY clause does not guarantee that the results are ordered. If you want
 
 ## PARTITION BY
 
-The PARTITION BY clause is a TDengine-specific extension to standard SQL. This clause partitions data based on the part_list and performs computations per partition.
+The PARTITION BY clause is a TDengine-specific extension to standard SQL introduced in TDengine 3.0. This clause partitions data based on the part_list and performs computations per partition.
+
+PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY, there may be differences in the query results while no aggregation function in the query.
+
+Because PARTITION BY does not require returning a row of aggregated data, it can also support various window operations after grouping slices. All window operations that need to be grouped can only use the PARTITION BY clause.
 
 For more information, see TDengine Extensions.
 
@@ -301,6 +351,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### Obtain Current User
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## Regular Expression
 
 ### Syntax
@@ -355,7 +411,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables.
+TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables, primary key and other conditions must be combined with `AND` operator.
 
 For standard tables:
 
@@ -396,6 +452,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
+- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or `column names`.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.

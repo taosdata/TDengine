@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "osEnv.h"
 #include "tfsInt.h"
 
 static int32_t   tfsMount(STfs *pTfs, SDiskCfg *pCfg);
@@ -111,6 +112,39 @@ SDiskSize tfsGetSize(STfs *pTfs) {
   tfsUnLock(pTfs);
 
   return size;
+}
+
+bool tfsDiskSpaceAvailable(STfs *pTfs, int32_t level) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return false;
+  }
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+  for (int32_t id = 0; id < pTier->ndisk; id++) {
+    SDiskID   diskId = {.level = level, .id = id};
+    STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+    if (pDisk == NULL) {
+      return false;
+    }
+    if (pDisk->size.avail <= 0) {
+      fError("tfs disk space unavailable. level:%d, disk:%d, path:%s", level, id, pDisk->path);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool tfsDiskSpaceSufficient(STfs *pTfs, int32_t level, int32_t disk) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    return false;
+  }
+
+  STfsTier *pTier = TFS_TIER_AT(pTfs, level);
+  if (disk < 0 || disk >= pTier->ndisk) {
+    return false;
+  }
+  SDiskID   diskId = {.level = level, .id = disk};
+  STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+  return pDisk->size.avail >= tsDataSpace.reserved;
 }
 
 int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level) {
@@ -262,7 +296,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
       char *dir = taosStrdup(taosDirName(s));
 
-      if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
+      if (strlen(dir) >= strlen(rname) || tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
         taosMemoryFree(s);
         taosMemoryFree(dir);
         return -1;

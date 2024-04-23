@@ -37,9 +37,6 @@
 // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
 // until 00:00:00 January 1, 1970
 static const uint64_t TIMEEPOCH = ((uint64_t)116444736000000000ULL);
-// This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-// until 00:00:00 January 1, 1900
-static const uint64_t TIMEEPOCH1900 = ((uint64_t)116445024000000000ULL);
 
 /*
  * We do not implement alternate representations. However, we always
@@ -360,6 +357,7 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
   t.QuadPart -= TIMEEPOCH;
   tv->tv_sec = t.QuadPart / 10000000;
   tv->tv_usec = (t.QuadPart % 10000000) / 10;
+  return 0;
 #else
   return gettimeofday(tv, NULL);
 #endif
@@ -367,8 +365,49 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
 
 time_t taosTime(time_t *t) { return time(t); }
 
+/*
+ * mktime64 - Converts date to seconds.
+ * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
+ * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
+ * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
+ *
+ * [For the Julian calendar (which was used in Russia before 1917,
+ * Britain & colonies before 1752, anywhere else before 1582,
+ * and is still in use by some communities) leave out the
+ * -year/100+year/400 terms, and add 10.]
+ *
+ * This algorithm was first published by Gauss (I think).
+ *
+ * A leap second can be indicated by calling this function with sec as
+ * 60 (allowable under ISO 8601).  The leap second is treated the same
+ * as the following second since they don't exist in UNIX time.
+ *
+ * An encoding of midnight at the end of the day as 24:00:00 - ie. midnight
+ * tomorrow - (allowable under ISO 8601) is supported.
+ */
+int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t day, const uint32_t hour,
+                      const uint32_t min, const uint32_t sec, int64_t time_zone) {
+  uint32_t _mon = mon, _year = year;
+
+  /* 1..12 -> 11,12,1..10 */
+  if (0 >= (int32_t)(_mon -= 2)) {
+    _mon += 12; /* Puts Feb last since it has leap day */
+    _year -= 1;
+  }
+
+  // int64_t _res = (((((int64_t) (_year/4 - _year/100 + _year/400 + 367*_mon/12 + day) +
+  //                _year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
+  int64_t _res = 367 * ((int64_t)_mon) / 12;
+  _res += _year / 4 - _year / 100 + _year / 400 + day + ((int64_t)_year) * 365 - 719499;
+  _res *= 24;
+  _res = ((_res + hour) * 60 + min) * 60 + sec;
+
+  return _res + time_zone;
+}
+
 time_t taosMktime(struct tm *timep) {
 #ifdef WINDOWS
+#if 0
   struct tm     tm1 = {0};
   LARGE_INTEGER t;
   FILETIME      f;
@@ -406,6 +445,19 @@ time_t taosMktime(struct tm *timep) {
   t.QuadPart -= offset.QuadPart;
   return (time_t)(t.QuadPart / 10000000);
 #else
+  time_t result = mktime(timep);
+  if (result != -1) {
+    return result;
+  }
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t tz = _timezone;
+#endif
+#endif
+  return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
+                       timep->tm_sec, tz);
+#endif
+#else
   return mktime(timep);
 #endif
 }
@@ -423,26 +475,35 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
     return res;
   }
 #ifdef WINDOWS
-  if (*timep < 0) {
-    if (*timep < -2208988800LL) {
-      if (buf != NULL) {
-        sprintf(buf, "NaN");
-      }
-      return NULL;
+  if (*timep < -2208988800LL) {
+    if (buf != NULL) {
+      sprintf(buf, "NaN");
     }
+    return NULL;
+  } else if (*timep < 0) {
+    SYSTEMTIME ss, s;
+    FILETIME   ff, f;
 
-    SYSTEMTIME    s;
-    FILETIME      f;
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
-    if (localtime_s(&tm1, &tt) != 0 ) {
+    if (localtime_s(&tm1, &tt) != 0) {
       if (buf != NULL) {
         sprintf(buf, "NaN");
       }
       return NULL;
     }
-    offset.QuadPart = TIMEEPOCH1900;
+    ss.wYear = tm1.tm_year + 1900;
+    ss.wMonth = tm1.tm_mon + 1;
+    ss.wDay = tm1.tm_mday;
+    ss.wHour = tm1.tm_hour;
+    ss.wMinute = tm1.tm_min;
+    ss.wSecond = tm1.tm_sec;
+    ss.wMilliseconds = 0;
+    SystemTimeToFileTime(&ss, &ff);
+    offset.QuadPart = ff.dwHighDateTime;
+    offset.QuadPart <<= 32;
+    offset.QuadPart |= ff.dwLowDateTime;
     offset.QuadPart += *timep * 10000000;
     f.dwLowDateTime = offset.QuadPart & 0xffffffff;
     f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;

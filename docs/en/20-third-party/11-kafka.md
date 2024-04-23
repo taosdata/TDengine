@@ -21,7 +21,7 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 1. Linux operating system
 2. Java 8 and Maven installed
 3. Git/curl/vi is installed
-4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](/operation/pkg-install)
+4. TDengine is installed and started.
 
 ## Install Kafka
 
@@ -94,7 +94,7 @@ The output as bellow:
 
 The role of the TDengine Sink Connector is to synchronize the data of the specified topic to TDengine. Users do not need to create databases and super tables in advance. The name of the target database can be specified manually (see the configuration parameter connection.database), or it can be generated according to specific rules (see the configuration parameter connection.database.prefix).
 
-TDengine Sink Connector internally uses TDengine [modeless write interface](/reference/connector/cpp#modeless write-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](/develop /insert-data/influxdb-line), [OpenTSDB Telnet protocol format](/develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](/develop/insert-data/opentsdb-json).
+TDengine Sink Connector internally uses TDengine [modeless write interface](../../client-libraries/cpp#modeless write-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](../../develop/insert-data/influxdb-line), [OpenTSDB Telnet protocol format](../../develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json).
 
 The following example synchronizes the data of the topic meters to the target database power. The data format is the InfluxDB Line protocol format.
 
@@ -213,7 +213,7 @@ If you see the above data, the synchronization is successful. If not, check the 
 
 The role of the TDengine Source Connector is to push all the data of a specific TDengine database after a particular time to Kafka. The implementation principle of TDengine Source Connector is to first pull historical data in batches and then synchronize incremental data with the strategy of the regular query. At the same time, the changes in the table will be monitored, and the newly added table can be automatically synchronized. If Kafka Connect is restarted, synchronization will resume where it left off.
 
-TDengine Source Connector will convert the data in TDengine data table into [InfluxDB Line protocol format](/develop/insert-data/influxdb-line/) or [OpenTSDB JSON protocol format](/develop/insert-data/opentsdb-json ) and then write to Kafka.
+TDengine Source Connector will convert the data in TDengine data table into [InfluxDB Line protocol format](../../develop/insert-data/influxdb-line/) or [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json ) and then write to Kafka.
 
 The following sample program synchronizes the data in the database test to the topic tdengine-test-meters.
 
@@ -345,7 +345,7 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 ### TDengine Sink Connector specific configuration
 
 1. `connection.database`: The name of the target database. If the specified database does not exist, it will be created automatically. The time precision used for automatic library building is nanoseconds. The default value is null. When it is NULL, refer to the description of the `connection.database.prefix` parameter for the naming rules of the target database
-2. `connection.database.prefix`: When `connection.database` is null, the prefix of the target database. Can contain placeholder '${topic}'. For example, kafka_${topic}, for topic 'orders' will be written to database 'kafka_orders'. Default null. When null, the name of the target database is the same as the name of the topic.
+2. `connection.database.prefix`: When `connection.database` is null, the prefix of the target database. Can contain placeholder '$&lcub;topic&rcub;'. For example, kafka_$&lcub;topic&rcub;, for topic 'orders' will be written to database 'kafka_orders'. Default null. When null, the name of the target database is the same as the name of the topic.
 3. `batch.size`: Write the number of records in each batch in batches. When the data received by the sink connector at one time is larger than this value, it will be written in some batches.
 4. `max.retries`: The maximum number of retries when an error occurs. Defaults to 1.
 5. `retry.backoff.ms`: The time interval for retry when sending an error. The unit is milliseconds. The default is 3000.
@@ -370,12 +370,12 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 
 ## Other notes
 
-1. To use Kafka Connect, refer to <https://kafka.apache.org/documentation/#connect>.
+1. To use Kafka Connect, refer to [https://kafka.apache.org/documentation/#connect](https://kafka.apache.org/documentation/#connect).
 
 ## Feedback
 
-<https://github.com/taosdata/kafka-connect-tdengine/issues>
+[https://github.com/taosdata/kafka-connect-tdengine/issues](https://github.com/taosdata/kafka-connect-tdengine/issues)
 
 ## Reference
 
-1. For more information, see <https://kafka.apache.org/documentation/>
+1. For more information, see [https://kafka.apache.org/documentation/](https://kafka.apache.org/documentation/).

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 #include "libs/function/function.h"
+#include "libs/function/tudf.h"
 
 static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
@@ -75,9 +76,14 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   return 0;
 }
 
+static int32_t smStartSnodes(SSnodeMgmt *pMgmt) {
+  return sndInit(pMgmt->pSnode);
+}
+
 SMgmtFunc smGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
   mgmtFunc.openFp = smOpen;
+  mgmtFunc.startFp = (NodeStartFp)smStartSnodes;
   mgmtFunc.closeFp = (NodeCloseFp)smClose;
   mgmtFunc.createFp = (NodeCreateFp)smProcessCreateReq;
   mgmtFunc.dropFp = (NodeDropFp)smProcessDropReq;

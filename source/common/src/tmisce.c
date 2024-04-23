@@ -15,11 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tmisce.h"
-#include "tjson.h"
 #include "tglobal.h"
-#include "tlog.h"
-#include "tname.h"
-
+#include "tjson.h"
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
@@ -63,7 +60,7 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
 
 void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
   if (pSrc == NULL || pDst == NULL) {
-      return;
+    return;
   }
 
   pDst->inUse = pSrc->inUse;
@@ -72,6 +69,49 @@ void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
     pDst->eps[i].port = pSrc->eps[i].port;
     tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
   }
+}
+
+void epAssign(SEp* pDst, SEp* pSrc) {
+  if (pSrc == NULL || pDst == NULL) {
+    return;
+  }
+  memset(pDst->fqdn, 0, tListLen(pSrc->fqdn));
+  tstrncpy(pDst->fqdn, pSrc->fqdn, tListLen(pSrc->fqdn));
+  pDst->port = pSrc->port;
+}
+
+void epsetSort(SEpSet* pDst) {
+  if (pDst->numOfEps <= 1) {
+    return;
+  }
+  int validIdx = false;
+  SEp ep = {0};
+  if (pDst->inUse >= 0 && pDst->inUse < pDst->numOfEps) {
+    validIdx = true;
+    epAssign(&ep, &pDst->eps[pDst->inUse]);
+  }
+
+  for (int i = 0; i < pDst->numOfEps - 1; i++) {
+    for (int j = 0; j < pDst->numOfEps - 1 - i; j++) {
+      SEp* f = &pDst->eps[j];
+      SEp* s = &pDst->eps[j + 1];
+      int  cmp = strncmp(f->fqdn, s->fqdn, sizeof(f->fqdn));
+      if (cmp > 0 || (cmp == 0 && f->port > s->port)) {
+        SEp ep = {0};
+        epAssign(&ep, f);
+        epAssign(f, s);
+        epAssign(s, &ep);
+      }
+    }
+  }
+  if (validIdx == true)
+    for (int i = 0; i < pDst->numOfEps; i++) {
+      int cmp = strncmp(ep.fqdn, pDst->eps[i].fqdn, sizeof(ep.fqdn));
+      if (cmp == 0 && ep.port == pDst->eps[i].port) {
+        pDst->inUse = i;
+        break;
+      }
+    }
 }
 
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
@@ -87,6 +127,34 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   taosCorEndRead(&pEpSet->version);
 
   return ep;
+}
+
+int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t bufLen) {
+  int len = snprintf(pBuf, bufLen, "epset:{");
+  if (len < 0) {
+    return -1;
+  }
+
+  for (int _i = 0; (_i < pEpSet->numOfEps) && (bufLen > len); _i++) {
+    int32_t ret = 0;
+    if (_i == pEpSet->numOfEps - 1) {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    } else {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    }
+
+    if (ret < 0) {
+      return -1;
+    }
+
+    len += ret;
+  }
+
+  if (len < bufLen) {
+    /*len += */snprintf(pBuf + len, bufLen - len, "}, inUse:%d", pEpSet->inUse);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {

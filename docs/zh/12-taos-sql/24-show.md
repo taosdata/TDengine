@@ -22,6 +22,14 @@ SHOW CLUSTER;
 
 显示当前集群的信息
 
+## SHOW CLUSTER ALIVE
+
+```sql
+SHOW CLUSTER ALIVE;
+```
+
+查询当前集群的状态是否可用，返回值： 0：不可用 1：完全可用 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用）
+
 ## SHOW CONNECTIONS
 
 ```sql
@@ -65,10 +73,10 @@ SHOW CREATE TABLE [db_name.]tb_name
 ## SHOW DATABASES
 
 ```sql
-SHOW DATABASES;
+SHOW [USER | SYSTEM] DATABASES;
 ```
 
-显示用户定义的所有数据库。
+显示定义的所有数据库。SYSTEM 指定只显示系统数据库。USER 指定只显示用户创建的数据库。
 
 ## SHOW DNODES
 
@@ -175,10 +183,10 @@ SHOW SUBSCRIPTIONS;
 ## SHOW TABLES
 
 ```sql
-SHOW [db_name.]TABLES [LIKE 'pattern'];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。
+显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示普通表信息， CHILD 指定只显示子表信息。
 
 ## SHOW TABLE DISTRIBUTED
 
@@ -319,7 +327,7 @@ SHOW [db_name.]VGROUPS;
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES {dnode_id | dnode_endpoint};
+SHOW VNODES [ON DNODE dnode_id];
 ```
 
 显示当前系统中所有 VNODE 或某个 DNODE 的 VNODE 的信息。

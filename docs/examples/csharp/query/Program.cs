@@ -1,80 +1,35 @@
-using TDengineDriver;
-using TDengineDriver.Impl;
-using System.Runtime.InteropServices;
+using System.Text;
+using TDengine.Driver;
+using TDengine.Driver.Client;
 
 namespace TDengineExample
 {
     internal class QueryExample
     {
-        static void Main()
+        public static void Main(string[] args)
         {
-            IntPtr conn = GetConnection();
-            try
+            var builder = new ConnectionStringBuilder("host=localhost;port=6030;username=root;password=taosdata");
+            using (var client = DbDriver.Open(builder))
             {
-                // run query
-                IntPtr res = TDengine.Query(conn, "SELECT * FROM meters LIMIT 2");
-                if (TDengine.ErrorNo(res) != 0)
+                try
                 {
-                    throw new Exception("Failed to query since: " + TDengine.Error(res));
-                }
-
-                // get filed count
-                int fieldCount = TDengine.FieldCount(res);
-                Console.WriteLine("fieldCount=" + fieldCount);
-
-                // print column names
-                List<TDengineMeta> metas = LibTaos.GetMeta(res);
-                for (int i = 0; i < metas.Count; i++)
-                {
-                    Console.Write(metas[i].name + "\t");
-                }
-                Console.WriteLine();
-
-                // print values
-                List<Object> resData = LibTaos.GetData(res);
-                for (int i = 0; i < resData.Count; i++)
-                {
-                    Console.Write($"|{resData[i].ToString()} \t");
-                    if (((i + 1) % metas.Count == 0))
+                    client.Exec("use power");
+                    string query = "SELECT * FROM meters";
+                    using (var rows = client.Query(query))
                     {
-                        Console.WriteLine("");
+                        while (rows.Read())
+                        {
+                            Console.WriteLine(
+                                $"{((DateTime)rows.GetValue(0)):yyyy-MM-dd HH:mm:ss.fff}, {rows.GetValue(1)}, {rows.GetValue(2)}, {rows.GetValue(3)}, {rows.GetValue(4)}, {Encoding.UTF8.GetString((byte[])rows.GetValue(5))}");
+                        }
                     }
                 }
-                Console.WriteLine();
-
-                // Free result after use
-                TDengine.FreeResult(res);
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                    throw;
+                }
             }
-            finally
-            {
-                TDengine.Close(conn);
-            }
-
-        }
-        static IntPtr GetConnection()
-        {
-            string host = "localhost";
-            short port = 6030;
-            string username = "root";
-            string password = "taosdata";
-            string dbname = "power";
-            var conn = TDengine.Connect(host, username, password, dbname, port);
-            if (conn == IntPtr.Zero)
-            {
-                throw new Exception("Connect to TDengine failed");
-            }
-            else
-            {
-                Console.WriteLine("Connect to TDengine success");
-            }
-            return conn;
         }
     }
 }
-
-// output:
-// Connect to TDengine success
-// fieldCount=6
-// ts      current voltage phase   location        groupid
-// 1648432611249   10.3    219     0.31    California.SanFrancisco        2
-// 1648432611749   12.6    218     0.33    California.SanFrancisco        2

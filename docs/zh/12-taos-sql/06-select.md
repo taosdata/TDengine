@@ -7,9 +7,9 @@ description: 查询数据的详细语法
 ## 查询语法
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -70,6 +75,34 @@ order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
 ```
 
+## Hints
+
+Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适用于当前的查询语句时会被自动忽略，具体说明如下：
+
+- Hints 语法以`/*+`开始，终于`*/`，前后可有空格。
+- Hints 语法只能跟随在 SELECT 关键字后。
+- 每个 Hints 可以包含多个 Hint，Hint 间以空格分开，当多个 Hint 冲突或相同时以先出现的为准。
+- 当 Hints 中某个 Hint 出现错误时，错误出现之前的有效 Hint 仍然有效，当前及之后的 Hint 被忽略。
+- hint_param_list 是每个 Hint 的参数，根据每个 Hint 的不同而不同。
+
+目前支持的 Hints 列表如下：
+
+|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |
+| :-----------: | -------------- | -------------------------- | -----------------------------|
+| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句             |
+| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
+| SORT_FOR_GROUP| 无             | 采用sort方式进行分组, 与PARTITION_FIRST冲突  | partition by 列表有普通列时  |
+| PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
+| PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
+举例： 
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+```
+
 ## 列表
 
 查询语句可以指定部分或全部列作为返回结果。数据列和标签列都可以出现在列表中。
@@ -109,6 +142,9 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
+### 别名
+别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
+
 ### 结果去重
 
 `DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
@@ -132,6 +168,16 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 :::
 
+### 标签查询
+
+当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
+
+返回所有子表的标签列：
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+``` 
+
 ### 结果集列名
 
 `SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
@@ -152,7 +198,7 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
@@ -167,7 +213,7 @@ SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tag
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。例如：
+以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
 
 **\_QSTART/\_QEND**
 
@@ -209,8 +255,7 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 3. 对于超级表，ON 条件在时间戳主键的等值条件之外，还要求有可以一一对应的标签列等值条件，不支持 OR 条件。
 4. 参与 JOIN 计算的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
 5. JOIN 两侧均支持子查询。
-6. 参与 JOIN 的表个数上限为 10 个。
-7. 不支持与 FILL 子句混合使用。
+6. 不支持与 FILL 子句混合使用。
 
 ## GROUP BY
 
@@ -230,7 +275,12 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 
 ## PARTITION BY
 
-PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
+PARTITION BY 子句是 TDengine 3.0版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
+
+PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY, 需要注意的是在没有聚合查询时两者的查询结果可能存在差异。
+
+因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
+
 
 详见 [TDengine 特色查询](../distinguished)
 
@@ -301,6 +351,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## 正则表达式过滤
 
 ### 语法
@@ -315,7 +371,7 @@ WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 
 ### 使用限制
 
-只能针对表名（即 tbname 筛选）、binary/nchar 类型标签值进行正则表达式过滤，不支持普通列的过滤。
+只能针对表名（即 tbname 筛选）、binary/nchar 类型值进行正则表达式过滤。
 
 正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
 
@@ -354,7 +410,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制。
+TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制，其它连接条件与主键间必须是 AND 操作。
 
 普通表与普通表之间的 JOIN 操作：
 
@@ -395,6 +451,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
+- 外层查询支持直接通过列名或`列名`的形式引用内层查询的列或伪列。
 - 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。

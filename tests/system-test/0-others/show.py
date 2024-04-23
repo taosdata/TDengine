@@ -128,7 +128,7 @@ class TDTestCase:
                     continue
                 else:
                     tdLog.exit(f"show create database check failed with {key} {value}")
-        tdSql.query('show vnodes 1')
+        tdSql.query('show vnodes on dnode 1')
         tdSql.checkRows(self.vgroups)
         tdSql.execute(f'use {self.dbname}')
 
@@ -210,6 +210,27 @@ class TDTestCase:
         licences_info = tdSql.queryResult
         tdSql.checkEqual(grants_info,licences_info)
 
+    def show_column_name(self):
+        tdSql.execute("create database db;")
+        tdSql.execute("use db;")
+        tdSql.execute("create table ta(ts timestamp, name nchar(16), age int , address int);")
+        tdSql.execute("insert into ta values(now, 'jack', 19, 23);")
+        
+        colName1 = ["ts","name","age","address"]
+        colName2 = tdSql.getColNameList("select last(*) from ta;")
+        for i in range(len(colName1)):
+            if colName2[i] != f"last({colName1[i]})":
+                tdLog.exit(f"column name is different.  {colName2} != last({colName1[i]} ")
+                return 
+
+        # alter option        
+        tdSql.execute("alter local 'keepColumnName' '1';")
+        colName3 = tdSql.getColNameList("select last(*) from ta;")
+        for col in colName3:
+            if colName1 != colName3:
+                tdLog.exit(f"column name is different. colName1= {colName1} colName2={colName3}")
+                return
+
     def run(self):
         self.check_gitinfo()
         self.show_base()
@@ -218,6 +239,7 @@ class TDTestCase:
         self.show_create_sql()
         self.show_create_sysdb_sql()
         self.show_create_systb_sql()
+        self.show_column_name()
 
     def stop(self):
         tdSql.close()

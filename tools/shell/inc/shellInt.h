@@ -66,6 +66,7 @@ typedef struct {
   char        file[PATH_MAX];
   char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
+  bool        is_bi_mode;
   bool        is_raw_time;
   bool        is_version;
   bool        is_dump_config;
@@ -80,6 +81,7 @@ typedef struct {
 #ifdef WEBSOCKET
   bool        restful;
   bool        cloud;
+  bool        local;
   char*       dsn;
   int32_t     timeout;
 #endif

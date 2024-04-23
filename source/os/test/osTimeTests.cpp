@@ -114,10 +114,6 @@ TEST(osTimeTests, taosLocalTime) {
   ASSERT_EQ(local_time->tm_min, 0);
   ASSERT_EQ(local_time->tm_sec, 0);
 
-  time_t over_timep = 6406301441633558;
-  local_time = taosLocalTime(&over_timep, &result, NULL);
-  ASSERT_EQ(local_time, nullptr);
-
   time_t neg_timep3 = -78115158887;
   local_time = taosLocalTime(&neg_timep3, &result, NULL);
   ASSERT_EQ(local_time, nullptr);

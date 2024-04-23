@@ -153,7 +153,6 @@ struct SWalReader {
   int64_t        capacity;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
-  // TODO remove it
   SWalCkHead *pHead;
 };
 
@@ -193,7 +192,7 @@ int32_t walApplyVer(SWal *, int64_t ver);
 // int32_t  walDataCorrupted(SWal*);
 
 // wal reader
-SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
+SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
@@ -207,10 +206,9 @@ void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64
 void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset);
 
 // only for tq usage
-void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
-int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
-int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
-int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
+int32_t walFetchHead(SWalReader *pRead, int64_t ver);
+int32_t walFetchBody(SWalReader *pRead);
+int32_t walSkipFetchBody(SWalReader *pRead);
 
 void walRefFirstVer(SWal *, SWalRef *);
 void walRefLastVer(SWal *, SWalRef *);
@@ -227,6 +225,7 @@ bool walIsEmpty(SWal *);
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
+int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
 

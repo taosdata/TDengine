@@ -2,6 +2,6 @@ char version[64] = "${TD_VER_NUMBER}";
 char compatible_version[12] = "${TD_VER_COMPATIBLE}";
 char gitinfo[48] = "${TD_VER_GIT}";
 char gitinfoOfInternal[48] = "${TD_VER_GIT_INTERNAL}";
-char buildinfo[64] = "Built at ${TD_VER_DATE}";
+char buildinfo[64] = "Built ${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} at ${TD_VER_DATE}";
 
 void libtaos_${TD_LIB_VER_NUMBER}_${TD_VER_OSTYPE}_${TD_VER_CPUTYPE}_${TD_VER_VERTYPE}() {};

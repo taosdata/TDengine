@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "tfsInt.h"
 
+extern int64_t tsMinDiskFreeSize;
+
 int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
   memset(pTier, 0, sizeof(STfsTier));
 
@@ -108,18 +110,36 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
   }
 
   int32_t retId = -1;
+  int64_t avail = 0;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; ++id) {
+#if 1  // round-robin
     int32_t   diskId = (pTier->nextid + id) % pTier->ndisk;
     STfsDisk *pDisk = pTier->disks[diskId];
 
     if (pDisk == NULL) continue;
 
-    if (pDisk->size.avail < TFS_MIN_DISK_FREE_SIZE) continue;
+    if (pDisk->size.avail < tsMinDiskFreeSize) {
+      uInfo("disk %s is full and skip it, level:%d id:%d free size:%" PRId64 " min free size:%" PRId64, pDisk->path,
+            pDisk->level, pDisk->id, pDisk->size.avail, tsMinDiskFreeSize);
+      continue;
+    }
 
     retId = diskId;
     terrno = 0;
     pTier->nextid = (diskId + 1) % pTier->ndisk;
     break;
+#else  // select the disk with the most available space
+    STfsDisk *pDisk = pTier->disks[id];
+    if (pDisk == NULL) continue;
+
+    if (pDisk->size.avail < tsMinDiskFreeSize) continue;
+
+    if (pDisk->size.avail > avail) {
+      avail = pDisk->size.avail;
+      retId = id;
+      terrno = 0;
+    }
+#endif
   }
 
   tfsUnLockTier(pTier);
@@ -132,7 +152,7 @@ void tfsPosNextId(STfsTier *pTier) {
   for (int32_t id = 1; id < pTier->ndisk; id++) {
     STfsDisk *pLDisk = pTier->disks[nextid];
     STfsDisk *pDisk = pTier->disks[id];
-    if (pDisk->size.avail > TFS_MIN_DISK_FREE_SIZE && pDisk->size.avail > pLDisk->size.avail) {
+    if (pDisk->size.avail > tsMinDiskFreeSize && pDisk->size.avail > pLDisk->size.avail) {
       nextid = id;
     }
   }

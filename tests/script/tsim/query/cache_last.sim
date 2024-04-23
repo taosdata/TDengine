@@ -1,0 +1,105 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database if not exists db1 cachemodel 'both' cachesize 10;
+sql use db1;
+sql create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql insert into tba1 values ('2022-04-26 15:15:01', 1.0, "a");
+sql insert into tba1 values ('2022-04-26 15:15:02', 2.0, "b");
+sql insert into tba1 values ('2022-04-26 15:15:04', 4.0, "b");
+sql insert into tba1 values ('2022-04-26 15:15:05', 5.0, "b");
+sql create table tba2 using sta tags(2);
+sql insert into tba2 values ('2022-04-26 15:15:01', 1.2, "a");
+sql insert into tba2 values ('2022-04-26 15:15:02', 2.2, "b");
+sql create table tba3 using sta tags(3);
+sql insert into tba3 values ('2022-04-26 15:15:10', 1.3, "a");
+sql insert into tba3 values ('2022-04-26 15:15:11', 2.3, "b");
+sql select count(*), last(*) from sta;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 8 then
+  return -1
+endi
+if $data01 != @22-04-26 15:15:11.000@ then
+  return -1
+endi
+if $data02 != 2.300000000 then
+  return -1
+endi
+if $data03 != b then
+  return -1
+endi
+sql explain select count(*), last(*) from sta;
+if $data00 != @-> Merge (columns=4 width=226 input_order=unknown output_order=unknown mode=column)@ then
+  return -1
+endi
+sql explain select first(f1), last(*) from sta;
+if $data00 != @-> Merge (columns=4 width=226 input_order=unknown output_order=unknown mode=column)@ then
+  return -1
+endi
+sql select first(f1), last(*) from sta;
+if $rows != 1 then
+  return -1
+endi
+sql select last_row(f1), last(f1) from sta;
+if $rows != 1 then
+  return -1
+endi
+sql select count(*), last_row(f1), last(f1) from sta;
+if $rows != 1 then
+  return -1
+endi
+sql explain select count(*), last_row(f1), last(f1) from sta;
+if $data00 != @-> Merge (columns=3 width=24 input_order=unknown output_order=unknown mode=column)@ then
+  return -1
+endi
+sql_error select count(*), last_row(f1), min(f1), f1 from sta;
+sql select count(*), last_row(f1), min(f1),tbname from sta partition by tbname;
+if $rows != 3 then
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1),tbname from sta partition by tbname;
+if $data00 != @-> Data Exchange 2:1 (width=296)@ then
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1) from sta;
+if $data00 != @-> Merge (columns=3 width=24 input_order=unknown output_order=unknown mode=column)@ then
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1),tbname from sta group by tbname;
+if $data00 != @-> Data Exchange 2:1 (width=296)@ then
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1),t1 from sta partition by t1;
+if $data00 != @-> Aggragate (functions=4 width=28 input_order=desc )@ then
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1),t1 from sta group by t1;
+if $data00 != @-> Aggragate (functions=4 width=28 input_order=desc )@ then
+  return -1
+endi
+sql explain select distinct count(*), last_row(f1), min(f1) from sta;
+if $data10 != @   -> Merge (columns=3 width=24 input_order=unknown output_order=unknown mode=column)@ then
+  print $data10
+  return -1
+endi
+sql explain select count(*), last_row(f1), min(f1) from sta interval(1s);
+if $data10 != @   -> Merge (columns=4 width=66 input_order=asc output_order=asc mode=sort)@ then
+  return -1
+endi
+sql explain select distinct count(*), last_row(f1), min(f1) from tba1;
+if $data10 != @   -> Merge (columns=3 width=24 input_order=unknown output_order=unknown mode=column)@ then
+  return -1
+endi
+sql select distinct count(*), last_row(f1), min(f1) from tba1;
+if $rows != 1 then
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

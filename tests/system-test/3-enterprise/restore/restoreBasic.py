@@ -107,8 +107,8 @@ class RestoreBasic:
                  status = True
                  break
             else:
-                time.sleep(0.5)
-                tdLog.info(f"sleep 500ms retry {i} to check status again...") 
+                time.sleep(1)
+                tdLog.info(f"sleep 1s retry {i} to check status again...") 
 
         if status == False:
             tdLog.exit("check vgroups status failed, exit.")             

@@ -64,7 +64,7 @@ endi
 sql select count(*) from streamt;
 
 if $data00 != 9098 then
-  print =====rows=$rows
+  print =====data00=$data00
   goto loop1
 endi
 

@@ -66,7 +66,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     return true;
   }
 
-  if ((*pJob->chkKillFp)(pJob->chkKillParam)) {
+  if (pJob->chkKillFp && (*pJob->chkKillFp)(pJob->chkKillParam)) {
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
     return true;
   }
@@ -386,10 +386,13 @@ _return:
 int32_t schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
+  
+  SCH_LOCK(SCH_WRITE, &pJob->resLock);
   pRes->res = pJob->execRes.res;
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
+  SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
   SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));
 
@@ -588,7 +591,7 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
-  if (rsp->tbFName[0]) {
+  if (rsp->tbVerInfo) {
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
 
     if (NULL == pJob->execRes.res) {
@@ -599,12 +602,9 @@ int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
       }
     }
 
-    STbVerInfo tbInfo;
-    strcpy(tbInfo.tbFName, rsp->tbFName);
-    tbInfo.sversion = rsp->sversion;
-    tbInfo.tversion = rsp->tversion;
-
-    taosArrayPush((SArray *)pJob->execRes.res, &tbInfo);
+    taosArrayAddBatch((SArray *)pJob->execRes.res, taosArrayGet(rsp->tbVerInfo, 0), taosArrayGetSize(rsp->tbVerInfo));
+    taosArrayDestroy(rsp->tbVerInfo);
+    
     pJob->execRes.msgType = TDMT_SCH_QUERY;
 
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
@@ -639,6 +639,10 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->execTasks);
   //  schDropTaskInHashList(pJob, pJob->succTasks);
   //  schDropTaskInHashList(pJob, pJob->failTasks);
+}
+
+int32_t schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type) {
+  SCH_RET(schNotifyTaskInHashList(pJob, pJob->execTasks, type, pTask));
 }
 
 void schFreeJobImpl(void *job) {

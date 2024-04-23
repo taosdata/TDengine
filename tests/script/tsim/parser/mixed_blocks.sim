@@ -100,7 +100,8 @@ if $data05 != 1 then
 endi
 
 sql select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from $stb where c1 > 0 group by t1
-if $rows != 1 then
+if $rows != 2 then
+  print === rows $rows
   return -1
 endi
 if $data00 != 319 then

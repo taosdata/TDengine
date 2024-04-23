@@ -269,15 +269,17 @@ typedef struct {
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
 #define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
 #define IS_VALID_INT(_t)       ((_t) >= INT32_MIN && (_t) <= INT32_MAX)
+#define IS_VALID_INT64(_t)     ((_t) >= INT64_MIN && (_t) <= INT64_MAX)
 #define IS_VALID_UTINYINT(_t)  ((_t) >= 0 && (_t) <= UINT8_MAX)
 #define IS_VALID_USMALLINT(_t) ((_t) >= 0 && (_t) <= UINT16_MAX)
 #define IS_VALID_UINT(_t)      ((_t) >= 0 && (_t) <= UINT32_MAX)
+#define IS_VALID_UINT64(_t)    ((_t) >= 0 && (_t) <= UINT64_MAX)
 #define IS_VALID_FLOAT(_t)     ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)    ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
 

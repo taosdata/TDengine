@@ -16,8 +16,6 @@ set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
 
-
-
 include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
@@ -43,6 +41,7 @@ add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(examples/c)
+add_subdirectory(tests)
 include(${TD_SUPPORT_DIR}/cmake.install)
 
 # docs 

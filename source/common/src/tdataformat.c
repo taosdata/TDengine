@@ -24,6 +24,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
 // SBuffer ================================
+#ifdef BUILD_NO_CALL
 void tBufferDestroy(SBuffer *pBuffer) {
   tFree(pBuffer->pBuf);
   pBuffer->pBuf = NULL;
@@ -55,7 +56,7 @@ int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData) {
 
   return code;
 }
-
+#endif
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
@@ -610,9 +611,13 @@ _exit:
   return code;
 }
 
-void tRowSort(SArray *aRowP) {
-  if (TARRAY_SIZE(aRowP) <= 1) return;
-  taosArraySort(aRowP, tRowPCmprFn);
+int32_t tRowSort(SArray *aRowP) {
+  if (TARRAY_SIZE(aRowP) <= 1) return 0;
+  int32_t code = taosArrayMSort(aRowP, tRowPCmprFn);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("taosArrayMSort failed caused by %d", code);
+  }
+  return code;
 }
 
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
@@ -1144,8 +1149,10 @@ static int tTagValJsonCmprFn(const void *p1, const void *p2) {
   return strcmp(((STagVal *)p1)[0].pKey, ((STagVal *)p2)[0].pKey);
 }
 
+#ifdef TD_DEBUG_PRINT_TAG
 static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
   switch (type) {
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_NCHAR:
@@ -1234,6 +1241,7 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
   }
   printf("\n");
 }
+#endif
 
 static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   int32_t n = 0;
@@ -1243,6 +1251,7 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
     n += tPutCStr(p ? p + n : p, pTagVal->pKey);
   } else {
     n += tPutI16v(p ? p + n : p, pTagVal->cid);
+    ASSERTS(pTagVal->cid > 0, "Invalid tag cid:%" PRIi16, pTagVal->cid);
   }
 
   // type
@@ -1556,11 +1565,13 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
 
 // SColData ========================================
 void tColDataDestroy(void *ph) {
-  SColData *pColData = (SColData *)ph;
+  if (ph) {
+    SColData *pColData = (SColData *)ph;
 
-  tFree(pColData->pBitMap);
-  tFree(pColData->aOffset);
-  tFree(pColData->pData);
+    tFree(pColData->pBitMap);
+    tFree(pColData->aOffset);
+    tFree(pColData->pData);
+  }
 }
 
 void tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
@@ -2459,10 +2470,10 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
-        if (ASSERT(varDataTLen(data + offset) <= bytes)) {
+        if (varDataTLen(data + offset) > bytes) {
           uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
                  bytes);
-          code = TSDB_CODE_INVALID_PARA;
+          code = TSDB_CODE_PAR_VALUE_TOO_LONG;
           goto _exit;
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
@@ -2568,6 +2579,7 @@ _exit:
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t tColDataSwapValue(SColData *pColData, int32_t i, int32_t j) {
   int32_t code = 0;
 
@@ -2650,6 +2662,7 @@ static void tColDataSwap(SColData *pColData, int32_t i, int32_t j) {
       break;
   }
 }
+#endif
 
 static int32_t tColDataCopyRowCell(SColData *pFromColData, int32_t iFromRow, SColData *pToColData, int32_t iToRow) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3583,9 +3596,9 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     tColDataCalcSMAUInt,           // TSDB_DATA_TYPE_UINT
     tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_JSON
-    NULL,                          // TSDB_DATA_TYPE_VARBINARY
-    NULL,                          // TSDB_DATA_TYPE_DECIMAL
-    NULL,                          // TSDB_DATA_TYPE_BLOB
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_VARBINARY
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_DECIMAL
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
-    NULL                           // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
 };

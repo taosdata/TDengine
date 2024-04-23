@@ -72,37 +72,6 @@ struct STaosQnode {
   char        item[];
 };
 
-struct STaosQueue {
-  STaosQnode   *head;
-  STaosQnode   *tail;
-  STaosQueue   *next;     // for queue set
-  STaosQset    *qset;     // for queue set
-  void         *ahandle;  // for queue set
-  FItem         itemFp;
-  FItems        itemsFp;
-  TdThreadMutex mutex;
-  int64_t       memOfItems;
-  int32_t       numOfItems;
-  int64_t       threadId;
-  int64_t       memLimit;
-  int64_t       itemLimit;
-};
-
-struct STaosQset {
-  STaosQueue   *head;
-  STaosQueue   *current;
-  TdThreadMutex mutex;
-  tsem_t        sem;
-  int32_t       numOfQueues;
-  int32_t       numOfItems;
-};
-
-struct STaosQall {
-  STaosQnode *current;
-  STaosQnode *start;
-  int32_t     numOfItems;
-};
-
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
@@ -123,6 +92,9 @@ int32_t    taosReadAllQitems(STaosQueue *queue, STaosQall *qall);
 int32_t    taosGetQitem(STaosQall *qall, void **ppItem);
 void       taosResetQitems(STaosQall *qall);
 int32_t    taosQallItemSize(STaosQall *qall);
+int64_t    taosQallMemSize(STaosQall *qll);
+int64_t    taosQallUnAccessedItemSize(STaosQall *qall);
+int64_t    taosQallUnAccessedMemSize(STaosQall *qall);
 
 STaosQset *taosOpenQset();
 void       taosCloseQset(STaosQset *qset);
@@ -134,8 +106,8 @@ int32_t    taosGetQueueNumber(STaosQset *qset);
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo);
 int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *qinfo);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
-
-extern int64_t tsRpcQueueMemoryAllowed;
+void    taosQueueSetThreadId(STaosQueue *pQueue, int64_t threadId);
+int64_t taosQueueGetThreadId(STaosQueue *pQueue);
 
 #ifdef __cplusplus
 }

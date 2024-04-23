@@ -21,12 +21,12 @@
 extern "C" {
 #endif
 
+#include "systable.h"
 #include "tarray.h"
 #include "thash.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "systable.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -66,7 +66,11 @@ typedef enum {
 #define QUERY_RSP_POLICY_QUICK 1
 
 #define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
-#define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+#define QUERY_MSG_MASK_AUDIT()        (1 << 1)
+#define QUERY_MSG_MASK_VIEW()         (1 << 2)
+#define TEST_SHOW_REWRITE_MASK(m)     (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+#define TEST_AUDIT_MASK(m)            (((m) & QUERY_MSG_MASK_AUDIT()) != 0)
+#define TEST_VIEW_MASK(m)             (((m) & QUERY_MSG_MASK_VIEW()) != 0)
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
@@ -90,13 +94,7 @@ typedef struct SExecResult {
   void*    res;
 } SExecResult;
 
-typedef struct STbVerInfo {
-  char    tbFName[TSDB_TABLE_FNAME_LEN];
-  int32_t sversion;
-  int32_t tversion;
-} STbVerInfo;
-
-#pragma pack(push, 1) 
+#pragma pack(push, 1)
 typedef struct SCTableMeta {
   uint64_t uid;
   uint64_t suid;
@@ -105,8 +103,7 @@ typedef struct SCTableMeta {
 } SCTableMeta;
 #pragma pack(pop)
 
-
-#pragma pack(push, 1) 
+#pragma pack(push, 1)
 typedef struct STableMeta {
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
   uint64_t uid;
@@ -124,6 +121,17 @@ typedef struct STableMeta {
 } STableMeta;
 #pragma pack(pop)
 
+typedef struct SViewMeta {
+  uint64_t viewId;
+  char*    user;
+  char*    querySql;
+  int8_t   precision;
+  int8_t   type;
+  int32_t  version;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SViewMeta;
+
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
   int16_t   hashPrefix;
@@ -131,8 +139,8 @@ typedef struct SDBVgInfo {
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
-  SHashObj* vgHash;  // key:vgId, value:SVgroupInfo
-  SArray*   vgArray; // SVgroupInfo
+  SHashObj* vgHash;   // key:vgId, value:SVgroupInfo
+  SArray*   vgArray;  // SVgroupInfo
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {
@@ -153,11 +161,21 @@ typedef struct STableMetaOutput {
   STableMeta* tbMeta;
 } STableMetaOutput;
 
+typedef struct SViewMetaOutput {
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    querySql;
+  int8_t   precision;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SViewMetaOutput;
+
 typedef struct SDataBuf {
   int32_t  msgType;
   void*    pData;
   uint32_t len;
   void*    handle;
+  int64_t  handleRefId;
   SEpSet*  pEpSet;
 } SDataBuf;
 
@@ -212,6 +230,11 @@ typedef struct SQueryNodeStat {
   int32_t tableNum;  // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
 
+typedef struct SQueryStat {
+  int64_t inputRowNum;
+  int32_t inputRowSize;
+} SQueryStat;
+
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
 
@@ -263,7 +286,7 @@ void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
-void    freeDbCfgInfo(SDbCfgInfo *pInfo);
+void    freeDbCfgInfo(SDbCfgInfo* pInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
@@ -294,15 +317,19 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
 #define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_MNODE_NOT_FOUND)
 
-#define NO_RET_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED)
+#define NO_RET_REDIRECT_ERROR(_code)                                                   \
+  ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || \
+   (_code) == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED)
 
 #define NEED_REDIRECT_ERROR(_code)                                              \
   (NO_RET_REDIRECT_ERROR(_code) || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
    SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
 
+#define IS_VIEW_REQUEST(_type) ((_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
+
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB)
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
@@ -314,6 +341,11 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define IS_PERFORMANCE_SCHEMA_DB(_name) ((*(_name) == 'p') && (0 == strcmp(_name, TSDB_PERFORMANCE_SCHEMA_DB)))
 
 #define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
+
+#define IS_AUDIT_DBNAME(_dbname)    ((*(_dbname) == 'a') && (0 == strcmp(_dbname, TSDB_AUDIT_DB)))
+#define IS_AUDIT_STB_NAME(_stbname) ((*(_stbname) == 'o') && (0 == strcmp(_stbname, TSDB_AUDIT_STB_OPERATION)))
+#define IS_AUDIT_CTB_NAME(_ctbname) \
+  ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
 #define qFatal(...)                                                     \
   do {                                                                  \

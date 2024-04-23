@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "vnodeInt.h"
 
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
@@ -51,6 +52,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_ALTER_VNODE_TYPE:
       code = vmProcessAlterVnodeTypeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP:
+      code = vmProcessCheckLearnCatchupReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -114,9 +118,10 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     const STraceId *trace = &pMsg->info.traceId;
     dGTrace("vgId:%d, msg:%p get from vnode-fetch queue", pVnode->vgId, pMsg);
 
+    terrno = 0;
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
-      if (terrno != 0) {
+      if (code == -1 && terrno != 0) {
         code = terrno;
       }
 
@@ -158,6 +163,15 @@ static void vmSendResponse(SRpcMsg *pMsg) {
   }
 }
 
+static bool vmDataSpaceSufficient(SVnodeObj *pVnode) {
+  STfs *pTfs = pVnode->pImpl->pTfs;
+  if (pTfs) {
+    return tfsDiskSpaceSufficient(pTfs, 0, pVnode->diskPrimary);
+  } else {
+    return osDataSpaceSufficient();
+  }
+}
+
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   const STraceId *trace = &pMsg->info.traceId;
   if (pMsg->contLen < sizeof(SMsgHead)) {
@@ -174,8 +188,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGWarn("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
-           terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
+    dGDebug("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
+            terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
     terrno = (terrno != 0) ? terrno : -1;
     return terrno;
   }
@@ -192,18 +206,14 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       break;
     case STREAM_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
-      if (pMsg->msgType == TDMT_STREAM_TASK_DISPATCH) {
-        vnodeEnqueueStreamMsg(pVnode->pImpl, pMsg);
-      } else {
-        taosWriteQitem(pVnode->pStreamQ, pMsg);
-      }
+      taosWriteQitem(pVnode->pStreamQ, pMsg);
       break;
     case FETCH_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-fetch queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      if (!osDataSpaceSufficient()) {
+      if (!vmDataSpaceSufficient(pVnode)) {
         terrno = TSDB_CODE_NO_ENOUGH_DISKSPACE;
         code = terrno;
         dError("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
@@ -325,8 +335,8 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
       default:
         break;
     }
-    vmReleaseVnode(pMgmt, pVnode);
   }
+  if (pVnode) vmReleaseVnode(pMgmt, pVnode);
   if (size < 0) {
     dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;
@@ -355,16 +365,16 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   dInfo("vgId:%d, write-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
-        pVnode->pWriteW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pWriteW.queue));
   dInfo("vgId:%d, sync-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
-        pVnode->pSyncW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncW.queue));
   dInfo("vgId:%d, sync-rd-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
-        pVnode->pSyncRdW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pSyncRdW.queue));
   dInfo("vgId:%d, apply-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
-        pVnode->pApplyW.queue->threadId);
+        taosQueueGetThreadId(pVnode->pApplyW.queue));
   dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
   dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
-        pVnode->pFetchQ->threadId);
+        taosQueueGetThreadId(pVnode->pFetchQ));
   dInfo("vgId:%d, stream-queue:%p is alloced", pVnode->vgId, pVnode->pStreamQ);
   return 0;
 }
@@ -397,12 +407,8 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   if (tWWorkerInit(pFPool) != 0) return -1;
 
   SSingleWorkerCfg mgmtCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "vnode-mgmt",
-      .fp = (FItem)vmProcessMgmtQueue,
-      .param = pMgmt,
-  };
+      .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
   dDebug("vnode workers are initialized");

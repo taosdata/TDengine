@@ -35,9 +35,9 @@ TDengine 支持 `UNION ALL` 和 `UNION` 操作符。UNION ALL 将查询返回的
 | #   |    **运算符**     | **支持的类型**                                                       | **说明**             |
 | --- | :---------------: | -------------------------------------------------------------------- | -------------------- |
 | 1   |         =         | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 相等                 |
-| 2   |      <\>, !=      | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型，且不可以为表的时间戳主键列 | 不相等               |
-| 3   |      \>, <       | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于，小于           |
-| 4   |     \>=, <=      | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于等于，小于等于   |
+| 2   |      \<>, !=      | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型，且不可以为表的时间戳主键列 | 不相等               |
+| 3   |      >, \<       | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于，小于           |
+| 4   |     >=, \<=      | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型                             | 大于等于，小于等于   |
 | 5   |   IS [NOT] NULL   | 所有类型                                                             | 是否为空值           |
 | 6   | [NOT] BETWEEN AND | 除 BOOL、BLOB、MEDIUMBLOB、JSON 和 GEOMETRY 外的所有类型                | 闭区间比较           |
 | 7   |        IN         | 除 BLOB、MEDIUMBLOB 和 JSON 外的所有类型，且不可以为表的时间戳主键列 | 与列表内的任意值相等 |
@@ -54,6 +54,7 @@ LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 MATCH 条件和 NMATCH 条件使用正则表达式进行匹配，规则如下：
 
 - 支持符合 POSIX 规范的正则表达式，具体规范内容可参见 Regular Expressions。
+- MATCH 和正则表达式匹配时, 返回 TURE.  NMATCH 和正则表达式不匹配时, 返回 TRUE. 
 - 只能针对子表名（即 tbname）、字符串类型的标签值进行正则表达式过滤，不支持普通列的过滤。
 - 正则匹配字符串长度不能超过 128 字节。可以通过参数 maxRegexStringLen 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效
 

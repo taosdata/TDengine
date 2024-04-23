@@ -115,7 +115,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResult, NULL, destroyAggOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
@@ -187,7 +187,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
   while (1) {
     bool blockAllocated = false;
-    pBlock = downstream->fpSet.getNextFn(downstream);
+    pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (!pAggInfo->hasValidBlock) {
         createDataBlockForEmptyInput(pOperator, &pBlock);
@@ -273,6 +273,7 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy funtion to avoid process check
@@ -280,7 +281,13 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         continue;
       }
 
-      int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+      if ((&pCtx[k])->input.pData[0] == NULL) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
+      } else {
+        code = pCtx[k].fpSet.process(&pCtx[k]);
+      }
+
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
@@ -303,6 +310,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_PARTITION ||
+      downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_SORT ||
       (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
        ((STableScanInfo*)downstream->info)->hasGroupByTag == true)) {
     return TSDB_CODE_SUCCESS;
@@ -334,6 +342,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     colInfo.info.type = TSDB_DATA_TYPE_NULL;
     colInfo.info.bytes = 1;
 
+
     SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
@@ -353,6 +362,10 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   }
 
   blockDataEnsureCapacity(pBlock, pBlock->info.rows);
+  for (int32_t i = 0; i < blockDataGetNumOfCols(pBlock); ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    colDataSetNULL(pColInfoData, 0);
+  }
   *ppBlock = pBlock;
 
   return TSDB_CODE_SUCCESS;
@@ -556,7 +569,12 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
     } else {
       int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
-        code = pCtx[k].fpSet.process(&pCtx[k]);
+        if ((&pCtx[k])->input.pData[0] == NULL) {
+          code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          qError("%s apply functions error, input data is NULL.", GET_TASKID(taskInfo));
+        } else {
+          code = pCtx[k].fpSet.process(&pCtx[k]);
+        }
 
         if (code != TSDB_CODE_SUCCESS) {
           qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));

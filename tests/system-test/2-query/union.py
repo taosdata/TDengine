@@ -191,7 +191,7 @@ class TDTestCase:
         if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
-    def union_check(self):
+    def union_check(self, dbname = "db"):
         sqls = self.sql_list()
         for i in range(len(sqls)):
             tdSql.query(sqls[i])
@@ -231,6 +231,35 @@ class TDTestCase:
                     tdSql.execute(f"{sqls[j+i]} union {sqls[i]}")
                 else:
                     tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
+
+        # check union with timeline function
+        tdSql.query(f"select first(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9)
+        tdSql.query(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts desc)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2147450880)
+        tdSql.query(f"select irate(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9.102222222222222)
+        tdSql.query(f"select elapsed(ts) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 46800000.000000000000000)
+        tdSql.query(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
+        tdSql.checkRows(14)
+        tdSql.query(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
+        tdSql.checkRows(11)
+        tdSql.query(f"select count(*) from {dbname}.t1 as a join {dbname}.t1 as b on a.ts = b.ts and a.ts is null")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.error(f"select first(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.error(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.error(f"select irate(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.error(f"select elapsed(ts) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.error(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.error(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+
 
     def __test_error(self, dbname="db"):
 

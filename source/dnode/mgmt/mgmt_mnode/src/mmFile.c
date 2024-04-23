@@ -46,7 +46,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
     if (code < 0) return -1;
     tjsonGetInt32ValueFromDouble(replica, "role", pOption->nodeRoles[i], code);
     if (code < 0) return -1;
-    if(pOption->nodeRoles[i] == TAOS_SYNC_ROLE_VOTER){
+    if (pOption->nodeRoles[i] == TAOS_SYNC_ROLE_VOTER) {
       pOption->numOfReplicas++;
     }
   }
@@ -65,7 +65,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%smnode.json", path, TD_DIRSEP);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("mnode file:%s not exist", file);
     return 0;
   }
@@ -169,7 +169,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   if (buffer == NULL) goto _OVER;
   terrno = 0;
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);

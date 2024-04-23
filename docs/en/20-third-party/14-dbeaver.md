@@ -19,7 +19,7 @@ To use DBeaver to manage TDengine, you need to prepare the following:
 
  ![Connect TDengine with DBeaver](./dbeaver/dbeaver-connect-tdengine-en.webp)
 
-2. Configure the TDengine connection by filling in the host address, port number, username, and password. If TDengine is deployed on the local machine, you are only required to fill in the username and password. The default username is root and the default password is taosdata. Click **Test Connection** to check whether the connection is workable. If you do not have the TDengine Java connector installed on the local machine, DBeaver will prompt you to download and install it.
+2. Configure the TDengine connection by filling in the host address, port number, username, and password. If TDengine is deployed on the local machine, you are only required to fill in the username and password. The default username is root and the default password is taosdata. Click **Test Connection** to check whether the connection is workable. If you do not have the TDengine Java client library installed on the local machine, DBeaver will prompt you to download and install it.
 
  ![Configure the TDengine connection](./dbeaver/dbeaver-config-tdengine-en.webp))
 

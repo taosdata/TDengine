@@ -32,6 +32,10 @@ int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   terrno = TSDB_CODE_INVALID_PTR;
   return -1;
 }
+int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  terrno = TSDB_CODE_INVALID_PTR;
+  return -1;
+}
 
 char *i642str(int64_t val) {
   static char str[24] = {0};
@@ -330,24 +334,6 @@ void dumpSubscribe(SSdb *pSdb, SJson *json) {
   }
 }
 
-void dumpOffset(SSdb *pSdb, SJson *json) {
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "offsets");
-
-  while (1) {
-    SMqOffsetObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_OFFSET, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    SJson *item = tjsonCreateObject();
-    tjsonAddItemToArray(items, item);
-    tjsonAddStringToObject(item, "key", pObj->key);
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddStringToObject(item, "offset", i642str(pObj->offset));
-    sdbRelease(pSdb, pObj);
-  }
-}
-
 void dumpStream(SSdb *pSdb, SJson *json) {
   void  *pIter = NULL;
   SJson *items = tjsonAddArrayToObject(json, "streams");
@@ -559,6 +545,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
+    if(i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -586,6 +573,7 @@ void mndDumpSdb() {
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
   msgCb.sendReqFp = sendReq;
+  msgCb.sendSyncReqFp = sendSyncReq;
   msgCb.sendRspFp = sendRsp;
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
@@ -608,7 +596,7 @@ void mndDumpSdb() {
   dumpTopic(pSdb, json);
   dumpConsumer(pSdb, json);
   dumpSubscribe(pSdb, json);
-  dumpOffset(pSdb, json);
+  //  dumpOffset(pSdb, json);
   dumpStream(pSdb, json);
   dumpAcct(pSdb, json);
   dumpAuth(pSdb, json);
@@ -623,7 +611,7 @@ void mndDumpSdb() {
   char     *pCont = tjsonToString(json);
   int32_t   contLen = strlen(pCont);
   char      file[] = "sdb.json";
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to write %s since %s", file, terrstr());

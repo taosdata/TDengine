@@ -107,35 +107,39 @@ if $data30 != 12 then
   return -1
 endi
 
-print =============== show vnodes
-sql show vnodes 1
+print =============== show vnodes on dnode 1
+sql show vnodes on dnode 1
 if $rows != 9 then
   return -1
 endi
 
-if $data(4)[1] != 1 then
-  return -1
+if $data10 != 1 then
+    return -1
 endi
 
-if $data(4)[2] != leader then
-  return -1
+if $data11 != 5 then
+   return -1
 endi
 
-if $data(4)[3] != d2 then
-  return -1
+if $data12 != d2 then
+    return -1
 endi
 
-if $data(4)[4] != 1 then
-  return -1
+if $data13 != leader then
+    return -1
 endi
 
-if $data(4)[5] != localhost:7100 then
-  return -1
+print $data14
+print $data15
+
+if $data16 != 1 then
+    return -1
 endi
 
-sql show vnodes 'localhost:7100'
+print ================ show vnodes
+sql show vnodes
 if $rows != 9 then
-  return -1
+    return -1
 endi
 
 print =============== drop database

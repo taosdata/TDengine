@@ -406,7 +406,7 @@ sql insert into tbb_5 values('2021-03-03 05:00:00.000', 99115,99115.0,'b5');
 sql insert into tbb_5 values('2021-03-04 05:00:00.000', 99115,99115.0,'b5');
 sql insert into tbb_5 values('2021-03-05 05:00:00.000', 99115,99115.0,'b5');
 
-sql select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
+sql select * from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -442,7 +442,7 @@ if $data09 != @21-03-01 01:00:00.000@ then
   return -1
 endi
 
-sql select * from st0, st1 where st0.ts=st1.ts and st0.id2=st1.id2;
+sql select * from st0, st1 where st0.ts=st1.ts and st0.id2=st1.id2 order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -478,7 +478,7 @@ if $data09 != @21-03-01 01:00:00.000@ then
   return -1
 endi
 
-sql select * from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
+sql select * from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -514,7 +514,7 @@ if $data09 != @21-03-01 01:00:00.000@ then
   return -1
 endi
 
-sql select * from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
+sql select * from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -550,7 +550,7 @@ if $data09 != @21-03-01 01:00:00.000@ then
   return -1
 endi
 
-sql select st0.* from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1;
+sql select st0.* from st0, st1 where st0.ts=st1.ts and st0.id1=st1.id1 order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -583,7 +583,7 @@ if $data08 != 3 then
   return -1
 endi
 
-sql select st0.* from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2;
+sql select st0.* from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2 order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -616,7 +616,7 @@ if $data08 != 3 then
   return -1
 endi
 
-sql select st0.* from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
+sql select st0.* from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -649,7 +649,7 @@ if $data08 != 3 then
   return -1
 endi
 
-sql select st1.* from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
+sql select st1.* from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts order by st1.ts;
 if $rows != 25 then
   return -1
 endi
@@ -711,7 +711,7 @@ if $data31 != 9911 then
   return -1
 endi
 
-sql select st0.ts,st1.ts from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2;
+sql select st0.ts,st1.ts from st0, st1 where st0.ts=st1.ts and st1.id2=st0.id2 order by st1.ts;
 if $rows != 25 then
   return -1
 endi
@@ -728,7 +728,7 @@ if $data51 != @21-03-02 01:00:00.000@ then
   return -1
 endi
 
-sql select st1.ts,st0.ts,st0.id3,st1.id3,st0.f3,st1.f3 from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts;
+sql select st1.ts,st0.ts,st0.id3,st1.id3,st0.f3,st1.f3 from st0, st1 where st0.id3=st1.id3 and st1.ts=st0.ts order by st1.ts;
 if $rows != 25 then
   return -1
 endi
@@ -751,7 +751,7 @@ if $data05 != 11 then
   return -1
 endi
 
-sql select st0.ts,st0.f2,st1.f3,st1.f2,st0.f3 from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts;
+sql select st0.ts,st0.f2,st1.f3,st1.f2,st0.f3 from st0, st1 where st1.id5=st0.id5 and st0.ts=st1.ts order by st1.ts;
 if $rows != 25 then
   return -1
 endi
@@ -850,7 +850,7 @@ if $data08 != 15 then
   return -1
 endi
 
-sql select st0.*,st1.* from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1;
+sql select st0.*,st1.* from st0, st1 where st1.id1=st0.id1 and st0.ts=st1.ts and st1.ts=st0.ts and st0.id1=st1.id1 order by st0.ts;
 if $rows != 25 then
   return -1
 endi
@@ -1085,7 +1085,7 @@ endi
 #  return -1
 #endi
 
-sql select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9 where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1;
+sql select st0.*,st1.*,st2.*,st3.*,st4.*,st5.*,st6.*,st7.*,st8.*,st9.* from st0,st1,st2,st3,st4,st5,st6,st7,st8,st9 where st0.ts=st2.ts and st0.ts=st4.ts and st0.ts=st6.ts and st0.ts=st8.ts and st1.ts=st3.ts and st3.ts=st5.ts and st5.ts=st7.ts and st7.ts=st9.ts and st0.ts=st1.ts and st0.id1=st2.id1 and st0.id1=st4.id1 and st0.id1=st6.id1 and st0.id1=st8.id1 and st1.id1=st3.id1 and st3.id1=st5.id1 and st5.id1=st7.id1 and st7.id1=st9.id1 and st0.id1=st1.id1 order by st1.ts;
 if $rows != 25 then
   return -1
 endi

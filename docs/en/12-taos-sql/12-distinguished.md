@@ -16,7 +16,10 @@ When you query a supertable, you may need to partition the supertable by some di
 PARTITION BY part_list
 ```
 
-part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items.
+part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items. For example, grouping data by label location, taking the average voltage within each group.
+```sql
+select location, avg(voltage) from meters partition by location
+```
 
 A PARTITION BY clause is processed as follows:
 
@@ -25,10 +28,13 @@ A PARTITION BY clause is processed as follows:
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
-select max(current) from meters partition by location interval(10m)
+select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 
-The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data.
+The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes£º
+```sql
+select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
+```
 
 ## Windowed Queries
 
@@ -38,10 +44,15 @@ Aggregation by time window is supported in TDengine. For example, in the case wh
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval [, offset]) [SLIDING sliding] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
 ```
+
+Both interval_val and sliding_value are time durations which have 3 forms of representation.
+- INTERVAL(1s, 500a) SLIDING(1s), the unit char should be any one of a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year).
+- INTERVAL(1000, 500) SLIDING(1000), the unit will the same as the queried database, if there are more than one databases, higher precision will be used.
+- INTERVAL('1s', '500a') SLIDING('1s'), unit must be specified, no spaces allowed.
 
 The following restrictions apply:
 

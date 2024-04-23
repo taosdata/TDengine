@@ -7,7 +7,7 @@ def prepare():
     conn = taos.connect()
     conn.execute("drop topic if exists tmq_assignment_demo_topic")
     conn.execute("drop database if exists tmq_assignment_demo_db")
-    conn.execute("create database if not exists tmq_assignment_demo_db wal_retention_period 3600")
+    conn.execute("create database if not exists tmq_assignment_demo_db wal_retention_period 3600 keep 36500")
     conn.select_db("tmq_assignment_demo_db")
     conn.execute(
         "create table if not exists tmq_assignment_demo_table (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)")
@@ -23,9 +23,6 @@ def taos_get_assignment_and_seek_demo():
     consumer = Consumer(
         {
             "group.id": "0",
-            # should disable snapshot,
-            # otherwise it will cause invalid params error
-            "experimental.snapshot.enable": "false",
         }
     )
     consumer.subscribe(["tmq_assignment_demo_topic"])

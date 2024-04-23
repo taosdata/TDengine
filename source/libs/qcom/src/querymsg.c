@@ -286,6 +286,24 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SViewMetaReq  req = {0};
+  strncpy(req.fullname, input, sizeof(req.fullname) - 1);
+
+  int32_t bufLen = tSerializeSViewMetaReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSViewMetaReq(pBuf, bufLen, &req);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};
@@ -637,6 +655,27 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SViewMetaRsp *out = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+  if (tDeserializeSViewMetaRsp(msg, msgSize, out) != 0) {
+    qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);
+    tFreeSViewMetaRsp(out);
+    taosMemoryFree(out);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  qDebugL("view meta recved, dbFName:%s, view:%s, querySQL:%s", out->dbFName, out->name, out->querySql);
+
+  *(SViewMetaRsp **)output = out;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -651,6 +690,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_CFG)] = queryBuildGetTbCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_CFG)] = queryBuildGetTbCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_SERVER_VERSION)] = queryBuildGetSerVerMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryBuildGetViewMetaMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
@@ -665,6 +705,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_CFG)] = queryProcessGetTbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_CFG)] = queryProcessGetTbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_SERVER_VERSION)] = queryProcessGetSerVerRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryProcessGetViewMetaRsp;
 }
 
 #pragma GCC diagnostic pop

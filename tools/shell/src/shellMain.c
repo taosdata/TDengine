@@ -28,7 +28,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 
 #if !defined(WINDOWS)
   taosIgnSignal(SIGBUS);
-#endif  
+#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
 #ifdef WEBSOCKET
   shell.args.timeout = SHELL_WS_TIMEOUT;
   shell.args.cloud = true;
+  shell.args.local = false;
 #endif
 
 #if !defined(WINDOWS)
@@ -81,7 +82,9 @@ int main(int argc, char *argv[]) {
 #ifdef WEBSOCKET
   shellCheckConnectMode();
 #endif
-  taos_init();
+  if (taos_init() != 0) {
+    return -1;
+  }
 
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
@@ -104,7 +107,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // support port feature 
+  // support port feature
   shellAutoInit();
   int32_t ret = shellExecute();
   shellAutoExit();

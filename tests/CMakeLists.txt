@@ -1,4 +1,4 @@
-#ADD_SUBDIRECTORY(examples/c)
-ADD_SUBDIRECTORY(tsim)
-ADD_SUBDIRECTORY(test/c)
-#ADD_SUBDIRECTORY(comparisonTest/tdengine)
+
+if(${BUILD_TEST})
+    add_subdirectory(taosc_test)
+endif(${BUILD_TEST})

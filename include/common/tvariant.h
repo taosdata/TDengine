@@ -37,6 +37,10 @@ typedef struct SVariant {
   };
 } SVariant;
 
+int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value);
+int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value);
+int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value);
+
 int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value);
 int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value);
 

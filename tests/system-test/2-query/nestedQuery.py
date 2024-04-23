@@ -6082,8 +6082,18 @@ class TDTestCase:
             tdLog.info(len(sql))
             tdSql.error(sql)
 
-        #special sql
+        #6 
         tdSql.query("select 6-1 from stable_1;")
+        for i in range(self.fornum):
+            sql = "select count(*) from (select avg(q_int)/1000 from stable_1); "
+            tdLog.info(sql)
+            tdLog.info(len(sql))
+            tdSql.query(sql)
+            self.cur1.execute(sql)
+            self.explain_sql(sql)
+
+        #special sql
+        tdSql.query("select 7-1 from stable_1;")
         for i in range(self.fornum):
             sql = "select * from ( select _block_dist() from stable_1);"
             tdSql.error(sql)

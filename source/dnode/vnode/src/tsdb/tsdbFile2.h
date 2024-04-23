@@ -58,9 +58,12 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2);
 struct STFile {
   tsdb_ftype_t type;
   SDiskID      did;  // disk id
+  int32_t      s3flag;
   int32_t      fid;  // file id
   int64_t      cid;  // commit id
   int64_t      size;
+  int64_t      minVer;
+  int64_t      maxVer;
   union {
     struct {
       int32_t level;
@@ -73,6 +76,7 @@ struct STFileObj {
   STFile        f[1];
   int32_t       state;
   int32_t       ref;
+  int32_t       nlevel;
   char          fname[TSDB_FILENAME_LEN];
 };
 

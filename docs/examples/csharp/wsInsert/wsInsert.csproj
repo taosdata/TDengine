@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+    <PackageReference Include="TDengine.Connector" Version="3.1.*" GeneratePathProperty="true" />
   </ItemGroup>
   <Target Name="copyDLLDependency" BeforeTargets="BeforeBuild">
     <ItemGroup>

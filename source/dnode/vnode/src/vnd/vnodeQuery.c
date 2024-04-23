@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdb.h"
 #include "vnd.h"
 
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
@@ -48,7 +49,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
+    goto _exit4;
   }
 
   metaRsp.dbId = pVnode->config.dbId;
@@ -58,15 +59,15 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
-    goto _exit;
+    goto _exit4;
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, 0);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
   if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
-    goto _exit;
+    goto _exit3;
   }
 
   metaRsp.tableType = mer1.me.type;
@@ -80,7 +81,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
     strcpy(metaRsp.stbName, mer2.me.name);
     metaRsp.suid = mer2.me.uid;
@@ -124,6 +125,12 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
 _exit:
+  taosMemoryFree(metaRsp.pSchemas);
+_exit2:
+  metaReaderClear(&mer2);
+_exit3:
+  metaReaderClear(&mer1);
+_exit4:
   rpcMsg.info = pMsg->info;
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
@@ -140,9 +147,6 @@ _exit:
     *pMsg = rpcMsg;
   }
 
-  taosMemoryFree(metaRsp.pSchemas);
-  metaReaderClear(&mer2);
-  metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -175,7 +179,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, 0);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
   if (metaGetTableEntryByName(&mer1, cfgReq.tbName) < 0) {
     code = terrno;
@@ -188,7 +192,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, 0);
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     strcpy(cfgRsp.stbName, mer2.me.name);
@@ -380,11 +384,15 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;
+  pLoad->syncTerm = state.term;
+  pLoad->roleTimeMs = state.roleTimeMs;
+  pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
+  pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
@@ -396,6 +404,15 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   return 0;
 }
 
+int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
+  SSyncState syncState = syncGetState(pVnode->sync);
+  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+    pLoad->vgId = TD_VID(pVnode);
+    pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
+    return 0;
+  }
+  return -1;
+}
 /**
  * @brief Reset the statistics value by monitor interval
  *
@@ -410,9 +427,9 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables) {
-  SVnode* pVnodeObj = pVnode;
-  SVnodeCfg* pConf = &pVnodeObj->config;
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
+  SVnode    *pVnodeObj = pVnode;
+  SVnodeCfg *pConf = &pVnodeObj->config;
 
   if (dbname) {
     *dbname = pConf->dbname;
@@ -431,7 +448,7 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* num
   }
 }
 
-int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
+int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);
   } else {
@@ -440,7 +457,7 @@ int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -452,7 +469,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCursor(pCur, 1);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -462,7 +479,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   SVnode      *pVnodeObj = pVnode;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj->pMeta, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -473,7 +490,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
     taosArrayPush(list, &id);
   }
 
-  metaCloseCtbCursor(pCur, 1);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -521,7 +538,7 @@ int32_t vnodeGetStbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 0);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
   if (!pCur) {
     return TSDB_CODE_FAILED;
   }
@@ -536,18 +553,15 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
     ++(*num);
   }
 
-  metaCloseCtbCursor(pCur, 0);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 1);
-  // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
-
-  if (pTSchema) {
-    *num = pTSchema->numOfCols;
-
-    taosMemoryFree(pTSchema);
+int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
+  if (pSW) {
+    *num = pSW->nCols;
+    tDeleteSchemaWrapper(pSW);
   } else {
     *num = 2;
   }
@@ -556,42 +570,55 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-#define TK_LOG_STB_NUM 19
-static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
-                                               "data_dir",
-                                               "dnodes_info",
-                                               "d_info",
-                                               "grants_info",
-                                               "keeper_monitor",
-                                               "logs",
-                                               "log_dir",
-                                               "log_summary",
-                                               "m_info",
-                                               "taosadapter_restful_http_request_fail",
-                                               "taosadapter_restful_http_request_in_flight",
-                                               "taosadapter_restful_http_request_summary_milliseconds",
-                                               "taosadapter_restful_http_request_total",
-                                               "taosadapter_system_cpu_percent",
-                                               "taosadapter_system_mem_percent",
-                                               "temp_dir",
-                                               "vgroups_info",
-                                               "vnodes_role"};
+const char *tkLogStb[] = {"cluster_info",
+                          "data_dir",
+                          "dnodes_info",
+                          "d_info",
+                          "grants_info",
+                          "keeper_monitor",
+                          "logs",
+                          "log_dir",
+                          "log_summary",
+                          "m_info",
+                          "taosadapter_restful_http_request_fail",
+                          "taosadapter_restful_http_request_in_flight",
+                          "taosadapter_restful_http_request_summary_milliseconds",
+                          "taosadapter_restful_http_request_total",
+                          "taosadapter_system_cpu_percent",
+                          "taosadapter_system_mem_percent",
+                          "temp_dir",
+                          "vgroups_info",
+                          "vnodes_role"};
+const char *tkAuditStb[] = {"operations"};
+const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
+const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
-  char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName || 0 != strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    return 0;
+  int32_t      tbSize = 0;
+  int32_t      tbNum = 0;
+  const char **pTbArr = NULL;
+  const char  *dbName = NULL;
+
+  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = tkLogStbNum;
+    pTbArr = (const char **)&tkLogStb;
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbNum = tkAuditStbNum;
+    pTbArr = (const char **)&tkAuditStb;
   }
-  int32_t tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-  if (tbSize < TK_LOG_STB_NUM) {
-    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
-      tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
-      if (suid != 0) {
-        metaPutTbToFilterCache(pVnode, suid, 0);
+  if (tbNum && pTbArr) {
+    tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
+    if (tbSize < tbNum) {
+      for (int32_t i = 0; i < tbNum; ++i) {
+        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
+        if (suid != 0) {
+          metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
+        }
       }
+      tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
     }
-    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
   }
 
   return tbSize;
@@ -601,7 +628,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
-  if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
+  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
     return true;
   }
   return false;
@@ -616,9 +643,9 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   }
 
   int32_t tbFilterSize = 0;
-  #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   tbFilterSize = vnodeGetTimeSeriesBlackList(pVnode);
-  #endif
+#endif
 
   if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
       (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
@@ -633,10 +660,8 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
     int64_t ctbNum = 0;
-    metaGetStbStats(pVnode, suid, &ctbNum);
-
-    int numOfCols = 0;
-    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
+    int32_t numOfCols = 0;
+    metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols);
 
     *num += ctbNum * (numOfCols - 1);
   }
@@ -673,12 +698,16 @@ void *vnodeGetIdx(void *pVnode) {
     return NULL;
   }
 
-  return metaGetIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIdx(((SVnode *)pVnode)->pMeta);
 }
 
 void *vnodeGetIvtIdx(void *pVnode) {
   if (pVnode == NULL) {
     return NULL;
   }
-  return metaGetIvtIdx(((SVnode*)pVnode)->pMeta);
+  return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
+}
+
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
+  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
 }

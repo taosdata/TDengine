@@ -180,7 +180,8 @@ __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
+                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -206,7 +207,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -257,6 +258,16 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = 5;
       break;
+    case TSDB_DATA_TYPE_VARBINARY:{
+      if (optr == OP_TYPE_IN) {
+        comparFn = 8;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = 25;
+      } else { /* normal relational comparFn */
+        comparFn = 30;
+      }
+      break;
+    }
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
@@ -466,7 +477,7 @@ static FORCE_INLINE SFilterRangeNode *filterNewRange(SFilterRangeCtx *ctx, SFilt
 
 void *filterInitRangeCtx(int32_t type, int32_t options) {
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL ||
-      type == TSDB_DATA_TYPE_BINARY ||
+      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
       type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     qError("not supported range type:%d", type);
     return NULL;
@@ -1532,6 +1543,15 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
 
+  if (QUERY_NODE_VALUE == nType && ((SValueNode*)pNode)->node.resType.type == TSDB_DATA_TYPE_BOOL) {
+    if (((SValueNode*)pNode)->datum.b) {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_ALL);
+    } else {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_EMPTY);
+    }
+    return DEAL_RES_END;
+  }
+  
   fltError("invalid node type for filter, type:%d", nodeType(pNode));
 
   code = TSDB_CODE_QRY_INVALID_INPUT;
@@ -1585,6 +1605,7 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
@@ -1978,6 +1999,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       // todo refactor the convert
       int32_t code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
+        colDataDestroy(out.columnData);
+        taosMemoryFree(out.columnData);
         qError("convert value to type[%d] failed", type);
         return code;
       }
@@ -3436,7 +3459,9 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   return code;
 
 _return:
-  qInfo("init from node failed, code:%d", code);
+  if (code) {
+    qInfo("init from node failed, code:%d", code);
+  }
   return code;
 }
 
@@ -3969,24 +3994,43 @@ _return:
   return code;
 }
 
-static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d) {
+static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   *d = point->val;
-  if (point->val.kind == FLT_SCL_DATUM_KIND_NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
-    getDataMax(d->type.type, &(d->i));
-  } else if (point->val.kind == FLT_SCL_DATUM_KIND_MIN) {
-    getDataMin(d->type.type, &(d->i));
-  }
+  d->kind = FLT_SCL_DATUM_KIND_INT64;
 
-  if (IS_INTEGER_TYPE(d->type.type) || IS_TIMESTAMP_TYPE(d->type.type)) {
+  if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
+    getDataMax(point->val.type.type, &(d->i));
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_MIN) {
+    getDataMin(point->val.type.type, &(d->i));
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_INT64) {
     if (point->excl) {
       if (point->start) {
         ++d->i;
       } else {
         --d->i;
       }
+    }
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
+    double v = d->d;
+    if (point->excl) {
+      if (point->start) {
+        d->i = v + 1;
+      }  else {
+        d->i = v - 1;
+      }
+    } else {
+      d->i = v;
+    }
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_UINT64) {
+    uint64_t v = d->u;
+    if (point->excl) {
+      if (point->start) {
+        d->i = v + 1;
+      }  else {
+        d->i = v - 1;
+      }
+    } else {
+      d->i = v;
     }
   } else {
     qError("not supported type %d when get datum from point", d->type.type);
@@ -4008,12 +4052,13 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
       SArray             *points = colRange->points;
       if (taosArrayGetSize(points) == 2) {
+        *win = TSWINDOW_DESC_INITIALIZER;
         SFltSclPoint *startPt = taosArrayGet(points, 0);
         SFltSclPoint *endPt = taosArrayGet(points, 1);
         SFltSclDatum  start;
         SFltSclDatum  end;
-        fltSclGetDatumValueFromPoint(startPt, &start);
-        fltSclGetDatumValueFromPoint(endPt, &end);
+        fltSclGetTimeStampDatum(startPt, &start);
+        fltSclGetTimeStampDatum(endPt, &end);
         win->skey = start.i;
         win->ekey = end.i;
         *isStrict = true;
@@ -4666,9 +4711,9 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
     code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
-    FLT_ERR_RET(code);
-
     *p = output.columnData;
+
+    FLT_ERR_RET(code);
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;

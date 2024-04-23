@@ -75,7 +75,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
   STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, tbName, strlen(tbName));
   if (NULL == meta) {
     mError("invalid performance schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
@@ -101,7 +101,7 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
   STableMetaRsp *pMeta = taosHashGet(pMnode->perfsMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid performance schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 

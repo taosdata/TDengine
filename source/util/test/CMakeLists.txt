@@ -33,6 +33,14 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
+# arrayTest
+add_executable(arrayTest "arrayTest.cpp")
+target_link_libraries(arrayTest os util gtest_main)
+add_test(
+    NAME arrayTest
+    COMMAND arrayTest
+)
+
 # # freelistTest
 # add_executable(freelistTest "")
 # target_sources(freelistTest
@@ -83,4 +91,20 @@ target_link_libraries(pageBufferTest os util gtest_main)
 add_test(
     NAME pageBufferTest
     COMMAND pageBufferTest
+)
+
+# talgoTest
+add_executable(talgoTest "talgoTest.cpp")
+target_link_libraries(talgoTest os util gtest_main)
+add_test(
+    NAME talgoTest
+    COMMAND talgoTest
+)
+
+# tbaseCodecTest
+add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
+target_link_libraries(tbaseCodecTest os util common gtest_main)
+add_test(
+    NAME tbaseCodecTest
+    COMMAND tbaseCodecTest
 )

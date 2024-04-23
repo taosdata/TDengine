@@ -2198,6 +2198,25 @@ int tdbBtcDelete(SBTC *pBtc) {
             return -1;
           }
           tdbOsFree(pCell);
+
+          if (pPage->nOverflow > 0) {
+            tdbDebug("tdb/btc-delete: btree balance after update cell, pPage/nOverflow/pgno: %p/%d/%" PRIu32 ".", pPage,
+                     pPage->nOverflow, TDB_PAGE_PGNO(pPage));
+
+            tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
+            while (--pBtc->iPage != iPage) {
+              tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pgStack[pBtc->iPage], pBtc->pTxn);
+            }
+
+            // pBtc->iPage = iPage;
+            pBtc->pPage = pPage;
+            ret = tdbBtreeBalance(pBtc);
+            if (ret < 0) {
+              tdbError("tdb/btc-delete: btree balance failed with ret: %d.", ret);
+              return -1;
+            }
+          }
+
           break;
         } else {
           pgno = TDB_PAGE_PGNO(pPage);

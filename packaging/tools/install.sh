@@ -16,47 +16,27 @@ serverFqdn=""
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
 
-clientName="taos"
-serverName="taosd"
+PREFIX="taos"
+clientName="${PREFIX}"
+serverName="${PREFIX}d"
 udfdName="udfd"
-configFile="taos.cfg"
+configFile="${PREFIX}.cfg"
 productName="TDengine"
 emailName="taosdata.com"
-uninstallScript="rmtaos"
-historyFile="taos_history"
+uninstallScript="rm${PREFIX}"
+historyFile="${PREFIX}_history"
 tarName="package.tar.gz"
-dataDir="/var/lib/taos"
-logDir="/var/log/taos"
-configDir="/etc/taos"
-installDir="/usr/local/taos"
-adapterName="taosadapter"
-benchmarkName="taosBenchmark"
-dumpName="taosdump"
-demoName="taosdemo"
-xname="taosx"
-
-clientName2="taos"
-serverName2="${clientName2}d"
-configFile2="${clientName2}.cfg"
-productName2="TDengine"
-emailName2="taosdata.com"
-xname2="${clientName2}x"
-adapterName2="${clientName2}adapter"
-
-explorerName="${clientName2}-explorer"
-benchmarkName2="${clientName2}Benchmark"
-demoName2="${clientName2}demo"
-dumpName2="${clientName2}dump"
-uninstallScript2="rm${clientName2}"
-
-historyFile="${clientName2}_history"
-logDir="/var/log/${clientName2}"
-configDir="/etc/${clientName2}"
-installDir="/usr/local/${clientName2}"
-
-data_dir=${dataDir}
-log_dir=${logDir}
-cfg_install_dir=${configDir}
+dataDir="/var/lib/${PREFIX}"
+logDir="/var/log/${PREFIX}"
+configDir="/etc/${PREFIX}"
+installDir="/usr/local/${PREFIX}"
+adapterName="${PREFIX}adapter"
+benchmarkName="${PREFIX}Benchmark"
+dumpName="${PREFIX}dump"
+demoName="${PREFIX}demo"
+xname="${PREFIX}x"
+explorerName="${PREFIX}-explorer"
+keeperName="${PREFIX}keeper"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -69,7 +49,6 @@ install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 
 service_config_dir="/etc/systemd/system"
-web_port=6041
 
 # Color setting
 RED='\033[0;31m'
@@ -154,7 +133,7 @@ interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
-while getopts "hv:e:i:" arg; do
+while getopts "hv:e:" arg; do
   case $arg in
   e)
     #echo "interactiveFqdn=$OPTARG"
@@ -163,10 +142,6 @@ while getopts "hv:e:i:" arg; do
   v)
     #echo "verType=$OPTARG"
     verType=$(echo $OPTARG)
-    ;;
-  i)
-    #echo "initType=$OPTARG"
-    initType=$(echo $OPTARG)
     ;;
   h)
     echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
@@ -180,6 +155,26 @@ while getopts "hv:e:i:" arg; do
 done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
+
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh)
+if [ "${verMode}" == "cluster" ]; then
+  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+elif [ "${verMode}" == "community" ]; then
+  if [ "${pagMode}" == "full" ]; then
+    services=(${serverName} ${adapterName} ${keeperName})
+  else
+    services=(${serverName})
+    tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
+  fi
+else
+  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+fi
+
+function install_services() {
+  for service in "${services[@]}"; do
+    install_service ${service}
+  done
+}
 
 function kill_process() {
   pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
@@ -198,6 +193,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/driver
   ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
+  ${csudo}mkdir -p ${configDir}
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
     ${csudo}mkdir -p ${install_main_dir}/share
@@ -210,40 +206,44 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${udfdName} || :
-  ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
-  ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
-  ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
-  ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
-  ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+  for tool in "${tools[@]}"; do
+    ${csudo}rm -f ${bin_link_dir}/${tool} || :
+  done
 
-  ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
+  for service in "${services[@]}"; do
+    ${csudo}rm -f ${bin_link_dir}/${service} || :
+  done
+
+  if [ "${verType}" == "client" ]; then
+    ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
+  else
+    ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
+  fi
+
+  if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
+    if [ -d ${script_dir}/${xname}/bin ]; then
+      ${csudo}cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+    fi
+  fi
+  
+  ${csudo}chmod 0555 ${install_main_dir}/bin/*
+  [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
 
   #Make link
-  [ -x ${install_main_dir}/bin/${clientName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${clientName2} ${bin_link_dir}/${clientName2} || :
-  [ -x ${install_main_dir}/bin/${serverName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${serverName2} ${bin_link_dir}/${serverName2} || :
-  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
-  [ -x ${install_main_dir}/bin/${adapterName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${adapterName2} ${bin_link_dir}/${adapterName2} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${demoName2} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2} || :
-  [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
-  [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
-  [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
-  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
-  if [ "$clientName2" == "${clientName}" ]; then
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
-  fi
-  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+  for tool in "${tools[@]}"; do
+    if [ "${tool}" == "remove.sh" ]; then
+      [ -x ${install_main_dir}/uninstall.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
+    else
+      [ -x ${install_main_dir}/bin/${tool} ] && ${csudo}ln -sf ${install_main_dir}/bin/${tool} ${bin_link_dir}/${tool} || :
+    fi
+  done
 
-  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
-  fi
+  for service in "${services[@]}"; do
+    [ -x ${install_main_dir}/bin/${service} ] && ${csudo}ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
+  done
 }
 
 function install_lib() {
@@ -345,7 +345,7 @@ function install_jemalloc() {
 }
 
 function install_header() {
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
 
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 
@@ -353,7 +353,8 @@ function install_header() {
   ${csudo}ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ${csudo}ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
-  ${csudo}ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
+  ${csudo}ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
+  ${csudo}ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
 
   [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
@@ -370,42 +371,56 @@ function add_newHostname_to_hosts() {
       return
     fi
   done
-  ${csudo}echo "127.0.0.1  $1" >>/etc/hosts || :
+
+  if grep -q "127.0.0.1  $1" /etc/hosts; then
+    return
+  else
+    ${csudo}chmod 666 /etc/hosts
+    ${csudo}echo "127.0.0.1  $1" >>/etc/hosts
+  fi
 }
 
 function set_hostname() {
-  echo -e -n "${GREEN}Please enter one hostname(must not be 'localhost')${NC}:"
-  read newHostname
+  echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
+  read -e -p " : " -i "$(hostname)" newHostname
   while true; do
-    if [[ ! -z "$newHostname" && "$newHostname" != "localhost" ]]; then
+    if [ -z "$newHostname" ]; then
+      newHostname=$(hostname)
+      break
+    elif [ "$newHostname" != "localhost" ]; then
       break
     else
-      read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+      echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
+      read -e -p " : " -i "$(hostname)" newHostname
     fi
   done
 
-  ${csudo}hostname $newHostname || :
-  retval=$(echo $?)
-  if [[ $retval != 0 ]]; then
-    echo
-    echo "set hostname fail!"
-    return
-  fi
+  # ${csudo}hostname $newHostname || :
+  # retval=$(echo $?)
+  # if [[ $retval != 0 ]]; then
+  #   echo
+  #   echo "set hostname fail!"
+  #   return
+  # fi
 
-  #ubuntu/centos /etc/hostname
-  if [[ -e /etc/hostname ]]; then
-    ${csudo}echo $newHostname >/etc/hostname || :
-  fi
+  # #ubuntu/centos /etc/hostname
+  # if [[ -e /etc/hostname ]]; then
+  #   ${csudo}echo $newHostname >/etc/hostname || :
+  # fi
 
-  #debian: #HOSTNAME=yourname
-  if [[ -e /etc/sysconfig/network ]]; then
-    ${csudo}sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
-  fi
+  # #debian: #HOSTNAME=yourname
+  # if [[ -e /etc/sysconfig/network ]]; then
+  #   ${csudo}sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
+  # fi
 
-  ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/${configFile2}
+  if [ -f ${configDir}/${configFile} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${configDir}/${configFile}
+  else
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${script_dir}/cfg/${configFile}
+  fi
   serverFqdn=$newHostname
 
-  if [[ -e /etc/hosts ]]; then
+  if [[ -e /etc/hosts ]] && [[ ! $newHostname =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
     add_newHostname_to_hosts $newHostname
   fi
 }
@@ -436,7 +451,12 @@ function set_ipAsFqdn() {
     echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
     localFqdn="127.0.0.1"
     # Write the local FQDN to configuration file
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+
+    if [ -f ${configDir}/${configFile} ]; then
+      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
+    else
+      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
+    fi
     serverFqdn=$localFqdn
     echo
     return
@@ -458,7 +478,11 @@ function set_ipAsFqdn() {
         read -p "Please choose an IP from local IP list:" localFqdn
       else
         # Write the local FQDN to configuration file
-        ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+        if [ -f ${configDir}/${configFile} ]; then
+          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
+        else
+          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
+        fi
         serverFqdn=$localFqdn
         break
       fi
@@ -473,65 +497,91 @@ function local_fqdn_check() {
   echo
   echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
   echo
-  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost" ]]; then
-    echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
-    echo
+  set_hostname
+}
 
-    while true; do
-      read -r -p "Set hostname now? [Y/n] " input
-      if [ ! -n "$input" ]; then
-        set_hostname
-        break
-      else
-        case $input in
-        [yY][eE][sS] | [yY])
-          set_hostname
-          break
-          ;;
+function install_taosx_config() {
+  [ ! -z $1 ] && return 0 || : # only install client
 
-        [nN][oO] | [nN])
-          set_ipAsFqdn
-          break
-          ;;
+  fileName="${script_dir}/${xname}/etc/taos/${xname}.toml"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
+    
+    if [ -f "${configDir}/${xname}.toml" ]; then
+      ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/${xname}.toml
+    fi
+  fi
+}
 
-        *)
-          echo "Invalid input..."
-          ;;
-        esac
-      fi
-    done
+
+function install_explorer_config() {
+  [ ! -z $1 ] && return 0 || : # only install client
+
+  fileName="${script_dir}/${xname}/etc/taos/explorer.toml"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${fileName}
+    
+    if [ -f "${configDir}/${explorerName}.toml" ]; then
+      ${csudo}cp ${fileName} ${configDir}/explorer.toml.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/explorer.toml
+    fi
   fi
 }
 
 function install_adapter_config() {
-  if [ ! -f "${cfg_install_dir}/${adapterName}.toml" ]; then
-    ${csudo}mkdir -p ${cfg_install_dir}
-    [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
-    [ -f ${cfg_install_dir}/${adapterName}.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
-  else
-    [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
-      ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
-  fi
-
-  [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
-    ${csudo}ln -sf ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
-
   [ ! -z $1 ] && return 0 || : # only install client
 
+  fileName="${script_dir}/cfg/${adapterName}.toml"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${fileName}
+    
+    if [ -f "${configDir}/${adapterName}.toml" ]; then      
+      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml      
+    fi
+  fi
 }
 
-function install_config() {
+function install_keeper_config() {
+  [ ! -z $1 ] && return 0 || : # only install client
 
-  if [ ! -f "${cfg_install_dir}/${configFile2}" ]; then
-    ${csudo}mkdir -p ${cfg_install_dir}
-    [ -f ${script_dir}/cfg/${configFile2} ] && ${csudo}cp ${script_dir}/cfg/${configFile2} ${cfg_install_dir}
-    ${csudo}chmod 644 ${cfg_install_dir}/*
-  else
-    ${csudo}cp -f ${script_dir}/cfg/${configFile2} ${cfg_install_dir}/${configFile2}.new
+  fileName="${script_dir}/cfg/${keeperName}.toml"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${fileName}
+
+    if [ -f "${configDir}/${keeperName}.toml" ]; then
+      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml
+    fi
+  fi
+}
+
+function install_taosd_config() {
+  fileName="${script_dir}/cfg/${configFile}"
+  if [ -f ${fileName} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
+    ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+    ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
+    
+    if [ -f "${configDir}/${configFile}" ]; then
+      ${csudo}cp ${fileName} ${configDir}/${configFile}.new
+    else
+      ${csudo}cp ${fileName} ${configDir}/${configFile}
+    fi
   fi
 
-  ${csudo}ln -sf ${cfg_install_dir}/${configFile2} ${install_main_dir}/cfg
+  ${csudo}ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
+}
+  
 
+function install_config() {
+  
   [ ! -z $1 ] && return 0 || : # only install client
 
   if ((${update_flag} == 1)); then
@@ -539,19 +589,25 @@ function install_config() {
   fi
 
   if [ "$interactiveFqdn" == "no" ]; then
+    install_taosd_config
     return 0
   fi
 
   local_fqdn_check
+  install_taosd_config
 
   echo
-  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
+  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
   echo
   echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
   read firstEp
   while true; do
     if [ ! -z "$firstEp" ]; then
-      ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/${configFile2}
+      if [ -f ${configDir}/${configFile} ]; then
+        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${configDir}/${configFile}
+      else
+        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${script_dir}/cfg/${configFile}
+      fi
       break
     else
       break
@@ -572,38 +628,24 @@ function install_config() {
   done
 }
 
-function install_share_etc() {
-  [ ! -d ${script_dir}/share/etc ] && return
-  for c in `ls ${script_dir}/share/etc/`; do
-    if [ -e /etc/${clientName2}/$c ]; then
-      out=/etc/${clientName2}/$c.new.`date +%F`
-      ${csudo}cp -f ${script_dir}/share/etc/$c $out ||:
-    else
-      ${csudo}mkdir -p /etc/${clientName2} >/dev/null 2>/dev/null ||:
-      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/${clientName2}/$c ||:
-    fi
-  done
-
-  [ ! -d ${script_dir}/share/srv ] && return
-  ${csudo} cp ${script_dir}/share/srv/* ${service_config_dir} ||:
-}
-
 function install_log() {
-  ${csudo}rm -rf ${log_dir} || :
-  ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
+  ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
 
-  ${csudo}ln -sf ${log_dir} ${install_main_dir}/log
+  ${csudo}ln -sf ${logDir} ${install_main_dir}/log
 }
 
 function install_data() {
-  ${csudo}mkdir -p ${data_dir}
+  ${csudo}mkdir -p ${dataDir}
 
-  ${csudo}ln -sf ${data_dir} ${install_main_dir}/data
+  ${csudo}ln -sf ${dataDir} ${install_main_dir}/data
 }
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
     ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
+    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/ || echo "failed to copy start-all.sh"
+    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/ || echo "failed to copy stop-all.sh"
+    ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
 
@@ -613,42 +655,32 @@ function install_examples() {
   fi
 }
 
+function install_plugins() {
+  if [ -d ${script_dir}/${xname}/plugins ]; then
+    ${csudo}cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy taosx plugins"
+  fi
+}
 
 function clean_service_on_sysvinit() {
-  if ps aux | grep -v grep | grep ${serverName2} &>/dev/null; then
-    ${csudo}service ${serverName2} stop || :
-  fi
-
-  if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
-    ${csudo}service tarbitratord stop || :
+  if ps aux | grep -v grep | grep $1 &>/dev/null; then
+    ${csudo}service $1 stop || :
   fi
 
   if ((${initd_mod} == 1)); then
-    if [ -e ${service_config_dir}/${serverName2} ]; then
-      ${csudo}chkconfig --del ${serverName2} || :
-    fi
-
-    if [ -e ${service_config_dir}/tarbitratord ]; then
-      ${csudo}chkconfig --del tarbitratord || :
+    if [ -e ${service_config_dir}/$1 ]; then
+      ${csudo}chkconfig --del $1 || :
     fi
   elif ((${initd_mod} == 2)); then
-    if [ -e ${service_config_dir}/${serverName2} ]; then
-      ${csudo}insserv -r ${serverName2} || :
-    fi
-    if [ -e ${service_config_dir}/tarbitratord ]; then
-      ${csudo}insserv -r tarbitratord || :
+    if [ -e ${service_config_dir}/$1 ]; then
+      ${csudo}insserv -r $1 || :
     fi
   elif ((${initd_mod} == 3)); then
-    if [ -e ${service_config_dir}/${serverName2} ]; then
-      ${csudo}update-rc.d -f ${serverName2} remove || :
-    fi
-    if [ -e ${service_config_dir}/tarbitratord ]; then
-      ${csudo}update-rc.d -f tarbitratord remove || :
+    if [ -e ${service_config_dir}/$1 ]; then
+      ${csudo}update-rc.d -f $1 remove || :
     fi
   fi
 
-  ${csudo}rm -f ${service_config_dir}/${serverName2} || :
-  ${csudo}rm -f ${service_config_dir}/tarbitratord || :
+  ${csudo}rm -f ${service_config_dir}/$1 || :
 
   if $(which init &>/dev/null); then
     ${csudo}init q || :
@@ -656,107 +688,64 @@ function clean_service_on_sysvinit() {
 }
 
 function install_service_on_sysvinit() {
-  clean_service_on_sysvinit
+  if [ "$1" != "${serverName}" ]; then
+    return
+  fi
+
+  clean_service_on_sysvinit $1
   sleep 1
 
   if ((${os_type} == 1)); then
-    #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   elif ((${os_type} == 2)); then
-    #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   fi
 
   if ((${initd_mod} == 1)); then
-    ${csudo}chkconfig --add ${serverName2} || :
-    ${csudo}chkconfig --level 2345 ${serverName2} on || :
+    ${csudo}chkconfig --add $1 || :
+    ${csudo}chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    ${csudo}insserv ${serverName2} || :
-    ${csudo}insserv -d ${serverName2} || :
+    ${csudo}insserv $1} || :
+    ${csudo}insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
-    ${csudo}update-rc.d ${serverName2} defaults || :
+    ${csudo}update-rc.d $1 defaults || :
   fi
 }
 
 function clean_service_on_systemd() {
-  service_config="${service_config_dir}/${serverName2}.service"
-  if systemctl is-active --quiet ${serverName2}; then
-    echo "${productName} is running, stopping it..."
-    ${csudo}systemctl stop ${serverName2} &>/dev/null || echo &>/dev/null
+  service_config="${service_config_dir}/$1.service"
+
+  if systemctl is-active --quiet $1; then
+    echo "$1 is running, stopping it..."
+    ${csudo}systemctl stop $1 &>/dev/null || echo &>/dev/null
   fi
-  ${csudo}systemctl disable ${serverName2} &>/dev/null || echo &>/dev/null
+  ${csudo}systemctl disable $1 &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${service_config}
-
-  tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
-  if systemctl is-active --quiet tarbitratord; then
-    echo "tarbitrator is running, stopping it..."
-    ${csudo}systemctl stop tarbitratord &>/dev/null || echo &>/dev/null
-  fi
-  ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${tarbitratord_service_config}
-  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-  #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
-  # fi
-  x_service_config="${service_config_dir}/${xName2}.service"
-  if [ -e "$x_service_config" ]; then
-    if systemctl is-active --quiet ${xName2}; then
-      echo "${productName2} ${xName2} is running, stopping it..."
-      ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${x_service_config}
-  fi
-
-  explorer_service_config="${service_config_dir}/${explorerName2}.service"
-  if [ -e "$explorer_service_config" ]; then
-    if systemctl is-active --quiet ${explorerName2}; then
-      echo "${productName2} ${explorerName2} is running, stopping it..."
-      ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${explorer_service_config}
-    ${csudo}rm -f /etc/${clientName2}/explorer.toml
-  fi
 }
 
 function install_service_on_systemd() {
-  clean_service_on_systemd
+  clean_service_on_systemd $1
 
-  install_share_etc
-
-  [ -f ${script_dir}/cfg/${serverName2}.service ] &&
-    ${csudo}cp ${script_dir}/cfg/${serverName2}.service \
-      ${service_config_dir}/ || :
-
-  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-  #   [ -f ${script_dir}/cfg/${serverName2}.service ] &&
-  #   ${csudo}cp ${script_dir}/cfg/${serverName2}.service \
-  #     ${service_config_dir}/${serverName2}.service || :
-  # fi
-
-  ${csudo}systemctl daemon-reload
-
-  ${csudo}systemctl enable ${serverName2}
-
-  ${csudo}systemctl daemon-reload
-}
-
-function install_adapter_service() {
-  if ((${service_mod} == 0)); then
-    [ -f ${script_dir}/cfg/${adapterName}.service ] &&
-      ${csudo}cp ${script_dir}/cfg/${adapterName}.service \
-        ${service_config_dir}/ || :
-    ${csudo}systemctl daemon-reload
+  cfg_source_dir=${script_dir}/cfg
+  if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
+    cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
   fi
+
+  if [ -f ${cfg_source_dir}/$1.service ]; then
+    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  fi
+
+  ${csudo}systemctl enable $1
+  ${csudo}systemctl daemon-reload
 }
 
 function install_service() {
   if ((${service_mod} == 0)); then
-    install_service_on_systemd
+    install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
-    install_service_on_sysvinit
+    install_service_on_sysvinit $1
   else
-    kill_process ${serverName2}
+    kill_process $1
   fi
 }
 
@@ -793,10 +782,10 @@ function is_version_compatible() {
   if [ -f ${script_dir}/driver/vercomp.txt ]; then
     min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
   else
-    min_compatible_version=$(${script_dir}/bin/${serverName2} -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 5)
   fi
 
-  exist_version=$(${installDir}/bin/${serverName2} -V | head -1 | cut -d ' ' -f 3)
+  exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
   vercomp $exist_version "3.0.0.0"
   case $? in
   2)
@@ -820,7 +809,7 @@ deb_erase() {
     echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
-      ${csudo}dpkg --remove tdengine ||:
+      ${csudo}dpkg --remove tdengine || :
       break
     elif [ "no" == "$confirm" ]; then
       break
@@ -834,7 +823,7 @@ rpm_erase() {
     echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
-      ${csudo}rpm -e tdengine ||:
+      ${csudo}rpm -e tdengine || :
       break
     elif [ "no" == "$confirm" ]; then
       break
@@ -856,23 +845,23 @@ function updateProduct() {
   fi
 
   if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine ||:
+    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
   elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii > /dev/null && deb_erase tdengine ||:
+    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update ${productName2}...${NC}"
+  echo "Start to update ${productName}..."
   # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName2} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
-      ${csudo}systemctl stop ${serverName2} || :
+      ${csudo}systemctl stop ${serverName} || :
     elif ((${service_mod} == 1)); then
-      ${csudo}service ${serverName2} stop || :
+      ${csudo}service ${serverName} stop || :
     else
-      kill_process ${serverName2}
+      kill_process ${serverName}
     fi
     sleep 1
   fi
@@ -882,62 +871,75 @@ function updateProduct() {
   install_log
   install_header
   install_lib
+  install_config
 
   if [ "$verMode" == "cluster" ]; then
-      install_connector
+    install_connector
+    install_plugins
   fi
 
   install_examples
   if [ -z $1 ]; then
     install_bin
-    install_service
-    install_adapter_service
-    install_config
-    install_adapter_config
+    install_services
+
+    if [ "${pagMode}" != "lite" ]; then
+      install_adapter_config
+      install_taosx_config
+      install_explorer_config
+      if [ "${verMode}" != "cloud" ]; then
+        install_keeper_config
+      fi
+    fi
 
     openresty_work=false
 
     echo
-    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile2}"
-    [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
+    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
+    [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
+      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
+    fi
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
-      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
-      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName2}${NC}"
-      [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
-    fi
-    
-    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
-
-    if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
-    else
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ./${serverName}${NC}"
+      [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    if ((${prompt_force} == 1)); then
-      echo ""
-      echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
+    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
     fi
+
     echo
-    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo "${productName} is updated successfully!"
+    echo
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "\033[44;32;1mTo start all the components       : ./start-all.sh${NC}"
+    fi
+    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
+      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
+    fi
   else
     install_bin
-    install_config
 
     echo
-    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
+  cd $script_dir
   rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
@@ -949,7 +951,7 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo -e "${GREEN}Start to install ${productName2}...${NC}"
+  echo "Start to install ${productName}..."
 
   install_main_path
 
@@ -963,87 +965,117 @@ function installProduct() {
   install_jemalloc
   #install_avro lib
   #install_avro lib64
+  install_config
 
   if [ "$verMode" == "cluster" ]; then
-      install_connector
+    install_connector
+    install_plugins
   fi
-  install_examples  
+  install_examples
 
   if [ -z $1 ]; then # install service and client
     # For installing new
     install_bin
-    install_service
-    install_adapter_service
-    install_adapter_config
+    install_services
+
+    if [ "${pagMode}" != "lite" ]; then      
+      install_adapter_config
+      install_taosx_config
+      install_explorer_config
+      if [ "${verMode}" != "cloud" ]; then
+        install_keeper_config
+      fi
+    fi
 
     openresty_work=false
 
-    install_config
-
     # Ask if to start the service
     echo
-    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile2}"
-    [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
+    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
+    [ -f ${configDir}/${clientName}adapter.toml ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
+      echo -e "${GREEN_DARK}To configure ${clientName}Adapter ${NC}\t: edit ${configDir}/${clientName}adapter.toml"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
+    fi
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
-      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
-      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${serverName2}${NC}"
-      [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}: ${clientName2}adapter &${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${serverName}${NC}"
+      [ -f ${installDir}/bin/${clientName}adapter ] &&
+        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}: sudo systemctl enable ${clientName2}keeper &${NC}"
+    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
 
-    if [ ! -z "$firstEp" ]; then
-      tmpFqdn=${firstEp%%:*}
-      substr=":"
-      if [[ $firstEp =~ $substr ]]; then
-        tmpPort=${firstEp#*:}
-      else
-        tmpPort=""
-      fi
-      if [[ "$tmpPort" != "" ]]; then
-        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
-      else
-        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
-      fi
-      echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
-      echo
-    elif [ ! -z "$serverFqdn" ]; then
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $serverFqdn${GREEN_DARK} to login into ${productName2} server${NC}"
-      echo
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
     fi
 
-    echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation and explorer features, you need to install ${clientName2}Explorer ${NC}"
+    echo
+    echo "${productName} is installed successfully!"
+    echo
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
+    fi
+    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
+      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
+    fi
     echo
   else # Only install client
     install_bin
-    install_config
+
     echo
-    echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
+    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
   fi
 
+  cd $script_dir
   touch ~/.${historyFile}
   rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
+}
+
+check_java_env() {
+    if ! command -v java &> /dev/null
+    then
+        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+        return
+    fi
+
+  java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_version_ok=false
+  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
+    java_version_ok=true
+  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+    java_version_ok=true
+  fi
+
+  if $java_version_ok; then
+    echo -e "\033[32mJava ${java_version} has been found.\033[0m"
+  else
+    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+  fi
 }
 
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
+  if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
+    check_java_env
+  fi
   # Check default 2.x data file.
-  if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
-    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of ${productName2} 2.x, please clear it before installing!\033[0m"
+  if [ -x ${dataDir}/dnode/dnodeCfg.json ]; then
+    echo -e "\033[44;31;5mThe default data directory ${dataDir} contains old data of ${productName} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
-    if [ -x ${bin_dir}/${serverName2} ]; then
+    if [ -x ${bin_dir}/${serverName} ]; then
       update_flag=1
       updateProduct
     else
@@ -1053,7 +1085,7 @@ if [ "$verType" == "server" ]; then
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no
   # Only install client
-  if [ -x ${bin_dir}/${clientName2} ]; then
+  if [ -x ${bin_dir}/${clientName} ]; then
     update_flag=1
     updateProduct client
   else

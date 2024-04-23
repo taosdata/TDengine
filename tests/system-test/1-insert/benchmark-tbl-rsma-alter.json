@@ -1,0 +1,105 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/home/ben/github/taosdata/3.0/TDinternal/dnodes/dnode1/cfg",
+  "host": "localhost",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "connection_pool_size": 8,
+  "thread_count": 20,
+  "create_table_thread_count": 7,
+  "result_file": "/root/insert_rsma_10w_1vnode.txt",
+  "confirm_parameter_prompt": "no",
+  "insert_interval": 0,
+  "interlace_rows": 100,
+  "num_of_records_per_req": 100,
+  "prepared_rand": 10000,
+  "chinese": "no",
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "db_replica",
+        "drop": "yes",
+        "replica": 1,
+        "duration": 10,
+        "vgroups": 2,
+        "precision": "ms",
+        "keep": 3650,
+        "minRows": 100,
+        "maxRows": 4096,
+        "comp": 2,
+        "wal_Level": 1,
+        "wal_retention_period": 0,
+        "retentions": "-:7d, 20s:8d, 30s:9d"
+      },
+      "super_tables": [
+        {
+          "name": "stb1",
+          "child_table_exists": "no",
+          "childtable_count": 1000,
+          "childtable_prefix": "ct",
+          "escape_character": "yes",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 10,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "non_stop_mode": "no",
+          "line_protocol": "line",
+          "insert_rows": 5000,
+          "childtable_limit": 10,
+          "childtable_offset": 100,
+          "interlace_rows": 0,
+          "insert_interval": 0,
+          "partial_col_num": 0,
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 1000,
+          "start_timestamp": "now",
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "use_sample_ts": "no",
+          "tags_file": "",
+          "rollup": "max",
+          "columns": [
+            {
+              "type": "FLOAT",
+              "name": "current",
+              "count": 1,
+              "max": 12,
+              "min": 8
+            },
+            {
+              "type": "INT",
+              "name": "voltage",
+              "max": 225,
+              "min": 215
+            },
+            {
+              "type": "FLOAT",
+              "name": "phase",
+              "max": 1,
+              "min": 0
+            }
+          ],
+          "tags": [
+            {
+              "type": "INT",
+              "name": "tag1",
+              "max": 10,
+              "min": 1
+            },
+            {
+              "name": "location",
+              "type": "BINARY",
+              "len": 16,
+              "values": [
+                "beijing",
+                "shanghai"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

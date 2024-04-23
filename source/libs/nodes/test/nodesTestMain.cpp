@@ -53,6 +53,7 @@ TEST(NodesTest, traverseTest) {
   EXPECT_EQ(res, DEAL_RES_CONTINUE);
   EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
   EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");
+  nodesDestroyNode(pRoot);
 }
 
 int main(int argc, char* argv[]) {

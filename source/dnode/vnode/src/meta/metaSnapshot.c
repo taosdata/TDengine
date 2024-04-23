@@ -79,6 +79,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   int32_t     nKey = 0;
   int32_t     nData = 0;
   STbDbKey    key;
+  SMetaInfo   info;
 
   *ppData = NULL;
   for (;;) {
@@ -91,33 +92,34 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
       goto _exit;
     }
 
-    if (key.version < pReader->sver) {
+    if (key.version < pReader->sver  //
+        || metaGetInfo(pReader->pMeta, key.uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
       tdbTbcMoveToNext(pReader->pTbc);
       continue;
     }
 
+    if (!pData || !nData) {
+      metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
+      goto _exit;
+    }
+
+    *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
+    if (*ppData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
+    pHdr->type = SNAP_DATA_META;
+    pHdr->size = nData;
+    memcpy(pHdr->data, pData, nData);
+
+    metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
+              TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
+
     tdbTbcMoveToNext(pReader->pTbc);
     break;
   }
-
-  if (!pData || !nData) {
-    metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
-    goto _exit;
-  }
-
-  *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
-  if (*ppData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-  pHdr->type = SNAP_DATA_META;
-  pHdr->size = nData;
-  memcpy(pHdr->data, pData, nData);
-
-  metaDebug("vgId:%d, vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " blockLen:%d",
-            TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
   return code;
@@ -619,7 +621,8 @@ SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
     if (ret != 0) {
-      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
+      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp,
+                idInfo->version);
       continue;
     }
     tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);

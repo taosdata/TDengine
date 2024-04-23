@@ -1,4 +1,5 @@
 # vnode
+add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
 set(
   VNODE_SOURCE_FILES
@@ -13,6 +14,8 @@ set(
   "src/vnd/vnodeSnapshot.c"
   "src/vnd/vnodeRetention.c"
   "src/vnd/vnodeInitApi.c"
+  "src/vnd/vnodeAsync.c"
+  "src/vnd/vnodeHash.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -63,9 +66,13 @@ set(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
-    "src/tq/tqRestore.c"
-    "src/tq/tqSnapshot.c"
+    "src/tq/tqStreamTask.c"
+    "src/tq/tqHandleSnapshot.c"
+    "src/tq/tqCheckInfoSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
+    "src/tq/tqStreamStateSnap.c"
+    "src/tq/tqStreamTaskSnap.c"
+    
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
@@ -86,6 +93,7 @@ IF (TD_VNODE_PLUGINS)
     vnode
     PRIVATE
     ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
     ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
   )
 ENDIF ()
@@ -113,6 +121,7 @@ if (${BUILD_CONTRIB})
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
         PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
 else()
@@ -121,6 +130,7 @@ else()
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
     if (${TD_LINUX})
         target_include_directories(
@@ -146,6 +156,7 @@ target_link_libraries(
     PUBLIC executor
     PUBLIC scheduler
     PUBLIC tdb
+    PUBLIC audit
 
     # PUBLIC bdb
     # PUBLIC scalar
@@ -153,6 +164,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
+    PUBLIC tqCommon
 )
 
 IF (TD_GRANT)
@@ -168,8 +180,6 @@ endif(${BUILD_WITH_INVERTEDINDEX})
 if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
-
-
 
 if(${BUILD_TEST})
     add_subdirectory(test)

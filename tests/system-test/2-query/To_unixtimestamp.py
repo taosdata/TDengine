@@ -99,7 +99,7 @@ class TDTestCase:
         tdSql.query(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 0);")
         tdSql.checkEqual(tdSql.queryResult[0][0], 0)
         tdSql.query(f"select to_unixtimestamp('1970-01-01 00:00:00', 1);")
-        tdSql.checkData(0, 0, '1970-01-01 00:00:00')
+        tdSql.checkData(0, 0, datetime.datetime(1970, 1, 1, 0, 0, 0))
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 2);")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1.5);")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 'abc');")

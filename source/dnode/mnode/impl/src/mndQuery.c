@@ -55,6 +55,9 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
     case TDMT_SCH_QUERY_HEARTBEAT:
       code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
+    case TDMT_SCH_TASK_NOTIFY:
+      code = qWorkerProcessNotifyMsg(pMnode, pMnode->pQuery, pMsg, 0);
+      break;
     default:
       terrno = TSDB_CODE_APP_ERROR;
       mError("unknown msg type:%d in query queue", pMsg->msgType);
@@ -175,6 +178,7 @@ int32_t mndInitQuery(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_CONTINUE, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_FETCH, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_MERGE_FETCH, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_TASK_NOTIFY, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_DROP_TASK, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_HEARTBEAT, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BATCH_META, mndProcessBatchMetaMsg);

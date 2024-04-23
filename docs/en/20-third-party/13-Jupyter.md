@@ -4,7 +4,7 @@ sidebar_label: JupyterLab
 description: This document describes how to integrate TDengine with JupyterLab.
 ---
 
-JupyterLab is the next generation of the ubiquitous Jupyter Notebook. In this note we show you how to install the TDengine Python connector to connect to TDengine in JupyterLab. You can then insert data and perform queries against the TDengine instance within JupyterLab.
+JupyterLab is the next generation of the ubiquitous Jupyter Notebook. In this note we show you how to install the TDengine Python client library to connect to TDengine in JupyterLab. You can then insert data and perform queries against the TDengine instance within JupyterLab.
 
 ## Install JupyterLab
 Installing JupyterLab is very easy. Installation instructions can be found at:  
@@ -36,8 +36,8 @@ jupyter lab
 ````
 This will automatically launch your default browser and connect to your JupyterLab instance, usually on port 8888.
 
-## Install the TDengine Python connector
-You can now install the TDengine Python connector as follows.  
+## Install the TDengine Python client library
+You can now install the TDengine Python client library as follows.  
 
 Start a new Python kernel in JupyterLab.  
 
@@ -55,8 +55,8 @@ import sys
 ````
 
 ## Connect to TDengine
-You can find detailed examples to use the Python connector, in the TDengine documentation here.
-Once you have installed the TDengine Python connector in your JupyterLab kernel, the process of connecting to TDengine is the same as that you would use if you weren't using JupyterLab.
+You can find detailed examples to use the Python client library, in the TDengine documentation here.
+Once you have installed the TDengine Python client library in your JupyterLab kernel, the process of connecting to TDengine is the same as that you would use if you weren't using JupyterLab.
 Each TDengine instance, has a database called "log" which has monitoring information about the TDengine instance.
 In the "log" database there is a [supertable](https://docs.tdengine.com/taos-sql/stable/) called "disks_info".  
 
@@ -96,4 +96,4 @@ result = sqlQuery(conn)
 print(result)
 ````
 
-TDengine has connectors for various languages including Node.js, Go, PHP and there are kernels for these languages which can be found [here](https://github.com/jupyter/jupyter/wiki/Jupyter-kernels).
+TDengine has client libraries for various languages including Node.js, Go, PHP and there are kernels for these languages which can be found [here](https://github.com/jupyter/jupyter/wiki/Jupyter-kernels).

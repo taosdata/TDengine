@@ -1,0 +1,16 @@
+# libs3
+
+ExternalProject_Add(libs3
+        GIT_REPOSITORY https://github.com/bji/libs3
+        #GIT_TAG v5.0.16
+        DEPENDS curl2 xml2
+        SOURCE_DIR "${TD_CONTRIB_DIR}/libs3"
+        #BINARY_DIR ""
+        BUILD_IN_SOURCE TRUE
+        BUILD_ALWAYS 1
+	UPDATE_COMMAND ""
+	CONFIGURE_COMMAND cp ${TD_SUPPORT_DIR}/libs3.GNUmakefile GNUmakefile &&  sed -i "s|CFLAGS += -Wall -Werror|CFLAGS += -I'$ENV{HOME}/.cos-local.2/include' -L'$ENV{HOME}/.cos-local.2/lib' |" ./GNUmakefile
+        BUILD_COMMAND make build/lib/libs3.a
+        INSTALL_COMMAND make install_static
+        TEST_COMMAND ""
+)

@@ -30,7 +30,16 @@ int shell_conn_ws_server(bool first) {
   fprintf(stdout, "trying to connect %s****** ", cuttedDsn);
   fflush(stdout);
   for (int i = 0; i < shell.args.timeout; i++) {
-    shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+    if(shell.args.is_bi_mode) {
+      size_t len = strlen(shell.args.dsn);
+      char * dsn = taosMemoryMalloc(len + 32);
+      sprintf(dsn, "%s&conn_mode=1", shell.args.dsn);
+      shell.ws_conn = ws_connect_with_dsn(dsn);
+      taosMemoryFree(dsn);
+    } else {
+      shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+    }
+
     if (NULL == shell.ws_conn) {
       int errNo = ws_errno(NULL);
       if (0xE001 == errNo) {
@@ -59,7 +68,17 @@ int shell_conn_ws_server(bool first) {
     fprintf(stdout, "successfully connected to %s\n\n",
         shell.args.dsn);
   } else if (first && shell.args.cloud) {
-    fprintf(stdout, "successfully connected to cloud service\n");
+    if(shell.args.local) {
+      const char* host = strstr(shell.args.dsn, "@");
+      if(host) {
+        host += 1;
+      } else {
+        host = shell.args.dsn;
+      }
+      fprintf(stdout, "successfully connected to %s\n", host);
+    } else {
+      fprintf(stdout, "successfully connected to cloud service\n");
+    }
   }
   fflush(stdout);
 
@@ -228,6 +247,7 @@ static int shellDumpWebsocket(WS_RES *wres, char *fname,
   return numOfRows;
 }
 
+char * strendG(const char* pstr);
 void shellRunSingleCommandWebsocketImp(char *command) {
   int64_t st, et;
   char   *sptr = NULL;
@@ -236,22 +256,17 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   bool    printMode = false;
 
   if ((sptr = strstr(command, ">>")) != NULL) {
-    cptr = strstr(command, ";");
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
-
     fname = sptr + 2;
     while (*fname == ' ') fname++;
     *sptr = '\0';
-  }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
-    cptr = strstr(command, ";");
+    cptr = strstr(fname, ";");
     if (cptr != NULL) {
       *cptr = '\0';
     }
+  }
 
+  if ((sptr = strendG(command)) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
@@ -260,7 +275,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   WS_RES* res;
 
   for (int reconnectNum = 0; reconnectNum < 2; reconnectNum++) {
-    if (!shell.ws_conn && shell_conn_ws_server(0)) {
+    if (!shell.ws_conn && shell_conn_ws_server(0) || shell.stop_query) {
       return;
     }
     st = taosGetTimestampUs();
@@ -278,7 +293,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       }
       if (code == TSDB_CODE_WS_SEND_TIMEOUT
                 || code == TSDB_CODE_WS_RECV_TIMEOUT) {
-        fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
+        fprintf(stderr, "Hint: use -T to increase the timeout in seconds\n");
       } else if (code == TSDB_CODE_WS_INTERNAL_ERRO
                     || code == TSDB_CODE_WS_CLOSED) {
         shell.ws_conn = NULL;
@@ -373,8 +388,6 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     } else {
       printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
           (et - st)/1E6);
-      printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n",
-             execute_time, net_time, total_time);
     }
   }
   printf("\n");

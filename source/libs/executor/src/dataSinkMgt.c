@@ -18,12 +18,17 @@
 #include "planner.h"
 #include "tarray.h"
 
-static SDataSinkManager gDataSinkManager = {0};
 SDataSinkStat           gDataSinkStat = {0};
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI) {
-  gDataSinkManager.cfg = *cfg;
-  gDataSinkManager.pAPI = pAPI;
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager) {
+  SDataSinkManager* pSinkManager = taosMemoryMalloc(sizeof(SDataSinkManager));
+  if (NULL == pSinkManager) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pSinkManager->cfg = *cfg;
+  pSinkManager->pAPI = pAPI;
+
+  *ppSinkManager = pSinkManager;
   return 0;  // to avoid compiler eror
 }
 
@@ -33,18 +38,22 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   return 0;
 }
 
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+  SDataSinkManager* pManager = pSinkManager;
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+      return createDataDispatcher(pManager, pDataSink, pHandle);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
-      return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
+      return createDataDeleter(pManager, pDataSink, pHandle, pParam);
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
-      return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
+      return createDataInserter(pManager, pDataSink, pHandle, pParam);
     }
+    default:
+      break;
   }
 
+  taosMemoryFree(pSinkManager);
   qError("invalid input node type:%d, %s", nodeType(pDataSink), id);
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
@@ -57,6 +66,13 @@ int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pC
 void dsEndPut(DataSinkHandle handle, uint64_t useconds) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   return pHandleImpl->fEndPut(pHandleImpl, useconds);
+}
+
+void dsReset(DataSinkHandle handle) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  if (pHandleImpl->fReset) {
+    return pHandleImpl->fReset(pHandleImpl);
+  }
 }
 
 void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {

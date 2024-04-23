@@ -25,4 +25,9 @@ IF(NOT TD_DARWIN)
                 PUBLIC "${TD_SOURCE_DIR}/include/libs/scheduler/"
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/scheduler/inc"
         )
+        add_test(
+                NAME schedulerTest
+                COMMAND schedulerTest
+            )
+        
 ENDIF()

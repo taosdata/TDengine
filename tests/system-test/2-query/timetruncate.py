@@ -58,7 +58,11 @@ class TDTestCase:
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24/7)*7*24*60*60*1000)
+                if ignore_tz == 0:
+                    tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24/7)*7*24*60*60*1000)
+                else:
+                    # assuming the client timezone is UTC+0800
+                    tdSql.checkEqual(ts_result,int(date_time[i] - (date_time[i] + 8 * 3600 * 1000) % (86400 * 7 * 1000)))
 
     def check_us_timestamp(self,unit,date_time, ignore_tz):
         if unit.lower() == '1u':
@@ -92,7 +96,11 @@ class TDTestCase:
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24/7)*7*24*60*60*1000*1000)
+                if ignore_tz == 0:
+                    tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24/7)*7*24*60*60*1000*1000)
+                else:
+                    # assuming the client timezone is UTC+0800
+                    tdSql.checkEqual(ts_result,int(date_time[i] - (date_time[i] + 8 * 3600 * 1000000) % (86400 * 7 * 1000000)))
 
     def check_ns_timestamp(self,unit,date_time, ignore_tz):
         if unit.lower() == '1b':
@@ -130,7 +138,11 @@ class TDTestCase:
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 if self.rest_tag != 'rest':
-                    tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
+                    if ignore_tz == 0:
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
+                    else:
+                        # assuming the client timezone is UTC+0800
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i] - (date_time[i] + 8 * 3600  * 1000000000) % (86400 * 7 * 1000000000)))
 
     def check_tb_type(self,unit,tb_type,ignore_tz):
         if tb_type.lower() == 'ntb':

@@ -94,6 +94,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TO_ISO8601,
   FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
+  FUNCTION_TYPE_TO_TIMESTAMP,
+  FUNCTION_TYPE_TO_CHAR,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
@@ -122,6 +124,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IROWTS,
   FUNCTION_TYPE_ISFILLED,
   FUNCTION_TYPE_TAGS,
+  FUNCTION_TYPE_TBUID,
+  FUNCTION_TYPE_VGID,
+  FUNCTION_TYPE_VGVER,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -157,6 +162,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_AVG_MERGE,
   FUNCTION_TYPE_STDDEV_PARTIAL,
   FUNCTION_TYPE_STDDEV_MERGE,
+  FUNCTION_TYPE_IRATE_PARTIAL,
+  FUNCTION_TYPE_IRATE_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -231,11 +238,13 @@ bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
+bool fmIsConstantResFunc(SFunctionNode* pFunc);
+bool fmIsSkipScanCheckFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
@@ -251,9 +260,13 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+
+#ifdef BUILD_NO_CALL
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
+#endif
+
 char*   fmGetFuncName(int32_t funcId);
 
 #ifdef __cplusplus

@@ -218,6 +218,7 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_STREQ(outfile.aname, file0.aname);
     EXPECT_STREQ(outfile.rname, "fname");
     EXPECT_EQ(outfile.pTfs, pTfs);
+    taosMemoryFree(ret);
   }
 
   {

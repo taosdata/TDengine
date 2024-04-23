@@ -48,7 +48,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   // open rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2,
+      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, (i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2), NULL,
                                 &pReader->pDataReader[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -128,7 +128,7 @@ struct SRSmaSnapWriter {
   STsdbSnapWriter* pDataWriter[TSDB_RETENTION_L2];
 };
 
-int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter) {
+int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void** ppRanges, SRSmaSnapWriter** ppWriter) {
   int32_t          code = 0;
   int32_t          lino = 0;
   SVnode*          pVnode = pSma->pVnode;
@@ -147,7 +147,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
   // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, &pWriter->pDataWriter[i]);
+      code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, ((void**)ppRanges)[i], &pWriter->pDataWriter[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -161,6 +161,21 @@ _exit:
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     smaInfo("vgId:%d, rsma snapshot writer open succeed", TD_VID(pSma->pVnode));
+  }
+  return code;
+}
+
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+    if (pWriter->pDataWriter[i]) {
+      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i]);
+      if (code) {
+        smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma), terrstr(),
+                 i);
+        return -1;
+      }
+    }
   }
   return code;
 }

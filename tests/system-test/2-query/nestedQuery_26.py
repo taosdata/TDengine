@@ -62,6 +62,7 @@ class TDTestCase(TDTestCase):
         
 
         endTime = time.time()
+        time.sleep(5)
         print("total time %ds" % (endTime - startTime))
 
         
@@ -69,6 +70,7 @@ class TDTestCase(TDTestCase):
 
     def stop(self):
         tdSql.close()
+        time.sleep(5)
         tdLog.success("%s successfully executed" % __file__)
 
 

@@ -79,6 +79,20 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
+static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
+  T_MD5_CTX ctx;
+  tMD5Init(&ctx);
+  tMD5Update(&ctx, (uint8_t*)pBuf, len);
+  tMD5Final(&ctx);
+  char* p = pBuf;
+  int32_t resLen = 0;
+  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+    resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
+    p += 2;
+  }
+  return resLen;
+}
+
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
                                              int32_t suffix) {
   if ((prefix == 0 && suffix == 0) || (tblen <= (prefix + suffix)) || (tblen <= -1 * (prefix + suffix)) ||

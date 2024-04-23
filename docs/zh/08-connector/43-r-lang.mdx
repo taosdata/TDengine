@@ -1,0 +1,89 @@
+---
+toc_max_heading_level: 4
+sidebar_label: R
+title: R Language Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Rdemo from "../07-develop/01-connect/_connect_r.mdx"
+
+通过 R 语言中的 RJDBC 库可以使 R 语言程序支持访问 TDengine 数据。以下是安装过程、配置过程以及 R 语言示例代码。
+
+## 安装过程
+
+在开始之前，请确保已经安装了R语言环境。然后按照以下步骤安装和配置RJDBC库：
+
+1. 安装Java Development Kit (JDK)：RJDBC库需要依赖Java环境。请从Oracle官方网站下载适合您操作系统的JDK，并按照安装指南进行安装。
+
+2. 安装RJDBC库：在R控制台中执行以下命令来安装RJDBC库。
+
+```r
+install.packages("RJDBC", repos='http://cran.us.r-project.org')
+```
+
+:::note
+1. Ubuntu 系统自带的 R 语言软件版本 4.2 在调用 RJDBC 库会产生无响应 bug，请安装 R 语言[官网](https://www.r-project.org/)的安装包。
+2. 在 Linux 上安装 RJDBC 包可能需要安装编译需要的组件，以 Ubuntu 为例执行 `apt install -y libbz2-dev libpcre2-dev libicu-dev` 命令安装。
+3. 在 Windows 系统上需要设置 JAVA_HOME 环境变量。
+:::
+
+3. 下载 TDengine JDBC 驱动程序：访问 maven.org 网站，下载 TDengine JDBC 驱动程序（taos-jdbcdriver-X.X.X-dist.jar）。
+
+4. 将 TDengine JDBC 驱动程序放置在适当的位置：在您的计算机上选择一个合适的位置，将 TDengine JDBC 驱动程序文件（taos-jdbcdriver-X.X.X-dist.jar）保存在此处。
+
+## 配置过程
+
+完成了安装步骤后，您需要进行一些配置，以便RJDBC库能够正确连接和访问TDengine时序数据库。
+
+1. 在 R 脚本中加载 RJDBC 和其他必要的库：
+
+```r
+library(DBI)
+library(rJava)
+library(RJDBC)
+```
+
+2. 设置 JDBC 驱动程序和 JDBC URL：
+
+```r
+# 设置JDBC驱动程序路径（根据您实际保存的位置进行修改）
+driverPath <- "/path/to/taos-jdbcdriver-X.X.X-dist.jar"
+
+# 设置JDBC URL（根据您的具体环境进行修改）
+url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
+```
+
+3. 加载 JDBC 驱动程序：
+
+```r
+# 加载JDBC驱动程序
+drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
+```
+
+4. 创建 TDengine 数据库连接：
+
+```r
+# 创建数据库连接
+conn <- dbConnect(drv, url)
+```
+
+5. 连接成功后，您可以使用 conn 对象进行各种数据库操作，如查询数据、插入数据等。
+
+6. 最后，不要忘记在使用完成后关闭数据库连接：
+
+```r
+# 关闭数据库连接
+dbDisconnect(conn)
+```
+
+## 使用 RJDBC 的 R 语言示例代码
+
+以下是一个使用 RJDBC 库连接 TDengine 时序数据库并执行查询操作的示例代码：
+
+<Rdemo/>
+
+请根据您的实际情况修改JDBC驱动程序、JDBC URL、用户名、密码以及SQL查询语句，以适配您的 TDengine 时序数据库环境和要求。
+
+通过以上步骤和示例代码，您可以在 R 语言环境中使用 RJDBC 库访问 TDengine 时序数据库，进行数据查询和分析等操作。

@@ -217,6 +217,7 @@ void testFlushAndReadBackBuffer() {
   pPg = (SFilePage*)getBufPage(pBuf, pageId);
   ASSERT_TRUE(checkBufVarData(pPg, rowData + 3, len));
   destroyDiskbasedBuf(pBuf);
+  taosMemoryFree(rowData);
 }
 
 }  // namespace

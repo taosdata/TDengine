@@ -46,7 +46,7 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
 void sdbFreeRaw(SSdbRaw *pRaw) {
   if (pRaw != NULL) {
 #if 1
-    mTrace("raw:%p, is freed", pRaw);
+    mTrace("raw:%p, is freed, len:%d, table:%s", pRaw, pRaw->dataLen, sdbTableName(pRaw->type));
 #endif
     taosMemoryFree(pRaw);
   }

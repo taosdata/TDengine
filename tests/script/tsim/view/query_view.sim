@@ -1,0 +1,238 @@
+sql connect
+sql use testa;
+
+sql create view view1 as select * from sta1;
+sql explain select * from view1 order by ts;
+sql explain analyze select * from view1 order by ts;
+sql select * from view1 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  return -1
+endi
+if $data01 != 100111 then
+  return -1
+endi
+sql select ts from view1 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  return -1
+endi
+sql select view1.ts from view1 order by view1.ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  return -1
+endi
+
+sql create or replace view view1 as select 1, 2;
+sql explain select * from view1;
+sql explain analyze select * from view1;
+sql select * from view1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+
+sql create or replace view view1 as select tbname as a, f from sta1;
+sql explain select cast(avg(f) as int) b  from view1 group by a having avg(f) > 100111 order by b;
+sql explain analyze select cast(avg(f) as int) b  from view1 group by a having avg(f) > 100111 order by b;
+sql select cast(avg(f) as int) b  from view1 group by a having avg(f) > 100111 order by b;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 100112 then
+  return -1
+endi
+if $data10 != 100113 then
+  return -1
+endi
+if $data20 != 100114 then
+  return -1
+endi
+ 
+sql create or replace view view1 as select tbname, avg(f) from sta1 partition by tbname;
+sql explain select * from view1 partition by view1.tbname;
+sql explain analyze select * from view1 partition by view1.tbname;
+sql select * from view1 partition by view1.tbname;
+if $rows != 4 then
+  return -1
+endi
+
+sql create or replace view view1 as select * from sta1;
+sql create or replace view testb.view2 as select * from testb.stb1;
+sql_error explain select avg(t1.f), avg(t2.f) from view1 t1, view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+sql_error explain analyze select avg(t1.f), avg(t2.f) from view1 t1, view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+sql_error select avg(t1.f), avg(t2.f) from view1 t1, view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+sql explain select avg(t1.f), avg(t2.f) from view1 t1, testb.view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+sql explain analyze select avg(t1.f), avg(t2.f) from view1 t1, testb.view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+sql select avg(t1.f), avg(t2.f) from view1 t1, testb.view2 t2 where t1.ts = t2.ts and t1.f < 100114;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 100112.000000000 then
+  print $data00
+  return -1
+endi
+if $data01 != 110112.000000000 then
+  return -1
+endi
+
+sql create or replace view view3 as select t1.ts ts, t1.f a1, t2.f a2 from view1 t1, testb.view2 t2 where t1.ts = t2.ts;
+sql create or replace view view4 as select t1.ts ts, t1.f a1, t2.f a2 from testa.st2 t1, testb.st2 t2 where t1.ts = t2.ts;
+sql create view view5 as select t3.ts, cast((t3.a1 + t4.a1) as bigint), cast((t3.a2 - t4.a2) as bigint) from view3 t3, view4 t4 where t3.ts = t4.ts order by t3.ts;
+sql explain select * from view5;
+sql explain analyze select * from view5;
+sql select * from view5;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 200332 then
+  return -1
+endi
+if $data02 != -110 then
+  return -1
+endi
+if $data11 != 200334 then
+  return -1
+endi
+if $data21 != 200336 then
+  return -1
+endi
+if $data31 != 200338 then
+  return -1
+endi
+
+sql drop view view1;
+sql drop view testb.view2;
+sql drop view view3;
+sql drop view view4;
+sql drop view view5;
+
+sql create or replace view view1 as select * from sta1;
+sql create or replace view view2 as select * from st2;
+sql explain select avg(view1.f), avg(view2.f) from view1, view2 where view1.ts = view2.ts and view1.f < 100114;
+sql explain analyze select avg(view1.f), avg(view2.f) from view1, view2 where view1.ts = view2.ts and view1.f < 100114;
+sql select avg(view1.f), avg(view2.f) from view1, view2 where view1.ts = view2.ts and view1.f < 100114;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 100112.000000000 then
+  print $data00
+  return -1
+endi
+if $data01 != 100222.000000000 then
+  return -1
+endi
+
+sql drop view view1;
+sql drop view view2;
+
+sql create view view1 as select * from sta1;
+sql create view view2 as select * from st2;
+sql create view view3 as select a.ts ts, a.f af, b.f bf from view1 a join view2 b on a.ts = b.ts;
+sql create view view3a as select a.ts ts, a.f, b.f from view1 a join view2 b on a.ts = b.ts;
+sql create view view4 as select _wstart, avg(bf) - avg(af) as b from view3 interval(1s);
+sql_error create view view4a as select _wstart, avg(b.f) - avg(a.f) as b from view3 interval(1s);
+sql create view view5 as select count(*),avg(b) from view4 interval(1s) having avg(b) > 0;
+sql explain select * from view5;
+sql explain analyze select * from view5;
+sql select * from view5; 
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then
+  print $data00
+  return -1
+endi
+if $data01 != 110.000000000 then
+  return -1
+endi
+sql drop view view1;
+sql drop view view2;
+sql drop view view3;
+sql drop view view3a;
+sql drop view view4;
+sql drop view view5;
+
+sql use information_schema;
+sql create view view1 as select * from ins_views;
+sql explain select * from view1;
+sql explain analyze select * from view1;
+sql select * from view1;
+if $rows != 1 then
+  return -1
+endi
+sql drop view view1;
+sql use testa;
+sql create view information_schema.view1 as select * from information_schema.ins_views;
+sql explain select * from information_schema.view1;
+sql explain analyze select * from information_schema.view1;
+sql select * from information_schema.view1;
+if $rows != 1 then
+  return -1
+endi
+sql drop view information_schema.view1;
+
+sql use testa;
+sql create view view1 as select * from st2;
+sql use testb;
+sql explain select f from testa.view1 order by f;
+sql explain analyze select f from testa.view1 order by f;
+sql select f from testa.view1 order by f;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 100221 then
+  print $data00
+  return -1
+endi
+if $data10 != 100222 then
+  return -1
+endi
+sql drop view testa.view1;
+
+sql use performance_schema;
+sql create view view1 as select 1;
+sql create view view2 as select 2;
+sql create view view3 as select server_status();
+sql create view view4 as select conn_id from perf_connections where 0>1;
+sql create view view5 as select abs(-1) a;
+sql create view view6 as select 1 union select conn_id from perf_connections;
+sql create view view7 as select 1 union select conn_id from perf_connections where 0>1;
+sql create view view8 as select 1 union all select case when conn_id != 1 then conn_id else conn_id + 1 end from perf_connections;
+sql explain select * from view1 union all select * from view2 union all select * from view3 union all select * from view4 union all select a from view5 union all select * from view6 union all select * from view7 union all select * from view8;
+sql explain analyze select * from view1 union all select * from view2 union all select * from view3 union all select * from view4 union all select a from view5 union all select * from view6 union all select * from view7 union all select * from view8;
+sql select * from view1 union all select * from view2 union all select * from view3 union all select * from view4 union all select a from view5 union all select * from view6 union all select * from view7 union all select * from view8;
+sql explain select * from view1 union select a from view5;
+sql explain analyze select * from view1 union select a from view5;
+sql select * from view1 union select a from view5; 
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 1 then
+  print $data00
+  return -1
+endi
+sql drop view view1;
+sql drop view view2;
+sql drop view view3;
+sql drop view view4;
+sql drop view view5;
+sql drop view view6;
+sql drop view view7;
+sql drop view view8;
+

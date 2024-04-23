@@ -76,7 +76,8 @@ class TDTestCase:
             new_tbname = ''.join(tbname1)
             for sql in [f'`{dbname}`.`{new_tbname}`',f'`{new_tbname}`']:
                 tdSql.error(f'create table {sql} (ts timestamp,c0 int)')
-        tdSql.execute(f'drop database `{dbname}`')            
+        tdSql.execute(f'trim database `{dbname}`')
+        tdSql.execute(f'drop database `{dbname}`')
     def run(self):
         self.db_name_check()
         self.tb_name_check()

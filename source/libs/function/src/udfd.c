@@ -69,7 +69,7 @@ const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const
 
 void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
   char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-  strncpy(processFuncName, udfName, sizeof(processFuncName));
+  snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
   char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
@@ -103,7 +103,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(processFuncName, udfName, sizeof(processFuncName));
+    snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
@@ -378,9 +378,9 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
                                                  "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
                                                  "pyUdfAggFinish", "pyUdfAggProc",    "pyUdfAggMerge"};
   void      **funcs[UDFD_MAX_PLUGIN_FUNCS] = {
-      (void **)&plugin->openFunc,         (void **)&plugin->closeFunc,         (void **)&plugin->udfInitFunc,
-      (void **)&plugin->udfDestroyFunc,   (void **)&plugin->udfScalarProcFunc, (void **)&plugin->udfAggStartFunc,
-      (void **)&plugin->udfAggFinishFunc, (void **)&plugin->udfAggProcFunc,    (void **)&plugin->udfAggMergeFunc};
+           (void **)&plugin->openFunc,         (void **)&plugin->closeFunc,         (void **)&plugin->udfInitFunc,
+           (void **)&plugin->udfDestroyFunc,   (void **)&plugin->udfScalarProcFunc, (void **)&plugin->udfAggStartFunc,
+           (void **)&plugin->udfAggFinishFunc, (void **)&plugin->udfAggProcFunc,    (void **)&plugin->udfAggMergeFunc};
   int32_t err = udfdLoadSharedLib(plugin->libPath, &plugin->lib, funcName, funcs, UDFD_MAX_PLUGIN_FUNCS);
   if (err != 0) {
     fnError("can not load python plugin. lib path %s", plugin->libPath);
@@ -848,7 +848,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   char path[PATH_MAX] = {0};
   udfdGetFuncBodyPath(udf, path);
-  bool fileExist = !(taosStatFile(path, NULL, NULL) < 0);
+  bool fileExist = !(taosStatFile(path, NULL, NULL, NULL) < 0);
   if (fileExist) {
     strncpy(udf->path, path, PATH_MAX);
     fnInfo("udfd func body file. reuse existing file %s", path);
@@ -971,7 +971,7 @@ static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
       code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_RESTORING ||
       code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
-        msgType == TDMT_SCH_MERGE_FETCH) {
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_TASK_NOTIFY) {
       return false;
     }
     return true;

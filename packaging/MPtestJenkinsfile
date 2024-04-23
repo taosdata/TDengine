@@ -113,28 +113,9 @@ pipeline {
                         timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
-                            if [ "${verMode}" = "all" ];then
-                                verMode="community enterprise"
-                            fi
-                            verModeList=${verMode}                          
-                            for verModeSin in ${verModeList}
-                            do
-                                cd ${TDENGINE_ROOT_DIR}/packaging
-                                bash testpackage.sh  -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                                python3 checkPackageRuning.py
-                            done 
-                            '''  
-
-                            sh '''                              
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh  -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                            python3 checkPackageRuning.py
-                            '''   
-
-                            sh ''' 
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh  -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
-                            python3 checkPackageRuning.py
+                            bash testpackage.sh  -m enterprise -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py                            
                             '''
                         }
                     }
@@ -151,24 +132,21 @@ pipeline {
                             verModeList=${verMode}
                             for verModeSin in ${verModeList}
                             do
+                                if [ "${verModeSin}" == "community" ];then
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                    python3 checkPackageRuning.py
+                                    
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                                    python3 checkPackageRuning.py
+                                fi
+                                
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
-                            '''
-
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                            python3 checkPackageRuning.py
-                            '''
-
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
-                            python3 checkPackageRuning.py
-                            dpkg -r tdengine
-                            '''                                
+                            '''         
                         }
                     }
                 }
@@ -179,27 +157,25 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             if [ "${verMode}" = "all" ];then
-                                verMode="community enterprise"
-                            fi                            
+                                verMode="community enterprise"                            
+                            fi                      
                             verModeList=${verMode}
                             for verModeSin in ${verModeList}
                             do
+                                if [ "${verModeSin}" == "community" ];then
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                    python3 checkPackageRuning.py
+
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                                    python3 checkPackageRuning.py
+                                fi
+
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done 
-                            '''
-
-                            sh '''                            
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                            python3 checkPackageRuning.py
-                            '''
-
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
-                            python3 checkPackageRuning.py
                             '''
                         }
                     }
@@ -212,33 +188,32 @@ pipeline {
                             sh '''
                             if [ "${verMode}" = "all" ];then
                                 verMode="community enterprise"
-                            fi                            
+                            fi
+
                             verModeList=${verMode}
                             for verModeSin in ${verModeList}
                             do
+                                if [ "${verModeSin}" == "community" ]; then
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                    python3 checkPackageRuning.py
+
+                                    cd ${TDENGINE_ROOT_DIR}/packaging
+                                    bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                                    python3 checkPackageRuning.py
+                                    sudo rpm -e tdengine 
+                                fi
+                                
                                 cd ${TDENGINE_ROOT_DIR}/packaging
                                 bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
                                 python3 checkPackageRuning.py
                             done
                             '''
-
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
-                            python3 checkPackageRuning.py
-                            '''
-
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
-                            python3 checkPackageRuning.py
-                            sudo rpm -e tdengine 
-                            '''
                         }
                     }
                 }                  
                 stage('arm64') {
-                    agent{label 'linux_arm64'}
+                    agent{label ' arm64-1.204 '}
                     steps {
                         timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
@@ -295,7 +270,7 @@ pipeline {
             }
         }  
         stage('arm64-client') {
-            agent{label " linux_arm64 "}
+            agent{label " arm64-1.204 "}
             steps {
                 timeout(time: 30, unit: 'MINUTES'){
                     sh '''

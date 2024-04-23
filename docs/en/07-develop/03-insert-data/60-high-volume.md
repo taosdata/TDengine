@@ -377,7 +377,7 @@ SQLWriter class encapsulates the logic of composing SQL and writing data. Please
 
    - TDengine client driver has been installed
    - Python3 has been installed, the the version >= 3.8
-   - TDengine Python connector `taospy` has been installed
+   - TDengine Python client library `taospy` has been installed
 
 2. Install faster-fifo to replace python builtin multiprocessing.Queue
 
@@ -434,7 +434,7 @@ SQLWriter class encapsulates the logic of composing SQL and writing data. Please
 </details>
 
 :::note
-Don't establish connection to TDengine in the parent process if using Python connector in multi-process way, otherwise all the connections in child processes are blocked always. This is a known issue.
+Don't establish connection to TDengine in the parent process if using Python client library in multi-process way, otherwise all the connections in child processes are blocked always. This is a known issue.
 
 :::
 

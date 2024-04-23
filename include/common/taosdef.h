@@ -42,7 +42,8 @@ typedef enum {
   TSDB_TEMP_TABLE = 4,    // temp table created by nest query
   TSDB_SYSTEM_TABLE = 5,
   TSDB_TSMA_TABLE = 6,  // time-range-wise sma
-  TSDB_TABLE_MAX = 7
+  TSDB_VIEW_TABLE = 7,
+  TSDB_TABLE_MAX = 8
 } ETableType;
 
 typedef enum {

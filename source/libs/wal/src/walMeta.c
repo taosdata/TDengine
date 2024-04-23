@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "walInt.h"
 
+
 bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
 }
@@ -53,7 +54,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
@@ -304,7 +305,7 @@ int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
     int32_t mtime = 0;
-    if (taosStatFile(fnameStr, NULL, &mtime) < 0) {
+    if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
       return -1;
@@ -338,8 +339,9 @@ bool walLogEntriesComplete(const SWal* pWal) {
   }
 
   if (!complete) {
-    wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], aligned with snaphotVer:%" PRId64,
-           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, pWal->vers.snapshotVer);
+    wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
+           ", snaphotVer:%" PRId64,
+           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
   }
 
@@ -353,7 +355,7 @@ int walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
 
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
   int64_t records = TMAX(0, pFileInfo->lastVer - pFileInfo->firstVer + 1);
   int64_t lastEndOffset = records * sizeof(SWalIdxEntry);
 
@@ -436,7 +438,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
 
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-    int32_t code = taosStatFile(fnameStr, &fileSize, NULL);
+    int32_t code = taosStatFile(fnameStr, &fileSize, NULL, NULL);
     if (code < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("failed to stat file since %s. file:%s", terrstr(), fnameStr);
@@ -522,7 +524,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   walBuildLogName(pWal, pFileInfo->firstVer, fLogNameStr);
   int64_t fileSize = 0;
 
-  if (taosStatFile(fnameStr, &fileSize, NULL) < 0 && errno != ENOENT) {
+  if (taosStatFile(fnameStr, &fileSize, NULL, NULL) < 0 && errno != ENOENT) {
     wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -650,6 +652,23 @@ _err:
   (void)taosCloseFile(&pLogFile);
   (void)taosCloseFile(&pIdxFile);
   return -1;
+}
+
+int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
+  int64_t ver = -1;
+  int64_t totSize = 0;
+  taosThreadMutexLock(&pWal->mutex);
+  int32_t fileIdx = taosArrayGetSize(pWal->fileInfoSet);
+  while (--fileIdx) {
+    SWalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+    if (totSize >= bytes) {
+      ver = pInfo->lastVer;
+      break;
+    }
+    totSize += pInfo->fileSize;
+  }
+  taosThreadMutexUnlock(&pWal->mutex);
+  return ver + 1;
 }
 
 int walCheckAndRepairIdx(SWal* pWal) {
@@ -871,7 +890,7 @@ int walSaveMeta(SWal* pWal) {
     return -1;
   }
 
-  TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pMetaFile == NULL) {
     wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -935,7 +954,7 @@ int walLoadMeta(SWal* pWal) {
   walBuildMetaName(pWal, metaVer, fnameStr);
   // read metafile
   int64_t fileSize = 0;
-  taosStatFile(fnameStr, &fileSize, NULL);
+  taosStatFile(fnameStr, &fileSize, NULL, NULL);
   if (fileSize == 0) {
     (void)taosRemoveFile(fnameStr);
     wDebug("vgId:%d, wal find empty meta ver %d", pWal->cfg.vgId, metaVer);

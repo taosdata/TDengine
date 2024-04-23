@@ -40,9 +40,12 @@ typedef struct SBuiltinFuncDefinition {
   FExecProcess               processFunc;
   FScalarExecProcess         sprocessFunc;
   FExecFinalize              finalizeFunc;
+#ifdef BUILD_NO_CALL
   FExecProcess               invertFunc;
+#endif
   FExecCombine               combineFunc;
   const char*                pPartialFunc;
+  const char*                pMiddleFunc;
   const char*                pMergeFunc;
   FCreateMergeFuncParameters createMergeParaFuc;
   FEstimateReturnRows        estimateReturnRowsFunc;

@@ -32,6 +32,8 @@ void     taosSeedRand(uint32_t seed);
 uint32_t taosRand(void);
 uint32_t taosRandR(uint32_t* pSeed);
 void     taosRandStr(char* str, int32_t size);
+void     taosRandStr2(char* str, int32_t size);
+
 uint32_t taosSafeRand(void);
 
 #ifdef __cplusplus

@@ -359,7 +359,10 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
-
+#ifdef WINDOWS
+  terrno = TSDB_CODE_MND_INVALID_PLATFORM;
+  goto _OVER;
+#endif
   mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
@@ -562,7 +565,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int32_t le
     return msg;
   }
 
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_VARBINARY ||
+      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t bytes = len > 0 ? (int32_t)(len - VARSTR_HEADER_SIZE) : len;
 
     snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes / 4 : bytes);

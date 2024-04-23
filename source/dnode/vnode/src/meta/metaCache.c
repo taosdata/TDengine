@@ -14,6 +14,13 @@
  */
 #include "meta.h"
 
+#ifdef TD_ENTERPRISE
+extern const char* tkLogStb[];
+extern const char* tkAuditStb[];
+extern const int   tkLogStbNum;
+extern const int   tkAuditStbNum;
+#endif
+
 #define TAG_FILTER_RES_KEY_LEN  32
 #define META_CACHE_BASE_BUCKET  1024
 #define META_CACHE_STATS_BUCKET 16
@@ -69,6 +76,7 @@ struct SMetaCache {
 
   struct STbFilterCache {
     SHashObj* pStb;
+    SHashObj* pStbName;
   } STbFilterCache;
 };
 
@@ -178,6 +186,13 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
+  pCache->STbFilterCache.pStbName =
+      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  if (pCache->STbFilterCache.pStbName == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+
   pMeta->pCache = pCache;
   return code;
 
@@ -204,6 +219,7 @@ void metaCacheClose(SMeta* pMeta) {
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
 
     taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
+    taosHashCleanup(pMeta->pCache->STbFilterCache.pStbName);
 
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
@@ -893,30 +909,59 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+bool metaTbInFilterCache(SMeta *pMeta, const void* key, int8_t type) {
+  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
+    return true;
+  }
 
-  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid))) {
+  if (type == 1 && taosHashGet(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key))) {
     return true;
   }
 
   return false;
 }
 
-int32_t metaPutTbToFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
-
+int32_t metaPutTbToFilterCache(SMeta *pMeta, const void* key, int8_t type) {
   if (type == 0) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid), NULL, 0);
+    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
+  }
+
+  if (type == 1) {
+    return taosHashPut(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key), NULL, 0);
   }
 
   return 0;
 }
 
-int32_t metaSizeOfTbFilterCache(void* pVnode, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+int32_t metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type) {
   if (type == 0) {
     return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
   }
+  return 0;
+}
+
+int32_t metaInitTbFilterCache(SMeta* pMeta) {
+#ifdef TD_ENTERPRISE
+  int32_t      tbNum = 0;
+  const char** pTbArr = NULL;
+  const char*  dbName = NULL;
+
+  if (!(dbName = strchr(pMeta->pVnode->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = tkLogStbNum;
+    pTbArr = (const char**)&tkLogStb;
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbNum = tkAuditStbNum;
+    pTbArr = (const char**)&tkAuditStb;
+  }
+  if (tbNum && pTbArr) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      if (metaPutTbToFilterCache(pMeta, pTbArr[i], 1) != 0) {
+        return terrno ? terrno : -1;
+      }
+    }
+  }
+#else
+#endif
   return 0;
 }

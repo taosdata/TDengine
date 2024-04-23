@@ -13,7 +13,7 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 taosBenchmark 有两种安装方式:
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](/operation/pkg-install)。
+- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](../../get-started/)。
 
 - 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
@@ -81,80 +81,80 @@ taosBenchmark -f <json file>
 
 </details>
 
-#### 订阅场景 JSON 配置文件示例
+#### 订阅场景 JSON 配置文件示例 
 
 <details>
-<summary>subscribe.json</summary>
+<summary>tmq.json</summary>
 
 ```json
-{{#include /taos-tools/example/subscribe.json}}
+{{#include /taos-tools/example/tmq.json}}
 ```
 
 </details>
 
 ## 命令行参数详解
 
-- **-f/--file <json file\>** :
+- **-f/--file \<json file>** :
   要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值。
 
-- **-c/--config-dir <dir\>** :
+- **-c/--config-dir \<dir>** :
   TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
 
-- **-h/--host <host\>** :
+- **-h/--host \<host>** :
   指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
-- **-P/--port <port\>** :
+- **-P/--port \<port>** :
   要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **-I/--interface <insertMode\>** :
+- **-I/--interface \<insertMode>** :
   插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
-- **-u/--user <user\>** :
+- **-u/--user \<user>** :
   用于连接 TDengine 服务端的用户名，默认为 root 。
 
 - **-U/--supplement-insert ** :
   写入数据而不提前建数据库和表，默认关闭。
 
-- **-p/--password <passwd\>** :
+- **-p/--password \<passwd>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
-- **-o/--output <file\>** :
+- **-o/--output \<file>** :
   结果输出文件的路径，默认值为 ./output.txt。
 
-- **-T/--thread <threadNum\>** :
+- **-T/--thread \<threadNum>** :
   插入数据的线程数量，默认为 8 。
 
-- **-B/--interlace-rows <rowNum\>** :
+- **-B/--interlace-rows \<rowNum>** :
   启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
-- **-i/--insert-interval <timeInterval\>** :
+- **-i/--insert-interval \<timeInterval>** :
   指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
-- **-r/--rec-per-req <rowNum\>** :
+- **-r/--rec-per-req \<rowNum>** :
   每次向 TDengine 请求写入的数据行数，默认值为 30000 。
 
-- **-t/--tables <tableNum\>** :
+- **-t/--tables \<tableNum>** :
   指定子表的数量，默认为 10000 。
 
-- **-S/--timestampstep <stepLength\>** :
+- **-S/--timestampstep \<stepLength>** :
   每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
 
-- **-n/--records <recordNum\>** :
+- **-n/--records \<recordNum>** :
   每个子表插入的记录数，默认值为 10000 。
 
-- **-d/--database <dbName\>** :
+- **-d/--database \<dbName>** :
   所使用的数据库的名称，默认值为 test 。
 
-- **-b/--data-type <colType\>** :
+- **-b/--data-type \<colType>** :
   超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT 。
 
-- **-l/--columns <colNum\>** :
+- **-l/--columns \<colNum>** :
   超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
 
-- **-L/--partial-col-num <colNum\> **：
+- **-L/--partial-col-num \<colNum> **：
   指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据。
 
-- **-A/--tag-type <tagType\>** :
+- **-A/--tag-type \<tagType>** :
   超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
 
 ```
@@ -168,10 +168,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
-- **-w/--binwidth <length\>**:
+- **-w/--binwidth \<length>**:
   nchar 和 binary 类型的默认长度，默认值为 64。
 
-- **-m/--table-prefix <tablePrefix\>** :
+- **-m/--table-prefix \<tablePrefix>** :
   子表名称的前缀，默认值为 "d"。
 
 - **-E/--escape-character** :
@@ -192,23 +192,23 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-y/--answer-yes** :
   开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 
-- **-O/--disorder <Percentage\>** :
+- **-O/--disorder \<Percentage>** :
   指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
-- **-R/--disorder-range <timeRange\>** :
+- **-R/--disorder-range \<timeRange>** :
   指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
 
-- **-F/--prepare_rand <Num\>** :
+- **-F/--prepare_rand \<Num>** :
   生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
-- **-a/--replica <replicaNum\>** :
+- **-a/--replica \<replicaNum>** :
   创建数据库时指定其副本数，默认值为 1 。
 
-- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+- ** -k/--keep-trying \<NUMBER>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
-- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+- ** -z/--trying-interval \<NUMBER>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
 
-- **-v/--vgroups <NUMBER\>** :
+- **-v/--vgroups \<NUMBER>** :
   创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效。
 
 - **-V/--version** :
@@ -395,6 +395,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
+`query_times` 指定运行查询的次数，数值类型
 
 查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
 

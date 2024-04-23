@@ -80,6 +80,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -94,7 +96,7 @@ int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
-int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* Aggregation functions */
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

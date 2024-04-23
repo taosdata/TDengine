@@ -221,7 +221,7 @@ int64_t getDirectorySize(char* dir) {
       totalSize += subDirSize;
     } else if (0 == strcmp(strchr(fileName, '.'), ".log")) {  // only calc .log file size, and not include .idx file
       int64_t file_size = 0;
-      taosStatFile(subdir, &file_size, NULL);
+      taosStatFile(subdir, &file_size, NULL, NULL);
       totalSize += file_size;
     }
   }
@@ -702,4 +702,3 @@ int main(int32_t argc, char* argv[]) {
   taosCloseFile(&g_fp);
   return 0;
 }
-

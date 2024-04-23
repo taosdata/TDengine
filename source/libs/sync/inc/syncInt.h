@@ -139,6 +139,7 @@ typedef struct SSyncNode {
   SSyncFSM* pFsm;
   int32_t   quorum;
   SRaftId   leaderCache;
+  ESyncFsmState fsmState;
 
   // life cycle
   int64_t rid;
@@ -228,7 +229,7 @@ typedef struct SSyncNode {
 } SSyncNode;
 
 // open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo);
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
 int32_t    syncNodeStart(SSyncNode* pSyncNode);
 int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
@@ -238,6 +239,9 @@ int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int
 int32_t    syncNodeRestore(SSyncNode* pSyncNode);
 void       syncHbTimerDataFree(SSyncHbTimerData* pData);
 
+// config
+int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str);
+
 // on message ---------------------
 int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex);
@@ -245,8 +249,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnRequestVoteReply(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* pNode, const SRpcMsg* pMsg);
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshot(SSyncNode* ths, const SRpcMsg* pMsg);
-int32_t syncNodeOnSnapshotRsp(SSyncNode* ths, const SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshot(SSyncNode* ths, SRpcMsg* pMsg);
+int32_t syncNodeOnSnapshotRsp(SSyncNode* ths, SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pMsg);
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pMsg);

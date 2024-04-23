@@ -20,6 +20,7 @@ class TDTestCase:
         tbname = "tb"
         tbname1 = "tb1"
         tbname2 = "tb2"
+        tbname3 = "tb3"
         stbname = "stb"
         ctbname1 = "ctb1"
         ctbname2 = "ctb2"
@@ -373,6 +374,22 @@ class TDTestCase:
         tdSql.checkData(10, 0, True)
         tdSql.checkData(11, 0, True)
         tdSql.checkData(12, 0, True)
+
+        tdSql.query(f"select interp(c6) from {dbname}.{tbname} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(value, false)")
+        tdSql.checkRows(13)
+        tdSql.checkData(0, 0, False)
+        tdSql.checkData(1, 0, True)
+        tdSql.checkData(2, 0, False)
+        tdSql.checkData(3, 0, False)
+        tdSql.checkData(4, 0, False)
+        tdSql.checkData(5, 0, False)
+        tdSql.checkData(6, 0, True)
+        tdSql.checkData(7, 0, False)
+        tdSql.checkData(8, 0, False)
+        tdSql.checkData(9, 0, False)
+        tdSql.checkData(10, 0, False)
+        tdSql.checkData(11, 0, True)
+        tdSql.checkData(12, 0, False)
 
         tdSql.query(f"select interp(c6) from {dbname}.{tbname} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(value, NULL)")
         tdSql.checkRows(13)
@@ -5606,6 +5623,44 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_single} partition by tbname range('2020-02-01 00:00:06') fill(linear)")
         tdSql.checkRows(0)
+
+        #### TS-3799 ####
+
+        tdSql.execute(
+            f'''create table if not exists {dbname}.{tbname3} (ts timestamp, c0 double)'''
+        )
+
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:51.000000000', 4.233947800000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:52.000000000', 3.606781000000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:52.500000000', 3.162353500000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:53.000000000', 3.162292500000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:53.500000000', 4.998230000000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:54.400000000', 8.800414999999999)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:54.900000000', 8.853271500000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:55.900000000', 7.507751500000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:56.400000000', 7.510681000000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:56.900000000', 7.841614000000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:57.900000000', 8.153809000000001)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:58.500000000', 6.866455000000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-06 23:59:59.000000000', 6.869140600000000)")
+        tdSql.execute(f"insert into {dbname}.{tbname3} values ('2023-08-07 00:00:00.000000000', 0.261475000000001)")
+
+        tdSql.query(f"select _irowts, interp(c0) from {dbname}.{tbname3} range('2023-08-06 23:59:00','2023-08-06 23:59:59') every(1m) fill(next)")
+        tdSql.checkRows(1);
+        tdSql.checkData(0,  0, '2023-08-06 23:59:00')
+        tdSql.checkData(0,  1, 4.233947800000000)
+
+        tdSql.query(f"select _irowts, interp(c0) from {dbname}.{tbname3} range('2023-08-06 23:59:00','2023-08-06 23:59:59') every(1m) fill(value, 1)")
+        tdSql.checkRows(1);
+        tdSql.checkData(0,  0, '2023-08-06 23:59:00')
+        tdSql.checkData(0,  1, 1)
+
+        tdSql.query(f"select _irowts, interp(c0) from {dbname}.{tbname3} range('2023-08-06 23:59:00','2023-08-06 23:59:59') every(1m) fill(null)")
+        tdSql.checkRows(1);
+        tdSql.checkData(0,  0, '2023-08-06 23:59:00')
+        tdSql.checkData(0,  1, None)
+
+
 
     def stop(self):
         tdSql.close()

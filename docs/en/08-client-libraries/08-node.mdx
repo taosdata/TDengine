@@ -1,0 +1,336 @@
+---
+title: TDengine Node.js Client Library
+sidebar_label: Node.js
+description: This document describes the TDengine Node.js client library.
+toc_max_heading_level: 4
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+import Preparition from "./_preparation.mdx";
+import NodeInsert from "../07-develop/03-insert-data/_js_sql.mdx";
+import NodeInfluxLine from "../07-develop/03-insert-data/_js_line.mdx";
+import NodeOpenTSDBTelnet from "../07-develop/03-insert-data/_js_opts_telnet.mdx";
+import NodeOpenTSDBJson from "../07-develop/03-insert-data/_js_opts_json.mdx";
+import NodeQuery from "../07-develop/04-query-data/_js.mdx";
+
+`@tdengine/client` and `@tdengine/rest` are the official Node.js client libraries. Node.js developers can develop applications to access TDengine instance data. Note: The client libraries for TDengine 3.0 are different than those for TDengine 2.x. The new client libraries do not support TDengine 2.x.
+
+`@tdengine/client` is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. `@tdengine/rest` is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The REST client library can run on any platform, but performance is slightly degraded, and the interface implements a somewhat different set of functional features than the native interface.
+
+The source code for the Node.js client libraries is located on [GitHub](https://github.com/taosdata/taos-connector-node/tree/3.0).
+
+## Supported platforms
+
+The platforms supported by the native client library are the same as those supported by the TDengine client driver.
+The REST client library supports all platforms that can run Node.js.
+
+## Version support
+
+Please refer to [version support list](../#version-support)
+
+## Supported features
+
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="Native connection">
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+5. Subscription
+6. Schemaless
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+
+</TabItem>
+</Tabs>
+
+## Installation Steps
+
+### Pre-installation preparation
+
+- Install the Node.js development environment
+- If you are using the REST client library, skip this step. However, if you use the native client library, please install the TDengine client driver. Please refer to [Install Client Driver](../#Install-Client-Driver) for more details. We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with TDengine instances and also need to install some dependencies mentioned below depending on the specific OS.
+
+<Tabs defaultValue="Linux">
+<TabItem value="Linux" label="Linux system installation dependencies">
+
+- `python` (recommended for `v2.7` , `v3.x.x` currently not supported)
+- `@tdengine/client` 3.0.0 supports Node.js LTS v10.9.0 or later and Node.js LTS v12.8.0 or later. Older versions may be incompatible.
+- `make`
+- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or later.
+
+</TabItem>
+
+<TabItem value="macOS" label="macOS installation dependencies">
+
+- `python` (recommended for `v2.7` , `v3.x.x` currently not supported)
+- `@tdengine/client` 3.0.0 currently supports Node.js from v12.22.12, but only later versions of v12. Other versions may be incompatible.
+- `make`
+- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or later.
+
+</TabItem>
+
+<TabItem value="Windows" label="Windows system installation dependencies">
+
+- Installation method 1
+
+Use Microsoft's [windows-build-tools](https://github.com/felixrieseberg/windows-build-tools) to execute `npm install --global --production` from the `cmd` command-line interface to install all the necessary tools.
+
+- Installation method 2
+
+Manually install the following tools.
+
+- Install Visual Studio related: [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
+- Install [Python](https://www.python.org/downloads/) 2.7 (`v3.x.x` is not supported) and execute `npm config set python python2.7`.
+- Go to the `cmd` command-line interface, `npm config set msvs_version 2017`
+
+Refer to Microsoft's Node.js User Manual [Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules).
+
+If using ARM64 Node.js on Windows 10 ARM, you must add "Visual C++ compilers and libraries for ARM64" and "Visual C++ ATL for ARM64".
+
+</TabItem>
+</Tabs>
+
+### Install via npm
+
+<Tabs defaultValue="install_rest">
+<TabItem value="install_native" label="Install native clieny library">
+
+```bash
+npm install @tdengine/client
+```
+
+</TabItem>
+<TabItem value="install_rest" label="Install REST client library">
+
+```bash
+npm install @tdengine/rest
+```
+
+</TabItem>
+</Tabs>
+
+### Verify
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="Native client library">
+
+After installing the TDengine client, use the `nodejsChecker.js` program to verify that the current environment supports Node.js access to TDengine.
+
+Verification in details:
+
+- Create an installation test folder such as `~/tdengine-test`. Download the [nodejsChecker.js source code](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/nodejsChecker.js) to your local machine.
+
+- Execute the following command from the command-line.
+
+```bash
+npm init -y
+npm install @tdengine/client
+node nodejsChecker.js host=localhost
+```
+
+- After executing the above steps, the command-line will output the result of `nodejsChecker.js` connecting to the TDengine instance and performing a simple insert and query.
+
+</TabItem>
+<TabItem value="rest" label="REST client library">
+
+After installing the TDengine client, use the `restChecker.js` program to verify that the current environment supports Node.js access to TDengine.
+
+Verification in details:
+
+- Create an installation test folder such as `~/tdengine-test`. Download the [restChecker.js source code](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/restexample/restChecker.js) to your local.
+
+- Execute the following command from the command-line.
+
+```bash
+npm init -y
+npm install @tdengine/rest
+node restChecker.js
+```
+
+- After executing the above steps, the command-line will output the result of `restChecker.js` connecting to the TDengine instance and performing a simple insert and query.
+
+</TabItem>
+</Tabs>
+
+## Establishing a connection
+
+Please choose to use one of the client libraries.
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="native connection">
+
+Install and import the `@tdengine/client` package.
+
+```javascript
+//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
+const taos = require("@tdengine/client");
+var conn = taos.connect({
+  host: "127.0.0.1",
+  user: "root",
+  password: "taosdata",
+  config: "/etc/taos",
+  port: 0,
+});
+var cursor = conn.cursor(); // Initializing a new cursor
+
+//Close a connection
+conn.close();
+```
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+Install and import the `@tdengine/rest` package.
+
+```javascript
+//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
+import { options, connect } from "@tdengine/rest";
+options.path = "/rest/sql";
+// set host
+options.host = "localhost";
+// set other options like user/passwd
+
+let conn = connect(options);
+let cursor = conn.cursor();
+```
+
+</TabItem>
+</Tabs>
+
+## Usage examples
+
+### Write data
+
+#### SQL Write
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+<NodeInsert />
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+```js
+{{#include docs/examples/node/restexample/insert_example.js}}
+```
+
+</TabItem>
+</Tabs>
+
+#### InfluxDB line protocol write
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+<NodeInfluxLine />
+
+</TabItem>
+</Tabs>
+
+#### OpenTSDB Telnet line protocol write
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+<NodeOpenTSDBTelnet />
+
+</TabItem>
+</Tabs>
+
+#### OpenTSDB JSON line protocol write
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+<NodeOpenTSDBJson />
+
+</TabItem>
+</Tabs>
+
+### Querying data
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+<NodeQuery />
+
+</TabItem>
+
+<TabItem value="rest" label="REST connection">
+
+```js
+{{#include docs/examples/node/restexample/query_example.js}}
+```
+
+</TabItem>
+</Tabs>
+
+
+## More sample programs
+
+| Sample Programs | Sample Program Description |
+| --------------------------------------------------------------------------------------------------------------------------------- --------- | -------------------------------------- |
+| [basicUse](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/queryExample.js)                                  | Basic operations such as establishing connections and running SQl commands.                       |
+| [stmtBindBatch](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/bindParamBatch.js)                  | Binding multi-line parameter insertion.               | |
+| [stmtBindSingleParamBatch](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/bindSingleParamBatch.js) | Columnar binding parameter insertion               |
+| [stmtQuery](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/stmtQuery.js)                       | Binding parameter query                   |
+| [schemless insert](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/schemaless.js)                   | Schemaless insert                 |
+| [TMQ](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/tmq.js)                                 | Using data subscription                       |
+| [asyncQuery](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/asyncQueryExample.js)                                         | Using asynchronous queries                   |
+| [REST](https://github.com/taosdata/taos-connector-node/blob/3.0/typescript-rest/example/example.ts)                                    | Using TypeScript with the REST client library |
+
+## Usage limitations
+
+`@tdengine/client` 3.0.0 supports Node.js LTS v12.8.0 to 12.9.1 and 10.9.0 to 10.20.0.
+
+
+
+
+
+## Frequently Asked Questions
+
+1. Using REST connections requires starting taosadapter.
+
+   ```bash
+   sudo systemctl start taosadapter
+   ```
+
+2. Node.js versions
+
+   `@tdengine/client` supports Node.js v10.9.0 to 10.20.0 and 12.8.0 to 12.9.1.
+
+3. "Unable to establish connection", "Unable to resolve FQDN"
+
+  Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
+
+## Important update records
+
+### Native client library
+
+| package name     | version | TDengine version    | Description                                                             |
+|------------------|---------|---------------------|------------------------------------------------------------------|
+| @tdengine/client | 3.0.0   | 3.0.0               | Supports TDengine 3.0. Not compatible with TDengine 2.x.                                                          |
+| td2.0-connector  | 2.0.12  | 2.4.x; 2.5.x; 2.6.x | Fixed cursor.close() bug.                                 |
+| td2.0-connector  | 2.0.11  | 2.4.x; 2.5.x; 2.6.x | Supports parameter binding, JSON tags and schemaless interface                  |
+| td2.0-connector  | 2.0.10  | 2.4.x; 2.5.x; 2.6.x | Supports connection management, standard queries, connection queries, system information, and data subscription |
+### REST client library
+
+| package name         | version | TDengine version    | Description                                                                      |
+|----------------------|---------|---------------------|---------------------------------------------------------------------------|
+| @tdengine/rest | 3.0.0   | 3.0.0               | Supports TDengine 3.0. Not compatible with TDengine 2.x.                                               |
+| td2.0-rest-connector | 1.0.7   | 2.4.x; 2.5.x; 2.6.x | Removed default port 6041                                                       |
+| td2.0-rest-connector | 1.0.6   | 2.4.x; 2.5.x; 2.6.x | Fixed affectRows bug with create, insert, update, and alter. |
+| td2.0-rest-connector | 1.0.5   | 2.4.x; 2.5.x; 2.6.x | Support cloud token                                                  |
+| td2.0-rest-connector  | 1.0.3  | 2.4.x; 2.5.x; 2.6.x | Supports connection management, standard queries, system information, error information, and continuous queries          |
+

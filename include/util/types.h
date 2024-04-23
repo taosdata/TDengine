@@ -85,8 +85,6 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataVal(v)  ((char *)(v) + VARSTR_HEADER_SIZE)
 #define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
 
-#define NCHAR_WIDTH_TO_BYTES(n) ((n)*TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
-
 typedef int32_t VarDataOffsetT;
 
 typedef struct tstr {

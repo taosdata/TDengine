@@ -2814,7 +2814,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
   code = catalogChkAuth(pCtg, mockPointer, &authInfo, &authRes);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(authRes.pass, true);
+  ASSERT_EQ(authRes.pass[AUTH_RES_BASIC], true);
 
   while (true) {
     uint64_t n = 0;
@@ -2828,7 +2828,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
   code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(authRes.pass, true);
+  ASSERT_EQ(authRes.pass[AUTH_RES_BASIC], true);
   ASSERT_EQ(exists, true);
 
   catalogDestroy();

@@ -121,6 +121,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->deployFps[sdbType] = table.deployFp;
   pSdb->encodeFps[sdbType] = table.encodeFp;
   pSdb->decodeFps[sdbType] = table.decodeFp;
+  pSdb->validateFps[sdbType] = table.validateFp;
 
   int32_t hashType = 0;
   if (keyType == SDB_KEY_INT32) {

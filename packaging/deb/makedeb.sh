@@ -57,9 +57,9 @@ else
   arch=$cpuType
 fi
 
-echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper"
+echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
 echo "$top_dir=${top_dir}"
-taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper`
+taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
 echo "taoskeeper_binary: ${taoskeeper_binary}"
 
 # copy config files
@@ -87,6 +87,7 @@ cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_h
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
@@ -98,6 +99,7 @@ cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../include/util/tdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples

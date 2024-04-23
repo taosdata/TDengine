@@ -1,4 +1,5 @@
-using TDengineDriver;
+using TDengine.Driver;
+using TDengine.Driver.Client;
 
 namespace TDengineExample
 {
@@ -7,23 +8,11 @@ namespace TDengineExample
     {
         static void Main(String[] args)
         {
-            string host = "localhost";
-            short port = 6030;
-            string username = "root";
-            string password = "taosdata";
-            string dbname = "";
-
-            var conn = TDengine.Connect(host, username, password, dbname, port);
-            if (conn == IntPtr.Zero)
+            var builder = new ConnectionStringBuilder("host=localhost;port=6030;username=root;password=taosdata");
+            using (var client = DbDriver.Open(builder))
             {
-                throw new Exception("Connect to TDengine failed");
+                Console.WriteLine("connected");
             }
-            else
-            {
-                Console.WriteLine("Connect to TDengine success");
-            }
-            TDengine.Close(conn);
-            TDengine.Cleanup();
         }
     }
 }

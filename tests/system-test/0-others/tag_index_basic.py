@@ -88,6 +88,13 @@ class TDTestCase:
 
         tdLog.info(f" create {count} child tables ok.")    
     
+    def create_tagidx_check(self, stbname):
+        err_dict = {"NULL","",",","\"","\"\"","undef","t1,t2","t12,t12"}
+        for errs in err_dict:
+            sql = (f'create index idx_err_check on {stbname} (%s)'% (errs))
+            tdLog.info(f'  sql={sql}')
+            tdSql.error(f'{sql}')
+        tdLog.info(f' create tagidx check ok.')
     
     # create stable and child tables
     def create_tagidx(self, stbname):
@@ -118,12 +125,15 @@ class TDTestCase:
     def show_tagidx(self, stbname):
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
         tdSql.query(sql)
-        rows = len(self.tag_dict.keys())-1
+        rows = len(self.tag_dict.keys())
         tdSql.checkRows(rows)
 
         for i in range(rows):
             col_name = tdSql.getData(i, 1)
             idx_name = f'idx_{col_name}'
+            # skip first tag
+            if col_name == "t1":
+                continue
             tdSql.checkData(i, 0, idx_name)
 
         tdLog.info(f' show {rows} tag indexs ok.')
@@ -201,7 +211,7 @@ class TDTestCase:
         # check idx result is 0
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
         tdSql.query(sql)
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
         tdLog.info(f' drop {cnt} tag indexs ok.')
 
     # create long name idx 
@@ -228,6 +238,7 @@ class TDTestCase:
         count = 1000
         # do 
         self.create_table(stable, tbname, count)
+        self.create_tagidx_check(stable)
         self.create_tagidx(stable)
         self.insert_data(tbname)
         self.show_tagidx(stable)

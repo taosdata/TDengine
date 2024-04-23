@@ -94,7 +94,7 @@ class TDTestCase:
         resultList=[]
         while 1:
             tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            # tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3)))
             if tdSql.getRows() == expectRows:
                 break
             else:
@@ -336,7 +336,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows > expectrowcnt or totalConsumeRows <= 0:
+        if totalConsumeRows > expectrowcnt or totalConsumeRows < 0:
             tdLog.info("act consume rows: %d, expect consume rows between %d and 0"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 

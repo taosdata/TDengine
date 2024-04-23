@@ -19,6 +19,7 @@
 #include "thash.h"
 #include "tsimplehash.h"
 #include "executor.h"
+#include "executorInt.h"
 #include "ttime.h"
 
 #pragma GCC diagnostic push
@@ -158,4 +159,48 @@ TEST(testCase, timewindow_gen) {
 
 }
 
+TEST(testCase, timewindow_natural) {
+  osSetTimezone("CST");
+
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+
+  SInterval interval2 = createInterval(17, 17, 13392000000, 'n', 'n', 0, precision);
+  int64_t key = 1648970865984;
+  STimeWindow w0 = getAlignQueryTimeWindow(&interval2, key);
+  printTimeWindow(&w0, precision, key);
+  ASSERT_GE(w0.ekey, key);
+
+  int64_t key1 = 1633446027072;
+  STimeWindow w1 = {0};
+  getInitialStartTimeWindow(&interval2, key1, &w1, true);
+  printTimeWindow(&w1, precision, key1);
+  STimeWindow w3 = getAlignQueryTimeWindow(&interval2, key1);
+  printf("%ld win %ld, %ld\n", key1, w3.skey, w3.ekey);  
+
+  int64_t key2 = 1648758398208;
+  STimeWindow w2 = {0};
+  getInitialStartTimeWindow(&interval2, key2, &w2, true);
+  printTimeWindow(&w2, precision, key2);
+  STimeWindow w4 = getAlignQueryTimeWindow(&interval2, key2);
+  printf("%ld win %ld, %ld\n", key2, w3.skey, w3.ekey);
+
+  ASSERT_EQ(w3.skey, w4.skey);
+  ASSERT_EQ(w3.ekey, w4.ekey);  
+}
+
+
+TEST(testCase, timewindow_active) {
+  osSetTimezone("CST");
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+  int64_t offset = (int64_t)2*365*24*60*60*1000;
+  SInterval interval = createInterval(10, 10, offset, 'y', 'y', 0, precision);
+  SResultRowInfo dumyInfo = {0};
+  dumyInfo.cur.pageId = -1;
+  int64_t key = (int64_t)1609430400*1000; // 2021-01-01
+  STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, key, &interval, TSDB_ORDER_ASC);
+  printTimeWindow(&win, precision, key);
+  printf("%ld win %ld, %ld\n", key, win.skey, win.ekey);
+  ASSERT_EQ(win.skey, 1325376000000);
+  ASSERT_EQ(win.ekey, 1640908799999);
+}
 #pragma GCC diagnostic pop

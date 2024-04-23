@@ -228,11 +228,6 @@ tmq_t* build_consumer() {
     tmq_conf_destroy(conf);
     return NULL;
   }
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
-  if (TMQ_CONF_OK != code) {
-    tmq_conf_destroy(conf);
-    return NULL;
-  }
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq = tmq_consumer_new(conf, NULL, 0);
@@ -285,7 +280,7 @@ void consume_repeatly(tmq_t* tmq) {
 
     code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
     if (code != 0) {
-      fprintf(stderr, "failed to seek to %ld, reason:%s", p->begin, tmq_err2str(code));
+      fprintf(stderr, "failed to seek to %d, reason:%s", (int)p->begin, tmq_err2str(code));
     }
   }
 

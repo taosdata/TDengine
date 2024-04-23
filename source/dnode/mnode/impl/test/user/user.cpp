@@ -250,7 +250,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
+    alterReq.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
+    alterReq.privileges = PRIVILEGE_TYPE_ALL；
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.*");
@@ -266,7 +267,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
+    alterReq.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
+    alterReq.privileges = PRIVILEGE_TYPE_ALL；
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.*");
@@ -282,7 +284,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
+    alterReq.privileges = PRIVILEGE_TYPE_READ;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "d1");
@@ -329,7 +332,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
+    alterReq.privileges = PRIVILEGE_TYPE_READ;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");
@@ -345,7 +349,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
+    alterReq.privileges = PRIVILEGE_TYPE_READ;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");
@@ -388,7 +393,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
+    alterReq.alterType = PRIVILEGE_TYPE_READ;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");

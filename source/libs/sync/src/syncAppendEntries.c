@@ -151,8 +151,16 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
-         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 "",
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex);
+         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
+         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
+         pEntry->term);
+
+  if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+    pReply->fsmState = ths->fsmState;
+    sWarn("vgId:%d, unable to accept, due to incomplete fsm state. index:%" PRId64, ths->vgId, pEntry->index);
+    syncEntryDestroy(pEntry);
+    goto _SEND_RESPONSE;
+  }
 
   // accept
   if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {
@@ -162,7 +170,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 _SEND_RESPONSE:
   pEntry = NULL;
-  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm);
+  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn");
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
@@ -174,7 +182,7 @@ _SEND_RESPONSE:
   (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
 
   // commit index, i.e. leader notice me
-  if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
   }
 

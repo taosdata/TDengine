@@ -20,6 +20,7 @@
 #include <time.h>
 #include "taos.h"
 #include "types.h"
+#include "tmsg.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
@@ -30,7 +31,7 @@ typedef struct {
   int  meta;
   int  srcVgroups;
   int  dstVgroups;
-  char dir[64];
+  char dir[256];
 } Config;
 
 Config g_conf = {0};
@@ -409,6 +410,30 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
+#ifdef WINDOWS
+  pRes = taos_query(pConn,
+                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn,
+                    "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS (13135550082773579308)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into t_d2a450ee819dcf7576f0282d9ac22dbc values (now, 120, 1, 'San Francisco')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+#else
   pRes = taos_query(pConn,
                     "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select _wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
@@ -417,6 +442,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
     return -1;
   }
   taos_free_result(pRes);
+#endif
 
   pRes = taos_query(pConn, "insert into d0 (ts, current) values (now, 120)");
   if (taos_errno(pRes) != 0) {
@@ -547,6 +573,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
@@ -597,8 +624,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 void initLogFile() {
-  char f1[256] = {0};
-  char f2[256] = {0};
+  char f1[1024] = {0};
+  char f2[1024] = {0};
 
   if (g_conf.snapShot) {
     sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", g_conf.dir);
@@ -883,6 +910,96 @@ void initLogFile() {
   taosCloseFile(&pFile2);
 }
 
+void testConsumeExcluded(int topic_type){
+  TAOS* pConn = use_db();
+  TAOS_RES *pRes = NULL;
+
+  if(topic_type == 1){
+    char *topic = "create topic topic_excluded with meta as database db_taosx";
+    pRes = taos_query(pConn, topic);
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
+      return;
+    }
+    taos_free_result(pRes);
+  }else if(topic_type == 2){
+    char *topic = "create topic topic_excluded as select * from stt";
+    pRes = taos_query(pConn, topic);
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
+      return;
+    }
+    taos_free_result(pRes);
+  }
+  taos_close(pConn);
+
+  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set(conf, "client.id", "my app 1");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "msg.consume.excluded", "1");
+
+
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  assert(tmq);
+  tmq_conf_destroy(conf);
+
+  tmq_list_t* topic_list = tmq_list_new();
+  tmq_list_append(topic_list, "topic_excluded");
+
+  int32_t code = 0;
+
+  if ((code = tmq_subscribe(tmq, topic_list))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
+    printf("subscribe err\n");
+    return;
+  }
+  while (running) {
+    TAOS_RES* msg = tmq_consumer_poll(tmq, 1000);
+    if (msg) {
+      tmq_raw_data raw = {0};
+      tmq_get_raw(msg, &raw);
+      if(topic_type == 1){
+        assert(raw.raw_type != 2 && raw.raw_type != 4 &&
+               raw.raw_type != TDMT_VND_CREATE_STB &&
+               raw.raw_type != TDMT_VND_ALTER_STB &&
+               raw.raw_type != TDMT_VND_CREATE_TABLE &&
+               raw.raw_type != TDMT_VND_ALTER_TABLE &&
+               raw.raw_type != TDMT_VND_DELETE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB ||
+               raw.raw_type == TDMT_VND_DROP_TABLE);
+      }else if(topic_type == 2){
+        assert(0);
+      }
+//      printf("write raw data type: %d\n", raw.raw_type);
+      tmq_free_raw(raw);
+
+      taos_free_result(msg);
+    } else {
+      break;
+    }
+  }
+
+  tmq_consumer_close(tmq);
+  tmq_list_destroy(topic_list);
+
+  pConn = use_db();
+  pRes = taos_query(pConn, "drop topic if exists topic_excluded");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
+    taos_close(pConn);
+    return;
+  }
+  taos_close(pConn);
+  taos_free_result(pRes);
+}
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -916,5 +1033,8 @@ int main(int argc, char* argv[]) {
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
+
+  testConsumeExcluded(1);
+  testConsumeExcluded(2);
   taosCloseFile(&g_fp);
 }

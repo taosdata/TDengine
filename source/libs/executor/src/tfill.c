@@ -75,7 +75,7 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     double v = 0;
     GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
-  } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
+  } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type) || pDst->info.type == TSDB_DATA_TYPE_BOOL) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
@@ -85,7 +85,10 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
     colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
-  } else {  // varchar/nchar data
+  } else if (pDst->info.type == TSDB_DATA_TYPE_NCHAR || pDst->info.type == TSDB_DATA_TYPE_VARCHAR ||
+             pDst->info.type == TSDB_DATA_TYPE_VARBINARY) {
+    colDataSetVal(pDst, rowIndex, pVar->pz, isNull);
+  } else {  // others data
     colDataSetNULL(pDst, rowIndex);
   }
 }
@@ -166,13 +169,14 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
             setNotFillColumn(pFillInfo, pDstCol, index, i);
           }
         } else {
-          SGroupKeys* pKey = taosArrayGet(pFillInfo->prev.pRowVal, i);
+          SRowVal* pRVal = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
+          SGroupKeys* pKey = taosArrayGet(pRVal->pRowVal, i);
           if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
             colDataSetNULL(pDstCol, index);
             continue;
           }
 
-          SGroupKeys* pKey1 = taosArrayGet(pFillInfo->prev.pRowVal, pFillInfo->tsSlotId);
+          SGroupKeys* pKey1 = taosArrayGet(pRVal->pRowVal, pFillInfo->tsSlotId);
 
           int64_t prevTs = *(int64_t*)pKey1->pData;
           int32_t srcSlotId = GET_DEST_SLOT_ID(pCol);
@@ -343,9 +347,10 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         char* src = colDataGetData(pSrc, pFillInfo->index);
         if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
           colDataSetVal(pDst, index, src, false);
-          saveColData(pFillInfo->prev.pRowVal, i, src, false);
+          SRowVal* pRVal = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
+          saveColData(pRVal->pRowVal, i, src, false);
           if (pFillInfo->srcTsSlotId == dstSlotId) {
-            pFillInfo->prev.key = *(int64_t*)src;
+            pRVal->key = *(int64_t*)src;
           }
         } else {  // the value is null
           if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -358,7 +363,8 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
             } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
               bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
               colDataSetVal(pDst, index, src, isNull);
-              saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
+              SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
+              saveColData(p, i, src, isNull);  // todo:
             } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
               colDataSetNULL(pDst, index);
             } else if (pFillInfo->type == TSDB_FILL_NEXT) {
@@ -578,9 +584,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);    
     int64_t* tsList = (int64_t*)pCol->pData;
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
-    numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
-    numOfRes += 1;
+    numOfRes = taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
+                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
     ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
@@ -588,9 +593,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
       return 0;
     }
 
-    numOfRes = taosTimeCountInterval(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
-    numOfRes += 1;
+    numOfRes = taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
+                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
   }
 
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;

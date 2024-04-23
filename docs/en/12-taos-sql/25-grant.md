@@ -4,7 +4,7 @@ sidebar_label: Access Control
 description: This document describes how to manage users and permissions in TDengine.
 ---
 
-This document describes how to manage permissions in TDengine.
+User and Access control is a distingguished feature of TDengine enterprise edition. In this section, only the most fundamental functionalities of user and access control are demonstrated. To get the full knowledge of user and access control, please contact the TDengine team.
 
 ## Create a User
 
@@ -89,53 +89,4 @@ Query OK, 0 of 0 rows affected (0.001160s)
 
 ## Grant Permissions
 
-```sql
-GRANT privileges ON priv_level TO user_name
- 
-privileges : {
-    ALL
-  | priv_type [, priv_type] ...
-}
- 
-priv_type : {
-    READ
-  | WRITE
-}
- 
-priv_level : {
-    dbname.*
-  | *.*
-}
-```
-
-Grant permissions to a user, this feature is only available in enterprise edition.
-
-Permissions are granted on the database level. You can grant read or write permissions.
-
-TDengine has superusers and standard users. The default superuser name is root. This account has all permissions. You can use the superuser account to create standard users. With no permissions, standard users can create databases and have permissions on the databases that they create. These include deleting, modifying, querying, and writing to their own databases. Superusers can grant users permission to read and write other databases. However, standard users cannot delete or modify databases created by other users.
-
-For non-database objects such as users, dnodes, and user-defined functions, standard users have read permissions only, generally by means of the SHOW statement. Standard users cannot create or modify these objects.
-
-## Revoke Permissions
-
-```sql
-REVOKE privileges ON priv_level FROM user_name
- 
-privileges : {
-    ALL
-  | priv_type [, priv_type] ...
-}
- 
-priv_type : {
-    READ
-  | WRITE
-}
- 
-priv_level : {
-    dbname.*
-  | *.*
-}
-
-```
-
-Revoke permissions from a user, this feature is only available in enterprise edition.
+Permission control is only available in TDengine Enterprise, please contact TDengine sales team.

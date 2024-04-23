@@ -29,7 +29,7 @@ class TDTestCase:
                 'rowsPerTbl': 10000,
                 'batchNum':   2000,
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                'pollDelay':  20,
+                'pollDelay':  50,
                 'showMsg':    1,
                 'showRow':    1}
 
@@ -45,7 +45,7 @@ class TDTestCase:
     autoCommitInterval = 'auto.commit.interval.ms:1000'
     autoOffset = 'auto.offset.reset:earliest'
 
-    pollDelay = 20
+    pollDelay = 50
     showMsg   = 1
     showRow   = 1
 

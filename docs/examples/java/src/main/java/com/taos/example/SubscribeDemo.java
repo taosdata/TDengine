@@ -66,7 +66,6 @@ public class SubscribeDemo {
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
                     "com.taos.example.MetersDeserializer");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER_ENCODING, "UTF-8");
-            properties.setProperty(TMQConstants.EXPERIMENTAL_SNAPSHOT_ENABLE, "true");
 
             // poll data
             try (TaosConsumer<Meters> consumer = new TaosConsumer<>(properties)) {

@@ -27,6 +27,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo     limitInfo;
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
+  bool           inputIgnoreGroup;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -109,8 +110,9 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
-
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+  pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
+  
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
   } else {
     if (!pProjPhyNode->ignoreGroupId) {
@@ -149,12 +151,14 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doProjectOperation, NULL, destroyProjectOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
    setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
-  code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
+  if (NULL != downstream) {
+    code = appendDownstream(pOperator, &downstream, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   return pOperator;
@@ -263,7 +267,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     st = taosGetTimestampUs();
   }
 
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
   SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
@@ -280,7 +284,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       blockDataCleanup(pRes);
 
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
-      SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+      SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
@@ -293,8 +297,13 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
+          pBlock->info.type == STREAM_CHECKPOINT) {
         return pBlock;
+      }
+
+      if (pProjectInfo->inputIgnoreGroup) {
+        pBlock->info.id.groupId = 0;
       }
 
       int32_t status = discardGroupDataBlock(pBlock, pLimitInfo);
@@ -372,6 +381,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+  }
+
   return (p->info.rows > 0) ? p : NULL;
 }
 
@@ -436,7 +449,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
-                                         optrDefaultBufFn, NULL);
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -448,7 +461,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 _error:
   destroyIndefinitOperatorInfo(pInfo);
   taosMemoryFree(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 
@@ -521,7 +534,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     if (pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
       while (1) {
         // The downstream exec may change the value of the newgroup, so use a local variable instead.
-        SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+        SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
         if (pBlock == NULL) {
           setOperatorCompleted(pOperator);
           break;

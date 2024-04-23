@@ -26,7 +26,7 @@ extern "C" {
 #define DESCRIBE_RESULT_COLS      4
 #define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN  (16 + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -36,10 +36,19 @@ extern "C" {
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
 
+#define SHOW_CREATE_VIEW_RESULT_COLS       2
+#define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+
+
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       3
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
+
+#define COMPACT_DB_RESULT_COLS 3
+#define COMPACT_DB_RESULT_FIELD1_LEN 32
+#define COMPACT_DB_RESULT_FIELD3_LEN 128
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
@@ -51,6 +60,7 @@ extern "C" {
 #define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
 #define PRIVILEGE_TYPE_WRITE     BIT_FLAG_MASK(2)
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
+#define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -66,6 +76,7 @@ typedef struct SDatabaseOptions {
   int32_t     minRowsPerBlock;
   SNodeList*  pKeep;
   int64_t     keep[3];
+  int32_t     keepTimeOffset;
   int32_t     pages;
   int32_t     pagesize;
   int32_t     tsdbPageSize;
@@ -222,6 +233,10 @@ typedef struct SCreateUserStmt {
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    sysinfo;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
@@ -231,6 +246,10 @@ typedef struct SAlterUserStmt {
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    enable;
   int8_t    sysinfo;
+  int32_t numIpRanges;
+  SIpV4Range* pIpRanges;
+
+  SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
@@ -265,6 +284,7 @@ typedef struct SShowStmt {
   SNode*        pDbName;  // SValueNode
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
+  EShowKind     showKind; // show databases: user/system, show tables: normal/child, others NULL
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -286,6 +306,13 @@ typedef struct SShowCreateTableStmt {
   void*     pDbCfg;     // SDbCfgInfo
   void*     pTableCfg;  // STableCfg
 } SShowCreateTableStmt;
+
+typedef struct SShowCreateViewStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      viewName[TSDB_VIEW_NAME_LEN];
+  void*     pViewMeta;
+} SShowCreateViewStmt;
 
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
@@ -311,6 +338,15 @@ typedef struct SShowTableTagsStmt {
   SNode*     pTbName;  // SValueNode
   SNodeList* pTags;
 } SShowTableTagsStmt;
+
+typedef struct SShowCompactsStmt {
+  ENodeType type;
+} SShowCompactsStmt;
+
+typedef struct SShowCompactDetailsStmt {
+  ENodeType type;
+  SNode* pCompactId;
+} SShowCompactDetailsStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
@@ -383,6 +419,12 @@ typedef struct SDropCGroupStmt {
   char      cgroup[TSDB_CGROUP_LEN];
   bool      ignoreNotExists;
 } SDropCGroupStmt;
+
+typedef struct SAlterClusterStmt {
+  ENodeType type;
+  char      config[TSDB_DNODE_CONFIG_LEN];
+  char      value[TSDB_CLUSTER_VALUE_LEN];
+} SAlterClusterStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;
@@ -480,6 +522,23 @@ typedef struct SDropFunctionStmt {
   bool      ignoreNotExists;
 } SDropFunctionStmt;
 
+typedef struct SCreateViewStmt {
+  ENodeType           type;
+  char                dbName[TSDB_DB_NAME_LEN];
+  char                viewName[TSDB_VIEW_NAME_LEN];
+  char*               pQuerySql;
+  bool                orReplace;
+  SNode*              pQuery;
+  SCMCreateViewReq    createReq;
+} SCreateViewStmt;
+
+typedef struct SDropViewStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       viewName[TSDB_VIEW_NAME_LEN];
+  bool       ignoreNotExists;
+} SDropViewStmt;
+
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
@@ -497,6 +556,7 @@ typedef struct SBalanceVgroupStmt {
 
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
+  int32_t   vgId;
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {

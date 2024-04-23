@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "tsdb.h"
 
 /**
@@ -38,7 +39,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
   arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
 
   // scan and convert
-  if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
+  if ((terrno = tsdbScanAndConvertSubmitMsg(pTsdb, pMsg)) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
       tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
     }
@@ -79,7 +80,16 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq2 *pMsg) {
   TSKEY         minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY         maxKey = tsMaxKeyByPrecision[pCfg->precision];
   int32_t       size = taosArrayGetSize(pMsg->aSubmitTbData);
-
+  /*
+  int32_t nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  if (nlevel > 1 && tsS3Enabled) {
+    if (nlevel == 3) {
+      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep1;
+    } else if (nlevel == 2) {
+      minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep0;
+    }
+  }
+  */
   for (int32_t i = 0; i < size; ++i) {
     SSubmitTbData *pData = TARRAY_GET_ELEM(pMsg->aSubmitTbData, i);
     if (pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {

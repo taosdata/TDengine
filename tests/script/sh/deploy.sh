@@ -113,12 +113,12 @@ echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
 echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
 echo "fqdn                   ${HOSTNAME}"        >> $TAOS_CFG
 echo "serverPort             ${NODE}"            >> $TAOS_CFG
-echo "supportVnodes          1024"                >> $TAOS_CFG
+echo "supportVnodes          1024"               >> $TAOS_CFG
 echo "statusInterval         1"                  >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG
-echo "tmrDebugFlag           143"                >> $TAOS_CFG
+echo "tmrDebugFlag           131"                >> $TAOS_CFG
 echo "uDebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "jniDebugFlag           143"                >> $TAOS_CFG
@@ -137,9 +137,11 @@ echo "idxDebugFlag           143"                >> $TAOS_CFG
 echo "udfDebugFlag           143"                >> $TAOS_CFG
 echo "smaDebugFlag           143"                >> $TAOS_CFG
 echo "metaDebugFlag          143"                >> $TAOS_CFG
+echo "stDebugFlag            143"                >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
 echo "querySmaOptimize       1"                  >> $TAOS_CFG
-echo " "                                         >> $TAOS_CFG  
+echo "checkpointInterval     60"                 >> $TAOS_CFG
+echo " "                                         >> $TAOS_CFG

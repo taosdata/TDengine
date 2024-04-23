@@ -47,7 +47,8 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     int32_t precision = taos_result_precision(pRes);
     taos_print_row(buf, row, fields, numOfFields);
     *totalRows += 1;
-    printf("vgId: %d, offset: %lld, precision: %d, row content: %s\n", vgId, offset, precision, buf);
+    std::cout << "vgId:" << vgId << ", offset:" << offset << ", precision:" << precision << ", row content:" << buf
+              << std::endl;
   }
 
 //  taos_free_result(pRes);
@@ -125,9 +126,9 @@ void queryCallback(void* param, void* res, int32_t code) {
   taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
-void createNewTable(TAOS* pConn, int32_t index) {
+void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t startTs, const char* pVarchar) {
   char str[1024] = {0};
-  sprintf(str, "create table tu%d using st2 tags(%d)", index, index);
+  sprintf(str, "create table if not exists tu%d using st2 tags(%d)", index, index);
 
   TAOS_RES* pRes = taos_query(pConn, str);
   if (taos_errno(pRes) != 0) {
@@ -135,22 +136,43 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 10000; i += 20) {
-    char sql[1024] = {0};
-    sprintf(sql,
-            "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
-            index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
-            i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
-            i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
-    TAOS_RES* p = taos_query(pConn, sql);
-    if (taos_errno(p) != 0) {
-      printf("failed to insert data, reason:%s\n", taos_errstr(p));
-    }
+  if (startTs == 0) {
+    for (int32_t i = 0; i < numOfRows; i += 20) {
+      char sql[1024] = {0};
+      sprintf(sql,
+              "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
+              index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
+              i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
+              i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
+      TAOS_RES* p = taos_query(pConn, sql);
+      if (taos_errno(p) != 0) {
+        printf("failed to insert data, reason:%s\n", taos_errstr(p));
+      }
 
-    taos_free_result(p);
+      taos_free_result(p);
+    }
+  } else {
+    for (int32_t i = 0; i < numOfRows; i += 20) {
+      char sql[1024*50] = {0};
+      sprintf(sql,
+              "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
+              "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
+              "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
+              index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3, pVarchar, startTs + 4, i + 4,
+              pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar, startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9,
+              pVarchar, startTs + 10, i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13, pVarchar, startTs + 14,
+              i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar, startTs + 17, i + 17, pVarchar, startTs + 18, i + 18,
+              pVarchar, startTs + 19, i + 19, pVarchar);
+      TAOS_RES* p = taos_query(pConn, sql);
+      if (taos_errno(p) != 0) {
+        printf("failed to insert data, reason:%s\n", taos_errstr(p));
+      }
+
+      taos_free_result(p);
+    }
   }
 }
 
@@ -807,14 +829,10 @@ TEST(clientCase, projection_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
+//  TAOS_RES* pRes = taos_query(pConn, "select tbname, last(ts) from abc1.stable_1 group by tbname");
+//  taos_free_result(pRes);
 
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
+  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
   }
@@ -826,10 +844,33 @@ TEST(clientCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 1; ++i) {
-    printf("create table :%d\n", i);
-    createNewTable(pConn, i);
+  int64_t start = 1685959190000;
+  const char* pstr =
+      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh"
+      "ijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop"
+      "qrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx"
+      "yzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef"
+      "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
+      "QWERTYUIOP{}";
+
+  for(int32_t i = 0; i < 10000; ++i) {
+    char str[1024] = {0};
+    sprintf(str, "create table if not exists tu%d using st2 tags(%d)", i, i);
+
+    TAOS_RES* px = taos_query(pConn, str);
+    if (taos_errno(px) != 0) {
+      printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+    }
+    taos_free_result(px);
   }
+
+  for(int32_t j = 0; j < 5000; ++j) {
+    start += 20;
+    for (int32_t i = 0; i < 10000; ++i) {
+      createNewTable(pConn, i, 20, start, pstr);
+    }
+  }
+
   //
   //  pRes = taos_query(pConn, "select * from tu");
   //  if (taos_errno(pRes) != 0) {
@@ -901,12 +942,39 @@ TEST(clientCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "show table distributed tup");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
+  int64_t st = 1685959293299;
+  for (int32_t i = 0; i < 5; ++i) {
+    char s[256] = {0};
+
+    while (1) {
+      sprintf(s, "insert into t1 values(%ld, %d)", st + i, i);
+      pRes = taos_query(pConn, s);
+
+      int32_t ret = taos_errno(pRes);
+      taos_free_result(pRes);
+      if (ret == 0) {
+        break;
+      }
+    }
+
+//    while (1) {
+//      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
+//      pRes = taos_query(pConn, s);
+//      int32_t ret = taos_errno(pRes);
+//
+//      taos_free_result(pRes);
+//      if (ret == 0) {
+//        break;
+//      }
+//    }
   }
+
+//  pRes = taos_query(pConn, "show table distributed tup");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
 
   printResult(pRes);
   taos_free_result(pRes);
@@ -1121,16 +1189,19 @@ TEST(clientCase, tmq_commit) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    tmq_topic_assignment* pa = &pAssign[i];
+    std::cout << "assign i:" << i << ", vgId:" << pa->vgId << ", offset:" << pa->currentOffset << ", start:%"
+              << pa->begin << ", end:%" << pa->end << std::endl;
 
-    int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+    int64_t committed = tmq_committed(tmq, topicName, pa->vgId);
+    std::cout << "committed vgId:" << pa->vgId << " committed:" << committed << std::endl;
 
-    int64_t position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
-    tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
-    position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("after seek 1, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    int64_t position = tmq_position(tmq, topicName, pa->vgId);
+    std::cout << "position vgId:" << pa->vgId << ", position:" << position << std::endl;
+
+    tmq_offset_seek(tmq, topicName, pa->vgId, 1);
+    position = tmq_position(tmq, topicName, pa->vgId);
+    std::cout << "after seek 1, position vgId:" << pa->vgId << " position:" << position << std::endl;
   }
 
   while (1) {
@@ -1145,12 +1216,14 @@ TEST(clientCase, tmq_commit) {
     tmq_commit_sync(tmq, pRes);
     for(int i = 0; i < numOfAssign; i++) {
       int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-      printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+      std::cout << "committed vgId:" << pAssign[i].vgId << " , committed:" << committed << std::endl;
       if(committed > 0){
         int32_t code = tmq_commit_offset_sync(tmq, topicName, pAssign[i].vgId, 4);
         printf("tmq_commit_offset_sync vgId:%d, offset:4, code:%d\n", pAssign[i].vgId, code);
         int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-        printf("after tmq_commit_offset_sync, committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+
+        std::cout << "after tmq_commit_offset_sync, committed vgId:" << pAssign[i].vgId << ", committed:" << committed
+                  << std::endl;
       }
     }
     if (pRes != NULL) {
@@ -1166,7 +1239,12 @@ TEST(clientCase, tmq_commit) {
   taos_close(pConn);
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
-
+namespace {
+void doPrintInfo(tmq_topic_assignment* pa, int32_t index) {
+  std::cout << "assign i:" << index << ", vgId:" << pa->vgId << ", offset:%" << pa->currentOffset << ", start:%"
+            << pa->begin << ", end:%" << pa->end << std::endl;
+}
+}
 TEST(clientCase, td_25129) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
@@ -1218,7 +1296,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    doPrintInfo(&pAssign[i], i);
   }
 
 //  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
@@ -1235,7 +1313,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    doPrintInfo(&pAssign[i], i);
   }
 
   tmq_free_assignment(pAssign);
@@ -1252,7 +1330,7 @@ TEST(clientCase, td_25129) {
 
   for(int i = 0; i < numOfAssign; i++){
     int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("assign i:%d, vgId:%d, committed:%lld, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, committed, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    doPrintInfo(&pAssign[i], i);
   }
 
   while (1) {
@@ -1282,7 +1360,7 @@ TEST(clientCase, td_25129) {
       }
 
       for(int i = 0; i < numOfAssign; i++){
-        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+        doPrintInfo(&pAssign[i], i);
       }
     } else {
       for(int i = 0; i < numOfAssign; i++) {
@@ -1318,7 +1396,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    doPrintInfo(&pAssign[i], i);
   }
 
   tmq_free_assignment(pAssign);

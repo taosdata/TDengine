@@ -6,13 +6,13 @@ conn = taosws.connect("taosws://root:taosdata@localhost:6041")
 
 # ANCHOR: basic
 conn.execute("drop database if exists connwspy")
-conn.execute("create database if not exists connwspy wal_retention_period 3600")
+conn.execute("create database if not exists connwspy wal_retention_period 3600 keep 36500 ")
 conn.execute("use connwspy")
 conn.execute("create table if not exists stb (ts timestamp, c1 int) tags (t1 int)")
 conn.execute("create table if not exists tb1 using stb tags (1)")
 conn.execute("insert into tb1 values (now, 1)")
-conn.execute("insert into tb1 values (now, 2)")
-conn.execute("insert into tb1 values (now, 3)")
+conn.execute("insert into tb1 values (now+1s, 2)")
+conn.execute("insert into tb1 values (now+2s, 3)")
 
 r = conn.execute("select * from stb")
 result = conn.query("select * from stb")

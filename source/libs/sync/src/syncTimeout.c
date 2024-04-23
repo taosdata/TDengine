@@ -77,12 +77,19 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   for (int i = 0; i < ths->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
-      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
-          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
-        snapshotReSend(pSender);
-      } else {
-        sTrace("vgId:%d, do not resend: nstart%d, now:%" PRId64 ", lstsend:%" PRId64 ", diff:%" PRId64, ths->vgId,
-               ths->isStart, timeNow, pSender->lastSendTime, timeNow - pSender->lastSendTime);
+      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start) {
+        int64_t elapsedMs = timeNow - pSender->lastSendTime;
+        if (elapsedMs < SYNC_SNAP_RESEND_MS) {
+          continue;
+        }
+
+        if (elapsedMs > SYNC_SNAP_TIMEOUT_MS) {
+          sSError(pSender, "snap replication timeout, terminate.");
+          snapshotSenderStop(pSender, false);
+        } else {
+          sSWarn(pSender, "snap replication resend.");
+          snapshotReSend(pSender);
+        }
       }
     }
   }

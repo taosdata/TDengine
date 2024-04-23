@@ -24,7 +24,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
@@ -176,9 +176,7 @@ class TDTestCase:
         
         # use taosBenchmark to subscribe  
         binPath = self.getPath()
-        cmd = "nohup %s -f ./7-tmq/tmqMaxGroupIds.json > /dev/null 2>&1 & " % binPath
-        tdLog.info("%s"%(cmd))
-        os.system(cmd)
+        tmqCom.startProcess(binPath, "-f ./7-tmq/tmqMaxGroupIds.json")
                 
         expectTopicNum = 1
         expectConsumerNUm = 99
@@ -205,10 +203,10 @@ class TDTestCase:
             tdLog.exit("show consumers %d not equal expect num: %d"%(topicNum, expectConsumerNUm))
 
         flag = 0
-        for i in range(10):                  
+        while (1):
             tdSql.query('show subscriptions;')
             subscribeNum = tdSql.queryRows
-            tdLog.info(" get subscriptions count: %d"%(subscribeNum))
+            tdLog.info(" get subscriptions count: %d, expected:%d"%(subscribeNum, expectSubscribeNum))
             if subscribeNum == expectSubscribeNum:
                 flag = 1
                 break

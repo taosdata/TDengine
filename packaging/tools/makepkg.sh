@@ -42,7 +42,7 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName2}-enterprise-server-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-${version}"
 elif [ "$verMode" == "cloud" ]; then
   install_dir="${release_dir}/${productName2}-cloud-server-${version}"
 else
@@ -89,17 +89,13 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5sum"
+      ${build_dir}/bin/tdengine-datasource.zip.md5"
   fi
 
-  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
-  explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
-      ${taosx_bin} \
-      ${explorer_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
@@ -115,7 +111,7 @@ else
     lib_files="${build_dir}/lib/libtaos.so.${version}"
     wslib_files="${build_dir}/lib/libtaosws.so"
 fi
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
 wsheader_files="${build_dir}/include/taosws.h"
 
@@ -235,12 +231,8 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
-  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
-  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" remove_temp.sh  
+  sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" remove_temp.sh  
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -266,12 +258,10 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
-  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" install_temp.sh    
+  sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" install_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
+  sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -284,8 +274,13 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install.sh
 
-if [[ $dbName == "taos" ]]; then
-  # Copy example code
+if [[ $dbName == "taos" ]]; then  
+  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  chmod a+x ${install_dir}/start-all.sh
+  chmod a+x ${install_dir}/stop-all.sh
+  # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
@@ -319,21 +314,26 @@ if [[ $dbName == "taos" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
+    mkdir -p ${install_dir}/share/        
+    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
+  fi
+
 fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
-# Copy connector
-if [ "$verMode" == "cluster" ]; then
+# Copy connector && taosx
+if [ "$verMode" == "cluster" ]; then    
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
         tmp_pwd=`pwd`
     	  cd ${install_dir}/connector
     	  if [ ! -d taos-connector-jdbc ];then
-          	git clone -b 3.2.1 --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+          	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
     	  fi
     	  cd taos-connector-jdbc
     	  mvn clean package -Dmaven.test.skip=true
@@ -359,8 +359,12 @@ if [ "$verMode" == "cluster" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
 
-        # cp -r ${connector_dir}/python ${install_dir}/connector
-        # cp -r ${connector_dir}/nodejs ${install_dir}/connector
+        # copy taosx
+        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
+          sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall.sh
+        fi
     fi
 fi
 

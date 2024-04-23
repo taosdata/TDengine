@@ -671,6 +671,12 @@ sql alter table tb2023 add column v nchar(16379);
 sql_error alter table tb2023 modify column v nchar(16380);
 sql desc tb2023
 
+print =============== modify column for normal table
+sql create table ntb_ts3841(ts timestamp, c0 varchar(64000));
+sql alter table ntb_ts3841 modify column c0 varchar(64001);
+sql create table ntb1_ts3841(ts timestamp, c0 nchar(15000));
+sql alter table ntb1_ts3841 modify column c0 nchar(15001);
+
 print =============== error for super table
 sql create table stb2023(ts timestamp, f int) tags(t1 int);
 sql_error alter table stb2023 add column v varchar(65518);
@@ -684,6 +690,20 @@ sql_error alter table stb2023 add column v nchar(16380);
 sql alter table stb2023 add column v nchar(16379);
 sql_error alter table stb2023 modify column v nchar(16380);
 sql desc stb2023
+
+print =============== modify column/tag for super table
+sql create table stb_ts3841(ts timestamp, c0 varchar(64000)) tags(t1 binary(16380));
+sql alter table stb_ts3841 modify column c0 varchar(64001);
+sql alter table stb_ts3841 modify tag t1 binary(16381);
+sql alter table stb_ts3841 modify tag t1 binary(16382);
+sql_error alter table stb_ts3841 modify tag t1 binary(16383);
+
+sql create table stb1_ts3841(ts timestamp, c0 nchar(15000)) tags(t1 nchar(4093));
+sql alter table stb1_ts3841 modify column c0 nchar(15001);
+sql alter table stb1_ts3841 modify tag t1 nchar(4094);
+sql alter table stb1_ts3841 modify tag t1 nchar(4095);
+sql_error alter table stb1_ts3841 modify tag t1 nchar(4096);
+sql_error alter table stb1_ts3841 modify tag t1 binary(16382);
 
 print ======= over
 sql drop database d1

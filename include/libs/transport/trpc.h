@@ -37,6 +37,7 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
+
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -60,6 +61,8 @@ typedef struct SRpcHandleInfo {
   STraceId traceId;
 
   SRpcConnInfo conn;
+  int8_t       forbiddenIp;
+
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -89,7 +92,7 @@ typedef struct SRpcInit {
   int32_t retryMinInterval;  // retry init interval
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
-  int64_t retryMaxTimouet;
+  int64_t retryMaxTimeout;
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
@@ -160,8 +163,16 @@ int rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc in
 // These functions will not be called in the child process
 int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
+                             int32_t timeoutMs);
 int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
+void  rpcSetIpWhite(void *thandl, void *arg);
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
+int32_t rpcCvtErrCode(int32_t code);
 
 #ifdef __cplusplus
 }

@@ -75,7 +75,7 @@ description: 一些常见问题的解决方法汇总
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
- - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
+ - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName \{fqdn} -Port \{port} 检测服务段端口是否访问
 
 11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](../../operation/diagnose/)。
 
@@ -261,3 +261,6 @@ TDengine 在写入数据时如果有很严重的乱序写入问题，会严重�
 
 ### 25 我想统计下前后两条写入记录之间的时间差值是多少？
 使用 DIFF 函数，可以查看时间列或数值列前后两条记录的差值，非常方便，详细说明见 SQL手册->函数->DIFF
+
+### 26  遇到报错 “DND ERROR Version not compatible,cliver : 3000700swr wer : 3020300”
+说明客户端和服务端版本不兼容，这里cliver的版本是3.0.7.0,server版本是 3.2.3.0。目前的兼容策略是前三位一致，client 和 sever才能兼容。

@@ -1,0 +1,19 @@
+# apr-util
+ExternalProject_Add(aprutil-1
+        URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+        URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        #GIT_REPOSITORY https://github.com/apache/apr-util.git
+	#GIT_TAG 1.5.4
+        SOURCE_DIR "${TD_CONTRIB_DIR}/apr-util"
+        #BINARY_DIR ""
+        BUILD_IN_SOURCE TRUE
+        BUILD_ALWAYS 1
+        #UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.1/ --with-apr=$ENV{HOME}/.cos-local.1 
+        #CONFIGURE_COMMAND ./configure --with-apr=/usr/local/apr
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
+        TEST_COMMAND ""
+)

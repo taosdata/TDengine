@@ -12,7 +12,7 @@
 
 [![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
+[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
 简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
@@ -45,7 +45,7 @@ TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。
   
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
-为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.0.2 或者更高版本。
+为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.13.0 或者更高版本。
 
 ## 安装工具
 
@@ -124,7 +124,7 @@ brew install argp-standalone gflags pkgconfig
 
 TDengine 包含数个使用 Go 语言开发的组件，比如taosAdapter, 请参考 golang.org 官方文档设置 go 开发环境。
 
-请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
+请使用 1.20 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
 
 ```
 go env -w GO111MODULE=on
@@ -175,7 +175,7 @@ cd TDengine
 ```bash
 mkdir debug
 cd debug
-cmake .. -DBUILD_TOOLS=true
+cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
 

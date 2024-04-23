@@ -37,9 +37,9 @@
 #include "monitor.h"
 #include "qnode.h"
 #include "sync.h"
+#include "tfs.h"
 #include "wal.h"
 
-#include "libs/function/tudf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -86,6 +86,7 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
@@ -93,6 +94,7 @@ typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 
 typedef struct {
   int32_t        dnodeId;
+  int32_t        engineVer;
   int64_t        clusterId;
   int64_t        dnodeVer;
   int64_t        updateTime;
@@ -106,18 +108,24 @@ typedef struct {
   TdThreadRwlock lock;
   SMsgCb         msgCb;
   bool           validMnodeEps;
+  int64_t        ipWhiteVer;
+  char           machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeData;
 
 typedef struct {
   const char         *path;
   const char         *name;
+  STfs               *pTfs;
   SDnodeData         *pData;
   SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
+  SendAuditRecordsFp  sendAuditRecordFp;
+  SendMonitorReportFp sendMonitorReportFpBasic;
   GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
   GetQnodeLoadsFp     getQnodeLoadsFp;
 } SMgmtInputOpt;
@@ -167,6 +175,9 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
+
+// dmodule.c
+int32_t dmInitDndInfo(SDnodeData *pData);
 
 // dmEps.c
 int32_t dmReadEps(SDnodeData *pData);

@@ -17,6 +17,7 @@ sql create table mt_int (ts timestamp, c int) tags (tagname int)
 
 ## case 00: static create table for test tag values
 sql create table st_int_0  using mt_int tags (NULL)
+sql show create table st_int_0
 sql show tags from  st_int_0
 if $data05 != NULL then
   return -1
@@ -172,6 +173,7 @@ endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_int_16 using mt_int tags (NULL)   values (now, NULL)
+sql show create table st_int_16
 sql show tags from  st_int_16
 if $data05 != NULL then
   return -1

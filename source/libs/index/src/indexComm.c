@@ -76,7 +76,8 @@ char* idxInt2str(int64_t val, char* dst, int radix) {
   return dst - 1;
 }
 __compar_fn_t idxGetCompar(int8_t type) {
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY ||
+      type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return (__compar_fn_t)strcmp;
   }
   return getComparFunc(type, 0);
@@ -356,17 +357,13 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       tlen = taosEncodeBinary(NULL, src, strlen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, src, strlen(src));
       break;
     }
-    case TSDB_DATA_TYPE_VARBINARY:
-      tlen = taosEncodeBinary(NULL, src, strlen(src));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, strlen(src));
-      break;
     default:
       ASSERTS(0, "index invalid input type");
       break;
@@ -447,6 +444,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
@@ -454,12 +452,6 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = (char*)*dst - tlen;
       break;
     }
-    case TSDB_DATA_TYPE_VARBINARY:
-      tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-      *dst = (char*)*dst - tlen;
-      break;
     default:
       ASSERTS(0, "index invalid input type");
       break;

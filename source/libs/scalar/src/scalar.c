@@ -208,6 +208,7 @@ void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
+    param->columnData = NULL;
   }
 
   if (param->pHashFilter != NULL) {
@@ -807,7 +808,11 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
         complete = false;
         continue;
       }
-      char *p = colDataGetData(params[m].columnData, i);
+
+      // 1=1 and tag_column = 1
+      int32_t ind = (i >= params[m].numOfRows)? (params[m].numOfRows - 1):i;
+      char* p = colDataGetData(params[m].columnData, ind);
+
       GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p);
 
       if (LOGIC_COND_TYPE_AND == node->condType && (false == value)) {
@@ -845,6 +850,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
   int32_t       code = 0;
+  int32_t       paramNum = 0;
 
   // json not support in in operator
   if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
@@ -865,7 +871,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
-  int32_t       paramNum = scalarGetOperatorParamNum(node->opType);
+  paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 
@@ -1193,6 +1199,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1241,10 +1248,12 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   SScalarParam output = {0};
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (0 == output.numOfRows) {
+    sclFreeParam(&output);
     return DEAL_RES_CONTINUE;
   }
 
@@ -1341,6 +1350,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   SScalarParam output = {0};
   ctx->code = sclExecCaseWhen(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1361,8 +1371,8 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
-      res->datum.p = output.columnData->pData;
-      output.columnData->pData = NULL;
+      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData) + 1, sizeof(char));      // add \0 to the end for print json value
+      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       nodesSetValueNodeValue(res, output.columnData->pData);
     }
@@ -1403,11 +1413,13 @@ EDealRes sclWalkFunction(SNode *pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecFunction(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1420,11 +1432,13 @@ EDealRes sclWalkLogic(SNode *pNode, SScalarCtx *ctx) {
 
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1443,6 +1457,7 @@ EDealRes sclWalkOperator(SNode *pNode, SScalarCtx *ctx) {
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 
@@ -1594,6 +1609,8 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
 
   if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
+      TSDB_DATA_TYPE_VARBINARY == ldt.type ||
+      TSDB_DATA_TYPE_VARBINARY == rdt.type ||
       (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
       (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -1629,7 +1646,7 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
-    if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
+    if (ldt.type == TSDB_DATA_TYPE_VARBINARY || !IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
         (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
@@ -1660,6 +1677,14 @@ static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
+  if (!pOp->pLeft || !pOp->pRight) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+  if(TSDB_DATA_TYPE_VARBINARY == ldt.type || TSDB_DATA_TYPE_VARBINARY == rdt.type){
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
   pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   return TSDB_CODE_SUCCESS;

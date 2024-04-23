@@ -44,7 +44,7 @@ Download and install the [latest version of TDengine](https://docs.tdengine.com/
 
 ### Install Grafana Plugin and Configure Data Source
 
-Please refer to [Install Grafana Plugin and Configure Data Source](/third-party/grafana/#install-grafana-plugin-and-configure-data-source)
+Please refer to [Install Grafana Plugin and Configure Data Source](../../third-party/grafana/#install-grafana-plugin-and-configure-data-source)
 
 ### Configure collectd
 

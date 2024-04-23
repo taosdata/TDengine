@@ -740,6 +740,8 @@ char *tz_win[554][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
+static int isdst_now = 0;
+
 void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8_t *outDaylight,
                            enum TdTimezone *tsTimezone) {
   if (inTimezoneStr == NULL || inTimezoneStr[0] == 0) return;
@@ -768,7 +770,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         sprintf(winStr, "TZ=%s:00", &(keyValue[1]));
-        *tsTimezone = taosStr2Int32(&keyValue[4], NULL, 10);
+        *tsTimezone = -taosStr2Int32(&keyValue[4], NULL, 10);
       }
       break;
     }
@@ -789,7 +791,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
         indexStr = ppp - pp + 3;
       }
       sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
-      *tsTimezone = taosStr2Int32(p, NULL, 10);
+      *tsTimezone = -taosStr2Int32(p, NULL, 10);
     } else {
       *tsTimezone = 0;
     }
@@ -805,19 +807,19 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   *tsTimezone = tz;
-  tz += daylight;
+  tz += isdst_now;
 
-  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-  *outDaylight = daylight;
+  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
+  *outDaylight = isdst_now;
 
 #else
   setenv("TZ", buf, 1);
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   *tsTimezone = tz;
-  tz += daylight;
-  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-  *outDaylight = daylight;
+  tz += isdst_now;
+  sprintf(outTimezoneStr, "%s (%s, %s%02d00)", buf, tzname[isdst_now], tz >= 0 ? "+" : "-", abs(tz));
+  *outDaylight = isdst_now;
 
 #endif
 
@@ -895,6 +897,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   struct tm tm1;
   taosLocalTime(&tx1, &tm1, NULL);
   daylight = tm1.tm_isdst;
+  isdst_now = tm1.tm_isdst;
 
   /*
    * format example:
@@ -1009,6 +1012,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   taosLocalTime(&tx1, &tm1, NULL);
+  isdst_now = tm1.tm_isdst;
 
   /*
    * format example:

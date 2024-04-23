@@ -27,7 +27,14 @@ static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int k
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
+static int32_t metaInitLock(SMeta *pMeta) {
+  TdThreadRwlockAttr attr;
+  taosThreadRwlockAttrInit(&attr);
+  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  taosThreadRwlockInit(&pMeta->lock, &attr);
+  taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
 static void metaCleanup(SMeta **ppMeta);
@@ -130,7 +137,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   // open pTtlMgr ("ttlv1.idx")
   char logPrefix[128] = {0};
   sprintf(logPrefix, "vgId:%d", TD_VID(pVnode));
-  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix);
+  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0, logPrefix, tsTtlFlushThreshold);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -173,6 +180,10 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   if (code) {
     terrno = code;
     metaError("vgId:%d, failed to open meta cache since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  if (metaInitTbFilterCache(pMeta) != 0) {
     goto _err;
   }
 
@@ -269,7 +280,9 @@ static void metaCleanup(SMeta **ppMeta) {
   if (pMeta) {
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
+#ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+#endif
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
