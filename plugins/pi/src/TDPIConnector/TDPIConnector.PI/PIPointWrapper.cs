@@ -51,6 +51,8 @@ namespace TDPIConnector.PI
         static public Dictionary<string, string> GetPointSavedAttrsType()
         {
             Dictionary<string, string> tags = new Dictionary<string, string> { };
+            tags.Add("ptclassname", "string");
+            tags.Add("sourcetag", "string");
             tags.Add("tag", "string");
             tags.Add("descriptor", "string");
             tags.Add("exdesc", "string");
@@ -62,7 +64,7 @@ namespace TDPIConnector.PI
         }
         public Dictionary<string, string> GetPointSavedAttrsValue() {
             // var all = this.AFSDKObject.FindAttributeNames("*");
-            string[] needSaveAttr = {"tag", "descriptor", "exdesc", "engunits", "pointsource", "step", "future"};
+            string[] needSaveAttr = {"ptclassname", "sourcetag", "tag", "descriptor", "exdesc", "engunits", "pointsource", "step", "future"};
             IDictionary<string, object> res = this.AFSDKObject.GetAttributes(needSaveAttr.ToArray());
             Dictionary<string, string> tags = new Dictionary<string, string> { };
             foreach (var r in res) {

@@ -235,7 +235,7 @@ namespace TDPIConnector.Core
                 return "TS_" + attr.Type.Name + "_" + attr.Uom; 
             } else
             {
-                return "TS_" + attr.Type;
+                return "TS_" + attr.Type.Name;
             }
         }
         internal string GetScanAFPointInfoByElements(IEnumerable<AFElementWrapper> elements)
@@ -252,7 +252,7 @@ namespace TDPIConnector.Core
                     existElements.Add(element.ID);
                     foreach (var attr in element.Attributes)
                     {
-                        if (attr.IsTDengineTag()) continue;
+                        if (attr.IsTDengineTag() || attr.Unsupported()) continue;
                         var templateName = GetAFPointTemplateName(attr);
                         if (!existTemplate.Contains(templateName))
                         {

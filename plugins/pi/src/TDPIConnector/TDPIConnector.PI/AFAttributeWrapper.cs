@@ -49,7 +49,7 @@ namespace TDPIConnector.PI
                 }
                 catch (Exception e)
                 {
-                    log.Warn($"Not Found Point, {e.Message}");
+                    log.Debug($"Not Found Point, {e.Message}");
                     return null;
                 }
             }
