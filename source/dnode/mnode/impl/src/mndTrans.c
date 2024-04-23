@@ -1109,7 +1109,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     goto _OVER;
   }
 
-  int32_t actionNum = taosArrayGetSize(pTrans->redoActions);
+  int32_t actionNum = taosArrayGetSize(pArray);
   if (action < 0 || action >= actionNum) {
     mError("trans:%d, invalid action:%d", transId, action);
     goto _OVER;

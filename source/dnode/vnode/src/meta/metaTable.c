@@ -274,8 +274,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.name = pReq->name;
   me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
-  // me.stbEntry.colCmpr = pReq->colCmpr;
-  //  me.stbEntry.colCmpr = pReq->
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(me.flags);
     me.stbEntry.rsmaParam = pReq->rsmaParam;
@@ -283,10 +281,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (pReq->colCmpred) {
     TABLE_SET_COL_COMPRESSED(me.flags);
     me.colCmpr = pReq->colCmpr;
-  } else {
-    TABLE_SET_COL_COMPRESSED(me.flags);
-    // TODO(yihao)
-    // SETUP default compress algr
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;

@@ -146,6 +146,10 @@ class TDDnodes:
         if index < 1 or index > 10:
             tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 
+    def taosdFile(self, index):
+        self.check(index)
+        return self.dnodes[index - 1].getPath()
+
     def StopAllSigint(self):
         tdLog.info("stop all dnodes sigint, asan:%d" % self.asan)
         if self.asan:
