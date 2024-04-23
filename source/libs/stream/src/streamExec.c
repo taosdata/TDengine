@@ -46,6 +46,7 @@ static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBl
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
     code = streamTaskPutDataIntoOutputQ(pTask, pBlock);
     if (code != TSDB_CODE_SUCCESS) {
+      destroyStreamDataBlock(pBlock);
       return code;
     }
 
@@ -76,7 +77,6 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
 
   int32_t code = doOutputResultBlockImpl(pTask, pStreamBlocks);
   if (code != TSDB_CODE_SUCCESS) {  // back pressure and record position
-    destroyStreamDataBlock(pStreamBlocks);
     return code;
   }
 
