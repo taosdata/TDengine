@@ -97,5 +97,5 @@ int8_t validColCompress(uint8_t type, uint8_t l2);
 int8_t validColEncode(uint8_t type, uint8_t l1);
 
 uint32_t createDefaultColCmprByType(uint8_t type);
-bool     validColCmprByType(uint8_t type, uint32_t cmpr);
+int32_t  validColCmprByType(uint8_t type, uint32_t cmpr);
 #endif /*_TD_TCOL_H_*/

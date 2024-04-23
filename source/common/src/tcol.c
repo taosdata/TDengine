@@ -397,10 +397,17 @@ uint32_t createDefaultColCmprByType(uint8_t type) {
   SET_COMPRESS(encode, compress, lvl, ret);
   return ret;
 }
-bool validColCmprByType(uint8_t type, uint32_t cmpr) {
+int32_t validColCmprByType(uint8_t type, uint32_t cmpr) {
   DEFINE_VAR(cmpr);
-  if (validColEncode(type, l1) && validColCompress(type, l2) && validColCompressLevel(type, lvl)) {
-    return true;
+  if (!validColEncode(type, l1)) {
+    return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   }
-  return false;
+  if (!validColCompress(type, l2)) {
+    return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
+  }
+
+  if (!validColCompressLevel(type, lvl)) {
+    return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
 }
