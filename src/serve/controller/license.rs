@@ -1,13 +1,18 @@
 use std::{ops::Deref, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
+use async_backtrace::framed;
 use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 
 use taosx_core::{
-    utils::{constants::VERSION_3_3_0, get_main_version_from_server_version, get_server_version},
+    utils::{
+        constants::VERSION_3_3_0, get_main_version_from_server_version, get_server_version,
+        mask_dsn,
+    },
     ConnectorLicense,
 };
+use tracing::{instrument, Instrument};
 
 /// LicenseValidator is used to validate the license of the source and target data sources.
 pub struct LicenseValidator<'a> {
@@ -60,10 +65,14 @@ impl<'a> LicenseValidator<'a> {
     }
 
     /// Validate the connector license and the enterprise license.
+    #[framed]
+    #[instrument(skip_all, fields(source = %mask_dsn(&self.from), sink = %mask_dsn(&self.to)))]
     pub async fn validate_connector(&self) -> Result<LicenseKind> {
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         {
-            let edition = validate_enterprise_license(self.from, self.to).await?;
+            let edition = validate_enterprise_license(self.from, self.to)
+                .in_current_span()
+                .await?;
 
             if edition.is_err() {
                 return Ok(edition);
@@ -86,7 +95,9 @@ impl<'a> LicenseValidator<'a> {
                     | taosx_core::runners::mysql::MYSQL_ID
                     | taosx_core::runners::postgres::POSTGRES_ID
                     | taosx_core::runners::oracle::ORACLE_ID => {
-                        validate_connector_license(self.from, self.to, self.pool).await
+                        validate_connector_license(self.from, self.to, self.pool)
+                            .in_current_span()
+                            .await
                     }
                     _ => Ok(LicenseKind::Good),
                 };
@@ -112,6 +123,19 @@ pub async fn validate_task(
     Ok(())
 }
 
+fn is_cloud(to: &Dsn) -> bool {
+    // is cloud?
+    to.protocol
+        .as_ref()
+        .map(|p| match p.as_str() {
+            "http" | "https" | "ws" | "wss" => true,
+            _ => false,
+        })
+        .unwrap_or(false)
+        && to.get("token").is_some()
+}
+
+#[framed]
 async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
     // Check if enterprise available
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
@@ -132,6 +156,10 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                     bail!("Failed to connect target server: {err}");
                 }
             };
+
+            if is_cloud(&to) {
+                return Ok(LicenseKind::Good);
+            }
             let edition = to_builder
                 .get_edition()
                 .await
@@ -145,8 +173,12 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
         ("tmq" | "taos", _) => {
             let mut from = from.clone();
             from.subject.take();
-            let builder = TaosBuilder::from_dsn(from)?;
+            let builder = TaosBuilder::from_dsn(&from)?;
             let _ = builder.build().await.context("Source connection error")?;
+
+            if is_cloud(&from) {
+                return Ok(LicenseKind::Good);
+            }
             let edition = tokio::time::timeout(Duration::from_secs(30), builder.get_edition())
                 .await
                 .context("Checking source edition timeout")?
@@ -164,6 +196,10 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
             let builder = TaosBuilder::from_dsn(&to)?;
             let mut conn = builder.build().await.context("Target connection error")?;
             builder.ping(&mut conn).await?;
+
+            if is_cloud(&to) {
+                return Ok(LicenseKind::Good);
+            }
             let edition = builder
                 .get_edition()
                 .await
@@ -188,6 +224,9 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                     bail!("Failed to connect target server: {err}");
                 }
             };
+            if is_cloud(&to) {
+                return Ok(LicenseKind::Good);
+            }
             let edition = builder
                 .get_edition()
                 .await
@@ -211,7 +250,9 @@ async fn validate_connector_license(
 ) -> Result<LicenseKind> {
     let builder = TaosBuilder::from_dsn(to)?;
 
-    if let Ok(source_builder) = TaosBuilder::from_dsn(from) {
+    let mut from = from.clone();
+    from.subject.take();
+    if let Ok(source_builder) = TaosBuilder::from_dsn(&from) {
         let source_version = source_builder.server_version().await?;
         let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
 
@@ -234,17 +275,7 @@ async fn validate_connector_license(
         )) */
         anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
     }
-    // is cloud?
-    if to
-        .protocol
-        .as_ref()
-        .map(|p| match p.as_str() {
-            "http" | "https" | "ws" | "wss" => true,
-            _ => false,
-        })
-        .unwrap_or(false)
-        && to.get("token").is_some()
-    {
+    if is_cloud(to) {
         return Ok(LicenseKind::Good);
     }
 

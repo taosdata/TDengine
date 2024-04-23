@@ -747,7 +747,6 @@ impl TaskController {
         tracing::info!(task.name, task.via, "create new task");
 
         let not_start = task.not_start;
-        tracing::info!("create new task");
         let mut from: Dsn = task
             .from
             .parse()
@@ -777,7 +776,9 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
-        license::validate_task(&from, &to, Some(&self.pool)).await?;
+        license::validate_task(&from, &to, Some(&self.pool))
+            .await
+            .context("License error")?;
 
         if task.via.is_none() {
             validate_dsn(&from).await.ok()?;
