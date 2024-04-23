@@ -199,6 +199,32 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       cJSON_AddItemToObject(json, "colNewName", colNewName);
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
+      TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
+      cJSON*      colName = cJSON_CreateString(field->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      uint8_t encode = COMPRESS_L1_TYPE_U32(field->bytes);
+      if (encode != 0) {
+        const char* encodeStr = columnEncodeStr(encode);
+        cJSON*      encodeJson = cJSON_CreateString(encodeStr);
+        cJSON_AddItemToObject(json, "encode", encodeJson);
+        break;
+      }
+      uint8_t compress = COMPRESS_L2_TYPE_U32(field->bytes);
+      if (compress != 0) {
+        const char* compressStr = columnCompressStr(compress);
+        cJSON*      compressJson = cJSON_CreateString(compressStr);
+        cJSON_AddItemToObject(json, "compress", compressJson);
+        break;
+      }
+      uint8_t level = COMPRESS_L2_TYPE_LEVEL_U32(field->bytes);
+      if (level != 0) {
+        const char* levelStr = columnLevelStr(level);
+        cJSON*      levelJson = cJSON_CreateString(levelStr);
+        cJSON_AddItemToObject(json, "level", levelJson);
+        break;
+      }
+    }
     default:
       break;
   }
@@ -566,6 +592,32 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
 
       cJSON* isNullCJson = cJSON_CreateBool(isNull);
       cJSON_AddItemToObject(json, "colValueNull", isNullCJson);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
+      cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
+      cJSON_AddItemToObject(json, "colName", colName);
+      uint8_t encode = COMPRESS_L1_TYPE_U32(vAlterTbReq.compress);
+      if (encode != 0) {
+        const char* encodeStr = columnEncodeStr(encode);
+        cJSON*      encodeJson = cJSON_CreateString(encodeStr);
+        cJSON_AddItemToObject(json, "encode", encodeJson);
+        break;
+      }
+      uint8_t compress = COMPRESS_L2_TYPE_U32(vAlterTbReq.compress);
+      if (compress != 0) {
+        const char* compressStr = columnCompressStr(compress);
+        cJSON*      compressJson = cJSON_CreateString(compressStr);
+        cJSON_AddItemToObject(json, "compress", compressJson);
+        break;
+      }
+      uint8_t level = COMPRESS_L2_TYPE_LEVEL_U32(vAlterTbReq.compress);
+      if (level != 0) {
+        const char* levelStr = columnLevelStr(level);
+        cJSON*      levelJson = cJSON_CreateString(levelStr);
+        cJSON_AddItemToObject(json, "level", levelJson);
+        break;
+      }
       break;
     }
     default:
