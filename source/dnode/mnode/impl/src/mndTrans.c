@@ -169,7 +169,7 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pTrans->actionPos, _OVER)
 
   int32_t prepareActionNum = taosArrayGetSize(pTrans->prepareActions);
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
@@ -317,7 +317,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pTrans->actionPos, _OVER)
 
   if (sver > TRANS_VER1_NUMBER) {
     SDB_GET_INT32(pRaw, dataPos, &prepareActionNum, _OVER)
@@ -525,7 +525,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   mndTransUpdateActions(pOld->undoActions, pNew->undoActions);
   mndTransUpdateActions(pOld->commitActions, pNew->commitActions);
   pOld->stage = pNew->stage;
-  pOld->redoActionPos = pNew->redoActionPos;
+  pOld->actionPos = pNew->actionPos;
 
   if (pOld->stage == TRN_STAGE_COMMIT) {
     pOld->stage = TRN_STAGE_COMMIT_ACTION;
@@ -1359,15 +1359,15 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 
   taosThreadMutexLock(&pTrans->mutex);
 
-  if (pTrans->redoActionPos >= numOfActions) {
+  if (pTrans->actionPos >= numOfActions) {
     taosThreadMutexUnlock(&pTrans->mutex);
     return code;
   }
 
-  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->redoActionPos);
+  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
-  for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
-    STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
+  for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
+    STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->actionPos);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {
@@ -1401,14 +1401,14 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 
     if (code == 0) {
       pTrans->code = 0;
-      pTrans->redoActionPos++;
+      pTrans->actionPos++;
       mInfo("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
       taosThreadMutexUnlock(&pTrans->mutex);
       code = mndTransSync(pMnode, pTrans);
       taosThreadMutexLock(&pTrans->mutex);
       if (code != 0) {
-        pTrans->redoActionPos--;
+        pTrans->actionPos--;
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
