@@ -230,7 +230,6 @@ pub fn validate_table_column_name(name_type: &str, name: &str) -> anyhow::Result
             name
         );
     }
-
     if name.contains(".") {
         bail!(
             "The {}: {} is invalid, contains `.` character",

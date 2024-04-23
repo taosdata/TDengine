@@ -586,10 +586,8 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use tokio::task;
-
     use super::*;
+    use std::env;
 
     #[test]
     fn test_tbname_pattern() {

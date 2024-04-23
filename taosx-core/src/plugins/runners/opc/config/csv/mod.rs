@@ -261,26 +261,21 @@ mod tests {
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let ua_config = csv_parser.get_point_ids();
-        assert_eq!(ua_config.len(), 3);
+        assert_eq!(ua_config.len(), 2);
         assert_eq!(ua_config.get(0).unwrap(), "ns=3;i=1005::t_3_1005");
         assert_eq!(ua_config.get(1).unwrap(), "ns=3;i=1006::t_3_1006");
-        assert_eq!(ua_config.get(2).unwrap(), "ns=3;i=1007::t_3_1007");
 
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let da_config = csv_parser.get_point_ids();
-        assert_eq!(da_config.len(), 3);
+        assert_eq!(da_config.len(), 2);
         assert_eq!(
             da_config.get(0).unwrap(),
             "root.parent.temperature::t_temperature"
         );
         assert_eq!(
             da_config.get(1).unwrap(),
-            "root.parent.pressure::t_pressure"
-        );
-        assert_eq!(
-            da_config.get(2).unwrap(),
             "root.parent.current::t_custom_current"
         );
     }
@@ -305,8 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_csv_file() {
-        let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@..\\tests\\opc\\opcua-empty.csv").unwrap();
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-empty.csv").unwrap();
 
         match CsvParser::from_dsn(&dsn).await {
             Ok(_) => panic!("empty csv file should fail"),

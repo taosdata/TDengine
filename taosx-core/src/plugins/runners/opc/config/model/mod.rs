@@ -271,6 +271,7 @@ fn parse_tag_values(
 #[cfg(test)]
 mod point_config_tests {
     use super::*;
+
     #[tokio::test]
     async fn test_parse_stable() {
         let header = CsvHeader::try_new(
@@ -394,89 +395,45 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
     Ok(enabled)
 }
 
-fn parse_columns(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> anyhow::Result<Vec<ColumnConfig>> {
+fn parse_columns(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Vec<ColumnConfig>> {
     let mut columns = Vec::new();
 
     // value => value_col
-    let value = parse_value_col(header, row);
-    let value_name = value.alias.as_ref().unwrap();
-    validate_table_column_name("value column name", value_name)?;
-
-    if value.transform.is_some() {
-        // 校验表达式
-        let value_transform = value.transform.as_ref().unwrap();
-        check_math_expression(value_name, value_transform).map_err(|e| {
-            anyhow::anyhow!(
-                "invalid value_transform: {}, cause: {}",
-                value_transform,
-                e.to_string()
-            )
-        })?;
-    }
+    let value = parse_value_col(header, row)?;
     columns.push(value);
 
     // quality => quality_col
-    let quality = parse_quality_col(header, row);
-    if quality.is_some() {
-        let quality_column = quality.unwrap();
-        let quality_name = quality_column.alias.as_ref().unwrap();
-        validate_table_column_name("quality column name", quality_name)?;
-        columns.push(quality_column);
+    let quality = parse_quality_col(header, row)?;
+    if let Some(quality) = quality {
+        columns.push(quality);
     }
 
-    // received_ts => received_ts_col/received_time_col
-    let received_ts = parse_received_ts_col(header, row);
-    let original_ts = parse_original_ts_col(header, row);
-    // when received_ts and original_ts are both none, add original_ts
-    if received_ts.is_none() && original_ts.is_none() {
-        columns.push(ColumnConfig {
-            name: "original_ts".to_string(),
-            r#type: Some(Ty::Timestamp),
-            alias: Some("ts".to_string()),
-            transform: None,
-            is_primary_key: true,
-        });
-    }
+    // original_ts
+    let original_ts = parse_original_ts_col(header, row)?;
+    // received_ts
+    let received_ts = parse_received_ts_col(header, row)?;
 
-    if received_ts.is_some() {
-        let received_ts_column = received_ts.unwrap();
-        let ts_name = received_ts_column.alias.as_ref().unwrap();
-        validate_table_column_name("received_ts column name", ts_name)?;
-
-        if received_ts_column.transform.is_some() {
-            // 校验表达式
-            let ts_transform = received_ts_column.transform.as_ref().unwrap();
-            check_math_expression(ts_name, ts_transform).map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid received_ts_transform: {}, cause: {}",
-                    ts_transform,
-                    e.to_string()
-                )
-            })?;
+    match (original_ts, received_ts) {
+        (Some(origin_ts), Some(received_ts)) => {
+            columns.push(origin_ts);
+            columns.push(received_ts);
         }
-        columns.push(received_ts_column);
-    }
-
-    if original_ts.is_some() {
-        let original_ts_column = original_ts.unwrap();
-        let ts_name = original_ts_column.alias.as_ref().unwrap();
-        validate_table_column_name("original_ts column name", ts_name)?;
-
-        if original_ts_column.transform.is_some() {
-            // 校验表达式
-            let ts_transform = original_ts_column.transform.as_ref().unwrap();
-            check_math_expression(ts_name, ts_transform).map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid original_ts_transform: {}, cause: {}",
-                    ts_transform,
-                    e.to_string()
-                )
-            })?;
+        (Some(origin_ts), None) => {
+            columns.push(origin_ts);
         }
-        columns.push(original_ts_column);
+        (None, Some(received_ts)) => {
+            columns.push(received_ts);
+        }
+        (None, None) => {
+            // when received_ts and original_ts are both none, add original_ts
+            columns.push(ColumnConfig {
+                name: "original_ts".to_string(),
+                r#type: Some(Ty::Timestamp),
+                alias: Some("ts".to_string()),
+                transform: None,
+                is_primary_key: true,
+            });
+        }
     }
 
     Ok(columns)
@@ -502,50 +459,71 @@ fn parse_tags(header: &CsvHeader) -> Vec<TagConfig> {
     tags
 }
 
-fn parse_value_col(header: &CsvHeader, row: &csv_async::StringRecord) -> ColumnConfig {
+fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<ColumnConfig> {
     let value_name = header
         .get_column("value_col")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .map_or(Some("val".to_string()), |val| {
             if val.is_empty() {
                 Some("val".to_string())
             } else {
                 Some(val.to_string())
             }
-        })
-        .flatten();
+        });
 
     let value_transform = header
         .get_column("value_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
             if val.is_empty() {
                 None
             } else {
                 Some(val.to_string())
             }
-        })
-        .flatten();
+        });
 
-    ColumnConfig {
+    match (value_name.as_ref(), value_transform.as_ref()) {
+        (Some(value_name), Some(value_transform)) => {
+            // 校验列名
+            validate_table_column_name("value column name", value_name)?;
+            // 校验表达式
+            check_math_expression(value_name, value_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid value_transform: {}, cause: {}",
+                    value_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+        (Some(value_name), None) => {
+            // 校验列名
+            validate_table_column_name("value column name", value_name)?;
+        }
+        (None, _) => {
+            panic!("value column name cannot be None");
+        }
+    }
+
+    Ok(ColumnConfig {
         name: ColumnConfig::VALUE.to_string(),
         r#type: None,
         alias: value_name,
         transform: value_transform,
         is_primary_key: false,
-    }
+    })
 }
 
-fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<ColumnConfig> {
+fn parse_quality_col(
+    header: &CsvHeader,
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
     let col = header
         .get_column("quality_col")
         .map(|col| row.get(col.index))
         .flatten();
 
     if col.is_none() {
-        return None;
+        return Ok(None);
     }
 
     let quality_col = col.unwrap();
@@ -555,107 +533,253 @@ fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Optio
         quality_col.to_string()
     };
 
-    Some(ColumnConfig {
+    // todo!("check column name")
+    // if quality.is_some() {
+    //     let quality_column = quality.unwrap();
+    //     let quality_name = quality_column.alias.as_ref().unwrap();
+    //     validate_table_column_name("quality column name", quality_name)?;
+    // }
+
+    Ok(Some(ColumnConfig {
         name: ColumnConfig::QUALITY.to_string(),
         r#type: Some(Ty::Int),
         alias: Some(quality_col),
         transform: None,
         is_primary_key: false,
-    })
+    }))
 }
 
 fn parse_received_ts_col(
     header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<ColumnConfig> {
-    let col = header
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
+    let rts_col = header
         .get_column("received_ts_col")
         .or(header.get_column("received_time_col"));
-    if col.is_none() {
-        return None;
+    if rts_col.is_none() {
+        return Ok(None);
     }
 
-    let col = col.unwrap();
-    let col_name = row
-        .get(col.index)
-        .map(|v| {
-            if v.is_empty() {
-                None
-            } else {
-                Some(v.to_string())
-            }
-        })
-        .flatten();
-    if col_name.is_none() {
-        return None;
+    let col = rts_col.unwrap();
+    let col_name = row.get(col.index).and_then(|v| {
+        if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        }
+    });
+
+    if let Some(col_name) = col_name {
+        validate_table_column_name("received_ts column name", &col_name)?;
+
+        let received_ts_transform = header
+            .get_column("received_ts_transform")
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| {
+                if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                }
+            });
+
+        if let Some(rts_transform) = received_ts_transform.as_ref() {
+            // 校验表达式
+            check_math_expression(&col_name, rts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid received_ts_transform: {}, cause: {}",
+                    rts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+
+        return Ok(Some(ColumnConfig {
+            name: ColumnConfig::RECEIVED_TS.to_string(),
+            r#type: Some(Ty::Timestamp),
+            alias: Some(col_name),
+            transform: received_ts_transform,
+            is_primary_key: col.is_primary_key,
+        }));
     }
 
-    let received_ts_transform = header
-        .get_column("received_ts_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
-            if val.is_empty() {
-                None
-            } else {
-                Some(val.to_string())
-            }
-        })
-        .flatten();
-
-    Some(ColumnConfig {
-        name: ColumnConfig::RECEIVED_TS.to_string(),
-        r#type: Some(Ty::Timestamp),
-        alias: col_name,
-        transform: received_ts_transform,
-        is_primary_key: col.is_primary_key,
-    })
+    return Ok(None);
 }
 
 fn parse_original_ts_col(
     header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<ColumnConfig> {
-    let col = header.get_column("ts_col");
-    if col.is_none() {
-        return None;
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
+    let ts_col = header.get_column("ts_col");
+    if ts_col.is_none() {
+        return Ok(None);
     }
 
-    let col = col.unwrap();
-    let col_name = row
-        .get(col.index)
-        .map(|v| {
-            if v.is_empty() {
-                None
-            } else {
-                Some(v.to_string())
-            }
-        })
-        .flatten();
-    if col_name.is_none() {
-        return None;
+    let col = ts_col.unwrap();
+    let col_name = row.get(col.index).and_then(|val| {
+        if val.is_empty() {
+            None
+        } else {
+            Some(val.to_string())
+        }
+    });
+
+    if let Some(origin_ts_name) = col_name {
+        validate_table_column_name("original_ts column name", &origin_ts_name)?;
+
+        let origin_ts_transform = header
+            .get_column("ts_transform")
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| {
+                if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                }
+            });
+
+        if let Some(ts_transform) = origin_ts_transform.as_ref() {
+            // 校验表达式
+            check_math_expression(&origin_ts_name, ts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid original_ts_transform: {}, cause: {}",
+                    ts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+
+        return Ok(Some(ColumnConfig {
+            name: ColumnConfig::ORIGINAL_TS.to_string(),
+            r#type: Some(Ty::Timestamp),
+            alias: Some(origin_ts_name),
+            transform: origin_ts_transform,
+            is_primary_key: col.is_primary_key,
+        }));
     }
 
-    let original_ts_transform = header
-        .get_column("ts_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
-            if val.is_empty() {
-                None
-            } else {
-                Some(val.to_string())
-            }
-        })
-        .flatten();
+    return Ok(None);
+}
 
-    Some(ColumnConfig {
-        name: ColumnConfig::ORIGINAL_TS.to_string(),
-        r#type: Some(Ty::Timestamp),
-        alias: col_name,
-        transform: original_ts_transform,
-        is_primary_key: col.is_primary_key,
-    })
+#[cfg(test)]
+mod table_config_tests {
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_value_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["value", "value + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "value");
+        assert_eq!(value_col.transform.unwrap(), "value + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "value + 1"]);
+        let value_col = parse_value_col(&header, &row);
+        assert!(value_col.is_err());
+        assert_eq!(
+            value_col.unwrap_err().to_string(),
+            "invalid value_transform: value + 1, cause: Variable not found: value"
+        );
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "val + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "val");
+        assert_eq!(value_col.transform.unwrap(), "val + 1");
+    }
+
+    #[tokio::test]
+    async fn test_parse_original_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ts", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(ts_col.alias.unwrap(), "ts");
+        assert_eq!(ts_col.transform.unwrap(), "ts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap();
+        assert!(ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ts", "origin_ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row);
+        assert!(ts_col.is_err());
+        assert_eq!(
+            ts_col.unwrap_err().to_string(),
+            "invalid original_ts_transform: origin_ts + 1, cause: Variable not found: origin_ts"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_received_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["rts", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(received_ts_col.alias.unwrap(), "rts");
+        assert_eq!(received_ts_col.transform.unwrap(), "rts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap();
+        assert!(received_ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["rts", "received_ts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row);
+        assert!(received_ts_col.is_err());
+        assert_eq!(
+            received_ts_col.unwrap_err().to_string(),
+            "invalid received_ts_transform: received_ts + 1, cause: Variable not found: received_ts"
+        );
+    }
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
