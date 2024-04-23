@@ -511,6 +511,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(seqWinGroup);
   COPY_SCALAR_FIELD(grpJoin);
   COPY_SCALAR_FIELD(hashJoinHint);
+  COPY_SCALAR_FIELD(batchScanHint);
   CLONE_NODE_FIELD(pLeftOnCond);
   CLONE_NODE_FIELD(pRightOnCond);
   COPY_SCALAR_FIELD(timeRangeTarget);
