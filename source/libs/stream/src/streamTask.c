@@ -1011,9 +1011,15 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   for(int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
     SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
     if (p->taskId == taskId) {
-      ASSERT(reqId == p->reqId);
 
-      // count down one, since it is ready now
+      if (reqId != p->reqId) {
+        stError("s-task:%s reqId:%" PRIx64 " expected:%" PRIx64
+                " expired check-rsp recv from downstream task:0x%x, discarded",
+                id, reqId, p->reqId, taskId);
+        return TSDB_CODE_FAILED;
+      }
+
+      // subtract one not-ready-task, since it is ready now
       if ((p->status != TASK_DOWNSTREAM_READY) && (status == TASK_DOWNSTREAM_READY)) {
         *pNotReady = atomic_sub_fetch_32(&pInfo->notReadyTasks, 1);
       } else {
@@ -1029,7 +1035,8 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
   }
 
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
-  stError("s-task:%s unexpected check rsp msg, downstream task:0x%x, reqId:%"PRIx64, id, taskId, reqId);
+  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x, reqId:%" PRIx64 " discarded", id, taskId,
+          reqId);
   return TSDB_CODE_FAILED;
 }
 
