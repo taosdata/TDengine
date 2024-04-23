@@ -138,10 +138,10 @@ impl OracleQuery {
                 while let Some(row) = rs.next() {
                     match row {
                         Ok(row) => {
-                            rows.push(row);
                             if rows.len() >= top_n as usize {
                                 break;
                             }
+                            rows.push(row);
                         }
                         Err(err) => {
                             anyhow::bail!("failed to select data, cause: {}", err.to_string())

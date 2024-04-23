@@ -88,6 +88,10 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // query sample data
     let (col_map, rows) = query.top_n(&sql, config.task.sample_data_limit)?;
 
+    if rows.is_empty() {
+        return Err(anyhow::anyhow!("no data found"));
+    }
+
     // generate sample data
     for row in rows {
         let mut sample_map: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();

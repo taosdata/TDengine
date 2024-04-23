@@ -176,11 +176,11 @@ impl TaskConfig {
     fn parse_sample_data_limit(dsn: &Dsn) -> anyhow::Result<u32> {
         Ok(dsn
             .params
-            .get("sampleDataLimit")
+            .get("sample_data_limit")
             .map(|s| {
                 let limit = s.parse::<u32>().map_err(|err| {
                     anyhow::anyhow!(
-                        "failed to parse sampleDataLimit: {}, cause: {}",
+                        "failed to parse sample_data_limit: {}, cause: {}",
                         s.to_string(),
                         err.to_string()
                     )
