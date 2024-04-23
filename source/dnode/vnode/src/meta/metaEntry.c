@@ -1406,11 +1406,13 @@ static int32_t metaAlterSuperTableSchema(SMeta *meta, const SMetaEntry *newEntry
 
     // time-series statistics
     if (!metaTbInFilterCache(meta, newEntry->name, 1)) {
+#if 0
       int64_t numOfChildTables;
       metaUpdateStbStats(meta, newEntry->uid, 0, newSchema->nCols - oldSchema->nCols);
       metaGetStbStats(meta->pVnode, newEntry->uid, &numOfChildTables, NULL);
       meta->pVnode->config.vndStats.numOfTimeSeries += (numOfChildTables * (newSchema->nCols - oldSchema->nCols));
       metaTimeSeriesNotifyCheck(meta);
+#endif
     }
   }
 
