@@ -657,9 +657,14 @@ void initLogFile() {
     if (g_conf.subTable) {
       char* result[] = {
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-          "wstart\",\"type\":9,\"isPrimarykey\":false},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false},{"
-          "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false},{\"name\":"
-          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"group_id\",\"type\":14}"
+          "wstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+          ",{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"},{"
+          "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"},{\"name\":"
+          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
+          "\"type\":14}"
           "]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
           "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
@@ -679,11 +684,15 @@ void initLogFile() {
           "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\","
           "\"type\":9,"
-          "\"isPrimarykey\":false}"
-          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false}"
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"}"
           ",{"
-          "\"name\":\"c3\",\"type\":8,\"length\":64,\"isPrimarykey\":false},{"
-          "\"name\":\"c4\",\"type\":5,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":"
+          "\"name\":\"c3\",\"type\":8,\"length\":64,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+          "\"lz4\",\"level\":\"medium\"},{"
+          "\"name\":\"c4\",\"type\":5,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":"
           "\"t3\","
           "\"type\":10,\"length\":"
           "8},{\"name\":\"t4\",\"type\":1},{\"name\":\"t2\",\"type\":8,\"length\":64}]}",
@@ -702,9 +711,10 @@ void initLogFile() {
           "{\"name\":\"t1\",\"type\":4,\"value\":5000}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\","
           "\"type\":9,"
-          "\"isPrimarykey\":false}"
-          ",{\"name\":\"c2\",\"type\":10,\"length\":8,\"isPrimarykey\":false},{\"name\":\"cc3\",\"type\":5,"
-          "\"isPrimarykey\":false}],\"tags\":[]}",
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\","
+          "\"type\":10,\"length\":8,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"},{\"name\":\"cc3\",\"type\":5,"
+          "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\","
           "\"type\":9,"
           "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},"
@@ -908,9 +918,14 @@ void initLogFile() {
       if (g_conf.subTable) {
         char* result[] = {
             "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-            "wstart\",\"type\":9,\"isPrimarykey\":false},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false},{"
-            "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false},{\"name\":"
-            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false}],\"tags\":[{\"name\":\"group_id\",\"type\":"
+            "wstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":"
+            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
+            "\"type\":"
             "14}]}",
             "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\","
             "\"using\":"
