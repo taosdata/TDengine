@@ -219,7 +219,7 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
       streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
 
       stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, reqId:%" PRIx64,
+              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, reqId:0x%" PRIx64,
               pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
