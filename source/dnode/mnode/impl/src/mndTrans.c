@@ -1352,22 +1352,19 @@ static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool
   return code;
 }
 
-static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf) {
   int32_t code = 0;
-  int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
+  int32_t numOfActions = taosArrayGetSize(pActions);
   if (numOfActions == 0) return code;
 
-  taosThreadMutexLock(&pTrans->mutex);
-
   if (pTrans->actionPos >= numOfActions) {
-    taosThreadMutexUnlock(&pTrans->mutex);
     return code;
   }
 
   mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
-    STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->actionPos);
+    STransAction *pAction = taosArrayGet(pActions, pTrans->actionPos);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {
@@ -1434,8 +1431,16 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
     }
   }
 
-  taosThreadMutexUnlock(&pTrans->mutex);
+  return code;
+}
 
+static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+  int32_t code = 0;
+  taosThreadMutexLock(&pTrans->mutex);
+  if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf);
+  }
+  taosThreadMutexUnlock(&pTrans->mutex);
   return code;
 }
 
