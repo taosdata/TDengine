@@ -130,7 +130,7 @@ static void tsdbClosePgCache(STsdb *pTsdb) {
 enum {
   LFLAG_LAST_ROW = 0,
   LFLAG_LAST = 1,
-  LFLAG_PRIMARY_KEY = (1 << 4),
+  LFLAG_PRIMARY_KEY = CACHESCAN_RETRIEVE_PK,
 };
 
 typedef struct {
