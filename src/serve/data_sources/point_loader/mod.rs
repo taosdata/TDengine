@@ -462,3 +462,18 @@ fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
 
     header
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownloadPIConfigParams {
+    from: String,
+    via: Option<i64>,
+}
+pub async fn create_pi_default_config(
+    _controller: Data<TaskControllerRef>,
+    params: Query<DownloadPIConfigParams>,
+) -> anyhow::Result<NamedFile> {
+    let _params = params.into_inner();
+    let mut file = std::fs::File::create("default_pi_config.csv")?;
+    file.write_all(b"hello word")?;
+    Ok(NamedFile::open("default_pi_config.csv")?)
+}

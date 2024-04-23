@@ -618,3 +618,22 @@ async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
     plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }
+
+#[get("/ds/in/download/pi_default_config")]
+pub(super) async fn download_pi_default_config(
+    controller: Data<TaskControllerRef>,
+    params: Query<DownloadPIConfigParams>,
+    req: HttpRequest,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    // match download_all_point_csv_file(controller, data).await {
+    match create_pi_default_config(controller, params).await {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
