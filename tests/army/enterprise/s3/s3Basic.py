@@ -340,7 +340,7 @@ class TDTestCase(TBase):
             self.doAction()
 
             # drop database and free s3 file
-            #self.dropDb()
+            self.dropDb()
 
 
             tdLog.success(f"{__file__} successfully executed")
