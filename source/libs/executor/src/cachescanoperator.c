@@ -217,6 +217,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   SCacheRowsScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   STableListInfo*     pTableList = pInfo->pTableList;
+  SStoreCacheReader*  pReaderFn = &pInfo->readHandle.api.cacheFn;
 
   uint64_t suid = tableListGetSuid(pTableList);
   int32_t  size = tableListGetSize(pTableList);
@@ -237,8 +238,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       blockDataCleanup(pInfo->pBufferedRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pBufferedRes,
-                                                                pInfo->pSlotIds, pInfo->pDstSlotIds, pInfo->pUidList);
+      int32_t code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pInfo->pBufferedRes, pInfo->pSlotIds,
+                                             pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -307,10 +308,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
 
       if (NULL == pInfo->pLastrowReader) {
-        code = pInfo->readHandle.api.cacheFn.openReader(
-            pInfo->readHandle.vnode, pInfo->retrieveType, pList, num, taosArrayGetSize(pInfo->matchInfo.pList),
-            pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader, pTaskInfo->id.str, pInfo->pFuncTypeList,
-            &pInfo->pkCol, pInfo->numOfPks);
+        code = pReaderFn->openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                     taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid,
+                                     &pInfo->pLastrowReader, pTaskInfo->id.str, pInfo->pFuncTypeList, &pInfo->pkCol,
+                                     pInfo->numOfPks);
 
         if (code != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
@@ -318,13 +319,13 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           continue;
         }
       } else {
-        pInfo->readHandle.api.cacheFn.reuseReader(pInfo->pLastrowReader, pList, num);
+        pReaderFn->reuseReader(pInfo->pLastrowReader, pList, num);
       }
 
       taosArrayClear(pInfo->pUidList);
 
-      code = pInfo->readHandle.api.cacheFn.retrieveRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
-                                   pInfo->pUidList);
+      code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
+                                     pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -357,7 +358,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
     }
 
-    pInfo->pLastrowReader = pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
+    pInfo->pLastrowReader = pReaderFn->closeReader(pInfo->pLastrowReader);
     setOperatorCompleted(pOperator);
     return NULL;
   }
