@@ -40,7 +40,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public ArrayList subTables = new ArrayList();
         public List<StructType> records = new List<StructType>();
 
-        public StringArray.Builder tableNameArrowArray;
         public StringArray.Builder tableUniqKeyArrowArray;
         public TimestampArray.Builder tsArrowArray;
 
@@ -133,7 +132,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public RecordBatch BuildInsertMessage()
         {
-            var recordCounts = tableNameArrowArray.Length;
+            var recordCounts = tableUniqKeyArrowArray.Length;
             IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Insert, recordCounts);
             var batch = new RecordBatch(
                 Schema,
@@ -231,7 +230,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             var ipcTagField = new List<IpcField>();
             var tagField = new List<Field>();
 
-            tagField.Add(new Field(TaosxConstants.TABLENAME, StringType.Default, true));
+            tagField.Add(new Field(TaosxConstants.POINTID, StringType.Default, true));
             foreach (var tag in tagNames)
             {
                 string tagType = "NCHAR(100)";

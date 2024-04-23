@@ -30,6 +30,8 @@ namespace TDPIConnector.Core
             public List<string> TemplateForAFElement { get; set; } = new List<string>();
             public List<string> PointList { get; set; }
             public List<string> ElementList { get; set; } = new List<string>();
+            public List<string> PointIDList { get; set; }
+            public List<string> ElementIDList { get; set; } = new List<string>();
 
             // not support
             public string PIServerUser { get; set; }
@@ -70,6 +72,14 @@ namespace TDPIConnector.Core
                 if (PointList != null && PointList.Any())
                 {
                     sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                }
+                if (PointIDList != null && PointIDList.Any())
+                {
+                    sb.AppendLine($"PointIDList={string.Join(", ", PointIDList)}");
+                }
+                if (ElementIDList != null && ElementIDList.Any())
+                {
+                    sb.AppendLine($"ElementIDList={string.Join(", ", ElementIDList)}");
                 }
                 return sb.ToString();
             }

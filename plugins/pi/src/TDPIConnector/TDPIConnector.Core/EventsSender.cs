@@ -80,6 +80,7 @@ namespace TDPIConnector.Core
                     stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
                 }
                 var elementTbName = ElemenetTableConverter.GetTDTableNameForElement(dpEvent.Value.Attribute.Element);
+                var elementUniKey = dpEvent.Value.Attribute.Element.ID.ToString();
                 var tdValue = dpEvent.Value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
@@ -125,9 +126,9 @@ namespace TDPIConnector.Core
 
                 if (stables.ContainsKey(stableName))
                 {
-                    if (stables[stableName].ContainsKey(elementTbName))
+                    if (stables[stableName].ContainsKey(elementUniKey))
                     {
-                        var table = stables[stableName][elementTbName];
+                        var table = stables[stableName][elementUniKey];
                         if (table.ContainsKey(timestamp))
                         {
                             table[timestamp].Add(tdValue);
@@ -139,12 +140,12 @@ namespace TDPIConnector.Core
                     }
                     else
                     {
-                        stables[stableName].Add(elementTbName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                        stables[stableName].Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     }
                 }
                 else {
                     var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
-                    tables.Add(elementTbName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tables.Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     stables.Add(stableName, tables);
                 }
             }
@@ -191,16 +192,16 @@ namespace TDPIConnector.Core
 
             foreach (var dpEvent in allEvents)
             {
-                var pointName = dpEvent.Value.PIPoint.Name;
+                var pointID = dpEvent.Value.PIPoint.PointId.ToString();
                 var tdValue = dpEvent.Value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
 
-                tdValue.Name = pointName;
+                tdValue.Name = pointID;
 
-                if (tables.ContainsKey(pointName))
+                if (tables.ContainsKey(pointID))
                 {
-                    var table = tables[pointName];
+                    var table = tables[pointID];
                     if (table.ContainsKey(timestamp))
                     {
                         // not support different value at the same one timestamp, use the last one.
@@ -213,7 +214,7 @@ namespace TDPIConnector.Core
                 }
                 else
                 {
-                    tables.Add(pointName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tables.Add(pointID, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                 }
             }
 

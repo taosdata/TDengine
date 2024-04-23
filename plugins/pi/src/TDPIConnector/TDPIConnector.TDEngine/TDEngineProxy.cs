@@ -11,10 +11,6 @@ using TDPIConnector.TDEngine.TaosxClient;
 namespace TDPIConnector.TDEngine
 {
     public class TDEngineProxyBuild  {
-        public static TDEngineProxy NewTDEngineClient(string hostname, int port, string username, string password, string token, string tablesPrefix)
-        {
-            return new TDEngineClient(false, hostname, port, username, password, token, tablesPrefix);
-        }
         public static TDEngineProxy NewTDEngineProxy(string ipcHost, string restHost, string tablesPrefix, int maxWaitLength)
         {
             return new TDEngineProxy(ipcHost, restHost, tablesPrefix, maxWaitLength);
@@ -239,13 +235,13 @@ namespace TDPIConnector.TDEngine
             for (int i = 0; i < piPoints.Count; i++)
             {
                 var piPoint = piPoints[i];
-                string tdEngineTableName = GetFullTableName(piPoint.Name).ToTDEngineNamingPattern();
+                string tdEngineTableUniKey = piPoint.PointId.ToString();
                 var stableName = piPoint.STableName.ToTDEngineNamingPattern();
 
                 var taosxClient = getTaosxClient(stableName);
                 if (taosxClient != null)
                 {
-                    taosxClient.AddPointTableTag(tdEngineTableName, piPoint.PointId);
+                    taosxClient.AddPointTableTag(tdEngineTableUniKey, piPoint.PointId);
                 }
                 else {
                     log.Error($"Create stable for Point failed, not found {stableName}");
@@ -297,7 +293,7 @@ namespace TDPIConnector.TDEngine
             return Task.FromResult<TDEngineResponse>(null);
         }
 
-        public virtual void InsertBackfillValuesForPI(string database, string superTable, string table, List<TDValue> values)
+        public virtual void InsertBackfillValuesForPI(string database, string superTable, string tableUniKey, List<TDValue> values)
         {
             if (values.Count == 0) return;
             var taosxClient = getTaosxClient(superTable.ToTDEngineNamingPattern());
@@ -305,7 +301,7 @@ namespace TDPIConnector.TDEngine
             {
                 foreach (var record in values)
                 {
-                    taosxClient.AddPointValue(table, record);
+                    taosxClient.AddPointValue(tableUniKey, record);
                 }
             }
             else {

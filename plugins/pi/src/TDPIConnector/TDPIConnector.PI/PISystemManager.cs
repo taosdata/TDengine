@@ -137,6 +137,21 @@ namespace TDPIConnector.PI
                 return elements.Select(e => new AFElementWrapper(e));
             }
         }
+        public IEnumerable<AFElementWrapper> GetElementsByIds(string afDatabaseName, List<String> ids)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            string query = string.Join(" OR ", ids.Select(id => $"ID: '{id}'"));
+
+            using (var search = new AFElementSearch(afDatabase, "ElementSearch", query))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                return elements.Select(e => new AFElementWrapper(e));
+            }
+        }
         public IEnumerable<AFElementWrapper> GetElementsByTemplate(string afDatabaseName, string elementTemplateName)
         {
             AFDatabase afDatabase = piSystem.Databases[afDatabaseName];

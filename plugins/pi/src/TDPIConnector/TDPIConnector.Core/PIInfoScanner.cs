@@ -487,7 +487,7 @@ namespace TDPIConnector.Core
             }
             return attributeValues;
         }
-        public string GeneratePointSuperTableName(PIPointWrapper point)
+        static public string GeneratePointSuperTableName(PIPointWrapper point)
         {    
             return "TS_" + point.PointType;
         }

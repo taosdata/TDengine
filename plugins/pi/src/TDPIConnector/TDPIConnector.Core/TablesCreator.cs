@@ -39,9 +39,19 @@ namespace TDPIConnector.Core
             }
             return pointTags;
         }
+
+        public async Task<List<TDTable>> GetPIPointTables(string tdDatabaseName)
+        {
+            var points = new List<PIPointWrapper>();
+            if (AppSettings.tomlConfig.PointList != null && piSystemManager != null)
+            {
+                points = piServerManager.FindPIPoints(AppSettings.tomlConfig.PointList);
+            }
+            var piPoints = await CreatePIPointTablesByPoints(tdDatabaseName, points);
+            return piPoints;
+        }
         public async Task<List<TDTable>> CreatePIPointTables(string tdDatabaseName, string afDatabaseName, bool dropTableFirst = false)
         {
-            var piPoints = new List<TDTable>();
             var points = new List<PIPointWrapper>();
             //get AF Mode 1 Points
             if (AppSettings.tomlConfig.TemplateForPIPoint != null && piSystemManager != null)
@@ -63,7 +73,12 @@ namespace TDPIConnector.Core
             {
                 log.Info("No points.csv file found.");
             }
-
+            var piPoints = await CreatePIPointTablesByPoints(tdDatabaseName, points, dropTableFirst);
+            return piPoints;
+        }
+        public async Task<List<TDTable>> CreatePIPointTablesByPoints(string tdDatabaseName, List<PIPointWrapper> points, bool dropTableFirst = false)
+        {
+            var piPoints = new List<TDTable>();
 
             if (points.Count == 0)
             {
@@ -78,7 +93,7 @@ namespace TDPIConnector.Core
             foreach (var point in points)
             {
                 string tdColumnType = PointTypeConverter.Convert(point.PointType);
-                string superTableName = TableNameConvert.GetPIPointSuperTableName(point);
+                string superTableName = PIInfoScanner.GeneratePointSuperTableName(point);
                 var tags = GetPiPointTags(point);
                 var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tags);
                 piPoints.Add(table);
@@ -90,7 +105,6 @@ namespace TDPIConnector.Core
                 log.Info($"Dropping {points.Count()} PI Points tables.");
                 foreach (var piPoint in piPoints.ToList())
                 {
-                  
                     await tdEngineProxy.DropTableForPIPoint(tdDatabaseName, piPoint.Name);
                 }
             }
@@ -108,15 +122,53 @@ namespace TDPIConnector.Core
             //check TD Engine for backfilling of points
             return piPoints;
         }
+        internal async Task<Dictionary<string, AFElementWrapper>> GetElementsInfoByIds(string tdDatabaseName, string afDatabaseName, List<String> ids)
+        {
+            IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementsByIds(afDatabaseName, ids);
+            log.Info($"Found {elements.Count()} elements.");
+
+            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+            HashSet<string> existTemplates = new HashSet<string>();
+            HashSet<Guid> usedElements = new HashSet<Guid>();
+            foreach (var element in elements)
+            {
+                if (!usedElements.Contains(element.ID))
+                {
+                    usedElements.Add(element.ID);
+
+                    if (element.hasTemplate())
+                    {
+                        if (!existTemplates.Contains(element.Template.Name))
+                        {
+                            existTemplates.Add(element.Template.Name);
+                            var superTable = TemplateSTableConverter.Convert(element.Template);
+                            if (!superTable.HasValidColumn()) continue;
+                            await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+                        }
+                    }
+                    else
+                    {
+                        var superTable = ElemenetSTableConverter.Convert(element);
+                        if (!superTable.HasValidColumn()) return null;
+                        await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+                    }
+                    elementsCollection.Add(element.ID.ToString(), element);
+                }
+            }
+            return elementsCollection;
+        }
+        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesByElementIds(string tdBase, string afDatabaseName)
+        {
+            if (0 == AppSettings.tomlConfig.ElementIDList.Count)
+            {
+                log.Info("No Element ID found.");
+                return null;
+            }
+            return await GetElementsInfoByIds(tdBase, afDatabaseName, AppSettings.tomlConfig.ElementIDList);
+        }
 
         public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTables(string tdDatabaseName, string afDatabaseName)
         {
-            if (0 == AppSettings.tomlConfig.TemplateForAFElement.Count &&
-                0 == AppSettings.tomlConfig.ElementList.Count)
-            {
-                log.Info("No TemplateForAFElement or Element found.");
-                return null;
-            }
             return await CreateAFElementTablesV2(tdDatabaseName, afDatabaseName);
         }
         public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
@@ -156,6 +208,7 @@ namespace TDPIConnector.Core
             }
             return elementsCollection;
         }
+
         public async Task<Dictionary<string, AFElementWrapper>> CreateTaosxClientForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
         {
             //check for associated supertable, create if needed

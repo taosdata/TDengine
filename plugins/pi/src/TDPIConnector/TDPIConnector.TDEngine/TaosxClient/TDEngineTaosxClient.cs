@@ -43,13 +43,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
             // builder.tagNames = tags;
             builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>("pointid", "INT") };
 
-            builder.tableNameArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
+            builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.valArrowArrayList.Add(TDEngineTableFormat.PointValColomn(), new StringArray.Builder());
             builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new StringArray.Builder());
 
             builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.TABLENAME, "NCHAR(100)"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, "NCHAR(100)"));
             builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointValColomn(), colomnType));
             builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointStatusColomn(), "INT"));
 
@@ -72,11 +72,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
             builder.tagNames = tags;
 
-            builder.tableNameArrowArray = new StringArray.Builder();
+            builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
 
             builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.TABLENAME, "NCHAR(100)"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "NCHAR(100)"));
             foreach (var column in columnNameTypes) {
                 builder.valArrowArrayList.Add(TDEngineTableFormat.AFValColomn(column.Key), new StringArray.Builder());
                 builder.statusArrowArrayList.Add(TDEngineTableFormat.AFStatusColomn(column.Key), new StringArray.Builder());
@@ -95,7 +95,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         private void work() {
             while (!stopTaosxSend)
             {
-                if (builder.tableNameArrowArray.Length > 0)
+                if (builder.tableUniqKeyArrowArray.Length > 0)
                 {
                     try
                     {
@@ -115,10 +115,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public void AddPointValue(string table, TDValue record) {
+        public void AddPointValue(string tableUniKey, TDValue record) {
             lock (stLock) 
             {
-                builder.tableNameArrowArray.Append(table.ToTDEngineNamingPattern());
+                builder.tableUniqKeyArrowArray.Append(tableUniKey);
                 builder.tsArrowArray.Append(record.Timestamp);
                 if (record.Quality == 0)
                 {
@@ -182,7 +182,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                 statusDic.Add($"{columnName}_status", value.Quality);
                             }
                         }
-                        builder.tableNameArrowArray.Append(table.Key);
+                        builder.tableUniqKeyArrowArray.Append(table.Key);
                         builder.tsArrowArray.Append(ts);
                         foreach (var objRow in builder.valArrowArrayList)
                         {
@@ -249,7 +249,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public void send() {
             lock (stLock) {
-                if (builder.tableNameArrowArray.Length == 0) return;
+                if (builder.tableUniqKeyArrowArray.Length == 0) return;
                 log.Debug($"Stable:{builder.stableName} Write records into stream start...");
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
@@ -259,7 +259,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         private void clear() {
-            builder.tableNameArrowArray.Clear();
+            builder.tableUniqKeyArrowArray.Clear();
             builder.tsArrowArray.Clear();
             foreach (var valArray in builder.valArrowArrayList) {
                 valArray.Value.Clear();
@@ -314,7 +314,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             lock (stLock)
             {
-                return builder.tableNameArrowArray.Length > 0;
+                return builder.tableUniqKeyArrowArray.Length > 0;
             }
         }
 

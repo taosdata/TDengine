@@ -74,7 +74,7 @@ namespace TDPIConnector.Core
             Stopwatch stopwatch = new Stopwatch();
             int count = 0;
             DateTime pointStartTime = startTime;
-            string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
+            string supetableName = PIInfoScanner.GeneratePointSuperTableName(point);
             while (pointStartTime != DateTime.MaxValue)
             {
                 stopwatch.Reset();
@@ -86,7 +86,7 @@ namespace TDPIConnector.Core
                 stopwatch.Reset();
                 stopwatch.Start();
                 log.Info($"PI point {point.Name}, {afValues.Count} values saved in {stopwatch.ElapsedMilliseconds} ms");
-                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
+                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.ID.ToString(), tdValues);
                 count += tdValues.Count;
                 if (tdValues.Count < 10)
                 {
@@ -235,7 +235,7 @@ namespace TDPIConnector.Core
             tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
             columnNames = new List<string>();
 
-            var elementName = ElemenetTableConverter.GetTDTableNameForElement(attribute.Element);
+            var elementTableKey = attribute.Element.ID.ToString();
             if (!columnNames.Contains(attribute.Name))
             {
                 columnNames.Add(attribute.Name);
@@ -249,9 +249,9 @@ namespace TDPIConnector.Core
                 tdValue.Name = attribute.Name;
 
 
-                if (tables.ContainsKey(elementName))
+                if (tables.ContainsKey(elementTableKey))
                 {
-                    var table = tables[elementName];
+                    var table = tables[elementTableKey];
                     if (table.ContainsKey(timestamp))
                     {
                         table[timestamp].Add(tdValue);
@@ -263,7 +263,7 @@ namespace TDPIConnector.Core
                 }
                 else
                 {
-                    tables.Add(elementName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tables.Add(elementTableKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                 }
             }
         }

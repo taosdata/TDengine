@@ -5,24 +5,13 @@ namespace TDPIConnector.Core.Conversions
 {
     class TableNameConvert
     {
-        private static string prefix = "pitag_";
         private static string sigle_element_prefix = "sigle_";
-        public static string GetPIPointSuperTableName(PI.PIPointWrapper point) {
-            string tdColumnType = PointTypeConverter.Convert(point.PointType);
-            string superTableName = $"{prefix}{tdColumnType.Split('(')[0]}";
-            return superTableName;
-        }
 
         public static string GetAFPointSuperTableName(AFElementTemplateWrapper template)
         {
             return template.Name;
         }
 
-        public static string GetPIPointSTableNameByTDVType(TDValueType ValueType) {
-            string tdColumnType = GetPITypeStringFromValType(ValueType);
-            string superTableName = $"{prefix}{tdColumnType.Split('(')[0]}";
-            return superTableName;
-        }
         public static string GetPITypeStringFromValType(TDValueType ValueType) {
             switch (ValueType)
             {

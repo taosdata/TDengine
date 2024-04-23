@@ -158,7 +158,8 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    piPoints = await tablesCreator.GetPIPointTables(AppSettings.tomlConfig.TDDataBase);
+                    // piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     log.Info($"TDengine PI Point tables ({this.piPoints.Count}) has been created.");
                 }
                 catch (Exception e)
@@ -172,7 +173,8 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    elements = await tablesCreator.CreateAFElementTablesByElementIds(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    // elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     if (elements == null)
                     {
                         log.Info($"No any AF Elements template found.");

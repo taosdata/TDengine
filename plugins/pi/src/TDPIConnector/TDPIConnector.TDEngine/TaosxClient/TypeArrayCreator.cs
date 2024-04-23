@@ -52,7 +52,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
             
                 Dictionary<string, IArrowArray> fieldArrays = new Dictionary<string, IArrowArray>();
                 fieldArrays.Add("ts", messageBuilder.tsArrowArray.Build());
-                fieldArrays.Add(TaosxConstants.TABLENAME, messageBuilder.tableNameArrowArray.Build());
+                if (messageBuilder.mode == PIDataMode.PointMode)
+                {
+                    fieldArrays.Add(TaosxConstants.POINTID, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+                else {
+                    fieldArrays.Add(TaosxConstants.ELEMENTID, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+
                 foreach (var valarray in messageBuilder.valArrowArrayList)
                 {
                     fieldArrays.Add(valarray.Key, valarray.Value.Build());
@@ -208,7 +215,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         foreach (var tb in messageBuilder.tagVals)
                         {
                             Dictionary<string, string> unsortTag = new Dictionary<string, string>();
-                            unsortTag.Add(TaosxConstants.TABLENAME, tb.Key);
+                            unsortTag.Add(TaosxConstants.ELEMENTID, tb.Key);
                             foreach (var tag in tb.Value)
                             {
                                 unsortTag.Add(tag.Key, tag.Value);
