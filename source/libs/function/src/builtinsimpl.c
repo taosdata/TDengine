@@ -2441,7 +2441,7 @@ static void prepareBuf(SqlFunctionCtx* pCtx) {
     int32_t rowLen = 0;
     for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
       SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
-      rowLen += pc->pExpr->base.resSchema.bytes;
+      rowLen += pc->resDataInfo.interBufSize;
     }
 
     pCtx->subsidiaries.rowLen = rowLen + pCtx->subsidiaries.num * sizeof(bool);
