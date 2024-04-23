@@ -8,6 +8,12 @@ use super::{ValueBuilder, ValueBuilderError};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExprValueBuilder(Expr);
 
+impl ExprValueBuilder {
+    pub fn new(expr: Expr) -> Self {
+        Self(expr)
+    }
+}
+
 impl ValueBuilder for ExprValueBuilder {
     fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let values = self.0.eval(record, None).map_err(|err| {

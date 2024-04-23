@@ -78,7 +78,7 @@ impl std::ops::Deref for Parser {
 use self::sink::IpcHandler;
 
 mod config;
-mod expr;
+pub(crate) mod expr;
 mod raw_data;
 pub mod runners;
 mod service;

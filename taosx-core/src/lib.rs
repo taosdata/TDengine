@@ -32,6 +32,7 @@ use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 pub mod csv;
+pub mod pi;
 mod fake;
 mod legacy;
 mod local_to_taos;

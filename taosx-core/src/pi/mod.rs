@@ -1,0 +1,1062 @@
+//! 从 PI 连接返回的点或元素的数据生成配置对象。
+//! 从配置对象生成配置文件，或者从配置对象生成 transform 对象。
+//!
+//! ## 配置文件设计概述
+//!
+//! 数据模型配置文件是一个不规则的具有多重功能的 CSV 文件。
+//! 这个配置文件的第一个功能是描述超级表的结构，第二个重要功能是描述 PI 中的点或元素到超级表的映射。
+//! 我们用两个不同构的表格分别实现了上述两个功能。描
+//! 述超级表的表格在上，描述映射的表格在下，它们被编辑在同一个 CSV 文件。
+//! 这两个表格都没有表头，每一列的含义会在文件的注释部分说明。
+//! 配置文件包含了很多超级表的定义。
+//! 我们定义了一些功能性的关键词来即用来标记某个超级表定义的开始，同时也用来完成一些特殊的功能。
+//! 这些关键词都必须出现在超级表 schema 正式开始之前。
+//! 第一个关键词是 “SuperTable”，它表示一个超级表定义的开始，它的右边紧跟这个超级表的名字。所以它有“标记开始”和“定义超级表名”两个作用。
+//! 第二个关键词是“SubTable”，它出现的位置必须是 “SupterTable” 关键词行之后，超级表结构定义开始之前。它的作用是表示子表名映射规则。比如对于单列模型，默认的子表名是 $point_name, 你可以增加在  poin_name 前后增加前缀或后缀。配置文件中所有以 $ 开头的值为对源数据中某个属性的引用。如果是单列模式的数据，$point_name 就是一个内置的属性。还有很多其它内置属性，在“单列模型配置文件”一节会做详细说明。
+//! 第三个关键词“Filter”，它出现的位置同样必须是 “SupterTable” 关键词行之后，超级表结构定义开始之前。它定义了数据入库前的过滤规则。
+//! 第四个关键词是“Template”，它出现的位置同样是“SupterTable” 关键词行之后，超级表结构定义开始之前。它定义了数据入库前的过滤规则。它只出现在多列模型的配置文件中，仅用来表示自动生成这个超级表定义的时候，参考的是 PI 系统中的哪个 Template。这个关键词是可选的。我们给用户自由从头开始自定义一个超级表，不参考任何已有的 Tempalte。
+//! 下面重点描述 schema 定义部分。这一部分为 4 列。
+//! 第一列为列名；
+//! 第二列为列类型分为：KEY、COLUMN和TAG。
+//! 第三列为列的数据类型，为 TDengine 支持的数据类型。
+//! 第四列本质上不属于 schema 定义，而是 transform 规则。
+//! 在定义完超级表之后，对于单列模型配置文件，后面是点位列表；对于多列模型配置文件，后面是元素列表。
+//! 点位列表的每一行都有关键字是 “POINT”，元素列表的每一行都有关键字 “ELEMENT”。
+//! TAG 列默认类型为 NCHAR(100).
+//! 最后需要说明的是，所有关键字都不区分大小写。
+//! 一个单利模型配置文件的示例：
+//! ```csv
+//! # There are a total of 2 super tables, 2 points
+//! SuperTable,pi_afenumerationvalue
+//! SubTable,$point_id
+//! Filter,
+//! ts,KEY,TIMESTAMP,$ts
+//! value,COLUMN,NCHAR(100),$value
+//! status,COLUMN,INT,$status
+//! tag,TAG,NCHAR(100),$tag
+//! descriptor,TAG,NCHAR(100),$descriptor
+//! exdesc,TAG,NCHAR(100),$exdesc
+//! engunits,TAG,NCHAR(100),$engunits
+//! pointsource,TAG,NCHAR(100),$pointsource
+//! step,TAG,NCHAR(100),$step
+//! future,TAG,NCHAR(100),$future
+//!
+//! SuperTable,meter_per_second_single
+//! SubTable,$point_id
+//! ts,KEY,TIMESTAMP,$ts
+//! value,COLUMN,FLOAT,$value
+//! status,COLUMN,INT,$status
+//! tag,TAG,NCHAR(100),$tag
+//! descriptor,TAG,NCHAR(100),$descriptor
+//! exdesc,TAG,NCHAR(100),$exdesc
+//! engunits,TAG,NCHAR(100),$engunits
+//! pointsource,TAG,NCHAR(100),$pointsource
+//! step,TAG,NCHAR(100),$step
+//! future,TAG,NCHAR(100),$future
+//! templates,TAG,NCHAR(100),$template_
+//! elements,TAG,NCHAR(100),$elements
+//! paths,TAG,NCHAR(100),$path
+//!
+//! OSIDemo_GE001.Lost Revenue Rate,POINT,dollars_per_kilowatt_hour_ts_system.single_$/kwh,64685
+//! OSIDemo_GE001.Status Cause,POINT,pi_ts_osisoft.af.asset.afenumerationvalue,64682
+//!```
+//!
+//! 配置文件中的一个超级表定义将对应一个 taosx_core::plugins::transform::Parser 对象。
+//!
+use crate::plugins::transform::filter::expr::ExprRecordFilter;
+use crate::plugins::transform::filter::{Filter, FilterImpl};
+use crate::plugins::transform::map::expr::ExprValueBuilder;
+use crate::plugins::transform::modeler::{Modeler, Table};
+use crate::plugins::transform::mutate::Mutate;
+use crate::{
+    expr::Expr,
+    plugins::transform::{
+        map::{FieldValue, FieldValueBuilder, Map},
+        Parser, TableOptions,
+    },
+};
+use anyhow::Ok;
+use linked_hash_map::LinkedHashMap;
+use std::fmt::Display;
+
+/// 单列模型配置对象
+/// 从配置对象可以生成配置文件，反之亦然。
+/// 从配置对象也可以生成 transform 相关对象。
+pub struct PIPointModelConfig {
+    pub super_tables: Vec<SuperTableConfig>,
+    pub points: Vec<PointRow>,
+}
+
+impl PIPointModelConfig {
+    /// 解析单列模型的数据，生成单列模型配置对象
+    /// # Arguments
+    /// * `point_data` - 从 PI 连接返回的点位数据
+    /// * `is_af` - 是否是 AF 单列模式
+    fn from_point_data(point_data: &str, is_af: bool) -> anyhow::Result<Self> {
+        let point_data: serde_json::Value = serde_json::from_str(point_data)?;
+        let super_tables = Self::parse_super_tables(&point_data, is_af)?;
+        let points = Self::parse_points(&point_data)?;
+        Ok(PIPointModelConfig {
+            super_tables,
+            points,
+        })
+    }
+
+    fn parse_super_tables(
+        point_data: &serde_json::Value,
+        is_af: bool,
+    ) -> anyhow::Result<Vec<SuperTableConfig>> {
+        // 一个 Template 对应到一个 SuperTableConfig
+        let templates = point_data["Templates"].as_array().unwrap();
+        let super_tables: Vec<SuperTableConfig> = templates
+            .iter()
+            .map(|template| {
+                let pi_type = template["Type"].as_str().unwrap();
+                let uom = template["UOM"].as_str();
+                let super_table_name = Self::get_point_mode_stable_name(pi_type, uom);
+                let sub_table_name_pattern = "$point_id".to_string();
+                let tags = template["Tags"].as_object().unwrap();
+                let mut schema = vec![
+                    // 三个固定列
+                    SchemaRow {
+                        column_name: "ts".to_string(),
+                        column_type: ColumnType::Key,
+                        column_data_type: "TIMESTAMP".to_string(),
+                        column_map: "$ts".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "value".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: template["TDType"].as_str().unwrap().to_string(),
+                        column_map: "$value".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "status".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: "$status".to_string(),
+                    },
+                ];
+                // 追加内置 Tag 列
+                for (tag_name, _) in tags {
+                    schema.push(SchemaRow {
+                        column_name: tag_name.to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "NCHAR(100)".to_string(),
+                        column_map: format!("${}", tag_name),
+                    });
+                }
+                // 对于 AF 单列模式，追加 3 个固定 TAG 列
+                if is_af {
+                    schema.push(SchemaRow {
+                        column_name: "templates".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "NCHAR(100)".to_string(),
+                        column_map: "$template_".to_string(),
+                    });
+                    schema.push(SchemaRow {
+                        column_name: "elements".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "NCHAR(100)".to_string(),
+                        column_map: "$elements".to_string(),
+                    });
+                    schema.push(SchemaRow {
+                        column_name: "paths".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "NCHAR(100)".to_string(),
+                        column_map: "$path".to_string(),
+                    });
+                }
+                SuperTableConfig {
+                    super_table_name,
+                    sub_table_name_pattern,
+                    template_name: None,
+                    filter: None,
+                    schema,
+                }
+            })
+            .collect();
+        Ok(super_tables)
+    }
+
+    /// 如果包含 UOM 则使用 UOM 加 类型作为超级表名，否则使用 pi_{Type} 作为超级表名
+    #[inline]
+    fn get_point_mode_stable_name(pi_type: &str, uom: Option<&str>) -> String {
+        let pi_type = pi_type.to_lowercase();
+        if let Some(uom) = uom {
+            let uom = uom.to_lowercase();
+            let uom = uom.replace(" ", "_");
+            format!("{}_{}", uom, pi_type)
+        } else {
+            format!("pi_{}", pi_type)
+        }
+    }
+
+    fn parse_points(point_data: &serde_json::Value) -> anyhow::Result<Vec<PointRow>> {
+        let points: Vec<PointRow> = point_data["Points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|point| {
+                let super_table = Self::get_point_mode_stable_name(
+                    point["Template"].as_str().unwrap(),
+                    point["UOM"].as_str(),
+                );
+                PointRow {
+                    point_name: point["Name"].as_str().unwrap().to_string(),
+                    super_table: super_table,
+                    point_id: point["ID"].as_u64().unwrap(),
+                }
+            })
+            .collect();
+        Ok(points)
+    }
+}
+
+impl ToString for PIPointModelConfig {
+    fn to_string(&self) -> String {
+        let mut result = String::new();
+        result.push_str(&format!(
+            "# There are a total of {} super tables, {} points\n",
+            self.super_tables.len(),
+            self.points.len()
+        ));
+        for super_table in &self.super_tables {
+            result.push_str(&format!("\nSuperTable,{}\n", super_table.super_table_name));
+            result.push_str(&format!(
+                "SubTable,{}\n",
+                super_table.sub_table_name_pattern
+            ));
+            if let Some(template_name) = &super_table.template_name {
+                result.push_str(&format!("Template,{}\n", template_name));
+            }
+
+            if let Some(filter) = &super_table.filter {
+                result.push_str(&format!("Filter,{}\n", filter));
+            } else {
+                result.push_str("Filter,\n");
+            }
+
+            for schema_row in &super_table.schema {
+                result.push_str(&format!(
+                    "{},{},{},{}\n",
+                    schema_row.column_name,
+                    schema_row.column_type,
+                    schema_row.column_data_type,
+                    schema_row.column_map
+                ));
+            }
+        }
+        result.push_str("\n");
+        for point in &self.points {
+            result.push_str(point.point_name.as_str());
+            result.push_str(&format!(",POINT,"));
+            result.push_str(&format!("{},{}\n", point.super_table, point.point_id));
+        }
+        result
+    }
+}
+
+/// 多列模型配置对象
+/// 从配置对象可以生成配置文件，反之亦然。
+/// 从配置对象也可以生成 transform 相关对象。
+pub struct PIElementModelConfig {
+    pub super_tables: Vec<SuperTableConfig>,
+    pub elements: Vec<ElementRow>,
+}
+
+impl PIElementModelConfig {
+    /// 解析多列模型的数据，生成多列模型配置对象
+    /// # Arguments
+    /// * `element_data` - 从 PI 连接返回的元素数据
+    fn from_element_data(element_data: &str) -> anyhow::Result<Self> {
+        let element_data: serde_json::Value = serde_json::from_str(element_data)?;
+        let mut super_tables = Self::parse_super_tables(&element_data)?;
+        let mut elements: Vec<ElementRow> = Self::parse_elements(&element_data)?;
+        Self::append_single_elements(&mut super_tables, &mut elements, &element_data);
+        Ok(PIElementModelConfig {
+            super_tables,
+            elements,
+        })
+    }
+
+    #[inline]
+    fn parse_super_tables(
+        element_data: &serde_json::Value,
+    ) -> anyhow::Result<Vec<SuperTableConfig>> {
+        // 一个 Template 对应到一个 SuperTableConfig
+        let super_tables: Vec<SuperTableConfig> = element_data["Templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|template| {
+                let template_name = template["TemplateName"].as_str().unwrap();
+                let super_table_name = Self::template_name_to_super_table_name(template_name);
+                let sub_table_name_pattern = "$element_id".to_string();
+                let mut schema: Vec<SchemaRow> = Vec::new();
+                // 添加主键列
+                schema.push(SchemaRow {
+                    column_name: "ts".to_string(),
+                    column_type: ColumnType::Key,
+                    column_data_type: "TIMESTAMP".to_string(),
+                    column_map: "$ts".to_string(),
+                });
+                // 追加普通列
+                let attributes = template["Attributes"].as_array().unwrap();
+                for attribute in attributes {
+                    let column_name =
+                        Self::attribute_name_to_column_name(attribute["Name"].as_str().unwrap());
+                    schema.push(SchemaRow {
+                        column_name: column_name.clone(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: attribute["Type"].as_str().unwrap().to_string(),
+                        column_map: format!("${}", column_name),
+                    });
+                }
+                // 追加固定 Tag 列： element_name, path
+                schema.push(SchemaRow {
+                    column_name: "element_name".to_string(),
+                    column_type: ColumnType::TAG,
+                    column_data_type: "NCHAR(100)".to_string(),
+                    column_map: "$element_name".to_string(),
+                });
+                schema.push(SchemaRow {
+                    column_name: "path".to_string(),
+                    column_type: ColumnType::TAG,
+                    column_data_type: "NCHAR(100)".to_string(),
+                    column_map: "$path".to_string(),
+                });
+                // 追加其它静态属性作为 Tag 列
+                let static_attributes = template["StaticAttributes"].as_array().unwrap();
+                for attribute in static_attributes {
+                    let column_name =
+                        Self::attribute_name_to_column_name(attribute["Name"].as_str().unwrap());
+                    schema.push(SchemaRow {
+                        column_name: column_name.clone(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "NCHAR(100)".to_string(),
+                        column_map: format!("${}", column_name),
+                    });
+                }
+                SuperTableConfig {
+                    super_table_name,
+                    sub_table_name_pattern,
+                    template_name: Some(template_name.to_string()),
+                    filter: None,
+                    schema,
+                }
+            })
+            .collect();
+
+        Ok(super_tables)
+    }
+
+    /// Attribute 名字转列名
+    #[inline]
+    fn attribute_name_to_column_name(attribute_name: &str) -> String {
+        let attribute_name = attribute_name.to_lowercase();
+        attribute_name.replace(" ", "_")
+    }
+
+    /// 模板名转超级表名
+    #[inline]
+    fn template_name_to_super_table_name(template_name: &str) -> String {
+        template_name.to_lowercase().replace(" ", "_")
+    }
+
+    #[inline]
+    fn parse_elements(element_data: &serde_json::Value) -> anyhow::Result<Vec<ElementRow>> {
+        let elements = element_data["Elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|element| {
+                let template_name = element["TemplateName"].as_str().unwrap();
+                let super_table = Self::template_name_to_super_table_name(template_name);
+                ElementRow {
+                    element_name: element["Name"].as_str().unwrap().to_string(),
+                    super_table: super_table,
+                    path: element["Path"].as_str().unwrap().to_string(),
+                    element_id: element["ID"].as_str().unwrap().to_string(),
+                }
+            })
+            .collect();
+        Ok(elements)
+    }
+
+    /// 处理 SingleElements
+    fn append_single_elements(
+        super_tables: &mut Vec<SuperTableConfig>,
+        elements: &mut Vec<ElementRow>,
+        element_data: &serde_json::Value,
+    ) {
+        let single_elements = element_data["SingleElements"].as_array().unwrap();
+        for element in single_elements {
+            let element_name = element["Name"].as_str().unwrap();
+            let element_id = element["ID"].as_str().unwrap();
+            let super_table_name =
+                Self::template_name_to_super_table_name(element_name) + "_" + element_id;
+            let path = element["Path"].as_str().unwrap();
+            // 添加到 Element列表
+            elements.push(ElementRow {
+                element_name: element_name.to_string(),
+                super_table: super_table_name.clone(),
+                path: path.to_string(),
+                element_id: element_id.to_string(),
+            });
+            let mut schema: Vec<SchemaRow> = Vec::new();
+            // 添加主键列
+            schema.push(SchemaRow {
+                column_name: "ts".to_string(),
+                column_type: ColumnType::Key,
+                column_data_type: "TIMESTAMP".to_string(),
+                column_map: "$ts".to_string(),
+            });
+            // 追加普通列
+            let attributes = element["Attributes"].as_array().unwrap();
+            for attribute in attributes {
+                let column_name = attribute["Name"].as_str().unwrap();
+                schema.push(SchemaRow {
+                    column_name: column_name.to_string(),
+                    column_type: ColumnType::COLUMN,
+                    column_data_type: attribute["Type"].as_str().unwrap().to_string(),
+                    column_map: format!("${}", column_name),
+                });
+            }
+            // 追加其它静态属性作为 Tag 列
+            let static_attributes = element["StaticAttributes"].as_array().unwrap();
+            for attribute in static_attributes {
+                let column_name = attribute["Name"].as_str().unwrap();
+                schema.push(SchemaRow {
+                    column_name: column_name.to_string(),
+                    column_type: ColumnType::TAG,
+                    column_data_type: "NCHAR(100)".to_string(),
+                    column_map: format!("${}", column_name),
+                });
+            }
+            // 添加到超级表列表
+            super_tables.push(SuperTableConfig {
+                super_table_name,
+                sub_table_name_pattern: "$element_id".to_string(),
+                template_name: None,
+                filter: None,
+                schema,
+            });
+        }
+    }
+}
+
+impl ToString for PIElementModelConfig {
+    fn to_string(&self) -> String {
+        let mut result = String::new();
+        result.push_str(&format!(
+            "# There are a total of {} super tables, {} elements\n",
+            self.super_tables.len(),
+            self.elements.len()
+        ));
+        for super_table in &self.super_tables {
+            result.push_str(&format!("\nSuperTable,{}\n", super_table.super_table_name));
+            result.push_str(&format!(
+                "SubTable,{}\n",
+                super_table.sub_table_name_pattern
+            ));
+            if let Some(template_name) = &super_table.template_name {
+                result.push_str(&format!("Template,{}\n", template_name));
+            }
+
+            if let Some(filter) = &super_table.filter {
+                result.push_str(&format!("Filter,{}\n", filter));
+            } else {
+                result.push_str("Filter,\n");
+            }
+
+            for schema_row in &super_table.schema {
+                result.push_str(&format!(
+                    "{},{},{},{}\n",
+                    schema_row.column_name,
+                    schema_row.column_type,
+                    schema_row.column_data_type,
+                    schema_row.column_map
+                ));
+            }
+        }
+        result.push_str("\n");
+        for element in &self.elements {
+            result.push_str(element.element_name.as_str());
+            result.push_str(&format!(",ELEMENT,"));
+            result.push_str(&format!(
+                "{},{},{}\n",
+                element.super_table, element.path, element.element_id
+            ));
+        }
+        result
+    }
+}
+
+/// 配置文件 schema 定义部分第 2 列的类型
+#[derive(Debug, Clone)]
+pub enum ColumnType {
+    TAG,
+    COLUMN,
+    Key,
+}
+
+impl Display for ColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColumnType::TAG => write!(f, "TAG"),
+            ColumnType::COLUMN => write!(f, "COLUMN"),
+            ColumnType::Key => write!(f, "KEY"),
+        }
+    }
+}
+
+/// 代表配置文件中 schema 定义部分的一行
+#[derive(Debug, Clone)]
+pub struct SchemaRow {
+    // schema 部分第 1 列
+    pub column_name: String,
+    // schema 部分第 2 列
+    pub column_type: ColumnType,
+    // schema 部分第 3 列
+    pub column_data_type: String,
+    // schema 部分第 4 列
+    pub column_map: String,
+}
+
+impl SchemaRow {
+    /// 如果列值是 map 表达式，则尝试把它转换为一个 FieldValue, 用于构造 transform 的 Map 对象。
+    fn try_to_map_field(&self) -> Option<FieldValue> {
+        let column_name = self.column_name.as_str();
+        let column_expr = self.column_map.as_str();
+        if column_expr[1..] == column_name[..] {
+            None
+        } else {
+            let column_expr = column_expr.replace('$', "");
+            let expr = Expr::try_new(column_expr, true).ok()?;
+            let expr_builder = ExprValueBuilder::new(expr);
+            let field_value_builder = FieldValueBuilder::Expr(expr_builder);
+            Some(FieldValue::new(field_value_builder, None))
+        }
+    }
+}
+
+/// 代表配置文件中的一个超级表, 即： 以 SuperTable 关键词开头的一段
+#[derive(Debug, Clone)]
+pub struct SuperTableConfig {
+    // 超级表名
+    pub super_table_name: String,
+    // 子表名映射规则
+    pub sub_table_name_pattern: String,
+    // 关联的模板名
+    pub template_name: Option<String>,
+    // 过滤规则
+    pub filter: Option<String>,
+    // schema 部分
+    pub schema: Vec<SchemaRow>,
+}
+
+impl SuperTableConfig {
+    /// 从超级表的配置中获取需要做 transfrom 的列（目前仅支持“映射”类型的 transfrom）
+    fn get_map_transfrom(&self) -> Option<Map> {
+        let mut map: LinkedHashMap<String, FieldValue> = LinkedHashMap::new();
+        for row in &self.schema {
+            if let Some(field_value) = row.try_to_map_field() {
+                map.insert(row.column_name.clone(), field_value);
+            }
+        }
+        if map.is_empty() {
+            None
+        } else {
+            Some(Map::new(map))
+        }
+    }
+
+    fn get_filter(&self) -> Option<Filter> {
+        match &self.filter {
+            Some(filter) => {
+                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter.clone()));
+                Some(Filter::new(vec![filter_impl]))
+            }
+            None => None,
+        }
+    }
+
+    fn get_table_model(&self) -> Table {
+        let mut columns = Vec::<String>::new();
+        let mut tags = Vec::<String>::new();
+        for row in &self.schema {
+            match row.column_type {
+                ColumnType::TAG => tags.push(row.column_name.clone()),
+                _ => columns.push(row.column_name.clone()),
+            }
+        }
+
+        let options = std::sync::OnceLock::<std::sync::Arc<TableOptions>>::new();
+
+        Table {
+            name: self.sub_table_name_pattern.clone(),
+            using: Some(self.super_table_name.clone()),
+            tags: Some(tags),
+            columns: Some(columns),
+            r#where: None,
+            global: options,
+        }
+    }
+}
+
+impl Into<Parser> for SuperTableConfig {
+    fn into(self) -> Parser {
+        let map = self.get_map_transfrom();
+        let filter = self.get_filter();
+        let mut mutate = Vec::<Mutate>::new();
+        if let Some(filter) = filter {
+            mutate.push(Mutate::Filter(filter));
+        }
+        if let Some(map) = map {
+            mutate.push(Mutate::Map(map));
+        }
+        let table = self.get_table_model();
+        let model = Modeler::new(vec![table]);
+        Parser::new(None, mutate, model)
+    }
+}
+
+/// 代表单列模型配置文件点位列表部分的一行
+pub struct PointRow {
+    pub point_name: String,
+    pub super_table: String,
+    pub point_id: u64,
+}
+
+/// 代表多列模型配置文件元素列表部分的一行
+pub struct ElementRow {
+    pub element_name: String,
+    pub super_table: String,
+    pub path: String,
+    pub element_id: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_point_data() {
+        let config = PIPointModelConfig::from_point_data(POINT_DATA, true).unwrap();
+        // println!("{}", config.to_string());
+        std::fs::write("point_model.csv", config.to_string()).unwrap();
+    }
+
+    #[test]
+    fn test_parse_element_data() {
+        let config = PIElementModelConfig::from_element_data(ELEMENT_DATA);
+        // println!("{}", config.unwrap().to_string());
+        std::fs::write("element_model.csv", config.unwrap().to_string()).unwrap();
+    }
+
+    const POINT_DATA: &str = r#"
+    {
+        "Templates": [
+            {
+                "TemplateName": "TS_OSIsoft.AF.Asset.AFEnumerationValue",
+                "TDType": "NCHAR(100)",
+                "Type": "AFEnumerationValue",
+                "UOMABB": null,
+                "UOM": null,
+                "Tags": {
+                    "tag": "string",
+                    "descriptor": "string",
+                    "exdesc": "string",
+                    "engunits": "string",
+                    "pointsource": "string",
+                    "step": "string",
+                    "future": "string"
+                }
+            },
+            {
+                "TemplateName": "TS_System.Single_$/kWh",
+                "TDType": "FLOAT",
+                "Type": "Single",
+                "UOMABB": "$/kWh",
+                "UOM": "dollars per kilowatt hour",
+                "Tags": {
+                    "tag": "string",
+                    "descriptor": "string",
+                    "exdesc": "string",
+                    "engunits": "string",
+                    "pointsource": "string",
+                    "step": "string",
+                    "future": "string"
+                }
+            },
+            {
+                "TemplateName": "TS_System.Single_kW",
+                "TDType": "FLOAT",
+                "Type": "Single",
+                "UOMABB": "kW",
+                "UOM": "kilowatt",
+                "Tags": {
+                    "tag": "string",
+                    "descriptor": "string",
+                    "exdesc": "string",
+                    "engunits": "string",
+                    "pointsource": "string",
+                    "step": "string",
+                    "future": "string"
+                }
+            },
+            {
+                "TemplateName": "TS_System.Single_kWh",
+                "TDType": "FLOAT",
+                "Type": "Single",
+                "UOMABB": "kWh",
+                "UOM": "kilowatt hour",
+                "Tags": {
+                    "tag": "string",
+                    "descriptor": "string",
+                    "exdesc": "string",
+                    "engunits": "string",
+                    "pointsource": "string",
+                    "step": "string",
+                    "future": "string"
+                }
+            },
+            {
+                "TemplateName": "TS_System.Single_m/s",
+                "TDType": "FLOAT",
+                "Type": "Single",
+                "UOMABB": "m/s",
+                "UOM": "meter per second",
+                "Tags": {
+                    "tag": "string",
+                    "descriptor": "string",
+                    "exdesc": "string",
+                    "engunits": "string",
+                    "pointsource": "string",
+                    "step": "string",
+                    "future": "string"
+                }
+            }
+        ],
+        "Points": [
+            {
+                "ID": 64685,
+                "Name": "OSIDemo_GE001.Lost Revenue Rate",
+                "Path": "\\\\WIN-2OA23UM12TN\\OSIDemo_GE001.Lost Revenue Rate",
+                "Type": "Single",
+                "TDType": "FLOAT",
+                "UOMABB": "$/kWh",
+                "UOM": "dollars per kilowatt hour",
+                "Template": "TS_System.Single_$/kWh",
+                "Tags": {
+                    "tag": "OSIDemo_GE001.Lost Revenue Rate",
+                    "descriptor": "",
+                    "exdesc": "",
+                    "engunits": "",
+                    "pointsource": "OSIDemo_AFAnalysis",
+                    "step": "0",
+                    "future": "0"
+                },
+                "Elements": [
+                    {
+                        "ID": "1ab37258-d57e-11ee-bf13-00505695feda",
+                        "Name": "GE001",
+                        "TemplateName": "Turbine",
+                        "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE001"
+                    }
+                ]
+            },
+            {
+                "ID": 64682,
+                "Name": "OSIDemo_GE001.Status Cause",
+                "Path": "\\\\WIN-2OA23UM12TN\\OSIDemo_GE001.Status Cause",
+                "Type": "AFEnumerationValue",
+                "TDType": "NCHAR(100)",
+                "UOMABB": null,
+                "UOM": null,
+                "Template": "TS_OSIsoft.AF.Asset.AFEnumerationValue",
+                "Tags": {
+                    "tag": "OSIDemo_GE001.Status Cause",
+                    "descriptor": "",
+                    "exdesc": "",
+                    "engunits": "",
+                    "pointsource": "OSIDemo_AFAnalysis",
+                    "step": "1",
+                    "future": "0"
+                },
+                "Elements": [
+                    {
+                        "ID": "1ab37258-d57e-11ee-bf13-00505695feda",
+                        "Name": "GE001",
+                        "TemplateName": "Turbine",
+                        "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE001"
+                    }
+                ]
+            }
+        ]
+    }
+    "#;
+
+    const ELEMENT_DATA: &str = r#"
+        {
+            "Templates": [
+                {
+                    "TemplateName": "Turbine",
+                    "Attributes": [
+                        {
+                            "Name": "Status Cause",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Status",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Power Factor",
+                            "Type": "FLOAT",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Lost Revenue Rate",
+                            "Type": "FLOAT",
+                            "UOMABB": "$/kWh",
+                            "UOM": "dollars per kilowatt hour"
+                        },
+                        {
+                            "Name": "Lost Power",
+                            "Type": "FLOAT",
+                            "UOMABB": "kW",
+                            "UOM": "kilowatt"
+                        },
+                        {
+                            "Name": "Lifetime Production (Weekly)",
+                            "Type": "FLOAT",
+                            "UOMABB": "MWh",
+                            "UOM": "megawatt hour"
+                        },
+                        {
+                            "Name": "Lifetime Production (Hourly)",
+                            "Type": "FLOAT",
+                            "UOMABB": "kWh",
+                            "UOM": "kilowatt hour"
+                        },
+                        {
+                            "Name": "CutOut",
+                            "Type": "FLOAT",
+                            "UOMABB": "m/s",
+                            "UOM": "meter per second"
+                        },
+                        {
+                            "Name": "Curtailment Cause",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Apparent Power",
+                            "Type": "FLOAT",
+                            "UOMABB": "kW",
+                            "UOM": "kilowatt"
+                        },
+                        {
+                            "Name": "Adjusted Wind Speed",
+                            "Type": "FLOAT",
+                            "UOMABB": "m/s",
+                            "UOM": "meter per second"
+                        },
+                        {
+                            "Name": "Active Power",
+                            "Type": "FLOAT",
+                            "UOMABB": "kW",
+                            "UOM": "kilowatt"
+                        }
+                    ],
+                    "StaticAttributes": [
+                        {
+                            "Name": "Site",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Potential Power",
+                            "Type": "DOUBLE",
+                            "UOMABB": "kW",
+                            "UOM": "kilowatt"
+                        },
+                        {
+                            "Name": "Model",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Manufacturer",
+                            "Type": "NCHAR(100)",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Longitude",
+                            "Type": "DOUBLE",
+                            "UOMABB": "掳",
+                            "UOM": "degree"
+                        },
+                        {
+                            "Name": "Latitude",
+                            "Type": "DOUBLE",
+                            "UOMABB": "掳",
+                            "UOM": "degree"
+                        },
+                        {
+                            "Name": "Installation Date",
+                            "Type": "TIMESTAMP",
+                            "UOMABB": "",
+                            "UOM": ""
+                        },
+                        {
+                            "Name": "Elevation",
+                            "Type": "DOUBLE",
+                            "UOMABB": "m",
+                            "UOM": "meter"
+                        }
+                    ]
+                }
+            ],
+"SingleElements": [
+        {
+            "ID": "726b9c75-ebd3-11ee-bf16-0050569541a2",
+            "Name": "elementWithoutTemplate",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\dataSourceTest\\elementWithoutTemplate",
+            "Attributes": [
+                {
+                    "Name": "Attribute2",
+                    "Type": "FLOAT",
+                    "UOMABB": null,
+                    "UOM": null
+                },
+                {
+                    "Name": "Attribute1",
+                    "Type": "FLOAT",
+                    "UOMABB": null,
+                    "UOM": null
+                }
+            ],
+            "StaticAttributes": [
+                {
+                    "Name": "uriBuilder1",
+                    "Type": "NCHAR(256)",
+                    "UOMABB": "",
+                    "UOM": "",
+                    "Value": "123"
+                }
+            ]
+        }
+    ],
+            "Elements": [
+                {
+                    "ID": "1ab37258-d57e-11ee-bf13-00505695feda",
+                    "Name": "GE001",
+                    "TemplateName": "Turbine",
+                    "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE001",
+                    "StaticAttributeValues": [
+                        {
+                            "Name": "Site",
+                            "Type": "NCHAR(100)",
+                            "Value": "Santaella"
+                        },
+                        {
+                            "Name": "Potential Power",
+                            "Type": "DOUBLE",
+                            "Value": "3000"
+                        },
+                        {
+                            "Name": "Model",
+                            "Type": "NCHAR(100)",
+                            "Value": "2.75-100"
+                        },
+                        {
+                            "Name": "Manufacturer",
+                            "Type": "NCHAR(100)",
+                            "Value": "GE"
+                        },
+                        {
+                            "Name": "Longitude",
+                            "Type": "DOUBLE",
+                            "Value": "-94.6605958796689"
+                        },
+                        {
+                            "Name": "Latitude",
+                            "Type": "DOUBLE",
+                            "Value": "30.6025524633638"
+                        },
+                        {
+                            "Name": "Installation Date",
+                            "Type": "TIMESTAMP",
+                            "Value": "2009/2/9 8:00:00"
+                        },
+                        {
+                            "Name": "Elevation",
+                            "Type": "DOUBLE",
+                            "Value": "42.2728958"
+                        }
+                    ]
+                },
+                {
+                    "ID": "1ab3726d-d57e-11ee-bf13-00505695feda",
+                    "Name": "GE002",
+                    "TemplateName": "Turbine",
+                    "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE002",
+                    "StaticAttributeValues": [
+                        {
+                            "Name": "Site",
+                            "Type": "NCHAR(100)",
+                            "Value": "Santaella"
+                        },
+                        {
+                            "Name": "Potential Power",
+                            "Type": "DOUBLE",
+                            "Value": "3000"
+                        },
+                        {
+                            "Name": "Model",
+                            "Type": "NCHAR(100)",
+                            "Value": "2.75-100"
+                        },
+                        {
+                            "Name": "Manufacturer",
+                            "Type": "NCHAR(100)",
+                            "Value": "GE"
+                        },
+                        {
+                            "Name": "Longitude",
+                            "Type": "DOUBLE",
+                            "Value": "-94.6534447934278"
+                        },
+                        {
+                            "Name": "Latitude",
+                            "Type": "DOUBLE",
+                            "Value": "30.5822525686823"
+                        },
+                        {
+                            "Name": "Installation Date",
+                            "Type": "TIMESTAMP",
+                            "Value": "2009/1/23 8:00:00"
+                        },
+                        {
+                            "Name": "Elevation",
+                            "Type": "DOUBLE",
+                            "Value": "49.0653648"
+                        }
+                    ]
+                }
+               ]
+           }
+        "#;
+}

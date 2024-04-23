@@ -835,6 +835,10 @@ impl LushMessageInsert {
         }
     }
 
+    pub fn record(&self) -> &RecordBatch {
+        &self.records.record
+    }
+
     pub fn num_rows(&self) -> usize {
         self.records.record.num_rows()
     }

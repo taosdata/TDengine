@@ -27,6 +27,12 @@ use super::{
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
 
+impl Modeler {
+    pub fn new(tables: Vec<Table>) -> Self {
+        Self(tables)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ModeledRecordBatch {
     pub records: RecordBatch,

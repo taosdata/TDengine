@@ -50,12 +50,11 @@ pub mod constants;
 
 mod parse;
 
-mod filter;
+pub(crate) mod filter;
 
-mod map;
-
-mod modeler;
-mod mutate;
+pub(crate) mod map;
+pub(crate) mod modeler;
+pub(crate) mod mutate;
 pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -986,6 +985,15 @@ impl FromStr for Parser {
 }
 
 impl Parser {
+    pub fn new(parser: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+        Self {
+            global: Arc::new(TableOptions::default()),
+            parse: parser,
+            mutate: mutate,
+            model: model,
+        }
+    }
+
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
         let payload = self.parse.as_ref()?.get("payload");
         if payload.is_none() {

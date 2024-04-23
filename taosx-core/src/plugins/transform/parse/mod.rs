@@ -101,7 +101,7 @@ pub trait Parse {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
-pub(super) enum FieldParser {
+pub enum FieldParser {
     Regex(Regex),
     Cast(Cast),
     Alias { alias: String },
@@ -146,7 +146,7 @@ impl Parse for FieldParser {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub(super) struct ParserImpl(LinkedHashMap<String, FieldParser>);
+pub struct ParserImpl(LinkedHashMap<String, FieldParser>);
 
 impl std::ops::Deref for ParserImpl {
     type Target = LinkedHashMap<String, FieldParser>;
