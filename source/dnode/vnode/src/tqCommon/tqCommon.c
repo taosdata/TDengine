@@ -195,12 +195,15 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   const char*  idstr = pTask->id.idStr;
 
   if (pMeta->updateInfo.transId != req.transId) {
-    pMeta->updateInfo.transId = req.transId;
-    tqInfo("s-task:%s receive new trans to update nodeEp msg from mnode, transId:%d", idstr, req.transId);
+    ASSERT(req.transId > pMeta->updateInfo.transId);
+    tqInfo("s-task:%s vgId:%d receive new trans to update nodeEp msg from mnode, transId:%d, prev transId:%d", idstr,
+           vgId, req.transId, pMeta->updateInfo.transId);
+
     // info needs to be kept till the new trans to update the nodeEp arrived.
     taosHashClear(pMeta->updateInfo.pTasks);
+    pMeta->updateInfo.transId = req.transId;
   } else {
-    tqDebug("s-task:%s recv trans to update nodeEp from mnode, transId:%d", idstr, req.transId);
+    tqDebug("s-task:%s vgId:%d recv trans to update nodeEp from mnode, transId:%d", idstr, vgId, req.transId);
   }
 
   // duplicate update epset msg received, discard this redundant message
