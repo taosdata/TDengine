@@ -411,28 +411,45 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_connector").unwrap();
+        // invalid port
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_connector, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_taosx, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
-        let dsn = Dsn::from_str("mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_connector")
-            .unwrap();
+        // user: test_ssl_only -- ssl_mode: DISABLED -- Access denied
+        let dsn = Dsn::from_str(
+            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED",
+        )
+        .unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_connector, cause: failed to connect to mysql, cause: error returned from database: 1044 (42000): Access denied for user 'test_ssl_only'@'%' to database 'test_connector'",
+            "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED, cause: failed to connect to mysql, cause: error returned from database: 1045 (28000): Access denied for user 'test_ssl_only'@'192.168.2.13' (using password: YES)",
             res.message.unwrap()
         );
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // user: test_ssl_only -- ssl_mode: REQUIRED -- Access succ
+        let dsn = Dsn::from_str(
+            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=REQUIRED",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("mysql", res.data_source);
+
+        // user: test_disabled_only -- not support
+
+        // normal
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
@@ -441,7 +458,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from tb_test where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-02-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from (select id, concat('${F}', 'T', ts, '+08:00') as ts, current, voltage, phase  from meters_${Ymd}) t where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;

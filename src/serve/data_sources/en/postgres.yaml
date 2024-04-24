@@ -49,13 +49,13 @@ groups:
     description: Other connection options.
     connection_option: true
     params:
-      - name: applicationName
+      - name: application_name
         display: Application Name
         description: Set the application name to identify the connecting application.
         placeholder: "for example: TDengine"
         hint:
           type: str
-      - name: ssl
+      - name: ssl_mode
         display: SSL Mode
         description: Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority for negotiation.
         placeholder: "Please select the SSL mode"
