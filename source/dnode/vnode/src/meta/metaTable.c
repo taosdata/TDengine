@@ -2661,6 +2661,8 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   SMetaEntry e = {0};
   SDecoder   dc = {0};
 
+  *ppColCmprObj = NULL;
+
   metaRLock(pMeta);
   rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
   if (rc < 0) {
