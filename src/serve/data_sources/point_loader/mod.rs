@@ -508,7 +508,6 @@ pub async fn get_pi_default_config(
             None,
         )
         .await?;
-
         let config_data: String = match model {
             SINGLE_COLUMN_MODEL => {
                 let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();
