@@ -1076,16 +1076,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     pCreateReq = req.pReqs + iReq;
     memset(&cRsp, 0, sizeof(cRsp));
 
-    if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
-      rcode = -1;
-      goto _exit;
-    }
-
-    if ((terrno = grantCheck(TSDB_GRANT_TABLE)) < 0) {
-      rcode = -1;
-      goto _exit;
-    }
-
     if (tsEnableAudit && tsEnableAuditCreateTable) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
@@ -1778,13 +1768,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
     // create table
     if (pSubmitTbData->pCreateTbReq) {
-      // check (TODO: move check to create table)
-      code = grantCheck(TSDB_GRANT_TIMESERIES);
-      if (code) goto _exit;
-
-      code = grantCheck(TSDB_GRANT_TABLE);
-      if (code) goto _exit;
-
       // alloc if need
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
