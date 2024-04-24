@@ -181,6 +181,13 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p);
 void *taosHashGetKey(void *data, size_t *keyLen);
 
 /**
+ * Get the corresponding value length for a given data in hash table
+ * @param data
+ * @return
+ */
+int32_t taosHashGetValueSize(void *data);
+
+/**
  * return the payload data with the specified key(reference number added)
  *
  * @param pHashObj
@@ -214,13 +221,6 @@ void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj);
-
-/**
- * Get the corresponding value length for a given data in hash table
- * @param data
- * @return
- */
-int32_t taosHashGetValueSize(void *data);
 
 #ifdef __cplusplus
 }
