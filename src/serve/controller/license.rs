@@ -268,15 +268,16 @@ async fn validate_connector_license(
 
     let assert_enterprise = builder.assert_enterprise_edition().await;
 
+    if is_cloud(to) {
+        return Ok(LicenseKind::Good);
+    }
+
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if let Err(_) = assert_enterprise {
         /* anyhow::bail!(format!(
             "{err:?}. A non-expired enterprise edition is required in most of steps."
         )) */
         anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
-    }
-    if is_cloud(to) {
-        return Ok(LicenseKind::Good);
     }
 
     #[cfg(feature = "disable-enterprise-connector-validation")]
