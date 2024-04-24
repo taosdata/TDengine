@@ -410,7 +410,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-在 3.3.0.0 版本之前 TDengine 只支持内查询，自 3.3.0.0 版本起 TDengine 支持了更为广泛的 JOIN 类型，这其中即包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
+在 3.3.0.0 版本之前 TDengine 只支持内连接，自 3.3.0.0 版本起 TDengine 支持了更为广泛的 JOIN 类型，这其中既包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
 
 ### 示例
 
