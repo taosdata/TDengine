@@ -8,7 +8,7 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     utils::{
         constants::VERSION_3_3_0, get_main_version_from_server_version, get_server_version,
-        mask_dsn,
+        license::is_cloud, mask_dsn,
     },
     ConnectorLicense,
 };
@@ -121,18 +121,6 @@ pub async fn validate_task(
     .await?
     .ok()?;
     Ok(())
-}
-
-fn is_cloud(to: &Dsn) -> bool {
-    // is cloud?
-    to.protocol
-        .as_ref()
-        .map(|p| match p.as_str() {
-            "http" | "https" | "ws" | "wss" => true,
-            _ => false,
-        })
-        .unwrap_or(false)
-        && to.get("token").is_some()
 }
 
 #[framed]

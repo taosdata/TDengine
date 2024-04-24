@@ -1,13 +1,13 @@
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 
 use anyhow::bail;
-use futures::TryStreamExt;
 use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
 pub mod files;
 pub mod interval;
+pub mod license;
 pub mod metrics_db;
 pub mod monitor;
 pub mod port_pool;

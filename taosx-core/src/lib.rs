@@ -21,6 +21,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
+use utils::license::is_cloud;
 use utils::port_pool::PortPool;
 
 // use crate::plugins::transform::*;
@@ -250,12 +251,13 @@ impl TaskOpts {
                 (_, "tmq" | "taos") => {
                     let mut to = to.clone();
                     to.subject.take();
-                    let builder = TaosBuilder::from_dsn(to)?;
+                    let builder = TaosBuilder::from_dsn(&to)?;
                     let _ = builder.build().await.context("Target connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
+                    if !is_cloud(&to)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check target edition")?
                     {
                         anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
@@ -263,12 +265,13 @@ impl TaskOpts {
                 ("tmq" | "taos", _) => {
                     let mut from = from.clone();
                     from.subject.take();
-                    let builder = TaosBuilder::from_dsn(from)?;
+                    let builder = TaosBuilder::from_dsn(&from)?;
                     let _ = builder.build().await.context("Source connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check source edition")?
+                    if !is_cloud(&from)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check source edition")?
                     {
                         anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
