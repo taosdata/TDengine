@@ -47,13 +47,13 @@ groups:
     description: 其他数据库连接选项。
     connection_option: true
     params:
-      - name: applicationName
+      - name: application_name
         display: 应用名称
         description: 设置应用程序名称，用于标识连接的应用程序。
         placeholder: "示例: TDengine"
         hint:
           type: str
-      - name: ssl
+      - name: ssl_mode
         display: SSL 模式
         description: 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。
         placeholder: "请选择 SSL 模式"
