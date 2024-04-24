@@ -1435,7 +1435,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
 }
 
 static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
     code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf);
@@ -1445,7 +1445,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 }
 
 static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
     code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf);
