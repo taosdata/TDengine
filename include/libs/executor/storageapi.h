@@ -312,7 +312,7 @@ typedef struct SUpdateInfo {
   char*        pKeyBuff;
   char*        pValueBuff;
 
-  bool (*comparePkRowFn)(void* pValue1, void* pTs, void* pPkVal, __compar_fn_t cmpPkFn);
+  int (*comparePkRowFn)(void* pValue1, void* pTs, void* pPkVal, __compar_fn_t cmpPkFn);
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
