@@ -215,6 +215,13 @@ void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj);
 
+/**
+ * Get the corresponding value length for a given data in hash table
+ * @param data
+ * @return
+ */
+int32_t taosHashGetValueSize(void *data);
+
 #ifdef __cplusplus
 }
 #endif

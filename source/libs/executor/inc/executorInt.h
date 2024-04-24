@@ -500,6 +500,8 @@ typedef struct SStreamScanInfo {
   SStoreTqReader readerFn;
   SStateStore    stateStore;
   SSDataBlock*   pCheckpointRes;
+  int8_t         pkColType;
+  int32_t        pkColLen;
 } SStreamScanInfo;
 
 typedef struct {
@@ -566,8 +568,13 @@ typedef struct SOpCheckPointInfo {
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
 
+typedef struct SSteamOpBasicInfo {
+  int32_t primaryPkIndex;
+} SSteamOpBasicInfo;
+
 typedef struct SStreamIntervalOperatorInfo {
   SOptrBasicInfo      binfo;           // basic info
+  SSteamOpBasicInfo   basic;
   SAggSupporter       aggSup;          // aggregate supporter
   SExprSupp           scalarSupp;      // supporter for perform scalar function
   SGroupResInfo       groupResInfo;    // multiple results build supporter
@@ -633,6 +640,7 @@ typedef struct SResultWindowInfo {
 
 typedef struct SStreamSessionAggOperatorInfo {
   SOptrBasicInfo      binfo;
+  SSteamOpBasicInfo   basic;
   SStreamAggSupporter streamAggSup;
   SExprSupp           scalarSupp;  // supporter for perform scalar function
   SGroupResInfo       groupResInfo;
@@ -665,6 +673,7 @@ typedef struct SStreamSessionAggOperatorInfo {
 
 typedef struct SStreamStateAggOperatorInfo {
   SOptrBasicInfo      binfo;
+  SSteamOpBasicInfo   basic;
   SStreamAggSupporter streamAggSup;
   SExprSupp           scalarSupp;  // supporter for perform scalar function
   SGroupResInfo       groupResInfo;
@@ -691,6 +700,7 @@ typedef struct SStreamStateAggOperatorInfo {
 
 typedef struct SStreamEventAggOperatorInfo {
   SOptrBasicInfo      binfo;
+  SSteamOpBasicInfo   basic;
   SStreamAggSupporter streamAggSup;
   SExprSupp           scalarSupp;  // supporter for perform scalar function
   SGroupResInfo       groupResInfo;
@@ -719,6 +729,7 @@ typedef struct SStreamEventAggOperatorInfo {
 
 typedef struct SStreamCountAggOperatorInfo {
   SOptrBasicInfo      binfo;
+  SSteamOpBasicInfo   basic;
   SStreamAggSupporter streamAggSup;
   SExprSupp           scalarSupp;  // supporter for perform scalar function
   SGroupResInfo       groupResInfo;
@@ -742,6 +753,7 @@ typedef struct SStreamCountAggOperatorInfo {
 
 typedef struct SStreamPartitionOperatorInfo {
   SOptrBasicInfo        binfo;
+  SSteamOpBasicInfo     basic;
   SPartitionBySupporter partitionSup;
   SExprSupp             scalarSup;
   SExprSupp             tbnameCalSup;
@@ -775,6 +787,7 @@ typedef struct SStreamFillSupporter {
 } SStreamFillSupporter;
 
 typedef struct SStreamFillOperatorInfo {
+  SSteamOpBasicInfo     basic;
   SStreamFillSupporter* pFillSup;
   SSDataBlock*          pRes;
   SSDataBlock*          pSrcBlock;
@@ -911,7 +924,7 @@ int32_t  initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, i
                                 SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                 SStorageAPI* pApi, int32_t tsIndex);
 void     initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
-                        STimeWindowAggSupp* pTwSup);
+                        STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
 void     getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void     initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void     getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
@@ -939,7 +952,7 @@ void     compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeW
                            SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
 int32_t  releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void     resetWinRange(STimeWindow* winRange);
-bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
+bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
 int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void     setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
