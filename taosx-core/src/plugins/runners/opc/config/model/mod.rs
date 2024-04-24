@@ -39,31 +39,40 @@ impl OpcModelConfig {
         row_index: usize,
     ) -> anyhow::Result<()> {
         let point_id = parse_point_id(header, &row)?;
-
-        // add point config
-        let is_duplicated = self.point_config_map.insert(
-            point_id.clone(),
-            PointConfig::from_csv(&header, &row, row_index)?,
-        );
-
         // check point_id duplicated
-        if let Some(point_config) = is_duplicated {
-            match header.get_opc_type() {
+        match self.get_row_index(&point_id) {
+            None => {}
+            Some(index) => match header.get_opc_type() {
                 OpcType::OPCUA => {
-                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index,row_index);
+                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index,row_index);
                 }
                 OpcType::OPCDA => {
-                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index, row_index);
+                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index, row_index);
                 }
                 OpcType::FAKE => {
                     unimplemented!()
                 }
-            }
+            },
         }
 
-        // add table config
-        self.table_config_map
-            .insert(point_id.clone(), TableConfig::from_csv(&header, &row)?);
+        // parse point config and table config
+        let point_config = PointConfig::from_csv(&header, &row, row_index)?;
+        let table_config = TableConfig::from_csv(&header, &row)?;
+
+        // check conflict
+        match self.is_conflict(&point_id, &point_config, &table_config) {
+            Ok(_) => {
+                self.point_config_map.insert(point_id.clone(), point_config);
+                self.table_config_map.insert(point_id.clone(), table_config);
+            }
+            Err(err) => {
+                bail!(
+                    "csv config conflict at row: {}, cause: {}",
+                    row_index,
+                    err.to_string()
+                );
+            }
+        }
 
         Ok(())
     }
@@ -81,6 +90,47 @@ impl OpcModelConfig {
         }
 
         transform_map
+    }
+
+    pub fn get_row_index(&self, point_id: &str) -> Option<usize> {
+        self.point_config_map.get(point_id).map(|v| v.row_index)
+    }
+
+    fn is_conflict(
+        &self,
+        point_id: &String,
+        point_config: &PointConfig,
+        table_config: &TableConfig,
+    ) -> anyhow::Result<()> {
+        if table_config.enabled.is_some_and(|v| v == 0) {
+            return Ok(());
+        }
+
+        let stable = point_config.stable.as_ref();
+        let tbname = point_config.code.as_str();
+        let value_col = table_config
+            .column_config(ColumnConfig::VALUE)
+            .map(|v| v.alias.as_ref())
+            .flatten();
+
+        // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
+        for (id, p_config) in &self.point_config_map {
+            if let Some(t_config) = self.table_config_map.get(id) {
+                if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
+                    if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
+                        if v_col.alias.as_ref() == value_col {
+                            bail!(
+                                "point_id: {} and point_id: {} have same stable and tbname, value_col should be different",
+                                id,
+                                point_id,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -112,6 +162,34 @@ fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Stri
         })
         .flatten()
         .ok_or(anyhow::anyhow!("point_id cannot be None in csv row"))
+}
+
+#[cfg(test)]
+mod model_config_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_append() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "tbname", "value_col", "type"]),
+        )
+        .await
+        .unwrap();
+        let mut model_config = OpcModelConfig::new();
+
+        let row = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
+        let result = model_config.append(&header, row, 1).await;
+        assert!(result.is_ok());
+
+        let row = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
+        let result = model_config.append(&header, row, 2).await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "csv config conflict at row: 2, cause: point_id: ns=3;i=1001 and point_id: ns=3;i=1002 have same stable and tbname, value_col should be different"
+        );
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -663,7 +741,6 @@ fn parse_original_ts_col(
 
 #[cfg(test)]
 mod table_config_tests {
-
     use super::*;
 
     #[tokio::test]
