@@ -24,8 +24,8 @@
 #define CHECK_NOT_RSP_DURATION 10*1000 // 10 sec
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
-static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
-static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
+static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
+static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -34,10 +34,14 @@ static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
+static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet, bool* pUpdated) {
   char buf[512] = {0};
 
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
+    if (!(*pUpdated)) {
+      *pUpdated = isEpsetEqual(&pTask->info.epSet, pEpSet);
+    }
+
     epsetAssign(&pTask->info.epSet, pEpSet);
     epsetToStr(pEpSet, buf, tListLen(buf));
     stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
@@ -46,12 +50,12 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
   // check for the dispatch info and the upstream task info
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SOURCE) {
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   } else if (level == TASK_LEVEL__AGG) {
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet, pUpdated);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   } else {  // TASK_LEVEL__SINK
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet, pUpdated);
   }
 
   return 0;
@@ -534,7 +538,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->msgInfo.pRetryList = taosArrayInit(4, sizeof(int32_t));
 
   TdThreadMutexAttr attr = {0};
-  int               code = taosThreadMutexAttrInit(&attr);
+
+  int code = taosThreadMutexAttrInit(&attr);
   if (code != 0) {
     stError("s-task:%s initElapsed mutex attr failed, code:%s", pTask->id.idStr, tstrerror(code));
     return code;
@@ -563,6 +568,14 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   streamTaskInitTokenBucket(pOutputInfo->pTokenBucket, 35, 35, tsSinkDataRate, pTask->id.idStr);
   pOutputInfo->pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
   if (pOutputInfo->pDownstreamUpdateList == NULL) {
+    stError("s-task:%s failed to prepare downstreamUpdateList, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTask->taskCheckInfo.pList = taosArrayInit(4, sizeof(SDownstreamStatusInfo));
+  if (pTask->taskCheckInfo.pList == NULL) {
+    stError("s-task:%s failed to prepare taskCheckInfo list, code:%s", pTask->id.idStr,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -599,7 +612,7 @@ int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstre
   return TSDB_CODE_SUCCESS;
 }
 
-void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated) {
   char buf[512] = {0};
   epsetToStr(pEpSet, buf, tListLen(buf));
 
@@ -607,6 +620,10 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
   for (int32_t i = 0; i < numOfUpstream; ++i) {
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->nodeId == nodeId) {
+      if (!(*pUpdated)) {
+        *pUpdated = isEpsetEqual(&pInfo->epSet, pEpSet);
+      }
+
       epsetAssign(&pInfo->epSet, pEpSet);
       stDebug("s-task:0x%x update the upstreamInfo taskId:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId, pInfo->taskId,
               nodeId, buf);
@@ -633,12 +650,14 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
   pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
-void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet) {
+void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool *pUpdated) {
   char buf[512] = {0};
   epsetToStr(pEpSet, buf, tListLen(buf));
-  int32_t id = pTask->id.taskId;
+  *pUpdated = false;
 
-  int8_t type = pTask->outputInfo.type;
+  int32_t id = pTask->id.taskId;
+  int8_t  type = pTask->outputInfo.type;
+
   if (type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* pVgs = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
@@ -647,18 +666,24 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
       SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
 
       if (pVgInfo->vgId == nodeId) {
+        if (!(*pUpdated)) {
+          (*pUpdated) = isEpsetEqual(&pVgInfo->epSet, pEpSet);
+        }
+
         epsetAssign(&pVgInfo->epSet, pEpSet);
-        stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId,
-                buf);
+        stDebug("s-task:0x%x update dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pVgInfo->taskId, nodeId, buf);
         break;
       }
     }
   } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
     STaskDispatcherFixed* pDispatcher = &pTask->outputInfo.fixedDispatcher;
     if (pDispatcher->nodeId == nodeId) {
+      if (!(*pUpdated)) {
+        *pUpdated = isEpsetEqual(&pDispatcher->epSet, pEpSet);
+      }
+
       epsetAssign(&pDispatcher->epSet, pEpSet);
-      stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId,
-              buf);
+      stDebug("s-task:0x%x update dispatch info, task:0x%x(nodeId:%d) newEpset:%s", id, pDispatcher->taskId, nodeId, buf);
     }
   }
 }
@@ -681,7 +706,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
+bool streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   STaskExecStatisInfo* p = &pTask->execInfo;
 
   int32_t numOfNodes = taosArrayGetSize(pNodeList);
@@ -692,11 +717,13 @@ int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   stDebug("s-task:0x%x update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.taskId,
           numOfNodes, p->updateCount, prevTs);
 
+  bool updated = false;
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
-    doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp);
+    doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp, &updated);
   }
-  return 0;
+
+  return updated;
 }
 
 void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
@@ -885,7 +912,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
-void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
+void streamTaskPause(SStreamTask* pTask) {
   streamTaskHandleEventAsync(pTask->status.pSM, TASK_EVENT_PAUSE, taskPauseCallback, NULL);
 }
 
@@ -942,14 +969,8 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs) {
-  if (pInfo->pList == NULL) {
-    pInfo->pList = taosArrayInit(4, sizeof(SDownstreamStatusInfo));
-  } else {
-    taosArrayClear(pInfo->pList);
-  }
-
-  taosThreadMutexLock(&pInfo->checkInfoLock);
+static int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs) {
+  taosArrayClear(pInfo->pList);
 
   if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
     pInfo->notReadyTasks = 1;
@@ -959,9 +980,18 @@ int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOut
   }
 
   pInfo->startTs = startTs;
-
-  taosThreadMutexUnlock(&pInfo->checkInfoLock);
   return TSDB_CODE_SUCCESS;
+}
+
+static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId) {
+  for (int32_t j = 0; j < taosArrayGetSize(pInfo->pList); ++j) {
+    SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, j);
+    if (p->taskId == taskId) {
+      return p;
+    }
+  }
+
+  return NULL;
 }
 
 int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id) {
@@ -969,14 +999,11 @@ int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskI
 
   taosThreadMutexLock(&pInfo->checkInfoLock);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
-    SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
-    if (p->taskId == taskId) {
-      stDebug("s-task:%s check info to task:0x%x already sent", id, taskId);
-
-      taosThreadMutexUnlock(&pInfo->checkInfoLock);
-      return TSDB_CODE_SUCCESS;
-    }
+  SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+  if (p != NULL) {
+    stDebug("s-task:%s check info to task:0x%x already sent", id, taskId);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    return TSDB_CODE_SUCCESS;
   }
 
   taosArrayPush(pInfo->pList, &info);
@@ -989,64 +1016,64 @@ int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t
                                   int32_t* pNotReady, const char* id) {
   taosThreadMutexLock(&pInfo->checkInfoLock);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
-    SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
-    if (p->taskId == taskId) {
-      ASSERT(reqId == p->reqId);
+  SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+  if (p != NULL) {
 
-      // count down one, since it is ready now
-      if ((p->status != TASK_DOWNSTREAM_READY) && (status == TASK_DOWNSTREAM_READY)) {
-        *pNotReady = atomic_sub_fetch_32(&pInfo->notReadyTasks, 1);
-      } else {
-        *pNotReady = pInfo->notReadyTasks;
-      }
-
-      p->status = status;
-      p->rspTs = rspTs;
-
+    if (reqId != p->reqId) {
+      stError("s-task:%s reqId:%" PRIx64 " expected:%" PRIx64
+              " expired check-rsp recv from downstream task:0x%x, discarded",
+              id, reqId, p->reqId, taskId);
       taosThreadMutexUnlock(&pInfo->checkInfoLock);
-      return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_FAILED;
     }
-  }
 
-  taosThreadMutexUnlock(&pInfo->checkInfoLock);
-  stError("s-task:%s unexpected check rsp msg, downstream task:0x%x, reqId:%"PRIx64, id, taskId, reqId);
-  return TSDB_CODE_FAILED;
-}
+    // subtract one not-ready-task, since it is ready now
+    if ((p->status != TASK_DOWNSTREAM_READY) && (status == TASK_DOWNSTREAM_READY)) {
+      *pNotReady = atomic_sub_fetch_32(&pInfo->notReadyTasks, 1);
+    } else {
+      *pNotReady = pInfo->notReadyTasks;
+    }
 
-int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id) {
-  taosThreadMutexLock(&pInfo->checkInfoLock);
-  if (pInfo->inCheckProcess == 0) {
-    pInfo->inCheckProcess = 1;
-  } else {
-    ASSERT(pInfo->startTs > 0);
-    stError("s-task:%s already in check procedure, checkTs:%"PRId64, id, pInfo->startTs);
+    p->status = status;
+    p->rspTs = rspTs;
 
-    taosThreadMutexUnlock(&pInfo->checkInfoLock);
-    return TSDB_CODE_FAILED;
-  }
-
-  taosThreadMutexUnlock(&pInfo->checkInfoLock);
-  stDebug("s-task:%s set the in-check-procedure flag", id);
-  return 0;
-}
-
-int32_t streamTaskCompleteCheck(STaskCheckInfo* pInfo, const char* id) {
-  taosThreadMutexLock(&pInfo->checkInfoLock);
-  if (!pInfo->inCheckProcess) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t el = taosGetTimestampMs() - pInfo->startTs;
-  stDebug("s-task:%s clear the in-check-procedure flag, elapsed time:%" PRId64 " ms", id, el);
+  taosThreadMutexUnlock(&pInfo->checkInfoLock);
+  stError("s-task:%s unexpected check rsp msg, invalid downstream task:0x%x, reqId:%" PRIx64 " discarded", id, taskId,
+          reqId);
+  return TSDB_CODE_FAILED;
+}
+
+static int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id) {
+  if (pInfo->inCheckProcess == 0) {
+    pInfo->inCheckProcess = 1;
+  } else {
+    ASSERT(pInfo->startTs > 0);
+    stError("s-task:%s already in check procedure, checkTs:%"PRId64", start monitor check rsp failed", id, pInfo->startTs);
+    return TSDB_CODE_FAILED;
+  }
+
+  stDebug("s-task:%s set the in-check-procedure flag", id);
+  return 0;
+}
+
+static int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, const char* id) {
+  if (!pInfo->inCheckProcess) {
+    stWarn("s-task:%s already not in-check-procedure", id);
+  }
+
+  int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
+  stDebug("s-task:%s clear the in-check-procedure flag, not in-check-procedure elapsed time:%" PRId64 " ms", id, el);
 
   pInfo->startTs = 0;
-  pInfo->inCheckProcess = 0;
   pInfo->notReadyTasks = 0;
+  pInfo->inCheckProcess = 0;
+  pInfo->stopCheckProcess = 0;
   taosArrayClear(pInfo->pList);
 
-  taosThreadMutexUnlock(&pInfo->checkInfoLock);
   return 0;
 }
 
@@ -1064,7 +1091,7 @@ static void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
     req.reqId = p->reqId;
     req.downstreamNodeId = pOutputInfo->fixedDispatcher.nodeId;
     req.downstreamTaskId = pOutputInfo->fixedDispatcher.taskId;
-    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) req:0x%" PRIx64,
+    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) reqId:0x%" PRIx64,
             pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);
 
     streamSendCheckMsg(pTask, &req, pOutputInfo->fixedDispatcher.nodeId, &pOutputInfo->fixedDispatcher.epSet);
@@ -1080,14 +1107,41 @@ static void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
         req.downstreamNodeId = pVgInfo->vgId;
         req.downstreamTaskId = pVgInfo->taskId;
 
-        stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
-                pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
+        stDebug("s-task:%s (vgId:%d) stage:%" PRId64
+                " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%d reqId:0x%" PRIx64,
+                pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i,
+                p->reqId);
         streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
         break;
       }
     }
   } else {
     ASSERT(0);
+  }
+}
+
+static void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, int32_t* numOfFault,
+                              int32_t* numOfNotRsp, SArray* pTimeoutList, SArray* pNotReadyList, const char* id) {
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
+    SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
+    if (p->status == TASK_DOWNSTREAM_READY) {
+      (*numOfReady) += 1;
+    } else if (p->status == TASK_UPSTREAM_NEW_STAGE || p->status == TASK_DOWNSTREAM_NOT_LEADER) {
+      stDebug("s-task:%s recv status:NEW_STAGE/NOT_LEADER from downstream, task:0x%x, quit from check downstream", id,
+              p->taskId);
+      (*numOfFault) += 1;
+    } else {                // TASK_DOWNSTREAM_NOT_READY
+      if (p->rspTs == 0) {  // not response yet
+        ASSERT(p->status == -1);
+        if (el >= CHECK_NOT_RSP_DURATION) {  // not receive info for 10 sec.
+          taosArrayPush(pTimeoutList, &p->taskId);
+        } else {                // el < CHECK_NOT_RSP_DURATION
+          (*numOfNotRsp) += 1;  // do nothing and continue waiting for their rsp
+        }
+      } else {
+        taosArrayPush(pNotReadyList, &p->taskId);
+      }
+    }
   }
 }
 
@@ -1099,25 +1153,38 @@ static void rspMonitorFn(void* param, void* tmrId) {
   int64_t           now = taosGetTimestampMs();
   int64_t           el = now - pInfo->startTs;
   ETaskStatus       state = pStat->state;
+  const char*       id = pTask->id.idStr;
   int32_t           numOfReady = 0;
   int32_t           numOfFault = 0;
-  const char*       id = pTask->id.idStr;
+  int32_t           numOfNotRsp = 0;
+  int32_t           numOfNotReady = 0;
+  int32_t           numOfTimeout = 0;
 
-  stDebug("s-task:%s start to do check downstream rsp check", id);
+  stDebug("s-task:%s start to do check-downstream-rsp check in tmr", id);
 
   if (state == TASK_STATUS__STOP) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
-    streamTaskCompleteCheck(pInfo, id);
+
+    taosThreadMutexLock(&pInfo->checkInfoLock);
+    streamTaskCompleteCheckRsp(pInfo, id);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
     streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pInfo->startTs, now, false);
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      STaskId* pHId = &pTask->hTaskInfo.id;
+      streamMetaAddTaskLaunchResult(pTask->pMeta, pHId->streamId, pHId->taskId, pInfo->startTs, now, false);
+    }
     return;
   }
 
-  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY) {
+  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY || state == TASK_STATUS__PAUSE) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
-    streamTaskCompleteCheck(pInfo, id);
+
+    taosThreadMutexLock(&pInfo->checkInfoLock);
+    streamTaskCompleteCheckRsp(pInfo, id);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
     return;
   }
 
@@ -1127,8 +1194,8 @@ static void rspMonitorFn(void* param, void* tmrId) {
     stDebug("s-task:%s status:%s vgId:%d all downstream ready, quit from monitor rsp tmr, ref:%d", id, pStat->name,
             vgId, ref);
 
+    streamTaskCompleteCheckRsp(pInfo, id);
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
-    streamTaskCompleteCheck(pInfo, id);
     return;
   }
 
@@ -1136,57 +1203,40 @@ static void rspMonitorFn(void* param, void* tmrId) {
   SArray* pTimeoutList = taosArrayInit(4, sizeof(int64_t));
 
   if (pStat->state == TASK_STATUS__UNINIT) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
-      SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
-      if (p->status == TASK_DOWNSTREAM_READY) {
-        numOfReady += 1;
-      } else if (p->status == TASK_UPSTREAM_NEW_STAGE || p->status == TASK_DOWNSTREAM_NOT_LEADER) {
-        stDebug("s-task:%s recv status from downstream, task:0x%x, quit from check downstream tasks", id, p->taskId);
-        numOfFault += 1;
-      } else {                // TASK_DOWNSTREAM_NOT_READY
-        if (p->rspTs == 0) {  // not response yet
-          ASSERT(p->status == -1);
-          if (el >= CHECK_NOT_RSP_DURATION) {  // not receive info for 10 sec.
-            taosArrayPush(pTimeoutList, &p->taskId);
-          } else {  // el < CHECK_NOT_RSP_DURATION
-            // do nothing and continue waiting for their rsps
-          }
-        } else {
-          taosArrayPush(pNotReadyList, &p->taskId);
-        }
-      }
-    }
+    getCheckRspStatus(pInfo, el, &numOfReady, &numOfFault, &numOfNotRsp, pTimeoutList, pNotReadyList, id);
   } else {  // unexpected status
     stError("s-task:%s unexpected task status:%s during waiting for check rsp", id, pStat->name);
   }
 
-  int32_t numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
-  int32_t numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
+  numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
+  numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
 
   // fault tasks detected, not try anymore
-  if (((numOfReady + numOfFault + numOfNotReady + numOfTimeout) == taosArrayGetSize(pInfo->pList)) &&
-      (numOfFault > 0)) {
+  ASSERT((numOfReady + numOfFault + numOfNotReady + numOfTimeout + numOfNotRsp) == taosArrayGetSize(pInfo->pList));
+  if (numOfFault > 0) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug(
         "s-task:%s status:%s vgId:%d all rsp. quit from monitor rsp tmr, since vnode-transfer/leader-change/restart "
-        "detected, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
-        id, pStat->name, vgId, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+        "detected, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
+        id, pStat->name, vgId, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
 
+    streamTaskCompleteCheckRsp(pInfo, id);
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
+
     taosArrayDestroy(pNotReadyList);
     taosArrayDestroy(pTimeoutList);
-
-    streamTaskCompleteCheck(pInfo, id);
     return;
   }
 
   // checking of downstream tasks has been stopped by other threads
-  if (pInfo->inCheckProcess == 0) {
+  if (pInfo->stopCheckProcess == 1) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug(
-        "s-task:%s status:%s vgId:%d stopped by other threads to check downstream process, notReady:%d, fault:%d, "
-        "timeout:%d, ready:%d ref:%d",
-        id, pStat->name, vgId, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+        "s-task:%s status:%s vgId:%d stopped by other threads to check downstream process, notRsp:%d, notReady:%d, "
+        "fault:%d, timeout:%d, ready:%d ref:%d",
+        id, pStat->name, vgId, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+
+    streamTaskCompleteCheckRsp(pInfo, id);
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
     // add the not-ready tasks into the final task status result buf, along with related fill-history task if exists.
@@ -1195,6 +1245,9 @@ static void rspMonitorFn(void* param, void* tmrId) {
       STaskId* pHId = &pTask->hTaskInfo.id;
       streamMetaAddTaskLaunchResult(pTask->pMeta, pHId->streamId, pHId->taskId, pInfo->startTs, now, false);
     }
+
+    taosArrayDestroy(pNotReadyList);
+    taosArrayDestroy(pTimeoutList);
     return;
   }
 
@@ -1205,13 +1258,11 @@ static void rspMonitorFn(void* param, void* tmrId) {
     for (int32_t i = 0; i < numOfNotReady; ++i) {
       int32_t taskId = *(int32_t*)taosArrayGet(pNotReadyList, i);
 
-      for (int32_t j = 0; j < taosArrayGetSize(pInfo->pList); ++j) {
-        SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, j);
-        if (p->taskId == taskId) {
-          p->rspTs = 0;
-          p->status = -1;
-          doSendCheckMsg(pTask, p);
-        }
+      SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+      if (p != NULL) {
+        p->rspTs = 0;
+        p->status = -1;
+        doSendCheckMsg(pTask, p);
       }
     }
 
@@ -1225,36 +1276,61 @@ static void rspMonitorFn(void* param, void* tmrId) {
     for (int32_t i = 0; i < numOfTimeout; ++i) {
       int32_t taskId = *(int32_t*)taosArrayGet(pTimeoutList, i);
 
-      for (int32_t j = 0; j < taosArrayGetSize(pInfo->pList); ++j) {
-        SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, j);
-        if (p->taskId == taskId) {
-          ASSERT(p->status == -1 && p->rspTs == 0);
-          doSendCheckMsg(pTask, p);
-          break;
-        }
+      SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+      if (p != NULL) {
+        ASSERT(p->status == -1 && p->rspTs == 0);
+        doSendCheckMsg(pTask, p);
       }
     }
 
     stDebug("s-task:%s %d downstream tasks timeout, send check msg again, start ts:%" PRId64, id, numOfTimeout, now);
   }
 
+  taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
-  taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
-  stDebug("s-task:%s continue checking rsp in 200ms, notReady:%d, fault:%d, timeout:%d, ready:%d", id, numOfNotReady,
-          numOfFault, numOfTimeout, numOfReady);
+  stDebug("s-task:%s continue checking rsp in 300ms, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d", id,
+          numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady);
 
   taosArrayDestroy(pNotReadyList);
   taosArrayDestroy(pTimeoutList);
 }
 
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
-  ASSERT(pTask->taskCheckInfo.checkRspTmr == NULL);
+  STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
+
+  taosThreadMutexLock(&pInfo->checkInfoLock);
+  int32_t code = streamTaskStartCheckDownstream(pInfo, pTask->id.idStr);
+  if (code != TSDB_CODE_SUCCESS) {
+
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    return TSDB_CODE_FAILED;
+  }
+
+  streamTaskInitTaskCheckInfo(pInfo, &pTask->outputInfo, taosGetTimestampMs());
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
   stDebug("s-task:%s start check rsp monit, ref:%d ", pTask->id.idStr, ref);
-  pTask->taskCheckInfo.checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer);
+
+  if (pInfo->checkRspTmr == NULL) {
+    pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer);
+  } else {
+    taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, pInfo->checkRspTmr);
+  }
+
+  taosThreadMutexUnlock(&pInfo->checkInfoLock);
   return 0;
+}
+
+int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id) {
+  taosThreadMutexLock(&pInfo->checkInfoLock);
+  streamTaskCompleteCheckRsp(pInfo, id);
+
+  pInfo->stopCheckProcess = 1;
+  taosThreadMutexUnlock(&pInfo->checkInfoLock);
+
+  stDebug("s-task:%s set stop check rsp mon", id);
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamTaskCleanCheckInfo(STaskCheckInfo* pInfo) {

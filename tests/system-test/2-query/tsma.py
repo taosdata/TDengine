@@ -1209,7 +1209,7 @@ class TDTestCase:
         self.test_ddl()
         self.test_query_with_tsma()
         # bug to fix
-        # self.test_flush_query()
+        self.test_flush_query()
         
         #cluster test
         cluster_dnode_list = tdSql.get_cluseter_dnodes()
@@ -1231,14 +1231,22 @@ class TDTestCase:
         # self.test_drop_ctable()
         self.test_drop_db()
 
-    def wait_query(self, sql: str, expected_row_num: int, timeout_in_seconds: float):
+    def wait_query(self, sql: str, expected_row_num: int, timeout_in_seconds: float, is_expect_row = None):
         timeout = timeout_in_seconds
         tdSql.query(sql)
-        while timeout > 0 and tdSql.getRows() != expected_row_num:
-            tdLog.debug(f'start to wait query: {sql} to return {expected_row_num}, got: {tdSql.getRows()}, remain: {timeout_in_seconds - timeout}')
+        rows: int = 0
+        for row in tdSql.queryResult:
+            if is_expect_row is None or is_expect_row(row):
+                rows = rows + 1
+        while timeout > 0 and rows != expected_row_num:
+            tdLog.debug(f'start to wait query: {sql} to return {expected_row_num}, got: {str(tdSql.queryResult)} useful rows: {rows}, remain: {timeout_in_seconds - timeout}')
             time.sleep(1)
             timeout = timeout - 1
             tdSql.query(sql)
+            rows = 0
+            for row in tdSql.queryResult:
+                if is_expect_row is None or is_expect_row(row):
+                    rows = rows + 1
         if timeout <= 0:
             tdLog.exit(f'failed to wait query: {sql} to return {expected_row_num} rows timeout: {timeout_in_seconds}s')
         else:
@@ -1255,7 +1263,7 @@ class TDTestCase:
         tdSql.error('drop tsma test.tsma1', -2147482491)
         tdSql.execute('drop tsma test.tsma2', queryTimes=1)
         tdSql.execute('drop tsma test.tsma1', queryTimes=1)
-        self.wait_query('show transactions', 0, 10)
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
         tdSql.execute('drop database test', queryTimes=1)
 
         self.init_data()
@@ -1296,7 +1304,7 @@ class TDTestCase:
             'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2), avg(t3)) interval(5m)', -2147471096) 
         
         tdSql.execute('alter table nsdb.meters drop tag t3', queryTimes=1)
-        self.wait_query('show transactions', 0, 10)
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
         tdSql.execute('drop database nsdb')
 
         # drop norm table
@@ -1323,7 +1331,7 @@ class TDTestCase:
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
 
-        self.wait_query('show transactions', 0, 10)
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
         tdSql.execute('drop database test', queryTimes=1)
         self.init_data()
 
@@ -1424,7 +1432,7 @@ class TDTestCase:
 
         tdSql.error(
             'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
-        self.wait_query('show transactions', 0, 10)
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):
@@ -1569,7 +1577,7 @@ class TDTestCase:
         tdSql.error('create tsma tsma_illegal on test.meters function(avg(c8)) interval(5m)',-2147473406)  
 
     def test_flush_query(self):
-        tdSql.execute('insert into test.norm_tb (ts,c1_new,c2) values (now,1,2)(now+1s,2,3)(now+2s,2,3)(now+3s,2,3) (now+4s,1,2)(now+5s,2,3)(now+6s,2,3)(now+7s,2,3); select  /*+ skip_tsma()*/  avg(c1_new),avg(c2) from  test.norm_tb interval(10m);select  avg(c1_new),avg(c2) from  test.norm_tb interval(10m);select * from information_schema.ins_stream_tasks;', queryTimes=1)
+        tdSql.execute('insert into test.norm_tb (ts,c1,c2) values (now,1,2)(now+1s,2,3)(now+2s,2,3)(now+3s,2,3) (now+4s,1,2)(now+5s,2,3)(now+6s,2,3)(now+7s,2,3); select  /*+ skip_tsma()*/  avg(c1),avg(c2) from  test.norm_tb interval(10m);select  avg(c1),avg(c2) from  test.norm_tb interval(10m);select * from information_schema.ins_stream_tasks;', queryTimes=1)
         tdSql.execute('flush database test', queryTimes=1)
         tdSql.query('select count(*) from test.meters', queryTimes=1)
         tdSql.checkData(0,0,100000)

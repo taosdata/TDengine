@@ -1610,11 +1610,6 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttB
   doUnpinSttBlock(pSttBlockReader);
   if (hasVal) {
     SRowKey* pNext = getCurrentKeyInSttBlock(pSttBlockReader);
-
-    if (IS_VAR_DATA_TYPE(pSttKey->pks[0].type)) {
-      tsdbInfo("current pk:%s, next pk:%s", pSttKey->pks[0].pData, pNext->pks[0].pData);
-    }
-
     if (pkCompEx(pSttKey, pNext) != 0) {
       code = doAppendRowFromFileBlock(pReader->resBlockInfo.pResBlock, pReader, fRow->pBlockData, fRow->iRow);
       *copied = (code == TSDB_CODE_SUCCESS);
