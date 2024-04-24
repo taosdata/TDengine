@@ -320,7 +320,7 @@ async fn get_all_points(
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {
-            pattern = Some(String::from("*"));
+            pattern = None;
         }
         _ => {
             pattern = Some(String::from(".*"));
@@ -348,7 +348,7 @@ async fn get_all_points(
         Ok(data) => {
             let point_count = data.len();
             let data = match from.driver.as_str() {
-                "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
+                "pi" | "pibackfill" => data[0].id.clone(), // 临时使用 data.id 存放连接器所有返回数据
                 "opcda" => {
                     let mut result = get_opcda_csv_header(&lang, false);
 
@@ -495,14 +495,22 @@ pub async fn get_pi_default_config(
             .unwrap_or(SINGLE_COLUMN_MODEL);
         let is_af =
             dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
+        let category = match (model, is_af) {
+            (SINGLE_COLUMN_MODEL, false) => "-pp", // PI Archive 模式
+            (SINGLE_COLUMN_MODEL, true) => "-px",  // AF 单列模式
+            (MULTI_COLUMN_MODEL, true) => "-pt",   // 多列模式
+            _ => unreachable!("unsupported model: {}, when using PI Archive server", model),
+        };
+        
         let (pi_data, _) = get_all_points(
             params.from,
             params.via,
-            String::new(),
+            category.to_string(),
             controller.into_inner().as_ref(),
             None,
         )
         .await?;
+        tracing::debug!("pi_data: {}", pi_data);
         let config_data: String = match model {
             SINGLE_COLUMN_MODEL => {
                 let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();

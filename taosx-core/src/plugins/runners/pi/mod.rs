@@ -393,10 +393,25 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = tokio::process::Command::new(pi_exe_path()?);
-    let point_filter = if let Some(pf) = data.pattern.clone() {
-        pf
+
+    let filter_point = from_dsn.params.get("filter_point").map(|s| s.as_str());
+    let filter_element = from_dsn.params.get("filter_element").map(|s| s.as_str());
+    let filter_template = from_dsn.params.get("filter_template").map(|s| s.as_str());
+
+    let mode = data.categories.get(0).unwrap(); // -pp,-px,-pt
+    let (pattern, pattern_type) = if mode.eq("-pp") {
+        match filter_point {
+            Some(pattern) => (pattern, ""),
+            None => ("*", ""),
+        }
     } else {
-        String::from("*")
+        if let Some(pattern) = filter_element {
+            (pattern, "Element")
+        } else if let Some(pattern) = filter_template {
+            (pattern, "Template")
+        } else {
+            ("*", "Element")
+        }
     };
 
     let mut log_path = log_path();
@@ -414,8 +429,9 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let output = command
         .arg("-f")
         .arg(&config_path)
-        .arg("-p")
-        .arg(point_filter)
+        .arg(mode) // 搜索模式： -pp,-px,-pt
+        .arg(pattern) // 搜索条件: * 或其它
+        .arg(pattern_type) // 搜索类型: Element 或 Template
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -450,21 +466,14 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             )
         })?;
     tracing::debug!("pi dataset: {}", &json);
-    let map = json.as_object().unwrap();
-    let mut dataset = Vec::new();
-    data.categories.iter().for_each(|category| {
-        let result = if category.eq("PointList") {
-            map_dataset(map, "pointsName", "PointList")
-        } else if category.eq("TemplateForPIPoint") {
-            map_dataset(map, "templateName", "TemplateForPIPoint")
-        } else {
-            map_dataset(map, "templateName", "TemplateForAFElement")
-        };
-        extend_data_set(&mut dataset, &result, data.offset, data.limit);
-    });
-
-    temp_path.close()?;
-    Ok(dataset)
+    Ok(vec![DataSet {
+        id: format!("{}", &json),
+        name: None,
+        category: None,
+        r#type: None,
+        options: None,
+        format: None,
+    }])
 }
 
 fn map_dataset(map: &Map<String, Value>, key: &str, category: &str) -> Vec<DataSet> {
