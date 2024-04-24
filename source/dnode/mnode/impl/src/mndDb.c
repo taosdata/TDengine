@@ -713,11 +713,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
 
-  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
-    code = terrno;
-    goto _OVER;
-  }
-
   if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -754,6 +749,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     } else {  // TSDB_CODE_APP_ERROR
       goto _OVER;
     }
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
+    code = terrno;
+    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
