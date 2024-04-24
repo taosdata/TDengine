@@ -339,7 +339,7 @@ class TDTestCase(TBase):
             self.snapshotAgg()
             self.doAction()
             self.checkAggCorrect()
-            self.checkInsertCorrect(difCnt=self.childtable_count*999999)
+            self.checkInsertCorrect(difCnt=self.childtable_count*1499999)
             self.checkDelete()
             self.doAction()
 
