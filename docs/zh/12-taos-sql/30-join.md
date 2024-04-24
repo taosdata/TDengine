@@ -62,7 +62,7 @@ TDengine 作为时序数据库要求每个表（子表）中必须有主键时�
 
 ### Inner Join
 
-#### 含义
+#### 定义
 内连接 - 只有左右表中同时符合连接条件的数据才会被返回，可以视为两个表符合连接条件的数据的交集。
 
 #### 语法
@@ -92,7 +92,7 @@ SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts and a
 
 ### Left/Right Outer Join
 
-#### 含义
+#### 定义
 左/右（外）连接 - 既包含左右表同时符合连接条件的数据集合，也包括左/右表中不符合连接条件的数据集合。
 
 #### 语法
@@ -118,7 +118,7 @@ SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts 
 
 ### Left/Right Semi Join
 
-#### 含义
+#### 定义
 左/右半连接 - 通常表达的是 `IN``/EXISTS` 的含义，即对左/右表任意一条数据来说，只有当右/左表中存在任一符合连接条件的数据时才返回左/右表行数据。
 
 #### 语法
@@ -141,7 +141,7 @@ SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts and a.voltage > 
 
 ### Left/Right Anti-Semi Join
 
-#### 含义
+#### 定义
 左/右反连接 - 同左/右半连接的逻辑正好相反，通常表达的是 `NOT IN`/`NOT EXISTS` 的含义，即对左/右表任意一条数据来说，只有当右/左表中不存在任何符合连接条件的数据时才返回左/右表行数据。
 
 #### 语法
@@ -164,7 +164,7 @@ SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts and b.voltage > 
 
 ### left/Right ASOF Join
 
-#### 含义
+#### 定义
 左/右不完全匹配连接 - 不同于其他传统 Join 的完全匹配模式，ASOF Join 允许以指定的匹配模式进行不完全匹配，即按照主键时间戳最接近的方式进行匹配。
 
 #### 语法
@@ -207,7 +207,7 @@ SELECT a.ts, a.voltage, a.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a
 
 ### Left/Right Window Join
 
-#### 含义
+#### 定义
 左/右窗口连接 - 根据左/右表中每一行的主键时间戳和窗口边界构造窗口并据此进行窗口连接，支持窗口内进行投影、标量和聚合操作。
 
 #### 语法
@@ -244,7 +244,7 @@ SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WIN
 
 ### Full Outer Join
 
-#### 含义
+#### 定义
 全（外）连接 - 既包含左右表同时符合连接条件的数据集合，也包括左右表中不符合连接条件的数据集合。
 
 #### 语法
