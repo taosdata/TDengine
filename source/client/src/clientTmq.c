@@ -675,13 +675,13 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
 
   taosRLockLatch(&tmq->lock);
   int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
-  tscInfo("consumer:0x%" PRIx64 " start to commit offset for %d topics", tmq->consumerId, numOfTopics);
+  tscDebug("consumer:0x%" PRIx64 " start to commit offset for %d topics", tmq->consumerId, numOfTopics);
 
   for (int32_t i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
 
-    tscInfo("consumer:0x%" PRIx64 " commit offset for topics:%s, numOfVgs:%d", tmq->consumerId, pTopic->topicName, numOfVgroups);
+    tscDebug("consumer:0x%" PRIx64 " commit offset for topics:%s, numOfVgs:%d", tmq->consumerId, pTopic->topicName, numOfVgroups);
     for (int32_t j = 0; j < numOfVgroups; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
 
@@ -699,18 +699,18 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
           continue;
         }
 
-        tscInfo("consumer:0x%" PRIx64 " topic:%s on vgId:%d send commit msg success, send offset:%s committed:%s, ordinal:%d/%d",
+        tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d send commit msg success, send offset:%s committed:%s, ordinal:%d/%d",
                 tmq->consumerId, pTopic->topicName, pVg->vgId, offsetBuf, commitBuf, j + 1, numOfVgroups);
         pVg->offsetInfo.committedOffset = pVg->offsetInfo.endOffset;
       } else {
-        tscInfo("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, current:%" PRId64 ", ordinal:%d/%d",
+        tscDebug("consumer:0x%" PRIx64 " topic:%s vgId:%d, no commit, current:%" PRId64 ", ordinal:%d/%d",
                  tmq->consumerId, pTopic->topicName, pVg->vgId, pVg->offsetInfo.endOffset.version, j + 1, numOfVgroups);
       }
     }
   }
   taosRUnLockLatch(&tmq->lock);
 
-  tscInfo("consumer:0x%" PRIx64 " total commit:%d for %d topics", tmq->consumerId, pParamSet->waitingRspNum - 1, numOfTopics);
+  tscDebug("consumer:0x%" PRIx64 " total commit:%d for %d topics", tmq->consumerId, pParamSet->waitingRspNum - 1, numOfTopics);
 
   // request is sent
   if (pParamSet->totalRspNum != 0) {
@@ -826,7 +826,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
       offRows->offset = pVg->offsetInfo.beginOffset;
       char buf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
-      tscInfo("consumer:0x%" PRIx64 ",groupId:%s report offset, vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, tmq->groupId, offRows->vgId, buf, offRows->rows);
+      tscDebug("consumer:0x%" PRIx64 ",groupId:%s report offset, vgId:%d, offset:%s, rows:%"PRId64, tmq->consumerId, tmq->groupId, offRows->vgId, buf, offRows->rows);
     }
   }
   taosRUnLockLatch(&tmq->lock);
@@ -1362,7 +1362,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     if (code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
 //      taosMsleep(500);
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
-      tscDebug("consumer:0x%" PRIx64 " wait for the re-balance, wait for 500ms and set status to be RECOVER",
+      tscDebug("consumer:0x%" PRIx64 " wait for the rebalance, wait for 500ms and set status to be RECOVER",
                tmq->consumerId);
     } else if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
@@ -1573,7 +1573,7 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
 
   char vgKey[TSDB_TOPIC_FNAME_LEN + 22];
-  tscInfo("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
+  tscDebug("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
           tmq->consumerId, tmq->epoch, epoch, topicNumGet, topicNumCur);
   // todo extract method
   for (int32_t i = 0; i < topicNumCur; i++) {
@@ -1653,7 +1653,7 @@ int32_t askEpCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   if (head->epoch <= epoch) {
-    tscInfo("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, no need to update local ep",
+    tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, no need to update local ep",
              tmq->consumerId, head->epoch, epoch);
 
     if (tmq->status == TMQ_CONSUMER_STATUS__RECOVER) {
@@ -1887,7 +1887,7 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (taosGetTimestampMs() - pVg->emptyBlockReceiveTs < EMPTY_BLOCK_POLL_IDLE_DURATION) {  // less than 10ms
-        tscTrace("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
+        tscDebug("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
                  tmq->epoch, pVg->vgId);
         continue;
       }
@@ -1895,7 +1895,7 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       int32_t vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
-        tscTrace("consumer:0x%" PRIx64 " epoch %d wait poll-rsp, skip vgId:%d skip cnt %d", tmq->consumerId, tmq->epoch,
+        tscDebug("consumer:0x%" PRIx64 " epoch %d wait poll-rsp, skip vgId:%d skip cnt %d", tmq->consumerId, tmq->epoch,
                  pVg->vgId, vgSkipCnt);
         continue;
       }
@@ -2644,7 +2644,7 @@ void asyncAskEp(tmq_t* pTmq, __tmq_askep_fn_t askEpFn, void* param) {
   sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 
   SEpSet epSet = getEpSet_s(&pTmq->pTscObj->pAppInfo->mgmtEp);
-  tscInfo("consumer:0x%" PRIx64 " ask ep from mnode, reqId:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
+  tscDebug("consumer:0x%" PRIx64 " ask ep from mnode, reqId:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
