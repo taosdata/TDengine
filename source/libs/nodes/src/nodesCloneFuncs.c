@@ -300,6 +300,9 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
   COPY_SCALAR_FIELD(subType);
+  CLONE_NODE_FIELD(pWindowOffset);
+  CLONE_NODE_FIELD(pJLimit);
+  CLONE_NODE_FIELD(addPrimCond);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(isLowLevelJoin);
   CLONE_NODE_FIELD(pLeft);

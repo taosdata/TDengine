@@ -4394,7 +4394,6 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTable = (SJoinTableNode*)*pTable;
-      pJoinTable->pParent = pJoinParent;
       code = translateJoinTable(pCxt, pJoinTable);
       if (TSDB_CODE_SUCCESS == code) {
         code = translateTable(pCxt, &pJoinTable->pLeft, (SNode*)pJoinTable);
