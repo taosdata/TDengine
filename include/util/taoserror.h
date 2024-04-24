@@ -35,6 +35,7 @@ const char* terrstr();
 
 #define  ERR_MSG_LEN                        256
 
+char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())

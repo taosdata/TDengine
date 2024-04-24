@@ -32,6 +32,7 @@ static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
+char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
@@ -724,13 +725,7 @@ const char* tstrerror(int32_t err) {
     } else if (err < val) {
       e = mid;
     } else if (err == val) {
-      if(strlen(tsErrMsgDetail) == 0){
-        return errors[mid].str;
-      } else{
-        memset(tsErrMsgReturn, 0, ERR_MSG_LEN);
-        snprintf(tsErrMsgReturn, ERR_MSG_LEN, "%s,%s", errors[mid].str, tsErrMsgDetail);
-        return (const char*)tsErrMsgReturn;
-      }
+      return errors[mid].str;
     } else {
       break;
     }
