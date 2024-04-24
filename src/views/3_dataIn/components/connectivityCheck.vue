@@ -1,7 +1,7 @@
 <template>
 <div class="box-check-connectivity">
   <el-tooltip
-    placement="top" effect="light" :open-delay="0"
+    placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
   >
     <template slot="content">
       <div>{{ $t('dataIn.communityCheckTip') }}</div>
