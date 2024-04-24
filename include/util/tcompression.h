@@ -236,35 +236,25 @@ typedef struct {
   __data_compress_init      initFn;
   __data_compress_l1_fn_t   comprFn;
   __data_decompress_l1_fn_t decomprFn;
-} TCompressL1FnSet;
+} TCmprL1FnSet;
 
 typedef struct {
   char                     *name;
   __data_compress_init      initFn;
   __data_compress_l2_fn_t   comprFn;
   __data_decompress_l2_fn_t decomprFn;
-} TCompressL2FnSet;
+} TCmprL2FnSet;
 
-typedef struct {
-  int8_t                    type;
-  int8_t                    level;
-  __data_compress_init      initFn;
-  __data_compress_l1_fn_t   l1CmprFn;
-  __data_decompress_l1_fn_t l1DecmprFn;
-  __data_compress_l2_fn_t   l2CmprFn;
-  __data_decompress_l2_fn_t l2DecmprFn;
-} TCompressPara;
-
-typedef enum L1Compress {
+typedef enum {
   L1_UNKNOWN = 0,
   L1_SIMPLE_8B,
   L1_XOR,
   L1_RLE,
   L1_DELTAD,
   L1_DISABLED = 0xFF,
-} EL1CompressFuncType;
+} TCmprL1Type;
 
-typedef enum L2Compress {
+typedef enum {
   L2_UNKNOWN = 0,
   L2_LZ4,
   L2_ZLIB,
@@ -272,7 +262,20 @@ typedef enum L2Compress {
   L2_TSZ,
   L2_XZ,
   L2_DISABLED = 0xFF,
-} EL2ComressFuncType;
+} TCmprL2Type;
+
+typedef enum {
+  L2_LVL_NOCHANGE = 0,
+  L2_LVL_LOW,
+  L2_LVL_MEDIUM,
+  L2_LVL_HIGH,
+  L2_LVL_DISABLED = 0xFF,
+} TCmprLvlType;
+
+typedef struct {
+  char   *name;
+  uint8_t lvl[3];  // l[0] = 'low', l[1] = 'mid', l[2] = 'high'
+} TCmprLvlSet;
 
 int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level);
 

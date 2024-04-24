@@ -989,7 +989,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg) {
   }
 
   tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-  streamTaskPause(pMeta, pTask);
+  streamTaskPause(pTask);
 
   SStreamTask* pHistoryTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -1006,7 +1006,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg) {
 
     tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
 
-    streamTaskPause(pMeta, pHistoryTask);
+    streamTaskPause(pHistoryTask);
     streamMetaReleaseTask(pMeta, pHistoryTask);
   }
 

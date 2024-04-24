@@ -832,7 +832,7 @@ bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer)
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
-void    streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask);
+void    streamTaskPause(SStreamTask* pTask);
 void    streamTaskResume(SStreamTask* pTask);
 int32_t streamTaskStop(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
