@@ -501,7 +501,7 @@ pub async fn get_pi_default_config(
             (MULTI_COLUMN_MODEL, true) => "-pt",   // 多列模式
             _ => unreachable!("unsupported model: {}, when using PI Archive server", model),
         };
-        
+
         let (pi_data, _) = get_all_points(
             params.from,
             params.via,
@@ -510,7 +510,6 @@ pub async fn get_pi_default_config(
             None,
         )
         .await?;
-        tracing::debug!("pi_data: {}", pi_data);
         let config_data: String = match model {
             SINGLE_COLUMN_MODEL => {
                 let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();

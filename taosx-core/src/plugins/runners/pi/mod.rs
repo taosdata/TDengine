@@ -425,23 +425,22 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     tracing::info!("log file dir: {}", &log_path.display());
 
     let mut log_rotation = log_rotation(&log_path, 700);
-
-    let output = command
+    let cmd: &mut tokio::process::Command = command
         .arg("-f")
         .arg(&config_path)
         .arg(mode) // 搜索模式： -pp,-px,-pt
         .arg(pattern) // 搜索条件: * 或其它
-        .arg(pattern_type) // 搜索类型: Element 或 Template
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .await?;
-
+        .stderr(std::process::Stdio::piped());
+    if !pattern_type.is_empty() {
+        cmd.arg(pattern_type);
+    }
+    tracing::info!("{:?}", cmd);
+    let output = cmd.output().await?;
     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
-
     let mut lines = output.stdout.lines();
     let json: Value = lines
         .find_map(|line| {
@@ -474,38 +473,6 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         options: None,
         format: None,
     }])
-}
-
-fn map_dataset(map: &Map<String, Value>, key: &str, category: &str) -> Vec<DataSet> {
-    map.get(key)
-        .unwrap()
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| DataSet {
-            id: String::from(f.as_str().unwrap()),
-            name: None,
-            category: Some(String::from(category)),
-            r#type: None,
-            options: None,
-            format: None,
-        })
-        .collect_vec()
-}
-
-fn extend_data_set(
-    dataset: &mut Vec<DataSet>,
-    extended_vec: &Vec<DataSet>,
-    offset: usize,
-    limit: usize,
-) {
-    let page_index = offset * limit;
-    let len = extended_vec.len();
-    if len >= page_index + limit {
-        dataset.extend_from_slice(&extended_vec[page_index..page_index + limit]);
-    } else if len > page_index && len < page_index + limit {
-        dataset.extend_from_slice(&extended_vec[page_index..]);
-    }
 }
 
 #[allow(unused_variables, unreachable_code)]
