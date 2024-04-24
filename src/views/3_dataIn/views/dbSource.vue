@@ -49,7 +49,7 @@ export default {
       try {
         let result;
         if (this.$COMMUNITY) {
-          result = getDataSources();
+          result = getDataSources(this.$i18n.locale);
         } else {
           result = await getUIData();
         }

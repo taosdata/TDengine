@@ -209,7 +209,7 @@ export default {
   seconds: 's ',
   milliseconds: 'ms',
   systemPrompt: 'System Prompt',
-  communityContent: 'You are using the community version of TDengine, without database backup and recovery function, real-time database synchronization, without multi-level storage, zero code access to various data sources, and no permission management. TDengine Enterprise Edition solves these problems and also provides more features. Welcome to contact the TDengine team to inquire about TDengine Enterprise Edition.',
+  communityContent: 'You are using the community version of TDengine, some functionalities are not available, e.g. database backup and recovery, data replication, multi-level storage, data in for various kinds of data sources, access control, etc. TDengine Enterprise Edition provides these and some other functionalities to facilitate your business needs. Please feel free to contact the TDengine team to get access to TDengine Enterprise Edition.',
   dontDisturbMe: 'No more reminders within 7 days',
   statuses: {
     created: "Created",

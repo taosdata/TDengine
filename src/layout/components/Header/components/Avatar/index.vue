@@ -69,16 +69,17 @@
       },
     },
     methods: {
-      logout() {
-        // localStorage.removeItem('base_url')
-        // localStorage.removeItem('documentWebsite')
-        // localStorage.removeItem('supportWebsite')
-        // localStorage.removeItem('TDengine-Token')
-        // localStorage.removeItem('username')
-        // localStorage.removeItem('pwd')
-        // localStorage.removeItem('local_language')
-        // localStorage.removeItem('agent_version')
+      clearLocalStorage() {
+        const lang = localStorage.getItem("local_language");
+        const disturbTimeout = localStorage.getItem("modalLastCheckedTime");
         localStorage.clear()
+        lang && localStorage.setItem("local_language", lang);
+        disturbTimeout && localStorage.setItem("modalLastCheckedTime", disturbTimeout);
+      },
+
+      logout() {
+        this.clearLocalStorage();
+
         this.$store.dispatch("app/logout");
         this.$router.push({
           path:'/login'
