@@ -9,7 +9,7 @@ description: JOIN Description
 
 ### Driving Table
 
-The table used for driving Join queries which is the left table in the Left Join series and the right table in the Right Join series.
+The table used for driving Join queries is the left table in the Left Join series and the right table in the Right Join series.
 
 ### Join Conditions
 
@@ -66,7 +66,7 @@ The phrase "right/left table" means "right table" for Left Join and "left table"
 
 ### Inner Join
 
-#### Meaning
+#### Definition
 Only data from both left and right tables that meet the join conditions will be returned, which can be regarded as the intersection of data from two tables that meet the join conditions.
 
 #### Grammar
@@ -97,7 +97,7 @@ SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts and a
 ### Left/Right Outer Join
 
 
-#### Meaning
+#### Definition
 It returns data sets that meet the join conditions for both left and right tables, as well as data sets that do not meet the join conditions in the left/right tables.
 
 #### Grammar
@@ -106,7 +106,7 @@ SELECT ... FROM table_name1 LEFT|RIGHT [OUTER] JOIN table_name2 ON ... [WHERE ..
 ```
 
 #### Result set
-The result set of Inner Join + rows in the left/right table that do not meet the join conditions combines with null data (`NULL`) in the right/left table.
+The result set of Inner Join are rows in the left/right table that do not meet the join conditions combining with null data (`NULL`) in the right/left table.
 
 #### Scope
 Left/Right Outer Join are supported between super tables, normal tables, child tables, and subqueries.
@@ -123,7 +123,7 @@ SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts 
 
 ### Left/Right Semi Join
 
-#### Meaning
+#### Definition
 It usually expresses the meaning of `IN`/`EXISTS`, which means that for any data in the left/right table, only when there is any row data in the right/left table that meets the join conditions, will the left/right table row data be returned.
 
 #### Grammar
@@ -146,7 +146,7 @@ SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts and a.voltage > 
 
 ### Left/Right Anti-Semi Join
 
-#### Meaning
+#### Definition
 Opposite meaning to the Left/Right Semi Join. It usually expresses the meaning of `NOT IN`/`NOT EXISTS`, that is, for any row data in the left/right table, only will be returned when there is no row data that meets the join conditions in the right/left table.
 
 #### Grammar
@@ -169,7 +169,7 @@ SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts and b.voltage > 
 
 ### left/Right ASOF Join
 
-#### Meaning
+#### Definition
 Different from other traditional join's exact matching patterns, ASOF Join allows for incomplete matching in a specified matching pattern, that is, matching in the manner closest to the primary key timestamp.
 
 #### Grammar
@@ -213,7 +213,7 @@ SELECT a.ts, a.voltage, a.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a
 
 ### Left/Right Window Join
 
-#### Meaning
+#### Definition
 Construct windows based on the primary key timestamp of each row in the left/right table and the window boundary, and then perform window join accordingly, supporting projection, scalar, and aggregation operations within the window.
 
 #### Grammar
@@ -252,7 +252,7 @@ SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WIN
 
 ### Full Outer Join
 
-#### Meaning
+#### Definition
 It includes data sets that meet the join conditions for both left and right tables, as well as data sets that do not meet the join conditions in the left and right tables.
 
 #### Grammar
