@@ -553,10 +553,11 @@ _exit:
 }
 
 static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64_t size, int64_t chunksize) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  STFileOp op = {0};
-  int32_t  lcn = (size - 1) / chunksize + 1;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  STFileOp  op = {0};
+  int32_t   lcn = (size - 1) / chunksize + 1;
+  TdFilePtr fdFrom = NULL, fdTo = NULL;
 
   // remove old
   op = (STFileOp){
@@ -615,9 +616,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
   }
 
   // copy last chunk
-  TdFilePtr fdFrom = NULL, fdTo = NULL;
-  int64_t   lc_offset = (int64_t)(lcn - 1) * chunksize;
-  int64_t   lc_size = size - lc_offset;
+  int64_t lc_offset = (int64_t)(lcn - 1) * chunksize;
+  int64_t lc_size = size - lc_offset;
 
   dot = strchr(object_name, '.');
   if (!dot) {

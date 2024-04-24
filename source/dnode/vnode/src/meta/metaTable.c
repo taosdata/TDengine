@@ -281,10 +281,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   if (pReq->colCmpred) {
     TABLE_SET_COL_COMPRESSED(me.flags);
     me.colCmpr = pReq->colCmpr;
-  } else {
-    TABLE_SET_COL_COMPRESSED(me.flags);
-    // TODO(yihao)
-    // SETUP default compress algr
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -890,6 +886,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   metaReaderClear(&mr);
 
   bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
+
+  if (!sysTbl && ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0)) goto _err;
 
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;

@@ -184,15 +184,10 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
   ASSERT(pTask->status.downstreamReady == 0);
 
-  int32_t code = streamTaskStartCheckDownstream(&pTask->taskCheckInfo, pTask->id.idStr);
-  if (code != TSDB_CODE_SUCCESS) {
-    return;
-  }
-
-  streamTaskInitTaskCheckInfo(&pTask->taskCheckInfo, &pTask->outputInfo, taosGetTimestampMs());
-
   // serialize streamProcessScanHistoryFinishRsp
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->outputInfo.fixedDispatcher.nodeId;
     req.downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
@@ -200,14 +195,15 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
     streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
-            " window:%" PRId64 "-%" PRId64 " req:0x%" PRIx64,
+            " window:%" PRId64 "-%" PRId64 " reqId:0x%" PRIx64,
             pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId,
             pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
     streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId, &pTask->outputInfo.fixedDispatcher.epSet);
 
-    streamTaskStartMonitorCheckRsp(pTask);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
@@ -222,15 +218,14 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
       streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
 
-      stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
-              pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
+      stDebug("s-task:%s (vgId:%d) stage:%" PRId64
+              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, reqId:0x%" PRIx64,
+              pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
-
-    streamTaskStartMonitorCheckRsp(pTask);
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
-    streamTaskCompleteCheck(&pTask->taskCheckInfo, pTask->id.idStr);
+    streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
     doProcessDownstreamReadyRsp(pTask);
   }
 }
@@ -401,17 +396,24 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   }
 
   if (pRsp->status == TASK_DOWNSTREAM_READY) {
-    streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
+    int32_t code = streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
+    if (code != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_SUCCESS;
+    }
 
     if (left == 0) {
       doProcessDownstreamReadyRsp(pTask);  // all downstream tasks are ready, set the complete check downstream flag
-      streamTaskCompleteCheck(pInfo, id);
+      streamTaskStopMonitorCheckRsp(pInfo, id);
     } else {
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
               pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
     }
   } else {  // not ready, wait for 100ms and retry
-    streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
+    int32_t code = streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
+    if (code != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_SUCCESS;  // return success in any cases.
+    }
+
     if (pRsp->status == TASK_UPSTREAM_NEW_STAGE || pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
       if (pRsp->status == TASK_UPSTREAM_NEW_STAGE) {
         stError("s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%" PRId64

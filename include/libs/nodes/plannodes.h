@@ -153,6 +153,7 @@ typedef struct SJoinLogicNode {
   bool           seqWinGroup;
   bool           grpJoin;
   bool           hashJoinHint;
+  bool           batchScanHint;
 
   // FOR HASH JOIN
   int32_t        timeRangeTarget;  //table onCond filter
