@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy_metric::LegacyToTaosMetrics,
-    sync_super_table_schema, sync_super_table_schema_with_subs,
+    sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
     utils::constants::VERSION_3_3_0,
     Action,
@@ -226,32 +226,22 @@ async fn write_data(
                                 .await?
                                 .unwrap();
                             if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                            let from = source.get().await?;
-                            let target_opts = Default::default();
-                            sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
-                            // 临时代码，保证编译通过
-                            let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
-                            taos.write_raw_block(&raw)
-                                .await
-                                .context("Write raw block into target error")?;
-                        } else if let Some(meta) = raw.to_create() {
-                            if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                if err.to_string().contains("0x032C") {
-                                    tokio::time::sleep(Duration::from_nanos(1000)).await;
-                                } else {
-                                    bail!("create table error: {err}");
-                                }
-                            };
-                            taos.write_raw_block(&raw)
-                                .await
-                                .context("Write raw block into target error")?;
-                        } else {
-                            bail!(
-                                "write table failed: {err}, with block: {}",
-                                raw.pretty_format()
-                            );
-                        }
+                                let from = source.get().await?;
+                                let target_opts = Default::default();
+                                sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
+                                // 临时代码，保证编译通过
+                                let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                                sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
+                                taos.write_raw_block(&raw)
+                                    .await
+                                    .context("Write raw block into target error")?;
+                            } else {
+                                // normal table
+                                sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
+                                taos.write_raw_block(&raw)
+                                    .await
+                                    .context("Write raw block into target error")?;
+                            }
                         }
                         _ => {
                             bail!(
