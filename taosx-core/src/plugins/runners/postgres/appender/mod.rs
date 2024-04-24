@@ -21,7 +21,7 @@ pub async fn to_schema(row: PgRow) -> anyhow::Result<Schema> {
         let col_type = col.type_info().name();
         // arrow data type
         let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-        // modify the scale of numberic
+        // modify the scale of numeric
         if col_type == "NUMERIC" {
             let val = row
                 .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
@@ -61,7 +61,7 @@ pub async fn to_record_batches(
                 let col_type = col.type_info().name();
                 // arrow data type
                 let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of numberic
+                // modify the scale of numeric
                 if col_type == "NUMERIC" {
                     let val = row
                         .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
@@ -512,7 +512,7 @@ pub async fn to_record_batches(
                 let col_type = col.type_info().name();
                 // arrow data type
                 let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of numberic
+                // modify the scale of numeric
                 if col_type == "NUMERIC" {
                     let val = row
                         .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
