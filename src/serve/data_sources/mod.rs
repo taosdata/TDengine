@@ -624,16 +624,12 @@ async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
 pub(super) async fn download_pi_default_config(
     controller: Data<TaskControllerRef>,
     params: Query<GetPIDefaultConfigParams>,
-    req: HttpRequest,
 ) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
     match get_pi_default_config(controller, params).await {
-        Ok(file_name) => {
-            let named_file = NamedFile::open(file_name).unwrap();
-            Ok(named_file.into_response(&req))
-        }
+        Ok(file_name) => Ok(file_name),
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),

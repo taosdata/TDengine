@@ -14,6 +14,7 @@ use taosx_core::pi::PIElementModelConfig;
 use taosx_core::pi::PIPointModelConfig;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
+use tracing::instrument;
 use utoipa::*;
 
 use taosx_core::{list_datasets_from, DataSetsReq};
@@ -310,12 +311,6 @@ async fn get_all_points(
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
-    tracing::debug!(
-        "get_all_points: from: {}, via: {:?}, categories: {}",
-        from,
-        via,
-        categories
-    );
     let mut from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
@@ -473,18 +468,21 @@ pub struct GetPIDefaultConfigParams {
     update: Option<bool>,
 }
 
-const AF_SERVER_CONFIG: &str = "PI Data Archive and Asset Framework Server";
+const AF_SERVER_CONFIG: &str = "PI Data Archive and Asset Framework (AF) Server";
 const SINGLE_COLUMN_MODEL: &str = "single-column";
 const MULTI_COLUMN_MODEL: &str = "multi-column";
 
+#[instrument(skip_all)]
 pub async fn get_pi_default_config(
     controller: Data<TaskControllerRef>,
     params: Query<GetPIDefaultConfigParams>,
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
+    tracing::debug!("params: {:?}", params);
     let task_id = params.task_id.unwrap_or(0);
     let update = params.update.unwrap_or(false);
-    let file_name = format!("default_pi_task_{}_config.csv", task_id);
+    let current_time = chrono::Local::now().timestamp();
+    let file_name = format!("default_pi_task_{}_config_{}.csv", task_id, current_time);
     let exists = std::path::Path::new(file_name.as_str()).exists();
     if task_id == 0 || !exists || update {
         let dsn = params.from.clone().into_dsn()?;
@@ -495,22 +493,22 @@ pub async fn get_pi_default_config(
             .unwrap_or(SINGLE_COLUMN_MODEL);
         let is_af =
             dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
-        let category = match (model, is_af) {
+        let mode = match (model, is_af) {
             (SINGLE_COLUMN_MODEL, false) => "-pp", // PI Archive 模式
             (SINGLE_COLUMN_MODEL, true) => "-px",  // AF 单列模式
             (MULTI_COLUMN_MODEL, true) => "-pt",   // 多列模式
-            _ => unreachable!("unsupported model: {}, when using PI Archive server", model),
+            _ => unreachable!("unsupported model: {}, is_af: {}", model, is_af),
         };
-        
+        tracing::debug!("model: {}, mode: {}, is_af: {}", model, mode, is_af);
         let (pi_data, _) = get_all_points(
             params.from,
             params.via,
-            category.to_string(),
+            mode.to_string(),
             controller.into_inner().as_ref(),
             None,
         )
         .await?;
-        tracing::debug!("pi_data: {}", pi_data);
+
         let config_data: String = match model {
             SINGLE_COLUMN_MODEL => {
                 let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();
