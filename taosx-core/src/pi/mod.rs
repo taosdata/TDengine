@@ -28,7 +28,7 @@
 //! ```csv
 //! # There are a total of 2 super tables, 2 points
 //! SuperTable,pi_afenumerationvalue
-//! SubTable,$point_id
+//! SubTable,$point_name
 //! Filter,
 //! ts,KEY,TIMESTAMP,$ts
 //! value,COLUMN,NCHAR(100),$value
@@ -42,10 +42,11 @@
 //! future,TAG,NCHAR(100),$future
 //!
 //! SuperTable,meter_per_second_single
-//! SubTable,$point_id
+//! SubTable,$point_name
 //! ts,KEY,TIMESTAMP,$ts
 //! value,COLUMN,FLOAT,$value
 //! status,COLUMN,INT,$status
+//! path,TAG,NCHAR(100),$path
 //! tag,TAG,NCHAR(100),$tag
 //! descriptor,TAG,NCHAR(100),$descriptor
 //! exdesc,TAG,NCHAR(100),$exdesc
@@ -53,12 +54,10 @@
 //! pointsource,TAG,NCHAR(100),$pointsource
 //! step,TAG,NCHAR(100),$step
 //! future,TAG,NCHAR(100),$future
-//! templates,TAG,NCHAR(100),$template_
-//! elements,TAG,NCHAR(100),$elements
-//! paths,TAG,NCHAR(100),$path
+//! element_paths,TAG,NCHAR(100),$elements
 //!
-//! OSIDemo_GE001.Lost Revenue Rate,POINT,dollars_per_kilowatt_hour_ts_system.single_$/kwh,64685
-//! OSIDemo_GE001.Status Cause,POINT,pi_ts_osisoft.af.asset.afenumerationvalue,64682
+//! OSIDemo_GE001.Lost Revenue Rate,POINT,dollars_per_kilowatt_hour_ts_system.single_$/kwh
+//! OSIDemo_GE001.Status Cause,POINT,pi_ts_osisoft.af.asset.afenumerationvalue
 //!```
 //!
 //! 配置文件中的一个超级表定义将对应一个 taosx_core::plugins::transform::Parser 对象。
@@ -139,7 +138,7 @@ impl PIPointModelConfig {
                 let pi_type = template["Type"].as_str().unwrap();
                 let uom = template["UOM"].as_str();
                 let super_table_name = Self::get_point_mode_stable_name(pi_type, uom);
-                let sub_table_name_pattern = "$point_id".to_string();
+                let sub_table_name_pattern = "$point_name".to_string();
                 let tags = template["Tags"].as_object().unwrap();
                 let mut schema = vec![
                     // 三个固定列
@@ -162,6 +161,13 @@ impl PIPointModelConfig {
                         column_map: "$status".to_string(),
                     },
                 ];
+                // 追加一个固定 TAG
+                schema.push(SchemaRow {
+                    column_name: "path".to_string(), // 点的路径
+                    column_type: ColumnType::TAG,
+                    column_data_type: "NCHAR(100)".to_string(),
+                    column_map: "$path".to_string(),
+                });
                 // 追加内置 Tag 列
                 for (tag_name, _) in tags {
                     schema.push(SchemaRow {
@@ -171,25 +177,13 @@ impl PIPointModelConfig {
                         column_map: format!("${}", tag_name),
                     });
                 }
-                // 对于 AF 单列模式，追加 3 个固定 TAG 列
+                // 对于 AF 单列模式，追加 1 个固定 TAG 列
                 if is_af {
                     schema.push(SchemaRow {
-                        column_name: "templates".to_string(),
+                        column_name: "element_paths".to_string(),
                         column_type: ColumnType::TAG,
                         column_data_type: "NCHAR(100)".to_string(),
-                        column_map: "$templates".to_string(),
-                    });
-                    schema.push(SchemaRow {
-                        column_name: "elements".to_string(),
-                        column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(100)".to_string(),
-                        column_map: "$elements".to_string(),
-                    });
-                    schema.push(SchemaRow {
-                        column_name: "paths".to_string(),
-                        column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(100)".to_string(),
-                        column_map: "$path".to_string(),
+                        column_map: "$element_paths".to_string(),
                     });
                 }
                 SuperTableConfig {
@@ -224,13 +218,12 @@ impl PIPointModelConfig {
             .iter()
             .map(|point| {
                 let super_table = Self::get_point_mode_stable_name(
-                    point["Template"].as_str().unwrap(),
+                    point["Type"].as_str().unwrap(),
                     point["UOM"].as_str(),
                 );
                 PointRow {
                     point_name: point["Name"].as_str().unwrap().to_string(),
                     super_table: super_table,
-                    point_id: point["ID"].as_u64().unwrap(),
                 }
             })
             .collect();
@@ -274,8 +267,8 @@ impl Display for PIPointModelConfig {
         for point in &self.points {
             writeln!(
                 f,
-                "{},{},{},{}",
-                point.point_name, "POINT", point.super_table, point.point_id
+                "{},{},{}",
+                point.point_name, "POINT", point.super_table
             )?;
         }
         Ok(())
@@ -800,7 +793,6 @@ impl Into<Parser> for SuperTableConfig {
 pub struct PointRow {
     pub point_name: String,
     pub super_table: String,
-    pub point_id: u64,
 }
 
 impl PointRow {
@@ -809,16 +801,14 @@ impl PointRow {
         if parts[1] != "point" {
             return Err(anyhow::anyhow!("Invalid point row"));
         }
-        if parts.len() != 4 {
-            return Err(anyhow::anyhow!("Invalid point row, expect 4 columns"));
+        if parts.len() != 3 {
+            return Err(anyhow::anyhow!("Invalid point row, expect 3 columns"));
         }
         let point_name = parts[0].to_string();
         let super_table = parts[2].to_string();
-        let point_id = parts[3].parse::<u64>()?;
         Ok(PointRow {
             point_name,
             super_table,
-            point_id,
         })
     }
 }
