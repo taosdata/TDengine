@@ -386,7 +386,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int8_t         ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  if (pr->rowKey.numOfPKs > 0) {
+    ltype |= CACHESCAN_RETRIEVE_PK;
+  }
+
   STableKeyInfo* pTableList = pr->pTableList;
 
   // retrieve the only one last row of all tables in the uid list.
