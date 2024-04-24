@@ -872,6 +872,10 @@ pub async fn sync_super_table_schema(
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
+                0x03D3 => {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    continue;
+                }
                 0x2600 | 0x2601 => {
                     // 0x2600: Syntax error
                     // 0x2601: Incomplete SQL statement
@@ -1300,10 +1304,10 @@ fn transform_tbname_with_actions<'a>(
     Ok(new_table_name.into())
 }
 
-async fn sync_normal_table_schema(
+pub async fn sync_normal_table_schema(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
@@ -1355,7 +1359,7 @@ async fn sync_normal_table_schema(
 async fn sync_normal_table_schema_fallback(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {

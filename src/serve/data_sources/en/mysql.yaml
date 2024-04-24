@@ -66,7 +66,7 @@ groups:
             - big5
             - latin1
             - ascii
-      - name: ssl
+      - name: ssl_mode
         display: SSL Mode
         description: Set whether to negotiate a secure SSL TCP/IP connection with the server or what priority to negotiate with.
         placeholder: "Please select the SSL mode"

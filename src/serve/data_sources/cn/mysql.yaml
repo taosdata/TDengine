@@ -63,7 +63,7 @@ groups:
             - big5
             - latin1
             - ascii
-      - name: ssl
+      - name: ssl_mode
         display: SSL 模式
         description: 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。
         placeholder: "请选择 SSL 模式"

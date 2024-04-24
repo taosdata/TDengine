@@ -21,8 +21,8 @@ pub async fn to_schema(row: PgRow) -> anyhow::Result<Schema> {
         let col_type = col.type_info().name();
         // arrow data type
         let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-        // modify the scale of decimal
-        if col_type == "DECIMAL" {
+        // modify the scale of numeric
+        if col_type == "NUMERIC" {
             let val = row
                 .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
                 .unwrap()
@@ -61,8 +61,8 @@ pub async fn to_record_batches(
                 let col_type = col.type_info().name();
                 // arrow data type
                 let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
+                // modify the scale of numeric
+                if col_type == "NUMERIC" {
                     let val = row
                         .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
                         .unwrap()
@@ -512,8 +512,8 @@ pub async fn to_record_batches(
                 let col_type = col.type_info().name();
                 // arrow data type
                 let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
+                // modify the scale of numeric
+                if col_type == "NUMERIC" {
                     let val = row
                         .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
                         .unwrap()
@@ -595,13 +595,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_to_record_batch() {
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = PostgresQuery::try_new(config).await.unwrap();
 
         let rows = query
-            .select_all("select * from information_schema.tables")
+            .select_all("select * from public.pg_test1")
             .await
             .unwrap();
 

@@ -438,30 +438,69 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn = Dsn::from_str("postgres://postgres:123456@192.168.1.40:5433/postgres").unwrap();
+        // invalid port
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: postgres://postgres:123456@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
-        // let dsn = Dsn::from_str(
-        //     "postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=DISABLE",
-        // )
-        // .unwrap();
-        // let res = is_valid(&dsn).await;
-        // assert_eq!(false, res.valid);
-        // assert_eq!(false, res.support);
-        // assert_eq!("postgres", res.data_source);
-        // assert_eq!(
-        //     "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
-        //     res.message.unwrap()
-        // );
+        // user: test_ssl_only -- ssl_mode: Disable -- Access denied
+        let dsn = Dsn::from_str(
+            "postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=Disable",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("postgres", res.data_source);
+        assert_eq!(
+            "failed to connect to dsn: postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=Disable, cause: failed to connect to postgres, cause: error returned from database: no pg_hba.conf entry for host \"192.168.2.13\", user \"test_ssl_only\", database \"test_ssl_only\", no encryption",
+            res.message.unwrap()
+        );
 
-        let dsn = Dsn::from_str("postgres://postgres:123456@192.168.1.40:5432/postgres").unwrap();
+        // user: test_ssl_only -- ssl_mode: Require -- Access succ
+        let dsn = Dsn::from_str(
+            "postgres://test_ssl_only:taosdata@192.168.1.40:5432/test_ssl_only?ssl_mode=Require",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("postgres", res.data_source);
+
+        // user: test_disable_only -- ssl_mode: Require -- Access denied
+        let dsn = Dsn::from_str(
+            "postgres://test_disable_only:taosdata@192.168.1.40:5432/test_disable_only?ssl_mode=Require",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("postgres", res.data_source);
+        assert_eq!(
+            "failed to connect to dsn: postgres://test_disable_only:taosdata@192.168.1.40:5432/test_disable_only?ssl_mode=Require, cause: failed to connect to postgres, cause: error returned from database: no pg_hba.conf entry for host \"192.168.2.13\", user \"test_disable_only\", database \"test_disable_only\", SSL encryption",
+            res.message.unwrap()
+        );
+
+        // user: test_disable_only -- ssl_mode: Disable -- Access succ
+        let dsn = Dsn::from_str(
+            "postgres://test_disable_only:taosdata@192.168.1.40:5432/test_disable_only?ssl_mode=Disable",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("postgres", res.data_source);
+
+        // normal
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);

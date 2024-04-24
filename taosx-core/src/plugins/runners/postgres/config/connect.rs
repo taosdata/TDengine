@@ -81,7 +81,7 @@ impl ConnectConfig {
 
     fn parse_application_name(dsn: &Dsn) -> anyhow::Result<String> {
         dsn.params
-            .get("applicationName")
+            .get("application_name")
             .map(|application_name| application_name.to_lowercase().clone())
             .unwrap_or_else(|| "".to_string())
             .parse()
