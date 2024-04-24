@@ -108,6 +108,16 @@ impl OpcModelConfig {
 
         let stable = point_config.stable.as_ref();
         let tbname = point_config.code.as_str();
+
+        if let Some(stable) = stable {
+            if stable.contains("{type}") {
+                return Ok(());
+            }
+        }
+        if tbname.contains("{id}") || tbname.contains("{ns}") || tbname.contains("{tag_name}") {
+            return Ok(());
+        }
+
         let value_col = table_config
             .column_config(ColumnConfig::VALUE)
             .map(|v| v.alias.as_ref())
@@ -120,7 +130,9 @@ impl OpcModelConfig {
                     if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
                         if v_col.alias.as_ref() == value_col {
                             bail!(
-                                "point_id: {} and point_id: {} have same stable and tbname, value_col should be different",
+                                "point_id: {} and point_id: {} have same stable: {} and tbname: {}, value_col should be different",
+                                stable.unwrap_or(&"None".to_string()),
+                                tbname,
                                 id,
                                 point_id,
                             );
