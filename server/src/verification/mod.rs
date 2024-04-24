@@ -8,6 +8,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
 
 pub fn sign_string(input: &str) -> String {
     let mut hasher = Sha1::new();
@@ -139,7 +140,9 @@ pub async fn send_verification_code_with_cloud_open_api(
     // log::debug!("send_verification_code === url: {}", url);
     log::debug!("send_verification_code json_body: {}", json_body);
 
-    let http_client = reqwest::Client::new();
+    let http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let response = http_client
         .post(url)
         .header(

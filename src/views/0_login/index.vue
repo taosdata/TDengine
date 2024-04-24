@@ -460,8 +460,14 @@ export default {
               this.buttonTextOfGetVerificationCode = this.$t('register.regetVerificationCode');
             }
           }, 1000)
-        } else if (result && result.code == 400) {
-          this.$error(this.$t('register.errors.' + result.msg));
+        } else if (result) {
+          if (result.code == 400) {
+            this.$error(this.$t("register.errors." + result.msg));
+          } else if (result.code == 501) {
+            this.$error(this.$t("register.errors.network"))
+          } else {
+            this.$error(result.msg)
+          }
         }
       })
     },

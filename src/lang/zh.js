@@ -900,6 +900,7 @@ export default {
       "verificationCodeError": "验证码错误，请重新输入",
       "captchaInputError": "图形验证码错误，请重新输入",
       "verificationCodeInputError": "验证码错误，请重新输入",
+      "network": "explorer server 所在服务器无法访问互联网，请确认",
     },
     success: {
       "verificationCodeSend": "验证码发送成功",

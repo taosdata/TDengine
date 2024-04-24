@@ -1022,9 +1022,10 @@ export default {
       "verificationCodeError": "Verification code error, please re-enter",
       "captchaInputError": "captcha input error, please re-enter",
       "verificationCodeInputError": "Verification code error, please re-enter",
+      "network": "The explorer server cannot access the Internet.",
     },
     success: {
-      "verificationCodeSend": "The verification code has been sent to your phone, please check",
+      "verificationCodeSend": "The verification code has been sent successfully.",
       "registerSuccess": "Registration successful, please log in using the database account",
     }
   },
