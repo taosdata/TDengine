@@ -281,7 +281,7 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
             let val = col.get::<NaiveDate>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
+                Ok(val) => Ok(json!(format!("{}", val))),
             }
         }
         OracleType::Timestamp(_) | OracleType::TimestampTZ(_) | OracleType::TimestampLTZ(_) => {
@@ -295,7 +295,7 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
             let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
+                Ok(val) => Ok(json!(format!("{}", val))),
             }
         }
         // 大文本
@@ -303,7 +303,7 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
             let val = col.get::<Vec<u8>>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
+                Ok(val) => Ok(json!(format!("{}", val))),
             }
         }
         OracleType::BFILE | OracleType::RefCursor => {
@@ -317,7 +317,7 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
             let val = col.get::<bool>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
+                Ok(val) => Ok(json!(format!("{}", val))),
             }
         }
         OracleType::Object(_) | OracleType::Long | OracleType::LongRaw | OracleType::Json => {

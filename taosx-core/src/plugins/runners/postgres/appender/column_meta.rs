@@ -101,7 +101,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "MONEY" => Ok(DataType::Utf8),
         "LTREE" => Ok(DataType::Utf8),
         "LQUERY" => Ok(DataType::Utf8),
-        "TIMETZ" => Ok(DataType::Utf8),
+        "TIMETZ" => Ok(DataType::Time32(TimeUnit::Second)),
         "INET" | "CIDR" => Ok(DataType::Utf8),
         "MACADDR" => Ok(DataType::Utf8),
         // 其他
@@ -437,7 +437,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("TIMETZ".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::Time32(TimeUnit::Second)
         );
         assert_eq!(
             to_arrow_data_type("INET".to_string()).unwrap(),

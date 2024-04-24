@@ -4,6 +4,7 @@ use std::time::Duration;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use sqlx::{Column, Row, TypeInfo};
+use sqlx_postgres::types::PgTimeTz;
 use sqlx_postgres::PgRow;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
@@ -264,7 +265,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<bool>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // 字符
@@ -331,7 +332,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // 日期时间
@@ -339,14 +340,14 @@ fn generate_json_value(
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "TIME" => {
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "TIMESTAMP" => {
@@ -373,15 +374,18 @@ fn generate_json_value(
         }
         // 二进制数组
         "BIT" | "VARBIT" => {
-            // TODO
-            Ok(json!(""))
+            let val = row.try_get::<Option<bit_vec::BitVec>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
+            }
         }
         // json
         "JSON" | "JSONB" => {
             let val = row.try_get::<Option<serde_json::Value>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // Others
@@ -409,8 +413,11 @@ fn generate_json_value(
             Ok(json!(""))
         }
         "TIMETZ" => {
-            // TODO
-            Ok(json!(""))
+            let val = row.try_get::<Option<PgTimeTz>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(format!("{:?} {:?}", val.time, val.offset))),
+            }
         }
         "INET" | "CIDR" => {
             // TODO
@@ -509,7 +516,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test?sql=select * from public.pg_test2 where ttimezone >= ${start} and ttimezone < ${end}&start=2024-01-01T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test?sql=select * from public.pg_test3 where ttimezone >= ${start} and ttimezone < ${end}&start=2024-01-01T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;

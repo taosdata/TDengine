@@ -9,6 +9,7 @@ use arrow_schema::DECIMAL256_MAX_PRECISION;
 use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use sqlx::{Column, Row, TypeInfo};
+use sqlx_postgres::types::PgTimeTz;
 use sqlx_postgres::PgRow;
 
 pub mod column_meta;
@@ -373,12 +374,23 @@ pub async fn to_record_batches(
                 }
                 // 二进制数组
                 "BIT" | "VARBIT" => {
-                    // TODO
-                    builders[col_cidx]
-                        .as_any_mut()
-                        .downcast_mut::<array::StringBuilder>()
-                        .unwrap()
-                        .append_null();
+                    let val = row.try_get::<Option<bit_vec::BitVec>, _>(col_cidx)?;
+                    match val {
+                        None => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Some(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_value(format!("{:?}", val));
+                        }
+                    }
                 }
                 // json
                 "JSON" | "JSONB" => {
@@ -454,12 +466,29 @@ pub async fn to_record_batches(
                         .append_null();
                 }
                 "TIMETZ" => {
-                    // TODO
-                    builders[col_cidx]
-                        .as_any_mut()
-                        .downcast_mut::<array::StringBuilder>()
-                        .unwrap()
-                        .append_null();
+                    let val = row.try_get::<Option<PgTimeTz>, _>(col_cidx)?;
+                    match val {
+                        None => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::Time32SecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Some(val) => {
+                            let time = DateTime::parse_from_rfc3339(
+                                format!("2000-01-01T{}{}", val.time, val.offset).as_str(),
+                            )
+                            .unwrap()
+                            .with_timezone(&Utc)
+                            .time();
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::Time32SecondBuilder>()
+                                .unwrap()
+                                .append_value(time.num_seconds_from_midnight() as i32);
+                        }
+                    }
                 }
                 "INET" | "CIDR" => {
                     // TODO

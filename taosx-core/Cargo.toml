@@ -126,7 +126,7 @@ sqlx = { version = "0.7.4", features = ["mysql", "runtime-tokio", "chrono", "big
 bigdecimal = "0.3.0"
 bit-vec = "0.6.3"
 uuid = "1.4.0"
-sqlx-postgres = { version = "0.7.4", features = ["chrono", "bigdecimal"] }
+sqlx-postgres = { version = "0.7.4", features = ["chrono", "bigdecimal", "bit-vec"] }
 oracle = { version = "0.5", features = ["chrono"] }
 
 [target.'cfg(windows)'.dependencies]

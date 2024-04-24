@@ -350,7 +350,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // 日期时间
@@ -358,14 +358,14 @@ fn generate_json_value(
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "TIME" => {
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "DATETIME" | "TIMESTAMP" => {
