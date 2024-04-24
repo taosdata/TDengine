@@ -43,6 +43,10 @@ void destroyThreadLocalGeosCtx() {
     tlGeosCtx.WKBWriter = NULL;
   }
 
+  if (tlGeosCtx.WKTRegex) {
+    destroyRegexes(tlGeosCtx.WKTRegex, tlGeosCtx.WKTMatchData);
+  }
+
   if(tlGeosCtx.handle) {
     GEOS_finish_r(tlGeosCtx.handle);
     tlGeosCtx.handle = NULL;
