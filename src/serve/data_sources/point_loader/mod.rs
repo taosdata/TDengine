@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use taos::IntoDsn;
+use taosx_core::pi::PIElementModelConfig;
+use taosx_core::pi::PIPointModelConfig;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
@@ -464,19 +466,56 @@ fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GeneratePIConfigParams {
+pub struct GetPIDefaultConfigParams {
     from: String,
     via: Option<i64>,
     task_id: Option<i64>,
     update: Option<bool>,
 }
-pub async fn create_pi_default_config(
-    _controller: Data<TaskControllerRef>,
-    params: Query<GeneratePIConfigParams>,
+
+const AF_SERVER_CONFIG: &str = "PI Data Archive and Asset Framework Server";
+const SINGLE_COLUMN_MODEL: &str = "single-column";
+const MULTI_COLUMN_MODEL: &str = "multi-column";
+
+pub async fn get_pi_default_config(
+    controller: Data<TaskControllerRef>,
+    params: Query<GetPIDefaultConfigParams>,
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
-    let file_name = format!("default_pi_task_{}_config.csv", params.task_id.unwrap_or(0));
-    let mut file = std::fs::File::create(file_name.as_str())?;
-    file.write_all(b"hello word")?;
-    Ok((file_name))
+    let task_id = params.task_id.unwrap_or(0);
+    let update = params.update.unwrap_or(false);
+    let file_name = format!("default_pi_task_{}_config.csv", task_id);
+    let exists = std::path::Path::new(file_name.as_str()).exists();
+    if task_id == 0 || !exists || update {
+        let dsn = params.from.clone().into_dsn()?;
+        let model = dsn
+            .params
+            .get("model")
+            .map(|s| s.as_str())
+            .unwrap_or(SINGLE_COLUMN_MODEL);
+        let is_af =
+            dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
+        let (pi_data, _) = get_all_points(
+            params.from,
+            params.via,
+            String::new(),
+            controller.into_inner().as_ref(),
+            None,
+        )
+        .await?;
+        let config_data: String = match model {
+            SINGLE_COLUMN_MODEL => {
+                let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();
+                config.to_string()
+            }
+            MULTI_COLUMN_MODEL => {
+                let config = PIElementModelConfig::from_json(pi_data.as_str()).unwrap();
+                config.to_string()
+            }
+            _ => unimplemented!(),
+        };
+        std::fs::write(file_name.as_str(), config_data).unwrap();
+    }
+
+    return Ok(file_name);
 }

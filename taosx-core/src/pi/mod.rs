@@ -75,12 +75,13 @@ use crate::{
         Parser, TableOptions,
     },
 };
-use anyhow::Ok;
 use linked_hash_map::LinkedHashMap;
-use std::fmt::Display;
+use std::fmt::{self, Display};
+use std::iter::{Peekable, SkipWhile};
+use std::str::Lines;
 
 /// 单列模型配置对象
-/// 从配置对象可以生成配置文件，反之亦然。
+/// 从配置对象可以生成 csv 配置文件，反之亦然。
 /// 从配置对象也可以生成 transform 相关对象。
 pub struct PIPointModelConfig {
     pub super_tables: Vec<SuperTableConfig>,
@@ -88,11 +89,35 @@ pub struct PIPointModelConfig {
 }
 
 impl PIPointModelConfig {
-    /// 解析单列模型的数据，生成单列模型配置对象
+    pub fn to_csv(&self) -> String {
+        format!("{}", self)
+    }
+
+    /// 从 CSV 配置文件解析单列模型的数据，生成单列模型配置对象
+    pub fn from_csv(file_name: &str) -> anyhow::Result<Self> {
+        let content = std::fs::read_to_string(file_name)?;
+        let (super_table_csv_lines, point_lines) = split_csv_config(content, ",point,");
+        let mut super_tables = Vec::<SuperTableConfig>::new();
+        for csv in super_table_csv_lines {
+            let super_table = SuperTableConfig::from_csv(csv)?;
+            super_tables.push(super_table);
+        }
+        let mut points = Vec::<PointRow>::new();
+        for csv in point_lines {
+            let point = PointRow::from_csv(csv)?;
+            points.push(point);
+        }
+        Ok(PIPointModelConfig {
+            super_tables,
+            points,
+        })
+    }
+
+    /// 从连接器返回的单列模型的 JSON 数据，生成单列模型配置对象
     /// # Arguments
     /// * `point_data` - 从 PI 连接返回的点位数据
     /// * `is_af` - 是否是 AF 单列模式
-    fn from_point_data(point_data: &str, is_af: bool) -> anyhow::Result<Self> {
+    pub fn from_json(point_data: &str, is_af: bool) -> anyhow::Result<Self> {
         let point_data: serde_json::Value = serde_json::from_str(point_data)?;
         let super_tables = Self::parse_super_tables(&point_data, is_af)?;
         let points = Self::parse_points(&point_data)?;
@@ -152,7 +177,7 @@ impl PIPointModelConfig {
                         column_name: "templates".to_string(),
                         column_type: ColumnType::TAG,
                         column_data_type: "NCHAR(100)".to_string(),
-                        column_map: "$template_".to_string(),
+                        column_map: "$templates".to_string(),
                     });
                     schema.push(SchemaRow {
                         column_name: "elements".to_string(),
@@ -185,7 +210,7 @@ impl PIPointModelConfig {
         let pi_type = pi_type.to_lowercase();
         if let Some(uom) = uom {
             let uom = uom.to_lowercase();
-            let uom = uom.replace(" ", "_");
+            let uom = uom.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
             format!("{}_{}", uom, pi_type)
         } else {
             format!("pi_{}", pi_type)
@@ -213,47 +238,47 @@ impl PIPointModelConfig {
     }
 }
 
-impl ToString for PIPointModelConfig {
-    fn to_string(&self) -> String {
-        let mut result = String::new();
-        result.push_str(&format!(
-            "# There are a total of {} super tables, {} points\n",
+impl Display for PIPointModelConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "# There are a total of {} super tables, {} points",
             self.super_tables.len(),
             self.points.len()
-        ));
+        )?;
         for super_table in &self.super_tables {
-            result.push_str(&format!("\nSuperTable,{}\n", super_table.super_table_name));
-            result.push_str(&format!(
-                "SubTable,{}\n",
-                super_table.sub_table_name_pattern
-            ));
+            writeln!(f, "\nSuperTable,{}", super_table.super_table_name)?;
+            writeln!(f, "SubTable,{}", super_table.sub_table_name_pattern)?;
             if let Some(template_name) = &super_table.template_name {
-                result.push_str(&format!("Template,{}\n", template_name));
+                writeln!(f, "Template,{}", template_name)?;
             }
 
             if let Some(filter) = &super_table.filter {
-                result.push_str(&format!("Filter,{}\n", filter));
+                writeln!(f, "Filter,{}", filter)?;
             } else {
-                result.push_str("Filter,\n");
+                writeln!(f, "Filter,")?;
             }
 
             for schema_row in &super_table.schema {
-                result.push_str(&format!(
-                    "{},{},{},{}\n",
+                writeln!(
+                    f,
+                    "{},{},{},{}",
                     schema_row.column_name,
                     schema_row.column_type,
                     schema_row.column_data_type,
                     schema_row.column_map
-                ));
+                )?;
             }
         }
-        result.push_str("\n");
+        writeln!(f, "\n")?;
         for point in &self.points {
-            result.push_str(point.point_name.as_str());
-            result.push_str(&format!(",POINT,"));
-            result.push_str(&format!("{},{}\n", point.super_table, point.point_id));
+            writeln!(
+                f,
+                "{},{},{},{}",
+                point.point_name, "POINT", point.super_table, point.point_id
+            )?;
         }
-        result
+        Ok(())
     }
 }
 
@@ -266,10 +291,36 @@ pub struct PIElementModelConfig {
 }
 
 impl PIElementModelConfig {
+    pub fn to_csv(&self) -> String {
+        format!("{}", self)
+    }
+
+    /// 从 CSV 配置文件解析多列模型的数据，生成多列模型配置对象
+    pub fn from_csv(file_name: &str) -> anyhow::Result<Self> {
+        let content = std::fs::read_to_string(file_name)?;
+        // 第一步：将配置文件切分成不同的超级表定义和元素列表
+        let (super_table_csv_lines, element_lines) = split_csv_config(content, ",element,");
+        // 第二步：将第一步切分好的各个部分逐个解析成对象
+        let mut super_tables = Vec::<SuperTableConfig>::new();
+        for csv in super_table_csv_lines {
+            let super_table = SuperTableConfig::from_csv(csv)?;
+            super_tables.push(super_table);
+        }
+        let mut elements = Vec::<ElementRow>::new();
+        for csv in element_lines {
+            let element = ElementRow::from_csv(csv)?;
+            elements.push(element);
+        }
+        Ok(PIElementModelConfig {
+            super_tables,
+            elements,
+        })
+    }
+
     /// 解析多列模型的数据，生成多列模型配置对象
     /// # Arguments
     /// * `element_data` - 从 PI 连接返回的元素数据
-    fn from_element_data(element_data: &str) -> anyhow::Result<Self> {
+    pub fn from_json(element_data: &str) -> anyhow::Result<Self> {
         let element_data: serde_json::Value = serde_json::from_str(element_data)?;
         let mut super_tables = Self::parse_super_tables(&element_data)?;
         let mut elements: Vec<ElementRow> = Self::parse_elements(&element_data)?;
@@ -354,14 +405,16 @@ impl PIElementModelConfig {
     /// Attribute 名字转列名
     #[inline]
     fn attribute_name_to_column_name(attribute_name: &str) -> String {
-        let attribute_name = attribute_name.to_lowercase();
-        attribute_name.replace(" ", "_")
+        let column_name = attribute_name.to_lowercase();
+        column_name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
     }
 
     /// 模板名转超级表名
     #[inline]
     fn template_name_to_super_table_name(template_name: &str) -> String {
-        template_name.to_lowercase().replace(" ", "_")
+        template_name
+            .to_lowercase()
+            .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
     }
 
     #[inline]
@@ -376,8 +429,8 @@ impl PIElementModelConfig {
                 ElementRow {
                     element_name: element["Name"].as_str().unwrap().to_string(),
                     super_table: super_table,
-                    path: element["Path"].as_str().unwrap().to_string(),
                     element_id: element["ID"].as_str().unwrap().to_string(),
+                    path: element["Path"].as_str().map(|s| s.to_string()),
                 }
             })
             .collect();
@@ -396,13 +449,13 @@ impl PIElementModelConfig {
             let element_id = element["ID"].as_str().unwrap();
             let super_table_name =
                 Self::template_name_to_super_table_name(element_name) + "_" + element_id;
-            let path = element["Path"].as_str().unwrap();
+            let path = element["Path"].as_str().map(|s| s.to_string());
             // 添加到 Element列表
             elements.push(ElementRow {
                 element_name: element_name.to_string(),
                 super_table: super_table_name.clone(),
-                path: path.to_string(),
                 element_id: element_id.to_string(),
+                path,
             });
             let mut schema: Vec<SchemaRow> = Vec::new();
             // 添加主键列
@@ -446,50 +499,110 @@ impl PIElementModelConfig {
     }
 }
 
-impl ToString for PIElementModelConfig {
-    fn to_string(&self) -> String {
-        let mut result = String::new();
-        result.push_str(&format!(
-            "# There are a total of {} super tables, {} elements\n",
+/// 解析配置文件，将其切分成超级表定义和元素列表
+/// # Arguments
+/// * `content` - 配置文件内容
+/// * `object_filter` - 用于过滤出对象列表的关键字，对于单列模型是 "point"，对于多列模型是 "element"
+/// # Returns
+/// * 返回一个元组，第一个元素是超级表定义列表，第二个元素是对象列表
+fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<String>) {
+    let content = content.to_lowercase();
+    let lines: Lines<'_> = content.lines();
+    let lines: SkipWhile<Lines, _> =
+        lines.skip_while(|line| line.trim().is_empty() || line.trim().starts_with('#'));
+    let mut super_table_csv_lines = Vec::<String>::new();
+    let mut object_lines = Vec::<String>::new();
+    let mut current_super_table = String::new();
+    let mut peeker: Peekable<SkipWhile<Lines, _>> = lines.peekable();
+    loop {
+        let line = peeker.next();
+        let line = line.map(|line| line.trim());
+        match line {
+            Some(line) => {
+                // 非 elemnt 即 supertable
+                if line.contains(object_filter) {
+                    object_lines.push(line.to_string());
+                } else if !line.is_empty() {
+                    current_super_table.push_str(line);
+                    current_super_table.push('\n');
+                }
+                // 观察下一行，判断当前的 suptertable 是否结束
+                let next_line = peeker.peek();
+                let next_line = next_line.map(|line| line.trim());
+                match next_line {
+                    Some(next_line) => {
+                        if next_line.starts_with("supertable") {
+                            current_super_table.pop(); // remove the last '\n'
+                            super_table_csv_lines.push(current_super_table);
+                            current_super_table = String::new();
+                        }
+                    }
+                    None => {
+                        super_table_csv_lines.push(current_super_table);
+                        break;
+                    }
+                }
+            }
+            None => {
+                unreachable!();
+            }
+        }
+    }
+    (super_table_csv_lines, object_lines)
+}
+impl Display for PIElementModelConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "# There are a total of {} super tables, {} elements",
             self.super_tables.len(),
             self.elements.len()
-        ));
+        )?;
         for super_table in &self.super_tables {
-            result.push_str(&format!("\nSuperTable,{}\n", super_table.super_table_name));
-            result.push_str(&format!(
-                "SubTable,{}\n",
-                super_table.sub_table_name_pattern
-            ));
+            writeln!(f, "\nSuperTable,{}", super_table.super_table_name)?;
+            writeln!(f, "SubTable,{}", super_table.sub_table_name_pattern)?;
             if let Some(template_name) = &super_table.template_name {
-                result.push_str(&format!("Template,{}\n", template_name));
+                writeln!(f, "Template,{}", template_name)?;
             }
 
             if let Some(filter) = &super_table.filter {
-                result.push_str(&format!("Filter,{}\n", filter));
+                writeln!(f, "Filter,{}", filter)?;
             } else {
-                result.push_str("Filter,\n");
+                writeln!(f, "Filter,")?;
             }
 
             for schema_row in &super_table.schema {
-                result.push_str(&format!(
-                    "{},{},{},{}\n",
+                writeln!(
+                    f,
+                    "{},{},{},{}",
                     schema_row.column_name,
                     schema_row.column_type,
                     schema_row.column_data_type,
                     schema_row.column_map
-                ));
+                )?;
             }
         }
-        result.push_str("\n");
+        writeln!(f)?;
         for element in &self.elements {
-            result.push_str(element.element_name.as_str());
-            result.push_str(&format!(",ELEMENT,"));
-            result.push_str(&format!(
-                "{},{},{}\n",
-                element.super_table, element.path, element.element_id
-            ));
+            if element.path.is_some() {
+                writeln!(
+                    f,
+                    "{},{},{},{},{}",
+                    element.element_name,
+                    "ELEMENT",
+                    element.super_table,
+                    element.element_id,
+                    element.path.as_ref().unwrap()
+                )?;
+            } else {
+                writeln!(
+                    f,
+                    "{},{},{},{}",
+                    element.element_name, "ELEMENT", element.super_table, element.element_id,
+                )?;
+            }
         }
-        result
+        Ok(())
     }
 }
 
@@ -557,6 +670,67 @@ pub struct SuperTableConfig {
 }
 
 impl SuperTableConfig {
+    fn from_csv(csv: String) -> anyhow::Result<Self> {
+        let lines = csv.lines();
+        let mut super_table_name: Option<String> = None;
+        let mut sub_table_name_pattern: Option<String> = None;
+        let mut template_name: Option<String> = None;
+        let mut filter: Option<String> = None;
+        let mut schema: Vec<SchemaRow> = Vec::<SchemaRow>::new();
+        for line in lines {
+            let parts = line.split(',').collect::<Vec<&str>>();
+            match parts[0] {
+                "supertable" => {
+                    super_table_name = Some(parts[1].to_string());
+                }
+                "subtable" => {
+                    sub_table_name_pattern = Some(parts[1].to_string());
+                }
+                "template" => {
+                    template_name = Some(parts[1].to_string());
+                }
+                "filter" => {
+                    filter = Some(parts[1].to_string());
+                }
+                _ => {
+                    if parts.len() < 4 {
+                        return Err(anyhow::anyhow!("Invalid schema row, expect 4 columns: {}", line));
+                    } 
+                    let column_name = parts[0].to_string();
+                    let column_type = match parts[1] {
+                        "tag" => ColumnType::TAG,
+                        "column" => ColumnType::COLUMN,
+                        "key" => ColumnType::Key,
+                        _ => return Err(anyhow::anyhow!("Invalid column type {}", parts[1])),
+                    };
+                    let column_data_type = parts[2].to_string();
+                    let column_map = parts[3].to_string();
+                    schema.push(SchemaRow {
+                        column_name,
+                        column_type,
+                        column_data_type,
+                        column_map,
+                    });
+                }
+            }
+        }
+        if super_table_name.is_none() {
+            return Err(anyhow::anyhow!("SuperTable name is required"));
+        }
+        if sub_table_name_pattern.is_none() {
+            return Err(anyhow::anyhow!("SubTable name pattern is required"));
+        }
+        let super_table_name = super_table_name.unwrap();
+        let sub_table_name_pattern = sub_table_name_pattern.unwrap();
+        Ok(SuperTableConfig {
+            super_table_name,
+            sub_table_name_pattern,
+            template_name,
+            filter,
+            schema,
+        })
+    }
+
     /// 从超级表的配置中获取需要做 transfrom 的列（目前仅支持“映射”类型的 transfrom）
     fn get_map_transfrom(&self) -> Option<Map> {
         let mut map: LinkedHashMap<String, FieldValue> = LinkedHashMap::new();
@@ -629,12 +803,58 @@ pub struct PointRow {
     pub point_id: u64,
 }
 
+impl PointRow {
+    fn from_csv(csv: String) -> anyhow::Result<Self> {
+        let parts = csv.split(',').collect::<Vec<&str>>();
+        if parts[1] != "point" {
+            return Err(anyhow::anyhow!("Invalid point row"));
+        }
+        if parts.len() != 4 {
+            return Err(anyhow::anyhow!("Invalid point row, expect 4 columns"));
+        }
+        let point_name = parts[0].to_string();
+        let super_table = parts[2].to_string();
+        let point_id = parts[3].parse::<u64>()?;
+        Ok(PointRow {
+            point_name,
+            super_table,
+            point_id,
+        })
+    }
+}
+
 /// 代表多列模型配置文件元素列表部分的一行
 pub struct ElementRow {
     pub element_name: String,
     pub super_table: String,
-    pub path: String,
     pub element_id: String,
+    pub path: Option<String>,
+}
+
+impl ElementRow {
+    fn from_csv(csv: String) -> anyhow::Result<Self> {
+        let parts = csv.split(',').collect::<Vec<&str>>();
+        if parts[1] != "element" {
+            return Err(anyhow::anyhow!("Invalid element row"));
+        }
+        if parts.len() < 4 {
+            return Err(anyhow::anyhow!("Invalid element row, expect 4 columns"));
+        }
+        let element_name = parts[0].to_string();
+        let super_table = parts[2].to_string();
+        let element_id = parts[3].to_string();
+        let path = if parts.len() < 5 || parts[4].is_empty() {
+            None
+        } else {
+            Some(parts[4].to_string())
+        };
+        Ok(ElementRow {
+            element_name,
+            super_table,
+            element_id,
+            path,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -643,16 +863,18 @@ mod tests {
 
     #[test]
     fn test_parse_point_data() {
-        let config = PIPointModelConfig::from_point_data(POINT_DATA, true).unwrap();
-        // println!("{}", config.to_string());
+        let config = PIPointModelConfig::from_json(POINT_DATA, true).unwrap();
         std::fs::write("point_model.csv", config.to_string()).unwrap();
+        let config = PIPointModelConfig::from_csv("point_model.csv").unwrap();
+        println!("{}", config.to_csv());       
     }
 
     #[test]
     fn test_parse_element_data() {
-        let config = PIElementModelConfig::from_element_data(ELEMENT_DATA);
-        // println!("{}", config.unwrap().to_string());
+        let config = PIElementModelConfig::from_json(ELEMENT_DATA);
         std::fs::write("element_model.csv", config.unwrap().to_string()).unwrap();
+        let config = PIElementModelConfig::from_csv("element_model.csv").unwrap();
+        println!("{}", config.to_csv());
     }
 
     const POINT_DATA: &str = r#"
