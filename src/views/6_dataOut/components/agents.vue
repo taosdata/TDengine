@@ -235,7 +235,8 @@ import {
   editAgent,
 } from "@/api/explorer/agent";
 import { copy } from "@/utils/index";
-import { getUIData, getAgentActivities } from "@/api/explorer/datain";
+import { getAgentActivities } from "@/api/explorer/datain";
+import { getDataSources } from "@/api/explorer/community";
 import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
@@ -442,7 +443,7 @@ export default {
     },
     async getConnectorTypes() {
       try {
-        let result = await getUIData();
+        let result = getDataSources(this.$i18n.locale);
         this.connectorList =
           result.length > 0
             ? result
