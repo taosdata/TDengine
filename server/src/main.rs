@@ -403,7 +403,10 @@ async fn send_verification_code(
             code,
             "post cloud api error".to_string(),
         )),
-        Err(err) => HttpResponse::Ok().json(R::<Option<()>>::fail(501, err.to_string())),
+        Err(err) =>{
+            log::error!("Failed to send verification code: {:?}", err);
+            HttpResponse::Ok().json(R::<Option<()>>::fail(501, err.to_string()))
+        } 
     }
 }
 
