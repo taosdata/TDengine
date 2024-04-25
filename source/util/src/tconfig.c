@@ -361,12 +361,11 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     }
     case CFG_DTYPE_NONE:
     default:
+      terrno = TSDB_CODE_INVALID_CFG;
       break;
   }
 
   taosThreadMutexUnlock(&pCfg->lock);
-
-  terrno = TSDB_CODE_INVALID_CFG;
   return code;
 }
 
