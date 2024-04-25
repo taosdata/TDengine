@@ -4,6 +4,9 @@ name: qa-ci-report
 on:
   workflow_run: 
     workflows: [3.0 QA-workflow, PR-QA-workflow]
+    branches:
+      - 3.0
+      - main
     types:
       - completed
 
