@@ -37,7 +37,7 @@
               {{
                 $t("datasource.transformer.dataLimit")
               }}
-              <el-input-number v-model="limitOffset" size="small" :min="0" :max="100" controls-position="right" @change="handleLimit"></el-input-number>
+              <el-input-number v-model="limitOffset" size="small" :min="1" :max="100" controls-position="right" @change="handleLimit"></el-input-number>
             </el-col>
             <el-col
               name="second"

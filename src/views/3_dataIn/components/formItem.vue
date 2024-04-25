@@ -295,7 +295,10 @@ export default {
     },
 
     isEdit() {
-      return this.sourceParent.isEdit;
+      return this.sourceParent.isEditable;
+    },
+    isCopyable() {
+      return this.sourceParent.isCopyable;
     },
     timeFormats() {
       return TimeFormats;
@@ -314,7 +317,8 @@ export default {
         return this.config.disabled(
           this.data,
           this.sourceParent.sourceForm.data,
-          this.sourceParent.currentDefinition
+          this.sourceParent.currentDefinition,
+          this.isEdit && !this.isCopyable
         );
       }
       return this.config.disabled;
@@ -348,12 +352,12 @@ export default {
       let groupsData = getGroupsObj(this.sourceParent.sourceForm.data);
       switch (type) {
         case "taos":
+        case "postgres":
           this.date1 = new Date(groupsData?.start) ?? 0;
           this.date2 = new Date(groupsData?.end) ?? 0;
           break;
         case "avevaHistorian":
         case "mysql":
-        case "postgres":
           this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
           this.date2 = new Date(groupsData?.endDateTime) ?? 0;
           break;
