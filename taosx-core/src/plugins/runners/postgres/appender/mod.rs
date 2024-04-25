@@ -209,7 +209,7 @@ pub async fn to_record_batches(
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(format!("{:?}", val));
+                                .append_value(val.to_string());
                         }
                     }
                 }
