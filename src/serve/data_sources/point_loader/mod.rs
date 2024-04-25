@@ -384,10 +384,7 @@ async fn get_all_points(
             };
             Ok((data, point_count))
         }
-        Err(err) => {
-            tracing::error!("get_all_points error: {:?}", err);
-            Err(err)
-        }
+        Err(err) => Err(err),
     }
 }
 
@@ -478,12 +475,13 @@ pub async fn get_pi_default_config(
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
     tracing::debug!("params: {:?}", params);
-    let task_id = params.task_id.unwrap_or(0);
     let update = params.update.unwrap_or(false);
-    let current_time = chrono::Local::now().timestamp();
-    let file_name = format!("default_pi_task_{}_config_{}.csv", task_id, current_time);
+    let file_name = match params.task_id {
+        Some(task_id) => format!("default_pi_config_for_task_{}.csv", task_id),
+        None => format!("default_pi_config_{}.csv", chrono::Local::now().timestamp()),
+    };
     let exists = std::path::Path::new(file_name.as_str()).exists();
-    if task_id == 0 || !exists || update {
+    if params.task_id.is_none() || !exists || update {
         let dsn = params.from.clone().into_dsn()?;
         let model = dsn
             .params
