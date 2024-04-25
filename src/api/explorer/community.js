@@ -1,4 +1,14 @@
+export function getDataSource(lang, type) {
+  let allDataSources = getDataSources(lang);
 
+  for (let i = 0; i < allDataSources.length; i++) {
+    if (allDataSources[i].id === type) {
+      return JSON.parse(JSON.stringify(allDataSources[i]));
+    }
+  }
+
+  return null;
+}
 
 export function getDataSources(lang) {
   if (lang && lang === 'en') {
@@ -3713,13 +3723,46 @@ export function getDataSources(lang) {
               }]
             },
             {
-              "name": "multi_column",
+              "category": "multi-column",
               "display": "多列模式",
-              "description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+              "short_description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
               "target": {
-                "name": "multi_column",
+                "name": "multi-column",
                 "selectable": false
               },
+              "params": [{
+                "name": "use_default_config",
+                "display": "使用默认配置",
+                "value": "true",
+                "hint": {
+                  "type": "bool"
+                },
+                "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
+              }, {
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "生成默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "点位配置文件",
+                "required": true,
+                "disabled": "use_default_config",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             }
           ]
         }

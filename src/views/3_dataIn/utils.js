@@ -1030,10 +1030,8 @@ export function generateFormInitData(paramsConfig) {
       }
     } else {
       data[item.field] = value;
-      
       if (item.type === 'compose' && item.hint?.choices) {
-        console.log(item.field + "======:", item);
-        data[item.field + '_type'] = "";
+        data[item.field + '_type'] = item.type_value || "";
       }
     }
     return data;
@@ -1050,6 +1048,10 @@ export function getActiveTabValueObject(data) {
 
 export function getActiveTabKey(data) {
   return data[datasetsField][valueField];
+}
+
+export function getOptionsValue(data) {
+  return data[optionsField];
 }
 
 export function getDsnData(data, definition) {
@@ -1312,7 +1314,6 @@ export async function handleDownload(filePath, fileName) {
   link.click();
   document.body.removeChild(link);
 }
-
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {

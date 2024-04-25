@@ -1,8 +1,9 @@
-
 import { request } from "@/utils/request";
 import JSONbig from "json-bigint";
 import { getLocalTimezone } from "@/utils";
 import i18n from '@/lang/index'
+import { getDataSource } from "./community";
+
 let language = i18n.locale.includes('zh') ? 'zh' : 'en'
 export function getTask(id, type) {
     return request({
@@ -85,7 +86,7 @@ export function getUaAndDaData(data) {
     })
 }
 
-export function refreshTask(id) {
+function loadTaskDetail(id) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/tasks/${id}?detail=true&lang=${i18n.locale}`,
@@ -95,6 +96,57 @@ export function refreshTask(id) {
         }
 
     })
+}
+
+function mergeTaskDetailOptions(cfgOptions, data) {
+    for (let key in cfgOptions) {
+        if (data[key]) {
+            cfgOptions[key].value = data[key];
+        }
+    }
+}
+
+function mergeTaskDetailParams(cfgParams, dataParams) {
+    for (let i = 0; i < cfgParams.length; i++) {
+        let key = cfgParams[i].name;
+        if (dataParams[key]) {
+            cfgParams[i].value = dataParams[key];
+            if (cfgParams[i].hint?.type === 'compose') {
+                cfgParams[i].type_value = dataParams[key + '_type'];
+            }
+        }
+    }
+}
+
+// 前端组装数据，不使用后端的 from_detail
+export async function refreshTask(id) {
+    let taskDetail = await loadTaskDetail(id)
+    let dsType = taskDetail.from_expand.id;
+    if (dsType !== 'pi') {
+        return taskDetail;
+    }
+
+    let dsConfig = getDataSource(i18n.locale, dsType);
+    const data = taskDetail.from_expand;
+    
+    mergeTaskDetailOptions(dsConfig.options, data);
+    mergeTaskDetailParams(dsConfig.advanced.params, data.params);
+    mergeTaskDetailParams(dsConfig.params, data.params);
+    for (let i = 0; i < dsConfig.groups.length; i++) {
+        mergeTaskDetailParams(dsConfig.groups[i].params, data.params);
+    }
+    if (dsConfig.datasets) {
+        const categories = dsConfig.datasets.categories;
+        for (let i = 0; i < categories.length; i++) {
+            if (data.params[categories[i].category]) {
+                dsConfig.datasets.value = categories[i].category
+                mergeTaskDetailParams(categories[i].params, data.params);
+                break;
+            }
+        }
+    }
+    taskDetail.from_detail = dsConfig;
+    return taskDetail;
 }
 
 export function uploadFile(file) {

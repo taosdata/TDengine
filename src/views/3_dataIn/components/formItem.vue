@@ -196,7 +196,7 @@
 <script>
 import { hasOwn } from "@/utils/util";
 import { marked } from "marked";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey } from "../utils";
+import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey, handleDownload } from "../utils";
 import {
   generatePIDefaultConfigFile,
 } from "@/api/explorer/datain";
@@ -431,10 +431,9 @@ export default {
       try {
         this.fullscreenLoading = true;
         let defaultFileInfo = await generatePIDefaultConfigFile(url, null, via);
-        // handleDownload(defaultFileInfo);
+        handleDownload(defaultFileInfo);
         this.fullscreenLoading = false;
 
-        
         if (filter_params.transform_config_file && filter_params.use_default_config) {
           // 判断当前如果使用默认配置，并且已经有配置文件情况下, 则询问是否覆盖
           this.$confirm(this.$t('datasource.pi.confirmOverwriteConfigFile'), this.$t('tips'), {
