@@ -1384,6 +1384,11 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto CREATE_MSG_FAIL;
   }
 
+  if(pMsg->pData == NULL){
+    tscError("consumer:0x%" PRIx64 " msg from vgId:%d discarded, epoch %d, since msg is NULL, reqId:0x%" PRIx64,
+             tmq->consumerId, vgId, epoch, requestId);
+    goto CREATE_MSG_FAIL;
+  }
   int32_t msgEpoch = ((SMqRspHead*)pMsg->pData)->epoch;
   int32_t clientEpoch = atomic_load_32(&tmq->epoch);
   if (msgEpoch < clientEpoch) {
