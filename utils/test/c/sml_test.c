@@ -1881,7 +1881,8 @@ int sml_td18789_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "vbin,t1=1 f1=283i32,f2=3,f2=b\"hello\" 1632299372000",
+      "vbin,t1=1 f1=283i32,f2=b\"hello\" 1632299372000",
+      "vbin,t1=1 f2=B\"\\x98f46e\",f1=106i32 1632299373000",
   };
 
   pRes = taos_query(taos, "use td18789");
@@ -1889,18 +1890,6 @@ int sml_td18789_Test() {
 
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-
-  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
-  taos_free_result(pRes);
-
-  const char *sql1[] = {
-      "vbin,t1=1,f1=2 f2=b\"hello\" 1632299372000",
-  };
-
-
-  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
-                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-
   int code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);
