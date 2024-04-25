@@ -13,9 +13,11 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    if: 
     steps: 
       - name: Send Feishu Message
+        env:
+          DESCRIPTION: ${{ github.event.description }}
         run: |
           echo "action encounter error, send feishu message"
           curl -X POST -H "Content-Type: application/json" \
