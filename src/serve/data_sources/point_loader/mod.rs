@@ -209,7 +209,13 @@ pub async fn arrange_point_file_download_task(
             }
             Err(err) => {
                 let mut map = SHARED_MAP.write().await;
-                map.insert(task_id, TaskStatus::Error(err.to_string()));
+                let err_msg = err.to_string();
+                let err_msg = if let Some(idx) = err_msg.find("\n") {
+                    err_msg[..idx].to_string()
+                } else {
+                    err_msg
+                };
+                map.insert(task_id, TaskStatus::Error(err_msg));
             }
         }
     });
