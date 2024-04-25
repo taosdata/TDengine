@@ -117,13 +117,19 @@
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.topic')"
             min-width="140"
+            :filters="filterMap.topic"
+            :filter-method="filterHandler"
           ></el-table-column>
           <el-table-column
             prop="vgroup"
+            sortable
             show-overflow-tooltip
             :label="$t('dataIn.tbHeader.vgroup')"
             min-width="140"
-          ></el-table-column>
+            :filters="filterMap.vgroup"
+            :filter-method="filterHandler"
+          >
+          </el-table-column>
           <el-table-column
             prop="offset"
             show-overflow-tooltip
@@ -194,6 +200,31 @@ export default {
             },
           ],
       } 
+    },
+    filterMap() {
+      const topicFilteredArray = [];
+      const vgroupFilteredArray = [];
+      const seen = {};
+      const seen1 = {};
+
+      for (let item of this.vgroupData) {
+        if (!seen[item.topic]) {
+          topicFilteredArray.push({ text: item.topic, value: item.topic });
+          seen[item.topic] = true;
+        }
+      }
+
+      for (let item of this.vgroupData) {
+        if (!seen1[item.vgroup]) {
+          vgroupFilteredArray.push({ text: item.vgroup, value: item.vgroup });
+          seen1[item.vgroup] = true;
+        }
+      }
+
+      return {
+        topic: topicFilteredArray,
+        vgroup: vgroupFilteredArray
+      }
     }
   },
   watch: {
@@ -365,6 +396,10 @@ export default {
         }
       })
       this.requesting_q = false;
+    },
+    filterHandler(value, row, column) {
+      const property = column['property'];
+      return row[property] === value;
     }
   },
 };
