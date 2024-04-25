@@ -57,6 +57,7 @@
                 :name="child.name"
                 :disabled="tabDisabled(child, item)"
               >
+                <p class="docs-content" v-if="child.short_description">{{ child.short_description }}</p>
                 <FormItem
                   v-if="tabContentShow(child, item)"
                   :config="child"
@@ -193,6 +194,7 @@ export default {
   },
   created() {},
   mounted() {
+    console.log("dataddddddd:", this.data)
     if(this.parser){
       this.$set(this, "constmqttCols", this.parser.fields);
     }
@@ -225,6 +227,7 @@ export default {
   .docs-content {
     color: $color-description;
     font-size: 14px;
+    margin-bottom: 10px;
   }
   &:deep(.el-tabs__item) {
     max-width: 240px;

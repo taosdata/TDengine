@@ -495,33 +495,60 @@ const datasources = [
         }
       ],
       "datasets": {
-        "name": "Data Sets",
+        "name": "数据模型配置",
         "display": "监测点集",
-        "description": "不同类型的点位配置文件，这将决定入库的数据模型。\n",
-        "params": [
+        "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
+        "value": "single_column_mode",
+        "categories": [
           {
-            "name": "point_file",
-            "display": "单列模式点位列表",
-            "hint": {
-              "type": "file"
+            "category": "single_column_mode",
+            "display": "单列模式",
+            "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
+            "target": {
+              "name": "single_column_mode",
             },
-            "description": "一个单列点位名称列表文件。\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+            "params": [{
+              "name": "use_default_config",
+              "display": "使用默认配置",
+              "value": "true",
+              "hint": {
+                "type": "bool"
+              },
+              "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
+            }, {
+              "name": "point_filter",
+              "display": "数据集过滤",
+              "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+              "hint": {
+                "type": "compose",
+                "choices": [
+                  "point",
+                  "element",
+                  "template"
+                ]
+              },
+              "action": "download",
+              "action_text": "生成默认配置",
+              "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+            }, {
+              "name": "point_file",
+              "display": "点位配置文件",
+              "required": true,
+              "disabled": "use_default_config",
+              "hint": {
+                "type": "file"
+              },
+              "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+            }]
           },
           {
-            "name": "template_for_pi_point_file",
-            "display": "单列模式 AF 模板列表",
-            "hint": {
-              "type": "file"
+            "name": "multiple_column_mode",
+            "display": "多列模式",
+            "description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+            "target": {
+              "name": "multiple_column_mode",
+              "selectable": false
             },
-            "description": "单列点位名称（AF 模板）列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-          },
-          {
-            "name": "template_for_af_element_file",
-            "display": "AF 模式模板列表",
-            "hint": {
-              "type": "file"
-            },
-            "description": "单列模板名称列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
           }
         ]
       }
@@ -1225,7 +1252,6 @@ const datasources = [
           {
             "category": "csv_config_file",
             "display": "上传 CSV 配置文件",
-            "description": "您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。\n\n通过 CSV 文件配置 OPC DA 点位的规则如下：\n\n1.文件编码\n\n请上传编码为 UTF-8 或 UTF-8 BOM 的 CSV 文件；\n\n2.Header 的规则\n\nCSV 文件的第一行为 Header，请按照如下规则配置 Header：\n\n(1) tag_name：数据点位在 OPC DA 服务器上的 id，必填；\n\n(2) stable：数据点位在 TDengine 对应的超级表，必填；\n\n(3) tbname：数据点位在 TDengine 对应的子表，必填；\n\n(4) enable：是否采集该点位数据，可选，不配置 enable 列时，使用统一的默认值1作为 enable 的值；\n\n(5) value_col：数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值；\n\n(6) value_transform：数据点位采集值在 taosX 中执行的变换函数，可选，不配置 value_transform 列时，统一不进行采集值的 transform；\n\n(7) type：数据点位采集值的数据类型，可选，不配置 type 列时，统一使用采集值的原始类型作为 TDengine 中的数据类型；\n\n(8) quality_col：数据点位采集值质量在 TDengine 中对应的列名，可选，不配置 quality_col 时，统一不在 TDengine 添加 quality 列；\n\n(9) ts_col：数据点位的原始时间戳在 TDengine 中对应的时间戳列，可选，ts_col，received_ts_col 按顺序同时存在，使用 ts_col 作 TDengine 中的时间戳列；ts_col 存在，使用 ts_col 作 TDengine 中的时间戳列；\n\n(10) received_ts_col：接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列，可选，received_ts_col，ts_col 按顺序同时存在，使用 received_ts_col 作 TDengine 中的时间戳列；received_ts_col 存在，使用 received_ts_col 作 TDengine 中的时间戳列；\n\n(11) ts_col 和 received_ts_col 同时不存在，使用数据点位原始时间戳作 TDengine 中的时间戳列，且列名为默认值ts。\n\n(12) ts_transform：数据点位时间戳在 taosX 中执行的变换函数，可选，不配置 ts_transform 列时，统一不进行数据点位原始时间戳的 transform；\n\n(13) received_ts_transform：数据点位接收时间戳在 taosX 中执行的变换函数，可选，不配置 received_ts_transform 列时，统一不进行数据点位接收时间戳的 transform；\n\n(14) tag::VARCHAR(200)::name：数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的实际名称。\n\n(15) tag 列是可选的，当 CSV 中配置 1 个以上的 tag 列，则使用配置的 tag 列；\n\n(16) 当没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；\n\n(17) 没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name\n\n(18) CSV Header 中，不能有重复的列；\n\n(19) CSV Header 中，类似 tag::VARCHAR(200)::name 这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。\n\n(20) CSV Header 中，列的顺序不影响 CSV 文件校验规则；\n\n(21) CSV Header 中，可以配置不在上表中的列，例如：序号，这些列会被自动忽略。\n\n3.Row 的规则\n\nCSV 文件的第二行开始为数据行，每一行对应一个数据点位的配置信息。请按照下面的规则配置 Row。\n\n一个 Row 中，与 Header 列对应的关系如下：\n\n(1) tag_name：类似`root.parent.temperature`这样的字符串，必填；\n\n(2) stable：符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{type}，则：CSV 文件的 type 不为空，使用 type 的值进行替换；CSV 文件的 type 为空，使用采集值的原始类型进行替换；\n\n(3) tbname：符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{tag_name}，使用 tag_name 替换；\n\n(4) enable：0，不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1，采集该点位，在 OPC DataIn 任务开始前，不删除子表。\n\n(5) value_col：符合 TDengine 命名规范的列名\n\n(6) value_transform：符合 Rhai 引擎的计算表达式，例如：(val + 10) / 1000 * 2.0，log(val) + 10等；\n\n(7) type：支持类型包括：b/bool，i8/tinyint，i16/smallint，i32/int，i64/bigint，u8/tinyint unsigned，u16/smallint unsigned，u32/int unsigned，u64/bigint unsigned，f32/float，f64/double，timestamp/timestamp(ms)，timestamp(us)，timestamp(ns)，json\n\n(8) quality_col：符合 TDengine 命名规范的列名\n\n(9) ts_col：符合 TDengine 命名规范的列名\n\n(10) received_ts_col：符合 TDengine 命名规范的列名\n\n(11) ts_transform 和 received_ts_transform：支持 +、-、*、/、% 操作符，例如：ts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；\n\n(12) tag::VARCHAR(200)::name：tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文。\n\n同时，多个Row之间还需要满足：\n\n(13) tag_name 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；\n\n(14) 当 tag_name 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应 “OPC 数据入 TDengine 宽表”的使用场景。\n\n4.其他规则\n\n(1) 如果 Header 和 Row 的列数不一致，校验失败，提示用户不满足要求的行号；\n\n(2) Header 在首行，且不能为空；\n\n(3) Row 为 1 行以上；\n",
             "target": {
               "name": "csv_config_file",
               "required": true,

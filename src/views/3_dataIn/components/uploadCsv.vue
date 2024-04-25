@@ -5,6 +5,7 @@
       slot="trigger"
       size="mini"
       plain
+      :disabled="disabled"
       type="primary"
       @click="handleBeforeUpload"
       >{{ $t('support.selectFile') }}</el-button
@@ -26,7 +27,9 @@
       <el-button
         v-if="!isOpcDataset || isOpcDsn"
         slot="trigger"
-        size="mini"
+        size="small"
+        plain
+        :disabled="disabled"
         type="primary"
         ref="uploadButton"
         >{{ $t('support.selectFile') }}</el-button
@@ -50,6 +53,10 @@ export default {
     },
     isOpcDataset: {
       type: Boolean
+    }, 
+    disabled: {
+      type: Boolean,
+      default: false
     }
   },
   inject: ['sourceParent'],
@@ -91,7 +98,20 @@ export default {
     // 在新增或者编辑时切换 tab 都能保持上传的文件列表
     this.handleFiles()
   },
-  mounted() {},
+  mounted() {
+    this.$eventBus.$on("updatePIDefaultConfigFile", (defaultFile) => {
+      this.files = [].concat({
+        name: defaultFile?.substr(defaultFile.lastIndexOf("/") + 1),
+        percentage: 100,
+        raw: File,
+        response: [].concat(defaultFile),
+        size: 87,
+        status: "success",
+        uid: 1,
+      });
+      this.update();
+    })
+  },
   methods: {
     handleRemove(_, fileList) {
       this.files = fileList;

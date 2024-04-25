@@ -39,6 +39,7 @@ ELEMENT.Tooltip.props.openDelay = {type: Number, default: 1000};
 Vue.use(ELEMENT);
 Vue.prototype.$bus = $bus;
 Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
+Vue.prototype.$eventBus = new Vue();
 Vue.prototype.$error = function (msg) {
   this.$message({
     showClose: true,

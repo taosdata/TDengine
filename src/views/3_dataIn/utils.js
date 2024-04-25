@@ -594,7 +594,7 @@ function handleDatasets(datasets, paramsConfig) {
           return config;
         })
       : categories.map((item, index) => {
-          const { category, display, description: desc, target, params: categoryParams } = item;
+          const { category, display, short_description, description: desc, target, params: categoryParams } = item;
           const paramConfig = {
             label: display,
             name: category,
@@ -603,6 +603,7 @@ function handleDatasets(datasets, paramsConfig) {
             category,
             radio: !!index,
             description: desc,
+            short_description,
             field: handleField(target.name),
             type: 'dataset',
             accept: '.csv',
@@ -621,9 +622,13 @@ function handleDatasets(datasets, paramsConfig) {
                     defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
                     multiple: categoryParam.multiple ?? false
                   };
+
+                  
+
                   handleHintType(config, categoryParam.hint);
                   // 特殊处理 opc 的点位过滤
                   if (currentType.startsWith('opc')) {
+
                     if (config.field == 'pattern') {
                       config.type = 'pattern';
                     }
@@ -637,6 +642,16 @@ function handleDatasets(datasets, paramsConfig) {
                           }
                         })
                         return list
+                      }
+                    }
+                  } else if (currentType == 'pi') {
+                    if (config.field == 'point_filter') {
+                      config.options = (that) => {
+                        if (that.sourceParent.sourceForm.data[optionsField]['system_configuration'].indexOf('AF') < 0) {
+                          return [{label: 'point',value: 'point'}]
+                        } else {
+                          return [{label: 'element',value: 'element'},{label: 'template',value: 'template'}]
+                        }
                       }
                     }
                   }
@@ -952,6 +967,16 @@ export function handleHintType(config, hint) {
         config.defaultValue = hint.find(item => item.selected)?.value;
       }
       break;
+    case 'compose':
+      config.type = 'compose';
+      if (hint?.choices) {
+        config.options = hint.choices.filter(item => item != '--NONE--').map(item => ({
+          label: item,
+          value: item
+        }));
+      }
+      break;
+
     default:
       if (hint?.choices) {
         config.type = 'select';
@@ -1000,6 +1025,11 @@ export function generateFormInitData(paramsConfig) {
       }
     } else {
       data[item.field] = value;
+      
+      if (item.type === 'compose' && item.hint?.choices) {
+        console.log(item.field + "======:", item);
+        data[item.field + '_type'] = "";
+      }
     }
     return data;
   }, {});
@@ -1007,6 +1037,11 @@ export function generateFormInitData(paramsConfig) {
 export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
+
+export function getActiveTabValueObject(data) {
+  const activeTab = data[datasetsField][valueField];
+  return data[datasetsField][activeTab];
+}
 
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);

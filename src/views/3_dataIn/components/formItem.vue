@@ -91,10 +91,31 @@
         :type="config.dateType"
         style="width: 100%"
       ></TimezoneDatePicker>
+
+      <el-input v-if="config.type == 'compose'" :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+        <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
+          <el-option v-for="item in getOptions()"
+            :key="item.value"
+            v-bind="item"
+            :title="item.description"
+            :disabled="item.disabled"
+          ></el-option>
+        </el-select>
+        <el-button v-if="config.action" 
+          slot="append" 
+          plain
+          type="primary" 
+          @click="submitAction"
+          :icon="`el-icon-${config.action}`">
+          {{ config.action_text }}
+        </el-button>
+      </el-input>
+
       <UploadCsv
         v-if="config.type == 'file'"
         v-model="data[field]"
         :config="config"
+        :disabled="disabled()"
       >
       </UploadCsv>
       <Dataset
@@ -174,8 +195,7 @@
 <script>
 import { hasOwn } from "@/utils/util";
 import { marked } from "marked";
-import { parsinginZone } from "@/utils/index";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName } from "../utils";
+import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject } from "../utils";
 
 export default {
   props: {
@@ -237,6 +257,14 @@ export default {
       if (typeof this.config.if === "function") {
         return this.config.if(this.data, this.sourceParent.sourceForm.data);
       }
+      if (typeof this.config.if === "string") {
+        if (this.config.if.startsWith("!")) {
+          return !this.data[this.config.if.substring(1)];
+        } else {
+          return this.data[this.config.if];
+        }
+      } 
+      
       return this.config.if;
     },
     doscShow() {
@@ -317,6 +345,13 @@ export default {
           this.sourceParent.currentDefinition
         );
       }
+      if (typeof this.config.disabled === "string") {
+        if (this.config.disabled.startsWith("!")) {
+          return !this.data[this.config.disabled.substring(1)];
+        } else {
+          return this.data[this.config.disabled];
+        }
+      } 
       return this.config.disabled;
     },
     parseMarked(desc) {
@@ -369,6 +404,28 @@ export default {
         return callback(new Error(this.$t("dataIn.timeTip")));
       } else {
         callback();
+      }
+    },
+    async submitAction() {
+      const sourceForm = this.sourceParent.sourceForm;
+      let type = sourceForm.type
+      let via = sourceForm.agent
+      // console.log("all the data:", sourceForm.data)
+      let vvvv = getActiveTabValueObject(sourceForm.data);
+      console.log("active tab value:", vvvv)
+      // vvvv.point_file = "@./ddd/ddd.csv";
+      
+      this.$eventBus.$emit("updatePIDefaultConfigFile", "@./ddd/ddd.csv");
+
+      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition);
+      if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
+      if (this.requestIng) return;
+      try {
+        this.requestIng = true;
+        console.log("dsn:", url)
+        console.log("action:", this.config.action)
+      } catch (error) {
+        this.requestIng = false;
       }
     },
   },
