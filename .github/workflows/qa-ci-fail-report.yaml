@@ -1,0 +1,20 @@
+name: qa-ci-report
+# run-name: ${{ github.actor }}, your PR is under test. 🚀
+
+on:
+  workflow_run: 
+    workflows: ["3.0-qa-ci", "pr-qa-ci"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps: 
+      - name: Send Feishu Message
+        run: |
+          echo "action encounter error, send feishu message"
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"github action test send\"}}" \
+          https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
