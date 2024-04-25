@@ -393,7 +393,7 @@ jobs:
     if: always()
     steps: 
       - name: Send Feishu Message
-        if: ${{ needs.remove_artifacts.result != 'success' }} || ${{ needs.build_rust.result != 'success' }} || ${{ needs.test_mqtt.result != 'success' }}
+        if: ${{ needs.build_rust.result != 'success' }} || ${{ needs.build_java.result != 'success' }} || ${{ needs.test_mqtt.result != 'success' }}
         run: |
           echo "action encounter error, send feishu message"
           curl -X POST -H "Content-Type: application/json" \
