@@ -139,6 +139,7 @@ pub async fn csv_to_taos(
         &to,
         Some("csv"),
         None,
+        None,
         &cancel,
         with_agent,
         transferred,

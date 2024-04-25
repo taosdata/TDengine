@@ -505,7 +505,7 @@ impl<R: Read> IpcReader<R> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LushInsertAttrs {
     name: String,
     using: Option<String>,

@@ -12,7 +12,10 @@ use tracing::{instrument, Span};
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
+use crate::runners::opc::config::model;
 use crate::runners::pi::config::PiConfig;
+use crate::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig};
+use crate::sink::lush::LushModelConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
@@ -20,6 +23,7 @@ use crate::{
 };
 
 mod config;
+pub mod transform;
 
 fn pi_exe_path() -> anyhow::Result<PathBuf> {
     let path = super::get_plugin_dir("pi").join("taosx-pi.exe");
@@ -81,7 +85,6 @@ pub async fn pi_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
-
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -104,6 +107,12 @@ pub async fn pi_to_taos(
         }
         None => {}
     }
+
+    let lush_model_config: Option<LushModelConfig> = if with_agent.is_none() {
+        Some(from.try_into()?)
+    } else {
+        None
+    };
 
     #[derive(Deserialize, Debug, Default)]
     struct IsValid {
@@ -203,6 +212,7 @@ pub async fn pi_to_taos(
         &to,
         Some("pi"),
         None,
+        lush_model_config,
         &cancel,
         with_agent,
         transferred,

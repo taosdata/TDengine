@@ -1,18 +1,48 @@
-use crate::pi::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig};
-use std::collections::HashMap;
+use anyhow::anyhow;
+use taos::Dsn;
+use taosx_ipc::stream::reader::LushInsertAttrs;
+
+use crate::{
+    plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
+    runners::pi::transform::PiModelType,
+};
+use std::{cell::RefCell, collections::HashMap};
 
 use super::transform::Parser;
 
-pub struct LushTransfromConfig {
+#[derive(Clone, Debug)]
+pub struct LushModelConfig {
     /// The name of the column that represent sub-table name in the recived RecordBatch.
     pub table_name_column: String,
     /// key: the value of sub-table name column.
     /// For PI point model, the column is point_name;
     /// For PI element model, the column is element_id;
     pub config: HashMap<String, Parser>,
+    pub table_tags: TableTagCache,
 }
 
-impl LushTransfromConfig {
+#[derive(Debug, Clone)]
+pub struct TableTagCache(RefCell<HashMap<String, LushInsertAttrs>>);
+
+impl TableTagCache {
+    pub fn new() -> Self {
+        TableTagCache(RefCell::new(HashMap::new()))
+    }
+
+    pub fn get(&self, table_name: &str) -> Option<LushInsertAttrs> {
+        self.0.borrow().get(table_name).cloned()
+    }
+
+    pub fn insert(&self, table_name: String, value: LushInsertAttrs) {
+        self.0.borrow_mut().insert(table_name, value);
+    }
+
+}
+
+
+unsafe impl Sync for TableTagCache {}
+
+impl LushModelConfig {
     pub fn index_super_table_by_name(
         super_table: Vec<SuperTableConfig>,
     ) -> HashMap<String, SuperTableConfig> {
@@ -24,34 +54,71 @@ impl LushTransfromConfig {
     }
 }
 
-impl From<PIPointModelConfig> for LushTransfromConfig {
+impl TryFrom<Dsn> for LushModelConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: Dsn) -> Result<Self, Self::Error> {
+        let driver = dsn.driver.as_str();
+        match driver {
+            "pi" | "pibackfill" => {
+                let transform_config_file = dsn
+                    .params
+                    .get("transform_config_file")
+                    .ok_or(anyhow!("Not found transform_config_file in DSN params"))?;
+                let model: PiModelType = dsn
+                    .params
+                    .get("model")
+                    .ok_or(anyhow!("Not found model in DSN params"))?
+                    .as_str()
+                    .try_into()?;
+                match model {
+                    PiModelType::SingleColumn => {
+                        let point_model_config: PIPointModelConfig =
+                            PIPointModelConfig::from_csv(transform_config_file)?;
+                        Ok(point_model_config.into())
+                    }
+                    PiModelType::MultiColumn => {
+                        let element_model_config: PIElementModelConfig =
+                            PIElementModelConfig::from_csv(transform_config_file)?;
+                        Ok(element_model_config.into())
+                    }
+                }
+            }
+            _ => Err(anyhow!("Unsupported data source")),
+        }
+    }
+}
+
+impl From<PIPointModelConfig> for LushModelConfig {
     fn from(config: PIPointModelConfig) -> Self {
         let table_map: HashMap<String, SuperTableConfig> =
-            LushTransfromConfig::index_super_table_by_name(config.super_tables);
+            LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut map: HashMap<String, Parser> = HashMap::new();
         for point in config.points {
             let super_table = table_map.get(point.super_table.as_str()).unwrap();
             map.insert(point.point_name, super_table.to_owned().into());
         }
-        LushTransfromConfig {
-            table_name_column: "point_id".to_string(),
+        LushModelConfig {
+            table_name_column: "point_name".to_string(),
             config: map,
+            table_tags: TableTagCache::new(),
         }
     }
 }
 
-impl From<PIElementModelConfig> for LushTransfromConfig {
+impl From<PIElementModelConfig> for LushModelConfig {
     fn from(config: PIElementModelConfig) -> Self {
         let table_map: HashMap<String, SuperTableConfig> =
-            LushTransfromConfig::index_super_table_by_name(config.super_tables);
+            LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut map: HashMap<String, Parser> = HashMap::new();
         for element in config.elements {
             let super_table = table_map.get(element.super_table.as_str()).unwrap();
             map.insert(element.element_id.clone(), super_table.to_owned().into());
         }
-        LushTransfromConfig {
+        LushModelConfig {
             table_name_column: "element_id".to_string(),
             config: map,
+            table_tags: TableTagCache::new(),
         }
     }
 }

@@ -74,6 +74,7 @@ use crate::{
         Parser, TableOptions,
     },
 };
+use anyhow::anyhow;
 use linked_hash_map::LinkedHashMap;
 use std::fmt::{self, Display};
 use std::iter::{Peekable, SkipWhile};
@@ -265,11 +266,7 @@ impl Display for PIPointModelConfig {
         }
         writeln!(f, "\n")?;
         for point in &self.points {
-            writeln!(
-                f,
-                "{},{},{}",
-                point.point_name, "POINT", point.super_table
-            )?;
+            writeln!(f, "{},{},{}", point.point_name, "POINT", point.super_table)?;
         }
         Ok(())
     }
@@ -687,8 +684,11 @@ impl SuperTableConfig {
                 }
                 _ => {
                     if parts.len() < 4 {
-                        return Err(anyhow::anyhow!("Invalid schema row, expect 4 columns: {}", line));
-                    } 
+                        return Err(anyhow::anyhow!(
+                            "Invalid schema row, expect 4 columns: {}",
+                            line
+                        ));
+                    }
                     let column_name = parts[0].to_string();
                     let column_type = match parts[1] {
                         "tag" => ColumnType::TAG,
@@ -847,6 +847,25 @@ impl ElementRow {
     }
 }
 
+pub enum PiModelType {
+    SingleColumn,
+    MultiColumn,
+}
+
+impl TryFrom<&str> for PiModelType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "single-column" => Ok(PiModelType::SingleColumn),
+            "multi-column" => Ok(PiModelType::MultiColumn),
+            _ => Err(anyhow!(
+                "Invalid PI model type,  only single-column and multi-column are supported"
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -856,7 +875,7 @@ mod tests {
         let config = PIPointModelConfig::from_json(POINT_DATA, true).unwrap();
         std::fs::write("point_model.csv", config.to_string()).unwrap();
         let config = PIPointModelConfig::from_csv("point_model.csv").unwrap();
-        println!("{}", config.to_csv());       
+        println!("{}", config.to_csv());
     }
 
     #[test]

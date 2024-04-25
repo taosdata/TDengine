@@ -75,6 +75,7 @@ impl std::ops::Deref for Parser {
     }
 }
 
+use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
 
 mod config;
@@ -108,7 +109,8 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
@@ -126,7 +128,8 @@ pub async fn build_ipc(
             pool,
             socket,
             // sender,
-            config,
+            opc_model_config,
+            lush_model_config,
             cancel.clone(),
             with_agent,
             parser,
@@ -139,9 +142,14 @@ pub async fn build_ipc(
         .in_current_span()
         .await?
     } else {
-        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap(), config)
-            .in_current_span()
-            .await?
+        sink::listen_tcp_socket_with_agent(
+            socket,
+            cancel.clone(),
+            with_agent.unwrap(),
+            opc_model_config,
+        )
+        .in_current_span()
+        .await?
     };
     Ok(ipc)
 }

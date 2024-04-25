@@ -71,7 +71,7 @@ use crate::{
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
-use self::{ipc_metric::IpcMetrics, lush::LushTransfromConfig};
+use self::{ipc_metric::IpcMetrics, lush::LushModelConfig};
 
 pub mod flat;
 pub mod ipc_metric;
@@ -334,7 +334,8 @@ async fn ipc_tcp_read(
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
     lock: Arc<Mutex<()>>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     _cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
@@ -366,7 +367,8 @@ async fn ipc_tcp_read(
         ipc_reader,
         ipc_ack_writer,
         lock,
-        config,
+        opc_model_config,
+        lush_model_config,
         parser,
         connector,
         transferred,
@@ -433,7 +435,6 @@ async fn consume_lush_record(
     data_trace_id: u64,
     trace_id_str: &str,
     metrics: &IpcMetrics,
-    lush_transform_config: Option<&LushTransfromConfig>,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id);
     match record {
@@ -591,29 +592,147 @@ async fn consume_lush_record(
             }
         }
         LushMessage::Insert(record) => {
-            if let Some(transfrom_config) = lush_transform_config {
-                consume_lush_message_with_transform(
-                    record,
-                    pool,
-                    taos,
-                    count,
-                    req_id,
-                    metrics,
-                    transfrom_config,
-                )
-                .await?;
-            } else {
-                consume_lush_message_without_transform(
-                    record,
-                    pool,
-                    taos,
-                    count,
-                    req_id,
-                    task.clone(),
-                    columns,
-                    metrics,
-                )
-                .await?;
+            // let guard = mutex.lock().await;
+            for record in record {
+                if record.num_rows() == 0 {
+                    continue;
+                }
+                *count += record.num_rows();
+                metrics.add_processed_rows(record.num_rows() as u64);
+                let data = record.to_column_views();
+                let cols = columns.len();
+                // RawBlock
+                // taos.write_raw_block()
+                let sqls = record.generate_insert_sql_from_tablename(&data, columns);
+                if let Some((task, stable, sqls)) = task
+                    .and_then(|task| record.stable_name().map(|stable| (task, stable)))
+                    .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
+                {
+                    for sql in sqls {
+                        if let Some(ts) = get_ts_from_sql(sql) {
+                            let task_clone = task.to_string();
+                            let stable_clone = stable.to_string();
+                            let ts_clone = ts.clone();
+
+                            std::thread::spawn(move || {
+                                tracing::debug!(
+                                    "breakpoints set start, task: {} stable: {} ts: {}",
+                                    &task_clone,
+                                    &stable_clone,
+                                    &ts_clone
+                                );
+                                let res = breakpoints_set(&task_clone, &stable_clone, &ts_clone);
+                                if res.is_err() {
+                                    tracing::debug!(
+                                        "breakpoints set error, task: {} stable: {} \n{:#?}",
+                                        &task_clone,
+                                        &stable_clone,
+                                        res
+                                    );
+                                }
+                            });
+                            break;
+                        }
+                    }
+                }
+                if let Some((sqls, field_map)) = sqls {
+                    for sql in sqls {
+                        tracing::debug!("insert sql: {sql}");
+                        let mut retry = 0;
+                        let mut count = 0;
+                        let mut break_err = Ok(());
+                        loop {
+                            match taos
+                                .as_ref()
+                                .unwrap()
+                                .exec_with_req_id(&sql, req_id.next())
+                                .await
+                            {
+                                Ok(num) => {
+                                    count = count + num;
+                                    metrics.add_inserted_sqls(1);
+                                    metrics.add_written_rows(num as u64);
+                                    metrics.add_written_points((num * cols) as u64);
+                                    break;
+                                }
+                                Err(err) => {
+                                    if retry > 10 {
+                                        tracing::warn!("retry write failed continue: {err:#}");
+                                        metrics.add_failed_sqls(1);
+                                        if break_err.is_err() {
+                                            break_err?;
+                                        }
+                                        break;
+                                    }
+                                    let errstr = format!("{err:#}");
+                                    tracing::error!(
+                                        // sql = sql,
+                                        error = errstr,
+                                        "Lush stream writing error"
+                                    );
+                                    let code: i32 = err.code().into();
+                                    match code {
+                                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                                            taos.replace(pool.get().await?);
+                                            retry += 1;
+                                        }
+                                        0x2603 | 0x0618 => {
+                                            // table not exists
+                                            tokio::time::sleep(Duration::from_millis(100)).await;
+                                        }
+                                        0x2653 => {
+                                            // column or tag length not enough
+                                            let fields = Vec::from_iter(field_map.clone());
+                                            // get stable name
+                                            let stable_name = record.stable_name();
+                                            if stable_name.is_none() {
+                                                tracing::error!(
+                                        "record should contains init message for stable name"
+                                    );
+                                                break;
+                                            }
+                                            let stable_name = stable_name.unwrap();
+                                            let desc = taos
+                                                .as_ref()
+                                                .unwrap()
+                                                .describe(&stable_name)
+                                                .await?;
+                                            let alter_sqls = generate_alter_sql_diff_desc(
+                                                &stable_name,
+                                                &desc,
+                                                &fields.clone(),
+                                                false,
+                                            );
+                                            if alter_sqls.is_some() {
+                                                let alter_sqls = alter_sqls.unwrap();
+                                                for alter_sql in alter_sqls {
+                                                    tracing::info!("alter sql: {alter_sql}");
+                                                    if let Err(err) = taos
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .exec_with_req_id(alter_sql, req_id.next())
+                                                        .await
+                                                    {
+                                                        tracing::info!("alter sql error: {err:#}");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {
+                                            retry += 1;
+                                        }
+                                    }
+                                    break_err = Err(err).with_context(|| {
+                                        format!("lush stream error with {retry} retries")
+                                    });
+                                }
+                            }
+                        }
+                        info!("written [{count}] records");
+                    }
+                } else {
+                    error!("lush message insert sqls should not be none");
+                }
             }
         }
     }
@@ -621,208 +740,147 @@ async fn consume_lush_record(
     Ok(())
 }
 
-async fn consume_lush_message_with_transform(
-    record: Vec<LushMessageInsert>,
+// #[instrument(skip(taos, record, names, marks))]
+#[instrument(skip_all, fields(trace.id = trace_id_str))]
+async fn consume_lush_record_with_transform(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
+    record: LushMessage,
+    _columns: &Vec<String>,
     count: &mut usize,
-    req_id: RequestID,
+    _license: Option<&ConnectorLicense>,
+    _transferred: Option<&Transferred>,
+    _task: Option<i64>,
+    data_trace_id: u64,
+    trace_id_str: &str,
     metrics: &IpcMetrics,
-    transfrom_config: &LushTransfromConfig,
+    lush_model_config: &LushModelConfig,
 ) -> anyhow::Result<()> {
-    for record in record {
-        let num_rows = record.num_rows();
-        if num_rows == 0 {
-            continue;
+    let req_id = RequestID::new(data_trace_id);
+    match record {
+        LushMessage::Tables(tables) => {
+            tracing::debug!(?tables, "Receive LushInsertAttrs"); // debug
+                                                                 // cache table name and tags
+            let table_cache = &lush_model_config.table_tags;
+            for table in tables {
+                table_cache.insert(table.table_name().to_string(), table);
+            }
         }
-        let record: &RecordBatch = record.record();
-        let table_name_column: &Arc<dyn Array> = record
-            .column_by_name(transfrom_config.table_name_column.as_str())
-            .ok_or_else(|| anyhow!("table_name_column not found"))?;
-        let table_name_column = table_name_column
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap();
-        let table_name: &str = table_name_column.value(0);
-        let parser = transfrom_config.config.get(table_name).ok_or_else(|| {
-            anyhow!(
-                "table_name {} not found in transfrom_config",
-                table_name.to_string()
-            )
-        })?;
-        let message = parser.parse_message_from_records(record)?;
-        match message {
-            crate::plugins::transform::Message::Raw(_) => todo!(),
-            crate::plugins::transform::Message::Tables(_) => todo!(),
-            crate::plugins::transform::Message::ChildTables(_) => todo!(),
-            crate::plugins::transform::Message::Records(message) => {
-                *count += flat_write_with_sql(
-                    pool,
-                    taos,
-                    taos::Precision::Millisecond,
-                    &req_id,
-                    message,
-                    metrics,
-                )
-                .await?;
-                metrics.add_processed_rows(num_rows as u64);
+        LushMessage::Insert(record) => {
+            tracing::debug!(?record, "Receive LushMessageInsert"); // debug
+            for record in record {
+                let num_rows = record.num_rows();
+                if num_rows == 0 {
+                    continue;
+                }
+                // 只包含普通列的值
+                let values_record: &RecordBatch = record.record();
+
+                let table_name_column: &Arc<dyn Array> = values_record
+                    .column_by_name(lush_model_config.table_name_column.as_str())
+                    .ok_or_else(|| anyhow!("table_name_column not found"))?;
+                let table_name_column: &StringArray = table_name_column
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .unwrap();
+
+                // 只包含 tag 列的值
+                let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
+                let tags_record: RecordBatch = create_tags_record(table_name_column, table_cache)?;
+                let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
+                let table_name: &str = table_name_column.value(0);
+                let parser = lush_model_config.config.get(table_name).ok_or_else(|| {
+                    anyhow!(
+                        "table_name {} not found in transfrom_config",
+                        table_name.to_string()
+                    )
+                })?;
+                let message: transform::Message =
+                    parser.parse_message_from_records(&concated_record)?;
+                match message {
+                    crate::plugins::transform::Message::Raw(_) => todo!(),
+                    crate::plugins::transform::Message::Tables(_) => todo!(),
+                    crate::plugins::transform::Message::ChildTables(_) => todo!(),
+                    crate::plugins::transform::Message::Records(message) => {
+                        *count += flat_write_with_sql(
+                            pool,
+                            taos,
+                            taos::Precision::Millisecond,
+                            &req_id,
+                            message,
+                            metrics,
+                        )
+                        .await?;
+                        metrics.add_processed_rows(num_rows as u64);
+                    }
+                }
             }
         }
     }
     Ok(())
 }
 
-#[instrument(skip_all)]
-async fn consume_lush_message_without_transform(
-    record: Vec<LushMessageInsert>,
-    pool: &TaosPool,
-    taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
-    records: &mut usize,
-    req_id: RequestID,
-    task: Option<i64>,
-    columns: &Vec<String>,
-    metrics: &IpcMetrics,
-) -> anyhow::Result<()> {
-    // let guard = mutex.lock().await;
-    for record in record {
-        if record.num_rows() == 0 {
-            continue;
-        }
-        *records += record.num_rows();
-        metrics.add_processed_rows(record.num_rows() as u64);
-        let data = record.to_column_views();
-        let cols = columns.len();
-        // RawBlock
-        // taos.write_raw_block()
-        let sqls = record.generate_insert_sql_from_tablename(&data, columns);
-        if let Some((task, stable, sqls)) = task
-            .and_then(|task| record.stable_name().map(|stable| (task, stable)))
-            .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
-        {
-            for sql in sqls {
-                if let Some(ts) = get_ts_from_sql(sql) {
-                    let task_clone = task.to_string();
-                    let stable_clone = stable.to_string();
-                    let ts_clone = ts.clone();
-
-                    std::thread::spawn(move || {
-                        tracing::debug!(
-                            "breakpoints set start, task: {} stable: {} ts: {}",
-                            &task_clone,
-                            &stable_clone,
-                            &ts_clone
-                        );
-                        let res = breakpoints_set(&task_clone, &stable_clone, &ts_clone);
-                        if res.is_err() {
-                            tracing::debug!(
-                                "breakpoints set error, task: {} stable: {} \n{:#?}",
-                                &task_clone,
-                                &stable_clone,
-                                res
-                            );
-                        }
-                    });
-                    break;
-                }
-            }
-        }
-        if let Some((sqls, field_map)) = sqls {
-            for sql in sqls {
-                tracing::debug!("insert sql: {sql}");
-                let mut retry = 0;
-                let mut count = 0;
-                let mut break_err = Ok(());
-                loop {
-                    match taos
-                        .as_ref()
-                        .unwrap()
-                        .exec_with_req_id(&sql, req_id.next())
-                        .await
-                    {
-                        Ok(num) => {
-                            count = count + num;
-                            metrics.add_inserted_sqls(1);
-                            metrics.add_written_rows(num as u64);
-                            metrics.add_written_points((num * cols) as u64);
-                            break;
-                        }
-                        Err(err) => {
-                            if retry > 10 {
-                                tracing::warn!("retry write failed continue: {err:#}");
-                                metrics.add_failed_sqls(1);
-                                if break_err.is_err() {
-                                    break_err?;
-                                }
-                                break;
-                            }
-                            let errstr = format!("{err:#}");
-                            tracing::error!(
-                                // sql = sql,
-                                error = errstr,
-                                "Lush stream writing error"
-                            );
-                            let code: i32 = err.code().into();
-                            match code {
-                                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
-                                    taos.replace(pool.get().await?);
-                                    retry += 1;
-                                }
-                                0x2603 | 0x0618 => {
-                                    // table not exists
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                }
-                                0x2653 => {
-                                    // column or tag length not enough
-                                    let fields = Vec::from_iter(field_map.clone());
-                                    // get stable name
-                                    let stable_name = record.stable_name();
-                                    if stable_name.is_none() {
-                                        tracing::error!(
-                                            "record should contains init message for stable name"
-                                        );
-                                        break;
-                                    }
-                                    let stable_name = stable_name.unwrap();
-                                    let desc =
-                                        taos.as_ref().unwrap().describe(&stable_name).await?;
-                                    let alter_sqls = generate_alter_sql_diff_desc(
-                                        &stable_name,
-                                        &desc,
-                                        &fields.clone(),
-                                        false,
-                                    );
-                                    if alter_sqls.is_some() {
-                                        let alter_sqls = alter_sqls.unwrap();
-                                        for alter_sql in alter_sqls {
-                                            tracing::info!("alter sql: {alter_sql}");
-                                            if let Err(err) = taos
-                                                .as_ref()
-                                                .unwrap()
-                                                .exec_with_req_id(alter_sql, req_id.next())
-                                                .await
-                                            {
-                                                tracing::info!("alter sql error: {err:#}");
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    retry += 1;
-                                }
-                            }
-                            break_err = Err(err)
-                                .with_context(|| format!("lush stream error with {retry} retries"));
-                        }
-                    }
-                }
-                info!("written [{count}] records");
-            }
-        } else {
-            error!("lush message insert sqls should not be none");
-        }
+fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch) -> RecordBatch {
+    let mut fields: Vec<Field> = Vec::new();
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    let tags_schema = tags_record.schema();
+    let values_schema = values_record.schema();
+    for i in 0..tags_schema.fields().len() {
+        fields.push(tags_schema.field(i).clone());
+        columns.push(tags_record.column(i).clone());
     }
-    Ok(())
-    // drop(guard);
+    for i in 0..values_schema.fields().len() {
+        fields.push(values_schema.field(i).clone());
+        columns.push(values_record.column(i).clone());
+    }
+    let schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(schema), columns).unwrap()
+}
+
+fn create_tags_record(
+    table_name_column: &StringArray,
+    table_cache: &lush::TableTagCache,
+) -> anyhow::Result<RecordBatch> {
+    // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
+    let mut fields: Vec<Field> = Vec::new();
+    let table_name0 = table_name_column.value(0);
+    let table0 = table_cache
+        .get(table_name0)
+        .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name0))?;
+    for tag in table0.tags().as_ref().unwrap() {
+        fields.push(Field::new(tag.0.clone(), DataType::Utf8, true));
+    }
+    // 收集每一行 tag 值
+    let mut tag_values: Vec<Vec<String>> = Vec::new();
+    for table_name in table_name_column.iter() {
+        let table_name = table_name.unwrap();
+        let table = table_cache
+            .get(table_name)
+            .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
+        let tags = table.tags().as_ref().unwrap();
+        let values: Vec<String> = tags
+            .iter()
+            .map(|tag| {
+                let value = &tag.1;
+                match value {
+                    Value::VarChar(v) => v.clone(),
+                    Value::NChar(v) => v.clone(),
+                    _ => unimplemented!(),
+                }
+            })
+            .collect();
+        tag_values.push(values);
+    }
+    // 行转列
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    for i in 0..fields.len() {
+        let values: Vec<String> = tag_values.iter().map(|v| v[i].clone()).collect();
+        let array = StringArray::from(values);
+        columns.push(Arc::new(array) as ArrayRef);
+    }
+
+    let schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
 }
 
 fn get_ts_from_sql(sql: &str) -> Option<String> {
@@ -2614,6 +2672,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
+    lush_model_config: Option<LushModelConfig>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task_id: Option<i64>,
@@ -2634,6 +2693,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
     let mut batches: u32 = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
+    let lush_model_config = lush_model_config.as_ref();
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
         metrics.add_received_batches(1);
@@ -2648,22 +2708,39 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         })
         .unwrap();
         let last = count;
-        if let Err(err) = consume_lush_record(
-            pool,
-            &mut taos,
-            record,
-            &columns,
-            &mut count,
-            license,
-            transferred,
-            task_id,
-            data_trace_id,
-            &data_trace_id_str,
-            metrics,
-            None,
-        )
-        .await
-        {
+        let result = if let Some(lush_model_config) = lush_model_config {
+            consume_lush_record_with_transform(
+                pool,
+                &mut taos,
+                record,
+                &columns,
+                &mut count,
+                license,
+                transferred,
+                task_id,
+                data_trace_id,
+                &data_trace_id_str,
+                metrics,
+                lush_model_config,
+            )
+            .await
+        } else {
+            consume_lush_record(
+                pool,
+                &mut taos,
+                record,
+                &columns,
+                &mut count,
+                license,
+                transferred,
+                task_id,
+                data_trace_id,
+                &data_trace_id_str,
+                metrics,
+            )
+            .await
+        };
+        if let Err(err) = result {
             metrics.add_failed_batches(1);
             tracing::error!("Writing batch {data_trace_id_str} error: {err:#}");
             let written = count - last;
@@ -3038,7 +3115,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     _lock: Arc<Mutex<()>>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     parser: Option<Parser>,
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
@@ -3140,6 +3218,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 &pool,
                 ipc_reader,
                 ipc_ack_writer,
+                lush_model_config,
                 license.as_ref(),
                 transferred.as_deref(),
                 task_id,
@@ -3155,7 +3234,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 &pool,
                 ipc_reader,
                 ipc_ack_writer,
-                config,
+                opc_model_config,
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
@@ -3240,6 +3319,7 @@ pub struct IpcStreamWorker {
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<OpcModelConfig>,
+    lush_model_config: OnceCell<LushModelConfig>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
@@ -3260,6 +3340,7 @@ impl Clone for IpcStreamWorker {
             from: self.from.clone(),
             config: self.config.clone(),
             opc_table_config: self.opc_table_config.clone(),
+            lush_model_config: self.lush_model_config.clone(),
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
@@ -3281,7 +3362,7 @@ impl IpcStreamWorker {
         task: Option<i64>,
         // license: Option<>
     ) -> anyhow::Result<Self> {
-        let opc_table_config = OnceCell::const_new();
+        let opc_table_config: OnceCell<OpcModelConfig> = OnceCell::const_new();
         if let Some(config) = schema.metadata().get("config") {
             opc_table_config
                 .get_or_try_init(|| async {
@@ -3292,6 +3373,16 @@ impl IpcStreamWorker {
         let taos = pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
 
+        let lush_model_config: OnceCell<LushModelConfig> = OnceCell::const_new();
+        match from.driver.as_str() {
+            "pi" | "pi_backfill" => {
+                lush_model_config
+                    .get_or_try_init(|| async { LushModelConfig::try_from(from.clone()) })
+                    .await?;
+            }
+            _ => {}
+        };
+
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
             pool,
@@ -3301,6 +3392,7 @@ impl IpcStreamWorker {
             task,
             config: None,
             opc_table_config,
+            lush_model_config,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             taos: Cell::new(Some(taos)),
@@ -3375,21 +3467,39 @@ impl IpcStreamWorker {
                 })?;
                 let mut taos = Some(self.pool.get().await?);
                 let task = self.task;
-                consume_lush_record(
-                    &self.pool,
-                    &mut taos,
-                    record,
-                    &columns,
-                    &mut count,
-                    self.license.as_deref(),
-                    self.transferred.as_deref(),
-                    task,
-                    data_trace_id,
-                    trace_id_str,
-                    metrics,
-                    None,
-                )
-                .await?;
+                let lush_model_config = self.lush_model_config.get();
+                if let Some(lush_model_config) = lush_model_config {
+                    consume_lush_record_with_transform(
+                        &self.pool,
+                        &mut taos,
+                        record,
+                        &columns,
+                        &mut count,
+                        self.license.as_deref(),
+                        self.transferred.as_deref(),
+                        task,
+                        data_trace_id,
+                        trace_id_str,
+                        metrics,
+                        lush_model_config,
+                    )
+                    .await?;
+                } else {
+                    consume_lush_record(
+                        &self.pool,
+                        &mut taos,
+                        record,
+                        &columns,
+                        &mut count,
+                        self.license.as_deref(),
+                        self.transferred.as_deref(),
+                        task,
+                        data_trace_id,
+                        trace_id_str,
+                        metrics,
+                    )
+                    .await?;
+                }
                 Ok(count)
             }
             StreamType::Point => {
@@ -3590,8 +3700,8 @@ impl IpcHandler {
 pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
-    // sender: Sender<String>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
@@ -3630,9 +3740,9 @@ pub async fn listen_tcp_socket(
                 let cancel = cancel.clone();
 
                 if let Some((id, server, token)) = with_agent.clone() {
-                    let config = config.clone();
+                    let opc_model_config = opc_model_config.clone();
                     tokio::spawn(async move {
-                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id, config).await;
+                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id, opc_model_config).await;
                         if let Err(err) = res {
                             tracing::error!("ipc read err: {:#}", err);
                             let _ = se.send(format!("{:#}", err)).await;
@@ -3641,7 +3751,8 @@ pub async fn listen_tcp_socket(
                 } else {
                     let pool = target.clone();
                     let lock = sql_lock.clone();
-                    let config = config.clone();
+                    let opc_model_config = opc_model_config.clone();
+                    let lush_model_config = lush_model_config.clone();
                     let parser = parser.clone();
                     let connector = connector.clone();
                     let transferred = transferred.clone();
@@ -3656,7 +3767,8 @@ pub async fn listen_tcp_socket(
                             pool,
                             stream,
                             lock,
-                            config,
+                            opc_model_config,
+                            lush_model_config,
                             cancel,
                             parser,
                             connector,
