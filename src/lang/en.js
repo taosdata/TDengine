@@ -66,6 +66,8 @@ export default {
   copySucc: "Copy Success!",
   fullName: "Full Name",
   tips: "Tips",
+  yes: "yes",
+  no: "no",
   time: "Time",
   date: "Date",
   nickname: "Nickname",
@@ -1454,6 +1456,9 @@ export default {
       dataRangeInputTip: "Please input integer value between {min} and {max}",
       defaultValueErrorTip: "default value for column[{}] input error",
       jsonExtractTip: 'JSON extract expression editor'
+    },
+    pi: {
+      confirmOverwriteConfigFile: "The configuration file already exists. Do you want to overwrite it?",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",

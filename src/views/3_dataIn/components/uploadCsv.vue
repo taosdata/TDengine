@@ -102,13 +102,15 @@ export default {
     this.$eventBus.$on("updatePIDefaultConfigFile", (defaultFile) => {
       this.files = [].concat({
         name: defaultFile?.substr(defaultFile.lastIndexOf("/") + 1),
+        path: defaultFile,
         percentage: 100,
         raw: File,
-        response: [].concat(defaultFile),
+        response: [].concat(this.value),
         size: 87,
         status: "success",
         uid: 1,
       });
+      console.log("this.files", this.files)
       this.update();
     })
   },

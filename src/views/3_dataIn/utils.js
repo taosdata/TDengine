@@ -645,11 +645,16 @@ function handleDatasets(datasets, paramsConfig) {
                       }
                     }
                   } else if (currentType == 'pi') {
-                    if (config.field == 'point_filter') {
+                    if (config.field == 'filter_value') {
                       config.options = (that) => {
+                        let activeTabValues = getActiveTabValueObject(that.sourceParent.sourceForm.data);
                         if (that.sourceParent.sourceForm.data[optionsField]['system_configuration'].indexOf('AF') < 0) {
+                          activeTabValues['filter_value_type'] = 'point'
                           return [{label: 'point',value: 'point'}]
                         } else {
+                          if (activeTabValues['filter_value_type'] === 'point') {
+                            activeTabValues['filter_value_type'] = 'element'
+                          }
                           return [{label: 'element',value: 'element'},{label: 'template',value: 'template'}]
                         }
                       }
@@ -1041,6 +1046,10 @@ export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
 export function getActiveTabValueObject(data) {
   const activeTab = data[datasetsField][valueField];
   return data[datasetsField][activeTab];
+}
+
+export function getActiveTabKey(data) {
+  return data[datasetsField][valueField];
 }
 
 export function getDsnData(data, definition) {

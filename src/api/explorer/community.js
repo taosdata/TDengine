@@ -386,39 +386,39 @@ export function getDataSources(lang) {
         "id": "pi",
         "type": "uri",
         "name": "PI",
-        "description": "PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。\n\nPI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。\n\ntaosX 可以通过 PI 连接器插件从 PI 系统中提取实时数据。\n",
+        "description": "The Aveva PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.\n\nThe term PI System is often used to refer to the PI Server but the two are not the same. The PI System refers to all Aveva PI software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).\n",
         "options": {
           "host": {
             "required": true,
-            "display": "PI服务名",
-            "description": "PI 服务器地址（通常使用主机名）。\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。",
-            "placeholder": "server"
+            "display": "PI Data Archive Server",
+            "description": "PI Data Archive Server (hostname).\n\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+            "placeholder": "pi data archive server"
           },
           "port": {},
           "subject": {
             "required": true,
             "display": "AF Database Name",
-            "description": "AF 数据库名",
-            "placeholder": "如: Met1"
+            "description": "AF database name",
+            "placeholder": "Example: Met1"
           }
         },
         "groups": [
           {
-            "name": "自动回填",
-            "display_order": 1,
-            "short_description": "自动回填配置。",
-            "description": "自动回填配置。",
+            "name": "Auto Backfill",
+            "display_order": 3,
+            "short_description": "Auto-backfill configurations.",
+            "description": "Auto-backfill configurations.",
             "collapsible": false,
             "connection_option": false,
             "params": [
               {
                 "name": "MaxBackfillRangeDays",
-                "display": "重启补偿时间",
+                "display": "Max Backfill Range",
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
-                "description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
+                "short_description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.",
+                "description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.\n",
                 "placeholder": "30m",
                 "value": "30m"
               }
@@ -426,14 +426,14 @@ export function getDataSources(lang) {
           }
         ],
         "advanced": {
-          "name": "高级选项",
-          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "name": "Advanced Options",
+          "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave\nthese options as default to use the recommended settings.\n",
           "collapsible": true,
           "connection_option": false,
           "params": [
             {
               "name": "log_level",
-              "display": "日志级别",
+              "display": "Log Level",
               "hint": {
                 "type": "str",
                 "choices": [
@@ -444,29 +444,29 @@ export function getDataSources(lang) {
                   "trace"
                 ]
               },
-              "description": "根据需要调整数据源的日志级别，此参数不总是生效。",
+              "description": "Adjust the log level of the data source as required. This parameter does not always take effect.",
               "value": "info"
             },
             {
               "name": "batch_size",
-              "display": "批次大小",
+              "display": "Batch Size",
               "hint": {
                 "type": "integer",
                 "min": 1,
                 "max": 10000
               },
-              "description": "单次发送的最大消息数或行数。\n",
+              "description": "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               "value": "1000"
             },
             {
               "name": "batch_timeout",
-              "display": "批次延时",
+              "display": "Batch Timeout",
               "hint": {
                 "type": "integer",
                 "min": 1,
                 "max": 60
               },
-              "description": "单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。\n",
+              "description": "The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.\n",
               "value": "1"
             }
           ]
@@ -474,7 +474,7 @@ export function getDataSources(lang) {
         "params": [
           {
             "name": "system_configuration",
-            "display": "PI 系统配置",
+            "display": "System Configuration",
             "display_order": 0,
             "hint": {
               "type": "str",
@@ -487,71 +487,44 @@ export function getDataSources(lang) {
           },
           {
             "name": "PISystemName",
-            "display": "AF Server 名称",
+            "display": "AF Server Name",
             "display_order": 3,
             "hint": {
               "type": "str"
             },
-            "description": "PI 系统(AF Server) 名称 (hostname).",
+            "description": "PI System(AF Server) name (hostname).",
             "required": true,
             "placeholder": "pi-af-server-name"
           }
         ],
         "datasets": {
-          "name": "数据模型配置",
-          "display": "监测点集",
-          "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
-          "value": "single_column_mode",
-          "categories": [
+          "name": "Data Sets",
+          "display": "Data Sets",
+          "description": "Single column configuration file for point names.\n",
+          "params": [
             {
-              "category": "single_column_mode",
-              "display": "单列模式",
-              "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
-              "target": {
-                "name": "single_column_mode",
+              "name": "point_file",
+              "display": "One Table Per Point",
+              "hint": {
+                "type": "file"
               },
-              "params": [{
-                "name": "use_default_config",
-                "display": "使用默认配置",
-                "value": "true",
-                "hint": {
-                  "type": "bool"
-                },
-                "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
-              }, {
-                "name": "point_filter",
-                "display": "数据集过滤",
-                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
-                "hint": {
-                  "type": "compose",
-                  "choices": [
-                    "point",
-                    "element",
-                    "template"
-                  ]
-                },
-                "action": "download",
-                "action_text": "生成默认配置",
-                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
-              }, {
-                "name": "point_file",
-                "display": "点位配置文件",
-                "required": true,
-                "disabled": "use_default_config",
-                "hint": {
-                  "type": "file"
-                },
-                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
-              }]
+              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
             },
             {
-              "name": "multiple_column_mode",
-              "display": "多列模式",
-              "description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
-              "target": {
-                "name": "multiple_column_mode",
-                "selectable": false
+              "name": "template_for_pi_point_file",
+              "display": "One Table per PI Point from AF Element Template",
+              "hint": {
+                "type": "file"
               },
+              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+            },
+            {
+              "name": "template_for_af_element_file",
+              "display": "One Table per AF Element from AF Element Template",
+              "hint": {
+                "type": "file"
+              },
+              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
             }
           ]
         }
@@ -3693,33 +3666,60 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
+          "name": "数据模型配置",
           "display": "监测点集",
-          "description": "不同类型的点位配置文件，这将决定入库的数据模型。\n",
-          "params": [
+          "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "单列模式点位列表",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "单列模式",
+              "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
+              "target": {
+                "name": "single-column",
               },
-              "description": "一个单列点位名称列表文件。\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "use_default_config",
+                "display": "使用默认配置",
+                "value": "true",
+                "hint": {
+                  "type": "bool"
+                },
+                "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
+              }, {
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "生成默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "点位配置文件",
+                "required": true,
+                "disabled": "use_default_config",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "单列模式 AF 模板列表",
-              "hint": {
-                "type": "file"
+              "name": "multi_column",
+              "display": "多列模式",
+              "description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+              "target": {
+                "name": "multi_column",
+                "selectable": false
               },
-              "description": "单列点位名称（AF 模板）列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "AF 模式模板列表",
-              "hint": {
-                "type": "file"
-              },
-              "description": "单列模板名称列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
             }
           ]
         }

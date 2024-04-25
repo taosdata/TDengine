@@ -30,6 +30,21 @@ export function getUIData() {
     })
 }
 
+export function generatePIDefaultConfigFile(dsn, taskId, agentId) {
+    let url = `/ds/in/download/pi_default_config?from=${encodeURIComponent(dsn)}`;
+    if (taskId) {
+        url += `&task_id=${taskId}`;
+    }
+    if (agentId) {
+        url += `&via=${agentId}`;
+    }
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url,
+        method: 'get'
+    })
+}
+
 export function AddSource(data) {
     return request({
         baseURL: process.env.VUE_APP_X_API,

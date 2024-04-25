@@ -103,6 +103,7 @@
         </el-select>
         <el-button v-if="config.action" 
           slot="append" 
+          v-loading.fullscreen.lock="fullscreenLoading"
           plain
           type="primary" 
           @click="submitAction"
@@ -195,7 +196,10 @@
 <script>
 import { hasOwn } from "@/utils/util";
 import { marked } from "marked";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject } from "../utils";
+import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey } from "../utils";
+import {
+  generatePIDefaultConfigFile,
+} from "@/api/explorer/datain";
 
 export default {
   props: {
@@ -236,6 +240,7 @@ export default {
       selectOptions: [],
       date1: 0,
       date2: 0,
+      fullscreenLoading: false,
     };
   },
   computed: {
@@ -406,27 +411,59 @@ export default {
         callback();
       }
     },
-    async submitAction() {
+
+    async downloadPIDefaultConfigFile() {
       const sourceForm = this.sourceParent.sourceForm;
       let type = sourceForm.type
       let via = sourceForm.agent
-      // console.log("all the data:", sourceForm.data)
-      let vvvv = getActiveTabValueObject(sourceForm.data);
-      console.log("active tab value:", vvvv)
-      // vvvv.point_file = "@./ddd/ddd.csv";
-      
-      this.$eventBus.$emit("updatePIDefaultConfigFile", "@./ddd/ddd.csv");
-
-      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition);
-      if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
-      if (this.requestIng) return;
-      try {
-        this.requestIng = true;
-        console.log("dsn:", url)
-        console.log("action:", this.config.action)
-      } catch (error) {
-        this.requestIng = false;
+      let activeTabKey = getActiveTabKey(sourceForm.data)
+      let filter_params = getActiveTabValueObject(sourceForm.data)
+      if (!filter_params.filter_value_type) {
+        filter_params.filter_value_type = 'element'
       }
+      delete filter_params['filter_point'];
+      delete filter_params['filter_element'];
+      delete filter_params['filter_template'];
+      filter_params[`filter_${filter_params.filter_value_type}`] = filter_params.filter_value
+
+      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition) + `&model=${activeTabKey}`;
+      
+      try {
+        this.fullscreenLoading = true;
+        let defaultFileInfo = await generatePIDefaultConfigFile(url, null, via);
+        // handleDownload(defaultFileInfo);
+        this.fullscreenLoading = false;
+
+        
+        if (filter_params.transform_config_file && filter_params.use_default_config) {
+          // 判断当前如果使用默认配置，并且已经有配置文件情况下, 则询问是否覆盖
+          this.$confirm(this.$t('datasource.pi.confirmOverwriteConfigFile'), this.$t('tips'), {
+            confirmButtonText: this.$t('yes'),
+            cancelButtonText: this.$t('no'),
+            type: 'warning'
+          }).then(() => {
+            this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
+          });
+        } else if (!filter_params.transform_config_file && filter_params.use_default_config) {
+          // 如果当前使用默认配置，但是没有配置文件，则直接更新
+          this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
+        }
+      } finally {
+        this.fullscreenLoading = false;
+      }
+    },
+
+    submitAction() {
+      const sourceForm = this.sourceParent.sourceForm;
+      let type = sourceForm.type
+
+      // 目前只有 pi 数据源的 config.action=download 的按钮用到这个方法，不同的数据源需要不同的处理
+      if (type === 'pi' && this.config.action === 'download') {
+        this.downloadPIDefaultConfigFile();
+      } else {
+        console.log('not support, please add your own logic here.')
+      }
+
     },
   },
 };

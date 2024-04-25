@@ -62,6 +62,8 @@ export default {
   fullName: "全称",
   total: "全部",
   tips: "提示",
+  yes: "是",
+  no: "否",
   continue: "继续",
   change: "修改",
   copySucc: "复制成功",
@@ -1239,6 +1241,9 @@ export default {
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
       defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
       jsonExtractTip: 'JSON 提取表达式编辑器'
+    },
+    pi: {
+      confirmOverwriteConfigFile: "请确认是否覆盖已有配置文件?",
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",
