@@ -837,6 +837,7 @@ class TDTestCase:
         tdSql.execute('use test')
         tdSql.query('show dd.tsmas')
         tdSql.checkRows(1)
+        tdSql.execute('drop tsma dd.tsma_norm_tb_dd')
         tdSql.execute('drop database dd')
         tdSql.query('select * from information_schema.ins_tsmas')
         tdSql.checkRows(3)
@@ -871,6 +872,7 @@ class TDTestCase:
         self.create_tsma('tsma_db2_norm_t', 'db2', 'norm_tb', ['avg(c2)', 'last(ts)'], '10m')
         sql = 'select avg(c1) as avg_c1 from test.meters union select avg(c2) from  db2.norm_tb order by avg_c1'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('db2', 'tsma_db2_norm_t', 'norm_tb').get_qc()])
+        tdSql.execute('drop tsma db2.tsma_db2_norm_t')
         tdSql.execute('drop database db2')
         tdSql.execute('use test')
 
@@ -931,6 +933,7 @@ class TDTestCase:
         self.create_tsma(tsma_name, 'db2', tb_name, ['avg(c2)', 'last(ts)'], '10m')
         sql = f'select avg(c2), last(ts) from  {db_name}.{tb_name}'
         self.check([TSMAQCBuilder().with_sql(sql).should_query_with_tsma_ctb('db2', tsma_name, tb_name).get_qc()])
+        tdSql.execute(f'drop tsma db2.{tsma_name}')
         tdSql.execute('drop database db2')
         tdSql.execute('use test')
 
@@ -1280,6 +1283,8 @@ class TDTestCase:
                          'avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'nsdb', '10m', 'meters')
         tdSql.query('select avg(c1) from nsdb.meters', queryTimes=1)
+        tdSql.execute('drop tsma nsdb.tsma2')
+        tdSql.execute('drop tsma nsdb.tsma1')
         tdSql.execute('drop database nsdb')
     
     def test_tb_ddl_with_created_tsma(self):
@@ -1332,6 +1337,7 @@ class TDTestCase:
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
 
         self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        tdSql.execute('drop tsma test.tsma_norm_tb')
         tdSql.execute('drop database test', queryTimes=1)
         self.init_data()
 
@@ -1433,6 +1439,17 @@ class TDTestCase:
         tdSql.error(
             'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
         self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        tdSql.execute('drop tsma nsdb.tsma12')
+        tdSql.execute('drop tsma nsdb.tsma11')
+        tdSql.execute('drop tsma nsdb.tsma10')
+        tdSql.execute('drop tsma nsdb.tsma9')
+        tdSql.execute('drop tsma test.tsma8')
+        tdSql.execute('drop tsma nsdb.tsma7')
+        tdSql.execute('drop tsma nsdb.tsma6')
+        tdSql.execute('drop tsma nsdb.tsma5')
+        tdSql.execute('drop tsma nsdb.tsma4')
+        tdSql.execute('drop tsma test.tsma_test3')
+        tdSql.execute('drop tsma nsdb.tsma2')
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):
