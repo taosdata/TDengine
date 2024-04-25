@@ -1094,8 +1094,10 @@ _end:
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
 #ifdef USE_ROCKSDB
-  tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
-  streamStatePutParName_rocksdb(pState, groupId, tbname);
+  if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
+    tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+    streamStatePutParName_rocksdb(pState, groupId, tbname);
+  }
   return TSDB_CODE_SUCCESS;
 #else
   return tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
