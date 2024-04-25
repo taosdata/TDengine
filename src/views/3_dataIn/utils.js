@@ -760,6 +760,12 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
           return !!conflict;
         };
       }
+      // postgres 的 sql 在编辑状态下不能修改
+      if (currentType == 'postgres' && paramConfig.field == 'sql') {
+        paramConfig.disabled = (a,b,c,isEdit) => {
+          return isEdit;
+        };
+      }
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';

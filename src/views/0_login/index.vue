@@ -364,7 +364,7 @@ export default {
             });
             if (
               result.length > 0 &&
-              ["official", "trial"].includes(result[0].version)
+              ["official", "trial", "community"].includes(result[0].version)
             ) {
               this.$router.push({
                 path: "/explorer",
