@@ -182,7 +182,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
   if (pFD->pgno > 0) {
     int64_t offset = PAGE_OFFSET(pFD->pgno, pFD->szPage);
-    if (pFD->lcn > 1) {
+    if (pFD->s3File && pFD->lcn > 1) {
       SVnodeCfg *pCfg = &pFD->pTsdb->pVnode->config;
       int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
       int64_t    chunkoffset = chunksize * (pFD->lcn - 1);
