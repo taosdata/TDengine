@@ -4,8 +4,8 @@
     placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
   >
     <template slot="content">
-      <div>{{ $t('dataIn.communityCheckTip') }}</div>
-      <a :href="url" target="_blank">{{ url }}</a>
+      <span>{{ $t('dataIn.communityCheckTip') }}</span>
+      <a :href="url" target="_blank">{{ $t('dataIn.communityCheckTip1') }}</a>
     </template>
     <el-button
       :loading="checkLoading"

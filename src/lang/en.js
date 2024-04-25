@@ -714,7 +714,8 @@ export default {
     updateTime: "Updated at:",
     refresh: "Refresh",
     check: "Check Connection",
-    communityCheckTip: "Enterprise edition only available, learn more here ",
+    communityCheckTip: "Only available in TDengine Enterprise. To learn more, please visit the TDengine ",
+    communityCheckTip1: "official website.",
     resume: "Scheduling strategy",
     resumeTip:
       "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted.",
