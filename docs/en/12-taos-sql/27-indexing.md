@@ -10,7 +10,7 @@ To improve the performance of aggregate function queries on large datasets, you 
 
 ```sql
 -- Create TSMA based on a super table or regular table
-CREATE TSMA tsma_name ON [dbname].table_name FUNCTION (func_name(func_param) [, ...] ) INTERVAL(time_duration);
+CREATE TSMA tsma_name ON [dbname.]table_name FUNCTION (func_name(func_param) [, ...] ) INTERVAL(time_duration);
 -- Create a large window TSMA based on a small window TSMA
 CREATE RECURSIVE TSMA tsma_name ON [db_name.]tsma_name1 INTERVAL(time_duration);
 
@@ -26,9 +26,9 @@ TSMA can only be created based on super tables and regular tables, not on subtab
 
 In the function list, you can only specify supported aggregate functions (see below), and the number of function parameters must be 1, even if the current function supports multiple parameters. The function parameters must be ordinary column names, not tag columns. Duplicate functions and columns in the function list will be deduplicated. When calculating TSMA, all `intermediate results of the functions` will be output to another super table, and the output super table also includes all tag columns of the original table. The maximum number of functions in the function list is the maximum number of columns in the output table (including tag columns) minus the four additional columns added for TSMA calculation, namely `_wstart`, `_wend`, `_wduration`, and a new tag column `tbname`, minus the number of tag columns in the original table. If the number of columns exceeds the limit, an error `Too many columns` will be reported.
 
-Since the output of TSMA is a super table, the row length of the output table is subject to the maximum row length limit. The size of the `intermediate results of different functions` vary, but they are generally larger than the original data size. If the row length of the output table exceeds the maximum row length limit, an error `Row length exceeds max length` will be reported.
+Since the output of TSMA is a super table, the row length of the output table is subject to the maximum row length limit. The size of the `intermediate results of different functions` varies, but they are generally larger than the original data size. If the row length of the output table exceeds the maximum row length limit, an error `Row length exceeds max length` will be reported. In this case, you need to reduce the number of functions or split commonly used functions groups into multiple TSMA objects.
 
-The window size is limited to [1ms ~ 1h].
+The window size is limited to [1ms ~ 1h]. The unit of INTERVAL is the same as the INTERVAL clause in the query, such as a (milliseconds), b (nanoseconds), h (hours), m (minutes), s (seconds), u (microseconds).
 
 TSMA is a database-level object, but it is globally unique. The number of TSMA that can be created in the cluster is limited by the parameter `maxTsmaNum`, with a default value of 8 and a range of [0-12]. Note that since TSMA background calculation uses stream computing, creating a TSMA will create a stream. Therefore, the number of TSMA that can be created is also limited by the number of existing streams and the maximum number of streams that can be created.
 
@@ -65,23 +65,15 @@ Client configuration parameter: `querySmaOptimize`, used to control whether to u
 
 Client configuration parameter: `maxTsmaCalcDelay`, in seconds, is used to control the acceptable TSMA calculation delay for users. If the calculation progress of a TSMA is within this range from the latest time, the TSMA will be used. If it exceeds this range, it will not be used. The default value is 600 (10 minutes), with a minimum value of 600 (10 minutes) and a maximum value of 86400 (1 day).
 
-### Selection of TSMAs
+### Using TSMA Duraing Query
 
 The aggregate functions defined in TSMA can be directly used in most query scenarios. If multiple TSMA are available, the one with the larger window size is preferred. For unclosed windows, the calculation can be done using smaller window TSMA or the original data. However, there are certain scenarios where TSMA cannot be used (see below). In such cases, the entire query will be calculated using the original data.
 
-The default behavior for queries without specified window sizes is to prioritize the use of the largest window TSMA that includes all the aggregate functions used in the query. For example, `SELECT COUNT(*) FROM stable GROUP BY tbname` will use the TSMA with the largest window that includes the `count(ts)` function.
+The default behavior for queries without specified window sizes is to prioritize the use of the largest window TSMA that includes all the aggregate functions used in the query. For example, `SELECT COUNT(*) FROM stable GROUP BY tbname` will use the TSMA with the largest window that includes the `count(ts)` function. Therefore, when using aggregate queries frequently, it is recommended to create TSMA objects with larger window size.
 
-When specifying the window size, which is the `INTERVAL` statement, use the largest TSMA window that is divisible by the window size of the query. In window queries, the window size of the `INTERVAL`, `OFFSET`, and `SLIDING` all affect the TSMA window size that can be used. Divisible window TSMA refers to a TSMA window size that is divisible by the `INTERVAL`, `OFFSET`, and `SLIDING` of the query statement.
+When specifying the window size, which is the `INTERVAL` statement, use the largest TSMA window that is divisible by the window size of the query. In window queries, the window size of the `INTERVAL`, `OFFSET`, and `SLIDING` all affect the TSMA window size that can be used. Divisible window TSMA refers to a TSMA window size that is divisible by the `INTERVAL`, `OFFSET`, and `SLIDING` of the query statement. Therefore, when using window queries frequently, consider the window size, as well as the offset and sliding size when creating TSMA objects.
 
 Example 1. If TSMA with window size of `5m` and `10m` is created, and the query is `INTERVAL(30m)`, the TSMA with window size of `10m` will be used. If the query is `INTERVAL(30m, 10m) SLIDING(5m)`, only the TSMA with window size of `5m` can be used for the query.
-
-When there is a `WHERE` condition with a primary key time column, if the start and end times are not aligned with the window, the boundary window will be calculated from other aligned smaller window TSMAs. If there are no aligned smaller window TSMAs, the calculation will be done directly from the original data.
-
-Example 2. If two TSMA are created with window sizes of `5m` and `10m`: `tsma1` and `tsma2`, and the query is `INTERVAL(10m)` with a `WHERE` condition of `ts >= '2024-01-01 10:05:00.000' and ts < '2024-01-01 11:00:00.000'`, then the data in the time interval `['10:05:00.000', '10:10:00.000')` will be calculated by `tsma1`, and the remaining data will be calculated by `tsma2`.
-
-Example 3. If there is no TSMA that aligns with the window, then this portion of data will be calculated using the original data. For example, consider the two TSMA created earlier and the query is `INTERVAL(10m)` with a `WHERE` condition of `ts >= '2024-01-01 10:05:00.000' and ts < '2024-01-01 11:04:00.000'`. In this case, the data in the time interval `['10:05:00.000', '10:10:00.000')` will be calculated by `tsma1`, the data in the time interval `['10:10:00.000', '11:00:00.000')` will be calculated by `tsma2`, and the remaining data `['11:00:00.000', '11:04:00.000')` will be calculated using the original data.
-
-Note: In the examples above, the right side of the `WHERE` condition is an open interval, while in SQL, the right side of `BETWEEN` is a closed interval. When the right side of the `WHERE` condition uses a closed interval, the rightmost data will always be calculated using the original data. Even if the right side time aligns with the TSMA window, as in Example 2 above, if the right side of the `WHERE` condition is a closed interval, then the data in the time interval `['10:05:00.000', '10:10:00.000')` will be calculated by `tsma1`, and the data in the time interval `['10:10:00.000', '11:00:00.000')` will be calculated by `tsma2`. The data at the moment `'11:00:00.000'` will be calculated using the original data.
 
 ### Limitations of Query
 
@@ -130,7 +122,7 @@ After creating a TSMA, there are certain restrictions on operations that can be 
 
 - You must delete all TSMAs on the table before you can delete the table itself.
 - All tag columns of the original table cannot be deleted, nor can the tag column names or sub-table tag values be modified. You must first delete the TSMA before you can delete the tag column.
-- If some columns are being used by the TSMA, these columns cannot be deleted. You must first delete the TSMA. However, adding new columns to the table is not affected.
+- If some columns are being used by the TSMA, these columns cannot be deleted. You must first delete the TSMA. However, adding new columns to the table is not affected. However, new columns added are not included in any TSMA, so if you want to calculate the new columns, you need to create new TSMA for them.
 
 ## Show TSMA
 
