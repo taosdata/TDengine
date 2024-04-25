@@ -251,7 +251,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       streamMetaSaveTask(pMeta, *ppHTask);
     }
   } else {
-    tqDebug("s-task:%s vgId:%s not save task since not update epset actually, stop task", idstr);
+    tqDebug("s-task:%s vgId:%s not save task since not update epset actually, stop task", idstr, vgId);
   }
 
   streamTaskStop(pTask);
