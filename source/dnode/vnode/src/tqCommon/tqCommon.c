@@ -211,7 +211,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
   void* pReqTask = taosHashGet(pMeta->updateInfo.pTasks, &entry, sizeof(STaskUpdateEntry));
   if (pReqTask != NULL) {
-    tqDebug("s-task:%s (vgId:%d) already update in trans:%d, discard the nodeEp update msg", idstr, vgId, req.transId);
+    tqDebug("s-task:%s (vgId:%d) already update in transId:%d, discard the nodeEp update msg", idstr, vgId, req.transId);
     rsp.code = TSDB_CODE_SUCCESS;
     streamMetaWUnLock(pMeta);
     taosArrayDestroy(req.pNodeList);
@@ -235,7 +235,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     } else {
       tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
       bool updateEpSet = streamTaskUpdateEpsetInfo(*ppHTask, req.pNodeList);
-      if (!updated) {
+      if (updateEpSet) {
         updated = updateEpSet;
       }
 
@@ -245,14 +245,15 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   if (updated) {
-    tqDebug("s-task:%s vgId:%d save task after update epset", idstr, vgId);
+    tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
     streamMetaSaveTask(pMeta, pTask);
     if (ppHTask != NULL) {
       streamMetaSaveTask(pMeta, *ppHTask);
     }
+  } else {
+    tqDebug("s-task:%s vgId:%s not save task since not update epset actually, stop task", idstr);
   }
 
-  tqDebug("s-task:%s vgId:%d start to stop task after save task", idstr, vgId);
   streamTaskStop(pTask);
 
   // keep the already updated info
