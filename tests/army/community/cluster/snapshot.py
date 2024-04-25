@@ -30,7 +30,7 @@ from frame.srvCtl import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "countAlwaysReturnValue" : "1",
+        "countAlwaysReturnValue" : "0",
         "lossyColumns"           : "float,double",
         "fPrecision"             : "0.000000001",
         "dPrecision"             : "0.00000000000000001",
@@ -106,7 +106,7 @@ class TDTestCase(TBase):
         # check count always return value
         sql = f"select count(*) from {self.db}.ta"
         tdSql.query(sql)
-        tdSql.checkRows(0) # countAlwaysReturnValue is false
+        tdSql.checkRows(1) # countAlwaysReturnValue is false
 
     # run
     def run(self):
