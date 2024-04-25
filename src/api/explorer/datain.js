@@ -183,6 +183,13 @@ export function getHistorianMsgbody(datatype,data,agentid){
         baseURL: process.env.VUE_APP_X_API,
         url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
         method: 'get',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
     })
 }
 
