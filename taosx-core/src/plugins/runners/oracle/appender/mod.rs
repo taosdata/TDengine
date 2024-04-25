@@ -137,26 +137,21 @@ pub fn to_record_batches(
                 }
                 // 日期时间
                 OracleType::Date => {
-                    let val = col.get::<NaiveDate>();
+                    let val = col.get::<String>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(
-                                    val.num_days_from_ce()
-                                        - sqlx::types::chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
-                                            .unwrap()
-                                            .num_days_from_ce(),
-                                );
+                                .append_value(val);
                         }
                     }
                 }
@@ -202,19 +197,19 @@ pub fn to_record_batches(
                 }
                 // 大文本
                 OracleType::CLOB | OracleType::NCLOB | OracleType::BLOB => {
-                    let val = col.get::<Vec<u8>>();
+                    let val = col.get::<String>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }
@@ -240,19 +235,19 @@ pub fn to_record_batches(
                     }
                 }
                 OracleType::Boolean => {
-                    let val = col.get::<bool>();
+                    let val = col.get::<String>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BooleanBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BooleanBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }

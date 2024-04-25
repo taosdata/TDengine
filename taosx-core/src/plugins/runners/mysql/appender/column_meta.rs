@@ -1,5 +1,4 @@
 use arrow::datatypes::{DataType, TimeUnit};
-use arrow_schema::{DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE};
 use taosx_ipc::stream::writer::IpcDataType;
 
 // use taosx_ipc::prelude::IpcDataType;
@@ -77,26 +76,23 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 浮点数
         "FLOAT" => Ok(DataType::Float32),
         "DOUBLE" => Ok(DataType::Float64),
-        "DECIMAL" => Ok(DataType::Decimal256(
-            DECIMAL256_MAX_PRECISION,
-            DECIMAL256_MAX_SCALE,
-        )),
+        "DECIMAL" => Ok(DataType::Utf8),
         // 字符串
         "CHAR" => Ok(DataType::Utf8),
         "VARCHAR" => Ok(DataType::Utf8),
-        "BINARY" => Ok(DataType::Binary),
-        "VARBINARY" => Ok(DataType::Binary),
-        "TINYBLOB" => Ok(DataType::Binary),
-        "BLOB" => Ok(DataType::Binary),
-        "MEDIUMBLOB" => Ok(DataType::Binary),
-        "LONGBLOB" => Ok(DataType::Binary),
+        "BINARY" => Ok(DataType::Utf8),
+        "VARBINARY" => Ok(DataType::Utf8),
+        "TINYBLOB" => Ok(DataType::Utf8),
+        "BLOB" => Ok(DataType::Utf8),
+        "MEDIUMBLOB" => Ok(DataType::Utf8),
+        "LONGBLOB" => Ok(DataType::Utf8),
         "TINYTEXT" => Ok(DataType::Utf8),
         "TEXT" => Ok(DataType::Utf8),
         "MEDUIMTEXT" => Ok(DataType::Utf8),
         "LONGTEXT" => Ok(DataType::Utf8),
         // 日期时间
-        "DATE" => Ok(DataType::Date32),
-        "TIME" => Ok(DataType::Time32(TimeUnit::Second)),
+        "DATE" => Ok(DataType::Utf8),
+        "TIME" => Ok(DataType::Utf8),
         "DATETIME" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         "TIMESTAMP" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         "YEAR" => Ok(DataType::UInt16),
@@ -171,7 +167,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("DECIMAL".to_string()).unwrap(),
-            DataType::Decimal256(DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("CHAR".to_string()).unwrap(),
@@ -183,27 +179,27 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("BINARY".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("VARBINARY".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TINYBLOB".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("BLOB".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("MEDIUMBLOB".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("LONGBLOB".to_string()).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TINYTEXT".to_string()).unwrap(),
@@ -223,11 +219,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("DATE".to_string()).unwrap(),
-            DataType::Date32
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TIME".to_string()).unwrap(),
-            DataType::Time32(TimeUnit::Second)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("DATETIME".to_string()).unwrap(),

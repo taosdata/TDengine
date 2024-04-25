@@ -230,7 +230,11 @@ impl TaskConfig {
                 .replace("${end_date}", &query_end);
         } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start.format("%H:%M:%S"));
-            let query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            let mut query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            // modify endtime to 24:00:00 instead of 00:00:00
+            if query_end == "STR_TO_DATE('00:00:00','%H:%i:%s')" {
+                query_end = String::from("'24:00:00'");
+            }
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);

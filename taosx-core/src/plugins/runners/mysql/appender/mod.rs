@@ -5,8 +5,6 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use arrow_schema::DECIMAL256_MAX_PRECISION;
-use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
@@ -16,21 +14,10 @@ pub mod column_meta;
 pub async fn to_schema(row: MySqlRow) -> anyhow::Result<Schema> {
     let mut fields = Vec::new();
     for col in row.columns() {
-        let col_cidx = col.ordinal();
         let col_name = col.name();
         let col_type = col.type_info().name();
         // arrow data type
-        let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-        // modify the scale of decimal
-        if col_type == "DECIMAL" {
-            let val = row
-                .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                .unwrap()
-                .unwrap();
-            let (_, scale) = val.as_bigint_and_exponent();
-            arrow_type =
-                arrow::datatypes::DataType::Decimal256(DECIMAL256_MAX_PRECISION, scale as i8);
-        }
+        let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
         fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
     }
     let schema = build_schema(fields)?;
@@ -56,23 +43,10 @@ pub async fn to_record_batches(
     for (ridx, row) in rows.iter().enumerate() {
         if ridx == 0 {
             for col in row.columns() {
-                let col_cidx = col.ordinal();
                 let col_name = col.name();
                 let col_type = col.type_info().name();
                 // arrow data type
-                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
-                    let val = row
-                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                        .unwrap()
-                        .unwrap();
-                    let (_, scale) = val.as_bigint_and_exponent();
-                    arrow_type = arrow::datatypes::DataType::Decimal256(
-                        DECIMAL256_MAX_PRECISION,
-                        scale as i8,
-                    );
-                }
+                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
                 fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
                 builders.push(array::make_builder(&arrow_type, 10));
             }
@@ -279,19 +253,16 @@ pub async fn to_record_batches(
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Decimal256Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
-                            let (int_val, _) = val.as_bigint_and_exponent();
-                            let value = int_val.to_string();
-                            let value: i32 = value.parse().unwrap();
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Decimal256Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(arrow::datatypes::i256::from(value));
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
@@ -321,16 +292,16 @@ pub async fn to_record_batches(
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(val);
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
@@ -341,21 +312,16 @@ pub async fn to_record_batches(
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(
-                                    val.num_days_from_ce()
-                                        - sqlx::types::chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
-                                            .unwrap()
-                                            .num_days_from_ce(),
-                                );
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
@@ -365,16 +331,16 @@ pub async fn to_record_batches(
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Time32SecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Time32SecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(val.num_seconds_from_midnight() as i32);
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
@@ -467,22 +433,9 @@ pub async fn to_record_batches(
             // reset builders
             builders = Vec::new();
             for col in row.columns() {
-                let col_cidx = col.ordinal();
                 let col_type = col.type_info().name();
                 // arrow data type
-                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
-                    let val = row
-                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                        .unwrap()
-                        .unwrap();
-                    let (_, scale) = val.as_bigint_and_exponent();
-                    arrow_type = arrow::datatypes::DataType::Decimal256(
-                        DECIMAL256_MAX_PRECISION,
-                        scale as i8,
-                    );
-                }
+                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
                 builders.push(array::make_builder(&arrow_type, 10));
             }
             // reset row count
