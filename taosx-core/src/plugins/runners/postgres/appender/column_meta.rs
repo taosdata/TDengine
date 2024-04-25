@@ -36,7 +36,7 @@ impl ColumnMeta {
             // 日期时间
             "DATE" => Ok(IpcDataType::NChar(50)),
             "TIME" => Ok(IpcDataType::NChar(50)),
-            "TIMESTAMP" => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
+            "TIMESTAMP" => Ok(IpcDataType::NChar(50)),
             "TIMESTAMPTZ" => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             // uuid
             "UUID" => Ok(IpcDataType::NChar(50)),
@@ -81,7 +81,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 日期时间
         "DATE" => Ok(DataType::Utf8),
         "TIME" => Ok(DataType::Utf8),
-        "TIMESTAMP" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
+        "TIMESTAMP" => Ok(DataType::Utf8),
         "TIMESTAMPTZ" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         // uuid
         "UUID" => Ok(DataType::Utf8),
@@ -195,7 +195,7 @@ mod tests {
         let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMP".to_string()).unwrap();
         assert_eq!(
             column_meta.get_ipc_type().unwrap(),
-            IpcDataType::Timestamp(TimeUnit::Nanosecond)
+            IpcDataType::NChar(50)
         );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMPTZ".to_string()).unwrap();
@@ -365,7 +365,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("TIMESTAMP".to_string()).unwrap(),
-            DataType::Timestamp(TimeUnit::Nanosecond, None)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TIMESTAMPTZ".to_string()).unwrap(),

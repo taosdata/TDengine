@@ -298,16 +298,16 @@ pub async fn to_record_batches(
                         None => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Some(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(val.and_utc().timestamp_nanos_opt().unwrap());
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }

@@ -354,7 +354,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveDateTime>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "TIMESTAMPTZ" => {
