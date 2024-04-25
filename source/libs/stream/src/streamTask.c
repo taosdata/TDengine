@@ -48,7 +48,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
       epsetAssign(&pTask->info.epSet, pEpSet);
       stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s, old:%s", pTask->id.taskId, nodeId, buf, tmp);
     } else {
-      stDebug("s-task:0x%x (vgId:%d) not updated task epset, since epset identical, %s", buf);
+      stDebug("s-task:0x%x (vgId:%d) not updated task epset, since epset identical, %s", pTask->id.taskId, nodeId, buf);
     }
   }
 
