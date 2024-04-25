@@ -26,6 +26,7 @@ jobs:
         run: |
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
+          exit 1
   build_rust:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -386,16 +387,16 @@ jobs:
           java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH_3_0/influxdb/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/influxdb/"
   
-  # feishu_report:
-  #   runs-on: [self-hosted, linux, x64, qa, rust]
-  #   needs: [generate_report]
-  #   if: always()
-  #   steps: 
-  #     - name: Send Feishu Message
-  #       if: failure()
-  #       run: |
-  #         echo "action encounter error, send feishu message"
-  #         curl -X POST -H "Content-Type: application/json" \
-  #         -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"github action test send\"}}" \
-  #         https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
+  feishu_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [generate_report]
+    if: always()
+    steps: 
+      - name: Send Feishu Message
+        if: failure()
+        run: |
+          echo "action encounter error, send feishu message"
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"github action test send\"}}" \
+          https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
 
