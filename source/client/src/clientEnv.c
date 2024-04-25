@@ -770,6 +770,32 @@ int taos_init() {
   return tscInitRes;
 }
 
+const char* getCfgName(TSDB_OPTION option) {
+  const char* name = NULL;
+
+  switch (option) {
+    case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
+      name = "shellActivityTimer";
+      break;
+    case TSDB_OPTION_LOCALE:
+      name = "locale";
+      break;
+    case TSDB_OPTION_CHARSET:
+      name = "charset";
+      break;
+    case TSDB_OPTION_TIMEZONE:
+      name = "timezone";
+      break;
+    case TSDB_OPTION_USE_ADAPTER:
+      name = "useAdapter";
+      break;
+    default:
+      break;
+  }
+
+  return name;
+}
+
 int taos_options_imp(TSDB_OPTION option, const char *str) {
   if (option == TSDB_OPTION_CONFIGDIR) {
 #ifndef WINDOWS
@@ -799,39 +825,26 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
 
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
+  const char  *name = getCfgName(option);
 
-  switch (option) {
-    case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
-      pItem = cfgGetItem(pCfg, "shellActivityTimer");
-      break;
-    case TSDB_OPTION_LOCALE:
-      pItem = cfgGetItem(pCfg, "locale");
-      break;
-    case TSDB_OPTION_CHARSET:
-      pItem = cfgGetItem(pCfg, "charset");
-      break;
-    case TSDB_OPTION_TIMEZONE:
-      pItem = cfgGetItem(pCfg, "timezone");
-      break;
-    case TSDB_OPTION_USE_ADAPTER:
-      pItem = cfgGetItem(pCfg, "useAdapter");
-      break;
-    default:
-      break;
+  if (name == NULL) {
+    tscError("Invalid option %d", option);
+    return -1;
   }
 
+  pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     tscError("Invalid option %d", option);
     return -1;
   }
 
-  int code = cfgSetItem(pCfg, pItem->name, str, CFG_STYPE_TAOS_OPTIONS);
+  int code = cfgSetItem(pCfg, name, str, CFG_STYPE_TAOS_OPTIONS);
   if (code != 0) {
-    tscError("failed to set cfg:%s to %s since %s", pItem->name, str, terrstr());
+    tscError("failed to set cfg:%s to %s since %s", name, str, terrstr());
   } else {
-    tscInfo("set cfg:%s to %s", pItem->name, str);
+    tscInfo("set cfg:%s to %s", name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosCfgDynamicOptions(pCfg, pItem->name, false);
+      code = taosCfgDynamicOptions(pCfg, name, false);
     }
   }
 
