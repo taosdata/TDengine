@@ -819,6 +819,16 @@ export default {
       }
       
     },
+    getJsonText(data) {
+      if (data instanceof Object) {
+        this.isjson = true;
+        this.$set(this, "jsoneditorcont", data);
+        this.jsoneditorcont = data;
+      } else {
+        this.isjson = false;
+      }
+      
+    },
     statisticCol() {
       this.configuredCount = this.tableData.filter(
         (item) => item["Expression"] != ""

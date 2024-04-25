@@ -37,11 +37,9 @@
           </el-form-item>
           <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
             <template slot="label">
-              <el-tooltip placement="top" effect="light" :open-delay="0">
+              <el-tooltip placement="top" effect="light">
                 <template slot="content">
-                  <DocsContent
-                    :content="$t('dataIn.needAgentTip')"
-                  ></DocsContent>
+                  <div v-html="$t('dataIn.needAgentTip')"></div>
                 </template>
                 <div>
                   <span>{{ $t('agent') }}</span>
@@ -73,6 +71,9 @@
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
             >
+            <!-- <p class="custom-placeholder mt10">
+              {{ $t("dataIn.needAgentTip") }}
+            </p> -->
           </el-form-item>
           <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select
