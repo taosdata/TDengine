@@ -221,6 +221,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   STableListInfo*     pTableList = pInfo->pTableList;
   SStoreCacheReader*  pReaderFn = &pInfo->readHandle.api.cacheFn;
+  SSDataBlock*        pBufRes = pInfo->pBufferedRes;
 
   uint64_t suid = tableListGetSuid(pTableList);
   int32_t  size = tableListGetSize(pTableList);
@@ -237,18 +238,18 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
-    if (pInfo->indexOfBufferedRes >= pInfo->pBufferedRes->info.rows) {
-      blockDataCleanup(pInfo->pBufferedRes);
+    if (pInfo->indexOfBufferedRes >= pBufRes->info.rows) {
+      blockDataCleanup(pBufRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pInfo->pBufferedRes, pInfo->pSlotIds,
-                                             pInfo->pDstSlotIds, pInfo->pUidList);
+      int32_t code =
+          pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
       // check for tag values
-      int32_t resultRows = pInfo->pBufferedRes->info.rows;
+      int32_t resultRows = pBufRes->info.rows;
 
       // the results may be null, if last values are all null
       ASSERT(resultRows == 0 || resultRows == taosArrayGetSize(pInfo->pUidList));
@@ -257,12 +258,12 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
     SSDataBlock* pRes = pInfo->pRes;
 
-    if (pInfo->indexOfBufferedRes < pInfo->pBufferedRes->info.rows) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBufferedRes->pDataBlock); ++i) {
+    if (pInfo->indexOfBufferedRes < pBufRes->info.rows) {
+      for (int32_t i = 0; i < taosArrayGetSize(pBufRes->pDataBlock); ++i) {
         SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, i);
         int32_t        slotId = pCol->info.slotId;
 
-        SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferedRes->pDataBlock, slotId);
+        SColumnInfoData* pSrc = taosArrayGet(pBufRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
 
         if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
