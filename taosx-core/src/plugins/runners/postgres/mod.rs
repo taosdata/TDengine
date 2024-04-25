@@ -317,7 +317,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val.to_string())),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // 字符串

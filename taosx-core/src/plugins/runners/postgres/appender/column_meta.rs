@@ -1,5 +1,4 @@
 use arrow::datatypes::{DataType, TimeUnit};
-use arrow_schema::{DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE};
 use taosx_ipc::stream::writer::IpcDataType;
 
 // use taosx_ipc::prelude::IpcDataType;
@@ -65,7 +64,7 @@ impl ColumnMeta {
 pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
     match type_name.as_str() {
         // 布尔值
-        "BOOL" => Ok(DataType::Boolean),
+        "BOOL" => Ok(DataType::Utf8),
         // 字符
         "CHAR" => Ok(DataType::Utf8),
         // 整型数
@@ -75,16 +74,13 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 浮点数
         "REAL" | "FLOAT4" => Ok(DataType::Float32),
         "DOUBLE PRECISION" | "FLOAT8" => Ok(DataType::Float64),
-        "NUMERIC" => Ok(DataType::Decimal256(
-            DECIMAL256_MAX_PRECISION,
-            DECIMAL256_MAX_SCALE,
-        )),
+        "NUMERIC" => Ok(DataType::Utf8),
         // 字符串
         "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => Ok(DataType::Utf8),
         "BYTEA" => Ok(DataType::Utf8),
         // 日期时间
-        "DATE" => Ok(DataType::Date32),
-        "TIME" => Ok(DataType::Time32(TimeUnit::Second)),
+        "DATE" => Ok(DataType::Utf8),
+        "TIME" => Ok(DataType::Utf8),
         "TIMESTAMP" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         "TIMESTAMPTZ" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         // uuid
@@ -101,7 +97,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "MONEY" => Ok(DataType::Utf8),
         "LTREE" => Ok(DataType::Utf8),
         "LQUERY" => Ok(DataType::Utf8),
-        "TIMETZ" => Ok(DataType::Time32(TimeUnit::Second)),
+        "TIMETZ" => Ok(DataType::Utf8),
         "INET" | "CIDR" => Ok(DataType::Utf8),
         "MACADDR" => Ok(DataType::Utf8),
         // 其他
@@ -127,7 +123,7 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "CHAR".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int8);
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "SMALLINT".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int16);
@@ -273,11 +269,11 @@ mod tests {
     fn test_to_arrow_data_type() {
         assert_eq!(
             to_arrow_data_type("BOOL".to_string()).unwrap(),
-            DataType::Boolean
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("CHAR".to_string()).unwrap(),
-            DataType::Int8
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("SMALLINT".to_string()).unwrap(),
@@ -333,7 +329,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("NUMERIC".to_string()).unwrap(),
-            DataType::Decimal256(DECIMAL256_MAX_PRECISION, DECIMAL256_MAX_SCALE)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("VARCHAR".to_string()).unwrap(),
@@ -361,11 +357,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("DATE".to_string()).unwrap(),
-            DataType::Date32
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TIME".to_string()).unwrap(),
-            DataType::Time32(TimeUnit::Second)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TIMESTAMP".to_string()).unwrap(),
@@ -437,7 +433,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("TIMETZ".to_string()).unwrap(),
-            DataType::Time32(TimeUnit::Second)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("INET".to_string()).unwrap(),

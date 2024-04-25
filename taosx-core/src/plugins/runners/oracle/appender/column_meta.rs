@@ -71,22 +71,22 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Number(_, _) => Ok(DataType::Utf8),
         OracleType::Float(_) => Ok(DataType::Utf8),
         // 日期时间
-        OracleType::Date => Ok(DataType::Date32),
+        OracleType::Date => Ok(DataType::Utf8),
         OracleType::Timestamp(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::TimestampTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::TimestampLTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::IntervalDS(_, _) => Ok(DataType::Utf8),
         OracleType::IntervalYM(_) => Ok(DataType::Utf8),
         // 大文本
-        OracleType::CLOB => Ok(DataType::Binary),
-        OracleType::NCLOB => Ok(DataType::Binary),
-        OracleType::BLOB => Ok(DataType::Binary),
+        OracleType::CLOB => Ok(DataType::Utf8),
+        OracleType::NCLOB => Ok(DataType::Utf8),
+        OracleType::BLOB => Ok(DataType::Utf8),
         OracleType::BFILE => Ok(DataType::Utf8),
         OracleType::RefCursor => Ok(DataType::Utf8),
-        OracleType::Boolean => Ok(DataType::Boolean),
+        OracleType::Boolean => Ok(DataType::Utf8),
         OracleType::Object(_) => Ok(DataType::Utf8),
-        OracleType::Long => Ok(DataType::LargeUtf8),
-        OracleType::LongRaw => Ok(DataType::LargeUtf8),
+        OracleType::Long => Ok(DataType::Utf8),
+        OracleType::LongRaw => Ok(DataType::Utf8),
         OracleType::Json => Ok(DataType::Utf8),
         // 整型数
         OracleType::Int64 => Ok(DataType::Int64),
@@ -152,7 +152,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Date).unwrap(),
-            DataType::Date32
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Timestamp(10)).unwrap(),
@@ -176,15 +176,15 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::CLOB).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::NCLOB).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::BLOB).unwrap(),
-            DataType::Binary
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::BFILE).unwrap(),
@@ -196,16 +196,16 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Boolean).unwrap(),
-            DataType::Boolean
+            DataType::Utf8
         );
         // assert_eq!(to_arrow_data_type(&OracleType::Object).unwrap(), DataType::Utf8);
         assert_eq!(
             to_arrow_data_type(&OracleType::Long).unwrap(),
-            DataType::LargeUtf8
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::LongRaw).unwrap(),
-            DataType::LargeUtf8
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Json).unwrap(),
