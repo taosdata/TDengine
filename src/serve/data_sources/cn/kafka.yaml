@@ -18,14 +18,8 @@ groups:
   - name: SASL 认证机制
     display_order: 1
     description: 用来认证服务器与客户端的一种认证机制。
+    collapsible: true
     params:
-      - name: use_sasl
-        display: 启用
-        description: 是否启用 SASL 认证机制
-        required: true
-        value: false
-        hint:
-          type: bool
       - name: sasl_mechanism
         display: 认证机制
         description: SASL 的认证机制

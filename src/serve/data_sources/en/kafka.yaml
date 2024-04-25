@@ -18,14 +18,8 @@ groups:
   - name: SASL Authentication
     display_order: 1
     description: Simple Authentication and Security Layer.
+    collapsible: true
     params:
-      - name: use_sasl
-        display: Enable
-        description: Whether to enable SASL authentication.
-        required: true
-        value: false
-        hint:
-          type: bool
       - name: sasl_mechanism
         display: Mechanism
         description: SASL authentication mechanism.
