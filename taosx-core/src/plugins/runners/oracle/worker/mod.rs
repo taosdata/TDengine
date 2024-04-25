@@ -113,7 +113,9 @@ pub async fn set_breakpoint(
     let sub_task_id = config.sub_task_id.clone().unwrap();
     let breakpoint = format!("{}", breakpoint.to_rfc3339());
 
-    breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint)
+    // set break point and ignore error
+    let _ = breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint);
+    Ok(())
 }
 
 fn get_breakpoint(task_id: Option<i64>) -> Option<DateTime<Utc>> {
