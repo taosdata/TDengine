@@ -22,8 +22,6 @@ public class WSParameterBindingBasicDemo {
 
         init(conn);
 
-        init(conn);
-
         String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
 
         try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
