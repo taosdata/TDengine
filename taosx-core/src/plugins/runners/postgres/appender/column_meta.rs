@@ -193,10 +193,7 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMP".to_string()).unwrap();
-        assert_eq!(
-            column_meta.get_ipc_type().unwrap(),
-            IpcDataType::NChar(50)
-        );
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMPTZ".to_string()).unwrap();
         assert_eq!(
