@@ -243,7 +243,7 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   for (int32_t i = 0; i < rows;) {
     if (pInfo->ignoreExpiredData &&
         checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo, &pInfo->twAggSup,
-                         pSDataBlock->info.id.uid, startTsCols[i])) {
+                         pSDataBlock->info.id.uid, startTsCols[i], NULL, 0)) {
       i++;
       continue;
     }
@@ -729,7 +729,7 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   setOperatorStreamStateFn(pOperator, streamCountReleaseState, streamCountReloadState);
 
   if (downstream) {
-    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup);
+    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup, &pInfo->basic);
     code = appendDownstream(pOperator, &downstream, 1);
   }
   return pOperator;

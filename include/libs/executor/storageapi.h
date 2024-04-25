@@ -308,6 +308,13 @@ typedef struct SUpdateInfo {
   SScalableBf* pCloseWinSBF;
   SHashObj*    pMap;
   uint64_t     maxDataVersion;
+  int8_t       pkColType;
+  int32_t      pkColLen;
+  char*        pKeyBuff;
+  char*        pValueBuff;
+
+  int (*comparePkRowFn)(void* pValue1, void* pTs, void* pPkVal, __compar_fn_t cmpPkFn);
+  __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
 typedef struct {
@@ -375,17 +382,17 @@ typedef struct SStateStore {
                                               void** ppVal, int32_t* pVLen);
   int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
-  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
-  TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
-  bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
+  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen);
+  TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol);
+  bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
-  bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
+  bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
 
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
   void (*windowSBfDelete)(SUpdateInfo* pInfo, uint64_t count);
   void (*windowSBfAdd)(SUpdateInfo* pInfo, uint64_t count);
 
-  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
+  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
   void (*updateInfoDestoryColseWinSBF)(SUpdateInfo* pInfo);
   int32_t (*updateInfoSerialize)(void* buf, int32_t bufLen, const SUpdateInfo* pInfo);

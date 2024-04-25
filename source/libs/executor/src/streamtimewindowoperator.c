@@ -487,13 +487,14 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
   pScanInfo->windowSup.pIntervalAggSup = &pInfo->aggSup;
   if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo =
-        pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark, pScanInfo->igCheckUpdate);
+        pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
   }
 
   pScanInfo->interval = pInfo->interval;
   pScanInfo->twAggSup = pInfo->twAggSup;
   pScanInfo->pState = pInfo->pState;
   pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
+  pInfo->basic.primaryPkIndex = pScanInfo->primaryKeyIndex;
 }
 
 void compactFunctions(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t numOfOutput,
@@ -826,6 +827,10 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
   return startPos;
 }
 
+bool hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo) {
+  return pInfo->primaryPkIndex != -1;
+}
+
 static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, uint64_t groupId,
                                     SSHashObj* pUpdatedMap, SSHashObj* pDeletedMap) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)pOperator->info;
@@ -844,6 +849,13 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
 
   SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   tsCols = (int64_t*)pColDataInfo->pData;
+
+  void* pPkVal = NULL;
+  int32_t pkLen = 0;
+  SColumnInfoData* pPkColDataInfo = NULL;
+  if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+  }
 
   if (pSDataBlock->info.window.skey != tsCols[0] || pSDataBlock->info.window.ekey != tsCols[endRowId]) {
     qError("table uid %" PRIu64 " data block timestamp range may not be calculated! minKey %" PRId64
@@ -868,9 +880,15 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   }
   while (1) {
     bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
+    if (hasSrcPrimaryKeyCol(&pInfo->basic) && !IS_FINAL_INTERVAL_OP(pOperator) && pInfo->ignoreExpiredData &&
+        pSDataBlock->info.type != STREAM_PULL_DATA) {
+      pPkVal = colDataGetData(pPkColDataInfo, startPos);
+      pkLen = colDataGetRowLength(pPkColDataInfo, startPos);
+    }
+
     if ((!IS_FINAL_INTERVAL_OP(pOperator) && pInfo->ignoreExpiredData && pSDataBlock->info.type != STREAM_PULL_DATA &&
          checkExpiredData(&pInfo->stateStore, pInfo->pUpdateInfo, &pInfo->twAggSup, pSDataBlock->info.id.uid,
-                          nextWin.ekey)) ||
+                          nextWin.ekey, pPkVal, pkLen)) ||
         !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
       startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
       if (startPos < 0) {
@@ -1722,14 +1740,14 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
 }
 
 void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
-                    STimeWindowAggSupp* pTwSup) {
+                    STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic) {
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
     SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
     pScanInfo->tsColIndex = tsColIndex;
   }
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup);
+    initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic);
     return;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -1737,10 +1755,11 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   pScanInfo->pState = pAggSup->pState;
   if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark,
-                                                                pScanInfo->igCheckUpdate);
+                                                                pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
   }
   pScanInfo->twAggSup = *pTwSup;
   pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
+  pBasic->primaryPkIndex = pScanInfo->primaryKeyIndex;
 }
 
 static TSKEY sesionTs(void* pKey) {
@@ -2113,10 +2132,22 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   }
 
   TSKEY* endTsCols = (int64_t*)pEndTsCol->pData;
+
+  void* pPkVal = NULL;
+  int32_t pkLen = 0;
+  SColumnInfoData* pPkColDataInfo = NULL;
+  if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+  }
+
   for (int32_t i = 0; i < rows;) {
+    if (hasSrcPrimaryKeyCol(&pInfo->basic) && !IS_FINAL_SESSION_OP(pOperator) && pInfo->ignoreExpiredData) {
+      pPkVal = colDataGetData(pPkColDataInfo, i);
+      pkLen = colDataGetRowLength(pPkColDataInfo, i);
+    }
     if (!IS_FINAL_SESSION_OP(pOperator) && pInfo->ignoreExpiredData &&
         checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo, &pInfo->twAggSup,
-                         pSDataBlock->info.id.uid, endTsCols[i])) {
+                         pSDataBlock->info.id.uid, endTsCols[i], pPkVal, pkLen)) {
       i++;
       continue;
     }
@@ -3058,7 +3089,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
 
   if (downstream) {
-    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup);
+    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup, &pInfo->basic);
     code = appendDownstream(pOperator, &downstream, 1);
   }
   return pOperator;
@@ -3490,7 +3521,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SColumnInfoData* pKeyColInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->stateCol.slotId);
   for (int32_t i = 0; i < rows; i += winRows) {
     if (pInfo->ignoreExpiredData && checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo,
-                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i]) ||
+                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i], NULL, 0) ||
         colDataIsNull_s(pKeyColInfo, i)) {
       i++;
       continue;
@@ -3957,7 +3988,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAgg, NULL, destroyStreamStateOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
-  initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup);
+  initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup, &pInfo->basic);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
