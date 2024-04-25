@@ -1111,7 +1111,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   if (!pStr) {
     int32_t code = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if (code == TSDB_CODE_SUCCESS) {
-      tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), pVal, TSDB_TABLE_NAME_LEN);
+      tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
     }
     return code;
   }
