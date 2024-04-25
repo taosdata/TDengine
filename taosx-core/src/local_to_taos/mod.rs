@@ -55,12 +55,24 @@ async fn restore(
                         if let Err(err) = taos.write_raw_meta(&meta).await {
                             let code: i32 = err.code().into();
                             match code {
-                                0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
-                                    tracing::debug!("Found recoverable error: {}", err);
-                                    tokio::time::sleep(Duration::from_nanos(100)).await;
+                                0x0603 => {
+                                    tracing::debug!("Table already exists");
+                                }
+                                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                    tracing::debug!("Found recoverable error: {err:#}, retry once");
+                                    tokio::time::sleep(Duration::from_millis(100)).await;
+                                    let res = taos.write_raw_meta(&meta).await;
+                                    if res.is_ok() {
+                                        tracing::debug!("Retry success");
+                                    } else {
+                                        tracing::debug!(
+                                            "Retry failed: {:#}, continue",
+                                            res.unwrap_err()
+                                        );
+                                    }
                                 }
                                 0x2603 => {
-                                    tracing::debug!("Found 0x2603 error: {}, retry once", err);
+                                    tracing::debug!("Found 0x2603 error: {err:#}, retry once");
                                     taos.write_raw_meta(&meta)
                                         .await
                                         .context("restore meta error")?;
