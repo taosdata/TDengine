@@ -7,6 +7,10 @@ pub struct KafkaConnectConfig {
     pub ca_cert: Option<String>,     // the trusted CA certificates
     pub client_cert: Option<String>, // the client certificate
     pub client_key: Option<String>,  // key for the client certificate
+    pub use_sasl: bool,
+    pub sasl_mechanism: Option<String>,
+    pub sasl_username: Option<String>,
+    pub sasl_password: Option<String>,
 }
 
 impl KafkaConnectConfig {
@@ -17,6 +21,13 @@ impl KafkaConnectConfig {
             ca_cert: dsn.get("ca").map(|s| s.to_string()),
             client_cert: dsn.get("cert").map(|s| s.to_string()),
             client_key: dsn.get("cert_key").map(|s| s.to_string()),
+            use_sasl: dsn
+                .get("use_sasl")
+                .map(|s| s.parse::<bool>().unwrap_or(false))
+                .unwrap_or(false),
+            sasl_mechanism: dsn.get("sasl_mechanism").map(|s| s.to_string()),
+            sasl_username: dsn.get("sasl_username").map(|s| s.to_string()),
+            sasl_password: dsn.get("sasl_password").map(|s| s.to_string()),
         })
     }
 
