@@ -827,10 +827,14 @@ TEST(clientCase, projection_query_tables) {
   //  }
   //  taos_free_result(pRes);
 
-  TAOS_RES* pRes = taos_query(pConn, "use test");
+  TAOS_RES* pRes = taos_query(pConn, "use cache_1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table st2 (ts timestamp, k int primary key, j varchar(1000)) tags(a int)");
+  pRes = taos_query(pConn, "select last(ts), ts from cache_1.t1");
+//  pRes = taos_query(pConn, "select last(ts), ts from cache_1.no_pk_t1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to exec query, %s\n", taos_errstr(pRes));
+  }
   taos_free_result(pRes);
 
 //  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");

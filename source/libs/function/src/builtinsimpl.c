@@ -2837,7 +2837,7 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   if (pInput->pkData) {
     pOutput->pkBytes = pInput->pkBytes;
-    memcpy(pOutput->buf+pOutput->bytes, pInput->pkData, pOutput->pkBytes);
+    memcpy(pOutput->buf + pOutput->bytes, pInput->pkData, pOutput->pkBytes);
     pOutput->pkData = pOutput->buf + pOutput->bytes;
   }
   return TSDB_CODE_SUCCESS;
@@ -2885,7 +2885,8 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
     } else {
       pInputInfo->pkData = NULL;
     }
-    int32_t        code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
+
+    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
