@@ -1290,17 +1290,24 @@ end:
   return code;
 }
 
-static void smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols) {
+static int32_t smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, SHashObj *checkDuplicate) {
+  terrno = 0;
   for (int16_t i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &i, SHORT_BYTES);
     if (ret == 0) {
       taosArrayPush(metaArray, kv);
+      if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+        return TSDB_CODE_PAR_DUPLICATED_COLUMN;
+      }
+    }else if(terrno == TSDB_CODE_DUP_KEY){
+      return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, bool isTag, SSmlMsgBuf *msg) {
+static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, bool isTag, SSmlMsgBuf *msg, SHashObj* checkDuplicate) {
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
 
@@ -1332,6 +1339,11 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
       if (ret == 0) {
         taosArrayPush(metaArray, kv);
+        if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+          return TSDB_CODE_PAR_DUPLICATED_COLUMN;
+        }
+      }else{
+        return ret;
       }
     }
   }
@@ -1456,7 +1468,7 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
     taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
     if (terrno == TSDB_CODE_DUP_KEY) {
       taosHashCleanup(kvHash);
-      return terrno;
+      return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
   }
 
@@ -1512,12 +1524,12 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
     if (tableMeta) {  // update meta
       uDebug("SML:0x%" PRIx64 " smlParseLineBottom update meta, format:%d, linenum:%d", info->id, info->dataFormat,
              info->lineNum);
-      ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, elements->colArray, false, &info->msgBuf);
+      ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, elements->colArray, false, &info->msgBuf, (*tableMeta)->tagHash);
       if (ret == TSDB_CODE_SUCCESS) {
-        ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, tinfo->tags, true, &info->msgBuf);
+        ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, tinfo->tags, true, &info->msgBuf, (*tableMeta)->colHash);
       }
       if (ret != TSDB_CODE_SUCCESS) {
-        uError("SML:0x%" PRIx64 " smlUpdateMeta failed", info->id);
+        uError("SML:0x%" PRIx64 " smlUpdateMeta failed, ret:%d", info->id, ret);
         return ret;
       }
     } else {
@@ -1527,13 +1539,19 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
       if (meta == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
-      terrno = 0;
-      smlInsertMeta(meta->tagHash, meta->tags, tinfo->tags);
-      if (terrno == TSDB_CODE_DUP_KEY) {
-        return terrno;
+      ret = taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("SML:0x%" PRIx64 " put measuer to hash failed", info->id);
+        return ret;
       }
-      smlInsertMeta(meta->colHash, meta->cols, elements->colArray);
+      ret = smlInsertMeta(meta->tagHash, meta->tags, tinfo->tags, NULL);
+      if (ret == TSDB_CODE_SUCCESS) {
+        ret = smlInsertMeta(meta->colHash, meta->cols, elements->colArray, meta->tagHash);
+      }
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("SML:0x%" PRIx64 " insert meta failed:%s", info->id, tstrerror(ret));
+        return ret;
+      }
     }
   }
   uDebug("SML:0x%" PRIx64 " smlParseLineBottom end, format:%d, linenum:%d", info->id, info->dataFormat, info->lineNum);
