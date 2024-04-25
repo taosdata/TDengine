@@ -1315,7 +1315,7 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   if (pInfo->checkRspTmr == NULL) {
     pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer);
   } else {
-    taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, pInfo->checkRspTmr);
+    taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
   }
 
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
