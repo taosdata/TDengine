@@ -18,7 +18,6 @@ groups:
   - name: SASL Authentication
     display_order: 1
     description: Simple Authentication and Security Layer.
-    collapsible: true
     params:
       - name: use_sasl
         display: Enable
@@ -50,7 +49,7 @@ groups:
         hint:
           type: str
   - name: Enable SSL
-    display_order: 1
+    display_order: 2
     description: Use self-signed certificate file and private key.
     collapsible: true
     connection_option: true
@@ -74,7 +73,7 @@ groups:
         hint:
           type: file
   - name: Collect
-    display_order: 2
+    display_order: 3
     description: Configurations for collecting data.
     required: false
     connection_option: true

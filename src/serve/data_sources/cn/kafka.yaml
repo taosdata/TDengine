@@ -18,7 +18,6 @@ groups:
   - name: SASL 认证机制
     display_order: 1
     description: 用来认证服务器与客户端的一种认证机制。
-    collapsible: true
     params:
       - name: use_sasl
         display: 启用
@@ -74,7 +73,7 @@ groups:
         hint:
           type: file
   - name: 采集配置
-    display_order: 2
+    display_order: 3
     description: 数据采集相关配置项。
     required: false
     connection_option: true
