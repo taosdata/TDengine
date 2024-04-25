@@ -10,7 +10,9 @@
     <el-checkbox v-model="checked">{{ $t('dontDisturbMe')}}</el-checkbox>
     <div class="actions">
       <el-button size="small" @click="handleAfterLeave">{{ $t('close')}}</el-button>
-      <el-button size="small" type='primary' @click="refresh">{{ $t('contact')}}</el-button>
+      <el-button size="small">
+        <a :href="url" target="_blank">{{ $t('contact') }}</a>
+      </el-button>
     </div>
   </div>
 </template>
@@ -22,6 +24,11 @@ export default {
       checked: false,
       showme: false,
     }
+  },
+  computed: {
+    url() {
+      return this.$i18n.locale.includes('en') ? "https://tdengine.com/contact/" : "https://www.taosdata.com/contactUs";
+    },
   },
   created() {
     let ts = localStorage.getItem('modalLastCheckedTime');
@@ -47,11 +54,7 @@ export default {
         localStorage.setItem('modalLastCheckedTime', now + 24 * 3600 * 1000);
       }
       this.showme = false
-    },
-    refresh() {
-      this.handleAfterLeave();
-        location.reload(true);  // 刷新了缓存
-    },
+    }
   },
 };
 </script>
