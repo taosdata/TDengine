@@ -3,7 +3,7 @@ name: qa-ci-report
 
 on:
   workflow_run: 
-    workflows: ["3.0-qa-ci", "pr-qa-ci"]
+    workflows: [3.0 QA-workflow, PR-QA-workflow]
     types:
       - completed
 
