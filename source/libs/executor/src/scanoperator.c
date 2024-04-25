@@ -3211,7 +3211,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   if (hasPrimaryKeyCol(pInfo)) {
     addPrimaryKeyCol(pInfo->pUpdateDataRes, pkType.type, pkType.bytes);
     pInfo->pkColType = pkType.type;
-    pInfo->pkColLen = pkType.bytes + 2;
+    pInfo->pkColLen = pkType.bytes;
   }
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
