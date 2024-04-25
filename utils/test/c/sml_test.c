@@ -1866,6 +1866,7 @@ int sml_td29691_Test() {
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
   taos_free_result(pRes);
+  taos_close(taos);
 
   return code;
 }
