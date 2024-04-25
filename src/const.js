@@ -1373,9 +1373,9 @@ export const backupMockData = [{
 export const replicationMockData = [{
   id: '1',
   fromdb: 'myDatabse',
-  hostport: 'taos+ws://root:taosdata@trd01:6041/guxiang',
+  hostport: 'taos+ws://root:taosdata@192.168.1.10:6041/mytest',
   status: 'stopped',
-  reason: 'reason',
+  reason: 'Task has been stopped',
   finished_at: '2024-03-28T13:38:06+08:00',
   created_at: '2024-03-28T13:38:06+08:00',
 }]
