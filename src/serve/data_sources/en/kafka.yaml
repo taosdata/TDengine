@@ -19,6 +19,7 @@ groups:
     display_order: 1
     description: Simple Authentication and Security Layer.
     collapsible: true
+    connection_option: true
     params:
       - name: sasl_mechanism
         display: Mechanism

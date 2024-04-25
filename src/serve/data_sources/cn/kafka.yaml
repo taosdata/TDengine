@@ -19,6 +19,7 @@ groups:
     display_order: 1
     description: 用来认证服务器与客户端的一种认证机制。
     collapsible: true
+    connection_option: true
     params:
       - name: sasl_mechanism
         display: 认证机制
