@@ -160,10 +160,10 @@ class TDTestCase:
             else:
                 tdSql.haveFile(i,0)
     
-    def more_than_16_disks(self):
-        tdLog.info("============== more_than_16_disks test ===============")
+    def more_than_128_disks(self):
+        tdLog.info("============== more_than_128_disks test ===============")
         cfg={}
-        for i in range(17):
+        for i in range(129):
             if i == 0 :
                 datadir = '/mnt/data%d 0 1' % (i+1)
             else:
@@ -249,7 +249,7 @@ class TDTestCase:
         self.dir_permission_denied()
         self.file_distribution_same_level()
         self.three_level_basic()
-        self.more_than_16_disks()
+        self.more_than_128_disks()
         self.trim_database()
         self.missing_middle_level()
         
