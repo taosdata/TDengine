@@ -55,12 +55,29 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // // open each segment reader
+// // open each segment reader
+#if 1
   int64_t offset = config->file->size - sizeof(SSttFooter);
   ASSERT(offset >= TSDB_FHDR_SIZE);
 
   code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter));
   TSDB_CHECK_CODE(code, lino, _exit);
+#else
+  int64_t size = config->file->size;
+
+  for (; size > TSDB_FHDR_SIZE; size--) {
+    code = tsdbReadFile(reader[0]->fd, size - sizeof(SSttFooter), (uint8_t *)(reader[0]->footer), sizeof(SSttFooter));
+    if (code) continue;
+    if ((*reader)->footer->sttBlkPtr->offset + (*reader)->footer->sttBlkPtr->size + sizeof(SSttFooter) == size ||
+        (*reader)->footer->statisBlkPtr->offset + (*reader)->footer->statisBlkPtr->size + sizeof(SSttFooter) == size ||
+        (*reader)->footer->tombBlkPtr->offset + (*reader)->footer->tombBlkPtr->size + sizeof(SSttFooter) == size) {
+      break;
+    }
+  }
+  if (size <= TSDB_FHDR_SIZE) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+#endif
 
 _exit:
   if (code) {
