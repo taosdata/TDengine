@@ -773,8 +773,8 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     SSchema*          pSchema = req.schemaRow.pSchema + i;
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
-    // todo get active compress param
-    setDefaultOptionsForField(&field);
+    SColCmpr *p = &req.colCmpr.pColCmpr[i];
+    field.compress = p->alg;
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
