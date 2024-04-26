@@ -110,12 +110,15 @@ async fn action_to_arrow(
                 task.id = id,
                 task.jid = %jid,
                 task.rid = rid,
-                "Send stop action"
+                "Send run action"
             );
             let task = controller.get(id).await?;
             if let Some(mut task) = task {
                 // handle dsn(from) params contains file(@)
-                modify_task_dsn_params(&mut task.task).await?;
+                if let Err(err) = modify_task_dsn_params(&mut task.task).await {
+                    tracing::error!(task.id = id, "Failed to modify task dsn params: {err:#}");
+                    return Err(err);
+                }
                 #[derive(Serialize)]
                 struct TaskInAgent {
                     #[serde(flatten)]
@@ -984,8 +987,10 @@ use crate::serve::controller::StringSender;
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_ipc::types::SampleResponse;
 
+#[instrument(skip(task))]
 async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
+    tracing::debug!("Dsn before modify: {:?}", dsn);
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
         let mut new_value = String::new();
@@ -1035,6 +1040,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
             if !point_list.is_empty() {
                 map.insert("point_list".to_string(), point_list.join(","));
             }
+            continue;
         } else if v.contains("@") {
             new_value.push_str(
                 get_string_content_from_param_value(&v, false, false)?
@@ -1047,6 +1053,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     }
     dsn.params = map;
     task.from = dsn.to_string();
+    tracing::debug!("Dsn after modify: {:?}", task.from);
     Ok(())
 }
 
