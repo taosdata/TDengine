@@ -435,6 +435,7 @@ typedef struct SUpstreamInfo {
 typedef struct SDownstreamStatusInfo {
   int64_t reqId;
   int32_t taskId;
+  int32_t vgId;
   int64_t rspTs;
   int32_t status;
 } SDownstreamStatusInfo;
@@ -847,12 +848,9 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id);
-int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
-                                  int32_t* pNotReady, const char* id);
-void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
+void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
