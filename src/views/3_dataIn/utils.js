@@ -796,7 +796,6 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         }
       }
       if (paramConfig.type == 'time') {
-        console.log('value',value);
         paramConfig.valueFormat = 'yyyy-MM-dd HH:mm:ss';
         paramConfig.dateType = 'datetime';
       }
