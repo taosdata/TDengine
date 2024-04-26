@@ -17,6 +17,8 @@
 #include "tmisce.h"
 #include "tglobal.h"
 #include "tjson.h"
+#include "tdatablock.h"
+
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
@@ -97,10 +99,10 @@ void epsetSort(SEpSet* pDst) {
       SEp* s = &pDst->eps[j + 1];
       int  cmp = strncmp(f->fqdn, s->fqdn, sizeof(f->fqdn));
       if (cmp > 0 || (cmp == 0 && f->port > s->port)) {
-        SEp ep = {0};
-        epAssign(&ep, f);
+        SEp ep1 = {0};
+        epAssign(&ep1, f);
         epAssign(f, s);
-        epAssign(s, &ep);
+        epAssign(s, &ep1);
       }
     }
   }
@@ -214,5 +216,45 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   *pMsg = pCont;
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
+  SConfig*     pConf = taosGetCfg();
+  int32_t      numOfRows = 0;
+  int32_t      col = startCol;
+  SConfigItem* pItem = NULL;
+
+  blockDataEnsureCapacity(pBlock, cfgGetSize(pConf));
+  SConfigIter* pIter = cfgCreateIter(pConf);
+
+  while ((pItem = cfgNextIter(pIter)) != NULL) {
+    col = startCol;
+
+    // GRANT_CFG_SKIP;
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, name, false);
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t valueLen = 0;
+    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    varDataSetLen(value, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, value, false);
+
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    varDataSetLen(scope, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, scope, false);
+
+    numOfRows++;
+  }
+
+  pBlock->info.rows = numOfRows;
+
+  cfgDestroyIter(pIter);
   return TSDB_CODE_SUCCESS;
 }

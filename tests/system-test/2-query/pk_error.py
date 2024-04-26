@@ -88,7 +88,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 8)
         tdSql.checkData(1, 2, 8)
 
-        tdSql.query('select ts,diff(f) from d1.st partition by t order by t;')
+        tdSql.query('select ts,diff(f),t from d1.st partition by t order by 3,1;')
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0, 1))
         tdSql.checkData(0, 1, 0)
@@ -104,7 +104,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 4.0)
         tdSql.checkData(1, 0, 5.0)
 
-        tdSql.query('select ts,derivative(f, 1s, 0) from d1.st partition by t order by t;')
+        tdSql.query('select ts,derivative(f, 1s, 0),t from d1.st partition by t order by 3,1;')
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0, 1))
         tdSql.checkData(0, 1, 0.0)

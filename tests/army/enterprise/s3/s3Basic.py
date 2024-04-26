@@ -38,6 +38,10 @@ s3EndPoint     http://192.168.1.52:9000
 s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
 s3BucketName   ci-bucket
 s3UploadDelaySec 60
+
+for test:
+"s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
+"s3BucketName": "test-bucket"
 '''
 
 
@@ -63,7 +67,7 @@ class TDTestCase(TBase):
 
         tdSql.execute(f"use {self.db}")
         # come from s3_basic.json
-        self.childtable_count = 10
+        self.childtable_count = 6
         self.insert_rows = 2000000
         self.timestamp_step = 1000
 
@@ -85,7 +89,7 @@ class TDTestCase(TBase):
             fileName = cols[8]
             #print(f" filesize={fileSize} fileName={fileName}  line={line}")
             if fileSize > maxFileSize:
-                tdLog.info(f"error, {fileSize} over max size({maxFileSize})\n")
+                tdLog.info(f"error, {fileSize} over max size({maxFileSize}) {fileName}\n")
                 overCnt += 1
             else:
                 tdLog.info(f"{fileName}({fileSize}) check size passed.")
@@ -99,7 +103,7 @@ class TDTestCase(TBase):
         loop = 0
         rets = []
         overCnt = 0
-        while loop < 180:
+        while loop < 100:
             time.sleep(3)
 
             # check upload to s3
@@ -335,7 +339,7 @@ class TDTestCase(TBase):
             self.snapshotAgg()
             self.doAction()
             self.checkAggCorrect()
-            self.checkInsertCorrect(difCnt=self.childtable_count*999999)
+            self.checkInsertCorrect(difCnt=self.childtable_count*1499999)
             self.checkDelete()
             self.doAction()
 

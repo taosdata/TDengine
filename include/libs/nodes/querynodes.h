@@ -270,7 +270,6 @@ typedef struct SJoinTableNode {
   SNode*       addPrimCond;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
-  SNode*       pParent;
   SNode*       pLeft;
   SNode*       pRight;
   SNode*       pOnCond;

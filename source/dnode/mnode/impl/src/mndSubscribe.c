@@ -438,10 +438,10 @@ static void processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput, S
 }
 
 static void printRebalanceLog(SMqRebOutputObj *pOutput){
-  mInfo("sub:%s mq re-balance calculation completed, re-balanced vg", pOutput->pSub->key);
+  mInfo("sub:%s mq rebalance calculation completed, re-balanced vg", pOutput->pSub->key);
   for (int32_t i = 0; i < taosArrayGetSize(pOutput->rebVgs); i++) {
     SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
-    mInfo("sub:%s mq re-balance vgId:%d, moved from consumer:0x%" PRIx64 ", to consumer:0x%" PRIx64, pOutput->pSub->key,
+    mInfo("sub:%s mq rebalance vgId:%d, moved from consumer:0x%" PRIx64 ", to consumer:0x%" PRIx64, pOutput->pSub->key,
           pOutputRebVg->pVgEp->vgId, pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
   }
 
@@ -451,10 +451,10 @@ static void printRebalanceLog(SMqRebOutputObj *pOutput){
     if (pIter == NULL) break;
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
     int32_t        sz = taosArrayGetSize(pConsumerEp->vgs);
-    mInfo("sub:%s mq re-balance final cfg: consumer:0x%" PRIx64 " has %d vg", pOutput->pSub->key, pConsumerEp->consumerId, sz);
+    mInfo("sub:%s mq rebalance final cfg: consumer:0x%" PRIx64 " has %d vg", pOutput->pSub->key, pConsumerEp->consumerId, sz);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
-      mInfo("sub:%s mq re-balance final cfg: vg %d to consumer:0x%" PRIx64, pOutput->pSub->key, pVgEp->vgId,
+      mInfo("sub:%s mq rebalance final cfg: vg %d to consumer:0x%" PRIx64, pOutput->pSub->key, pVgEp->vgId,
             pConsumerEp->consumerId);
     }
   }
@@ -762,18 +762,18 @@ static void mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
-  mInfo("rebalance counter old val:%d", old);
+  if (old > 0) mInfo("[rebalance] counter old val:%d", old)
   return old == 0;
 }
 
 void mndRebCntInc() {
   int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1);
-  mInfo("rebalance cnt inc, value:%d", val);
+  if (val > 0) mInfo("[rebalance] cnt inc, value:%d", val)
 }
 
 void mndRebCntDec() {
   int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
-  mInfo("rebalance cnt sub, value:%d", val);
+  if (val > 0) mInfo("[rebalance] cnt sub, value:%d", val)
 }
 
 static void clearRebOutput(SMqRebOutputObj *rebOutput){
@@ -848,10 +848,10 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   int                code = 0;
   void              *pIter = NULL;
   SMnode            *pMnode = pMsg->info.node;
-  mInfo("[rebalance] start to process mq timer");
+  mDebug("[rebalance] start to process mq timer")
 
   if (!mndRebTryStart()) {
-    mInfo("[rebalance] mq rebalance already in progress, do nothing");
+    mInfo("[rebalance] mq rebalance already in progress, do nothing")
     return code;
   }
 
@@ -863,7 +863,9 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   taosHashSetFreeFp(rebSubHash, freeRebalanceItem);
 
   mndCheckConsumer(pMsg, rebSubHash);
-  mInfo("[rebalance] mq re-balance start, total required re-balanced trans:%d", taosHashGetSize(rebSubHash));
+  if (taosHashGetSize(rebSubHash) > 0) {
+    mInfo("[rebalance] mq rebalance start, total required re-balanced trans:%d", taosHashGetSize(rebSubHash))
+  }
 
   while (1) {
     pIter = taosHashIterate(rebSubHash, pIter);
@@ -887,13 +889,15 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     mndDoRebalance(pMnode, &rebInput, &rebOutput);
 
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) != 0) {
-      mError("mq re-balance persist output error, possibly vnode splitted or dropped,msg:%s", terrstr());
+      mError("mq rebalance persist output error, possibly vnode splitted or dropped,msg:%s", terrstr())
     }
 
     clearRebOutput(&rebOutput);
   }
 
-  mInfo("[rebalance] mq re-balance completed successfully, wait trans finish");
+  if (taosHashGetSize(rebSubHash) > 0) {
+    mInfo("[rebalance] mq rebalance completed successfully, wait trans finish")
+  }
 
 END:
   taosHashCancelIterate(rebSubHash, pIter);

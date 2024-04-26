@@ -367,11 +367,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int32_t pkBufLen = 0;
-  if (pr->rowKey.numOfPKs > 0) {
-    pkBufLen = pr->pkColumn.bytes;
-  }
-
+  int32_t pkBufLen = (pr->rowKey.numOfPKs > 0)? pr->pkColumn.bytes:0;
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
 
@@ -386,7 +382,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int8_t         ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  if (pr->rowKey.numOfPKs > 0) {
+    ltype |= CACHESCAN_RETRIEVE_PK;
+  }
+
   STableKeyInfo* pTableList = pr->pTableList;
 
   // retrieve the only one last row of all tables in the uid list.
