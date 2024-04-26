@@ -356,10 +356,10 @@ static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
   int32_t vgId = pTask->pMeta->vgId;
 
   taosThreadMutexLock(&pTask->lock);
-  int32_t num = taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList);
+  int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
   bool    existed = false;
   for (int i = 0; i < num; ++i) {
-    SDownstreamTaskEpset* p = taosArrayGet(pTask->outputInfo.pDownstreamUpdateList, i);
+    SDownstreamTaskEpset* p = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, i);
     if (p->nodeId == nodeId) {
       existed = true;
       break;
@@ -368,10 +368,10 @@ static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
 
   if (!existed) {
     SDownstreamTaskEpset t = {.nodeId = nodeId};
-    taosArrayPush(pTask->outputInfo.pDownstreamUpdateList, &t);
+    taosArrayPush(pTask->outputInfo.pNodeEpsetUpdateList, &t);
 
     stInfo("s-task:%s vgId:%d downstream nodeId:%d needs to be updated, total needs updated:%d", pTask->id.idStr, vgId,
-           t.nodeId, (int32_t)taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList));
+           t.nodeId, (num + 1));
   }
 
   taosThreadMutexUnlock(&pTask->lock);

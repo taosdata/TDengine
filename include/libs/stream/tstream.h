@@ -424,7 +424,7 @@ typedef struct STaskOutputInfo {
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
-  SArray*       pDownstreamUpdateList;
+  SArray*       pNodeEpsetUpdateList;
 } STaskOutputInfo;
 
 typedef struct SUpstreamInfo {
@@ -445,6 +445,8 @@ typedef struct STaskCheckInfo {
   int32_t       notReadyTasks;
   int32_t       inCheckProcess;
   int32_t       stopCheckProcess;
+  int32_t       notReadyRetryCount;
+  int32_t       timeoutRetryCount;
   tmr_h         checkRspTmr;
   TdThreadMutex checkInfoLock;
 } STaskCheckInfo;

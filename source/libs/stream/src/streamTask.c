@@ -470,7 +470,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  pTask->outputInfo.pDownstreamUpdateList = taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
+  pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -571,8 +571,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   // 2MiB per second for sink task
   // 50 times sink operator per second
   streamTaskInitTokenBucket(pOutputInfo->pTokenBucket, 35, 35, tsSinkDataRate, pTask->id.idStr);
-  pOutputInfo->pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
-  if (pOutputInfo->pDownstreamUpdateList == NULL) {
+  pOutputInfo->pNodeEpsetUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
+  if (pOutputInfo->pNodeEpsetUpdateList == NULL) {
     stError("s-task:%s failed to prepare downstreamUpdateList, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1098,8 +1098,11 @@ static int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, const char* id)
   pInfo->notReadyTasks = 0;
   pInfo->inCheckProcess = 0;
   pInfo->stopCheckProcess = 0;
-  taosArrayClear(pInfo->pList);
 
+  pInfo->notReadyRetryCount = 0;
+  pInfo->timeoutRetryCount = 0;
+
+  taosArrayClear(pInfo->pList);
   return 0;
 }
 
@@ -1292,11 +1295,13 @@ static void rspMonitorFn(void* param, void* tmrId) {
       }
     }
 
-    stDebug("s-task:%s %d downstream task(s) not ready, send check msg again", id, numOfNotReady);
+    pInfo->notReadyRetryCount += 1;
+    stDebug("s-task:%s %d downstream task(s) not ready, send check msg again, retry:%d start time:%" PRId64, id,
+            numOfNotReady, pInfo->notReadyRetryCount, pInfo->startTs);
   }
 
+  // todo add into node update list and send to mnode
   if (numOfTimeout > 0) {
-    pInfo->startTs = now;
     ASSERT(pTask->status.downstreamReady == 0);
 
     for (int32_t i = 0; i < numOfTimeout; ++i) {
@@ -1309,7 +1314,9 @@ static void rspMonitorFn(void* param, void* tmrId) {
       }
     }
 
-    stDebug("s-task:%s %d downstream tasks timeout, send check msg again, start ts:%" PRId64, id, numOfTimeout, now);
+    pInfo->timeoutRetryCount += 1;
+    stDebug("s-task:%s %d downstream task(s) timeout, send check msg again, retry:%d start time:%" PRId64, id,
+            numOfTimeout, pInfo->timeoutRetryCount, pInfo->startTs);
   }
 
   taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
