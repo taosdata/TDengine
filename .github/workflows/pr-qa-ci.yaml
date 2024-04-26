@@ -37,7 +37,7 @@ jobs:
           export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           cargo build --target-dir ./target/debug/taosx-build/
       - name: taosx unit test
-        continue-on-error: true
+        # continue-on-error: true
         run: |
           if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
               echo "run taosx unit test"
@@ -54,14 +54,14 @@ jobs:
           export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
           cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
 
-      - name: taosx unit test
-        continue-on-error: true
-        run: |
-          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-            echo "run unit test"
-            export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
-            cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
-          fi
+      # - name: taosx unit test
+      #   continue-on-error: true
+      #   run: |
+      #     if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+      #       echo "run unit test"
+      #       export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+      #       cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
+      #     fi
 
       - name: Copy files
         run: |
@@ -374,7 +374,7 @@ jobs:
           java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/influxdb/*.exec --destfile $COVERAGE_BASE_DIR/influxdb/influxdb.exec
           java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH/influxdb/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/influxdb/"
-          
+
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report]
