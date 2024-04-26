@@ -1491,7 +1491,6 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
       } else if (strcasecmp("timeseriesInterval", name) == 0) {
         tsTimeSeriesInterval = cfgGetItem(pCfg, "timeseriesInterval")->i64;
       }
-
       break;
     }
     case 'u': {
