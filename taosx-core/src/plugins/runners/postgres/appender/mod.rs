@@ -59,274 +59,426 @@ pub async fn to_record_batches(
             match col_type {
                 // 布尔值
                 "BOOL" => {
-                    let val = row.try_get::<Option<bool>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<bool>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'BOOL' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 // 字符
                 "CHAR" => {
-                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'CHAR' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 // 整型数
                 "SMALLINT" | "SMALLSERIAL" | "INT2" => {
-                    let val = row.try_get::<Option<i16>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i16>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int16Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int16Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'SMALLINT/SMALLSERIAL/INT2' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int16Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int16Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "INT" | "SERIAL" | "INT4" => {
-                    let val = row.try_get::<Option<i32>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i32>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int32Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int32Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'INT/SERIAL/INT4' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int32Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int32Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "BIGINT" | "BIGSERIAL" | "INT8" => {
-                    let val = row.try_get::<Option<i64>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i64>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int64Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int64Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'BIGINT/BIGSERIAL/INT8' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int64Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int64Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 // 浮点数
                 "REAL" | "FLOAT4" => {
-                    let val = row.try_get::<Option<f32>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<f32>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float32Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float32Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'REAL/FLOAT4' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float32Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Float32Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "DOUBLE PRECISION" | "FLOAT8" => {
-                    let val = row.try_get::<Option<f64>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<f64>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float64Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float64Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'DOUBLE PRECISION/FLOAT8' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float64Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Float64Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "NUMERIC" => {
-                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val.to_string());
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'NUMERIC' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val.to_string());
                         }
                     }
                 }
                 // 字符串
                 "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => {
-                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'VARCHAR/CHAR(N)/...' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "BYTEA" => {
-                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'BYTEA' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 // 日期时间
                 "DATE" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'DATE' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 "TIME" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate postgres, decoding 'TIME' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 "TIMESTAMP" => {
                     let val =
-                        row.try_get::<Option<sqlx::types::chrono::NaiveDateTime>, _>(col_cidx)?;
+                        row.try_get::<Option<sqlx::types::chrono::NaiveDateTime>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'TIMESTAMP' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 "TIMESTAMPTZ" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                    .unwrap()
+                                    .append_value(val.timestamp_nanos_opt().unwrap());
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'TIMESTAMPTZ' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
-                                .unwrap()
-                                .append_value(val.timestamp_nanos_opt().unwrap());
                         }
                     }
                 }
@@ -341,62 +493,97 @@ pub async fn to_record_batches(
                 }
                 // 二进制数组
                 "BIT" | "VARBIT" => {
-                    let val = row.try_get::<Option<bit_vec::BitVec>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<bit_vec::BitVec>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'BIT/VARBIT' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 // json
                 "JSON" | "JSONB" => {
-                    let val = row.try_get::<Option<serde_json::Value>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<serde_json::Value>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'JSON/JSONB' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
                 // Others
                 "INTERVAL" => {
-                    let val =
-                        row.try_get::<Option<sqlx_postgres::types::PgInterval>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx_postgres::types::PgInterval>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'INTERVAL' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{:?}", val));
                         }
                     }
                 }
@@ -433,21 +620,33 @@ pub async fn to_record_batches(
                         .append_null();
                 }
                 "TIMETZ" => {
-                    let val = row.try_get::<Option<PgTimeTz>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<PgTimeTz>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{} {}", val.time, val.offset));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'TIMETZ' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(format!("{} {}", val.time, val.offset));
                         }
                     }
                 }
@@ -468,21 +667,33 @@ pub async fn to_record_batches(
                         .append_null();
                 }
                 _ => {
-                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate postgres, decoding 'UNKNOWN' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
