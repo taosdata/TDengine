@@ -82,11 +82,9 @@ impl OpcModelConfig {
 
         for (point_id, table_config) in &self.table_config_map {
             let column_config = table_config.column_config(col_name);
-            if column_config.is_none() {
-                continue;
+            if let Some(column_config) = column_config {
+                transform_map.insert(point_id.clone(), column_config.clone());
             }
-            let column_config = column_config.unwrap().clone();
-            transform_map.insert(point_id.clone(), column_config);
         }
 
         transform_map
@@ -131,10 +129,10 @@ impl OpcModelConfig {
                         if v_col.alias.as_ref() == value_col {
                             bail!(
                                 "point_id: {} and point_id: {} have same stable: {} and tbname: {}, value_col should be different",
-                                stable.unwrap_or(&"None".to_string()),
-                                tbname,
                                 id,
                                 point_id,
+                                stable.unwrap(),
+                                tbname,
                             );
                         }
                     }
@@ -189,17 +187,17 @@ mod model_config_tests {
         .await
         .unwrap();
         let mut model_config = OpcModelConfig::new();
+        let first_line = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
+        let second_line = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
 
-        let row = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
-        let result = model_config.append(&header, row, 1).await;
+        let result = model_config.append(&header, first_line, 1).await;
         assert!(result.is_ok());
 
-        let row = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
-        let result = model_config.append(&header, row, 2).await;
+        let result = model_config.append(&header, second_line, 2).await;
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "csv config conflict at row: 2, cause: point_id: ns=3;i=1001 and point_id: ns=3;i=1002 have same stable and tbname, value_col should be different"
+            "csv config conflict at row: 2, cause: point_id: ns=3;i=1001 and point_id: ns=3;i=1002 have same stable: stb1 and tbname: tb1, value_col should be different"
         );
     }
 }
