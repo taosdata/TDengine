@@ -41,7 +41,7 @@ table_option: {
 **More explanations**
 
 1. The first column of a table MUST be of type TIMESTAMP. It is automatically set as the primary key.
-2. In addition to the timestamp primary key column, an additional primary key column can be specified using the PRIMARY KEY keyword. The second column specified as the primary key must be of type integer or string (varchar).
+2. In addition to the timestamp primary key column, an additional primary key column can be specified using the `PRIMARY KEY` keyword. The second column specified as the primary key must be of type integer or string (varchar).
 3. The maximum length of the table name is 192 bytes.
 4. The maximum length of each row is 48k(64k since version 3.0.5.0) bytes, please note that the extra 2 bytes used by each BINARY/NCHAR/GEOMETRY column are also counted.
 5. The name of the subtable can only consist of characters from the English alphabet, digits and underscore. Table names can't start with a digit. Table names are case insensitive.
