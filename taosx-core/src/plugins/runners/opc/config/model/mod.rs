@@ -78,16 +78,16 @@ impl OpcModelConfig {
     }
 
     pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
-        let mut transform_map = HashMap::new();
+        let mut column_config_map = HashMap::new();
 
         for (point_id, table_config) in &self.table_config_map {
             let column_config = table_config.column_config(col_name);
             if let Some(column_config) = column_config {
-                transform_map.insert(point_id.clone(), column_config.clone());
+                column_config_map.insert(point_id.clone(), column_config.clone());
             }
         }
 
-        transform_map
+        column_config_map
     }
 
     pub fn get_row_index(&self, point_id: &str) -> Option<usize> {

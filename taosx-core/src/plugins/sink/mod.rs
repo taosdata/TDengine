@@ -823,6 +823,7 @@ fn to_record_transform_map(
 ) -> HashMap<String, RecordTransform> {
     config_map
         .iter()
+        .filter(|(_, ts_config)| ts_config.transform.is_some())
         .map(|(point_id, ts_config)| {
             let transform = RecordTransform {
                 column_name: ts_config.alias.clone(),
