@@ -310,7 +310,7 @@ pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMet
             let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
             Some(metrics)
         } else {
-            tracing::warn!("no metrics found for task {}", task_id);
+            tracing::debug!("no metrics found for task {}", task_id);
             None
         }
     }

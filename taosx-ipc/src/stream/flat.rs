@@ -16,7 +16,7 @@ impl IpcMessage for FlatMessage {
 }
 
 impl FlatMessage {
-    pub(crate) fn new(records: Vec<RecordMessage>) -> Self {
+    pub fn new(records: Vec<RecordMessage>) -> Self {
         FlatMessage { records }
     }
 

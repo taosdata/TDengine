@@ -338,14 +338,15 @@ pub fn get_stream_id_u64(stream_id: &str) -> u64 {
     id << 48
 }
 
+#[derive(Clone)]
 pub struct RequestID {
-    inner: AtomicU64,
+    inner: std::sync::Arc<AtomicU64>,
 }
 
 impl RequestID {
     pub fn new(initial_value: u64) -> Self {
         RequestID {
-            inner: AtomicU64::new(initial_value),
+            inner: std::sync::Arc::new(AtomicU64::new(initial_value)),
         }
     }
 

@@ -950,6 +950,16 @@ pub struct Parser {
     model: Modeler,
 }
 
+impl Parser {
+    pub fn global(&self) -> &TableOptions {
+        &self.global
+    }
+
+    pub fn modeler(&self) -> &Modeler {
+        &self.model
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("Read parser from path {input} error: {error}")]
@@ -1315,6 +1325,41 @@ pub struct MessageArrowRecords {
     pub opts: Arc<TableOptions>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum WrittenProtocol {
+    #[default]
+    Auto,
+    Sql,
+    Stmt,
+    Sml,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum WrittenMethod {
+    #[default]
+    Concurrent,
+    VgroupConcurrent,
+    VgroupSequential,
+    Sequential,
+}
+
+impl FromStr for WrittenMethod {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "concurrent" => Ok(Self::Concurrent),
+            "vgroup" => Ok(Self::VgroupConcurrent),
+            "vgroup_concurrent" => Ok(Self::VgroupConcurrent),
+            "vgroup_sequential" => Ok(Self::VgroupSequential),
+            "sequential" => Ok(Self::Sequential),
+            _ => Err(Error::InvalidWrittenMethod(s.to_string())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
@@ -1332,6 +1377,24 @@ pub struct TableOptions {
     /// Default is `_`.
     #[serde(default)]
     pub replace_dot_in_table_name: String,
+
+    /// Written method for insert.
+    /// Default is `auto`.
+    ///
+    /// - `auto`: auto detect written method.
+    /// - `sql`: use sql insert.
+    /// - `stmt`: use stmt insert.
+    /// - `sml`: use sml insert.
+    #[serde(default)]
+    pub written_protocol: WrittenProtocol,
+
+    /// Flat written method
+    written_method: Option<WrittenMethod>,
+
+    /// Concurrent limit
+    written_concurrent: Option<usize>,
+
+    workers_per_vgroup: Option<usize>,
 }
 
 impl Default for TableOptions {
@@ -1339,12 +1402,47 @@ impl Default for TableOptions {
         Self {
             identifier_case_insensitive: false,
             replace_dot_in_table_name: "_".to_string(),
+            written_protocol: WrittenProtocol::default(),
+            written_method: None,
+            written_concurrent: None,
+            workers_per_vgroup: None,
         }
     }
 }
 impl TableOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn written_method(&self) -> WrittenMethod {
+        self.written_method.unwrap_or_else(|| {
+            std::env::var("TAOSX_WRITTEN_METHOD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(WrittenMethod::Concurrent)
+        })
+    }
+
+    pub fn concurrent_limit(&self) -> usize {
+        self.written_concurrent.unwrap_or_else(|| {
+            std::env::var("TAOSX_WRITTEN_CONCURRENT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(
+                    std::thread::available_parallelism()
+                        .ok()
+                        .map_or(4, |v| v.get()),
+                )
+        })
+    }
+
+    pub fn workers_per_vgroup(&self) -> usize {
+        self.workers_per_vgroup.unwrap_or_else(|| {
+            std::env::var("TAOSX_WORKERS_PER_VGROUP")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(4)
+        })
     }
 
     pub fn canonical_table_name<'b>(&self, name: &'b str) -> Cow<'b, str> {
@@ -1796,6 +1894,8 @@ pub trait TransformExt {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Invalid written method: {0}")]
+    InvalidWrittenMethod(String),
     #[error(transparent)]
     EvalError(#[from] expr::EvalError),
     #[error("Template {0:?} error: {1:#}")]

@@ -461,10 +461,6 @@ mod tests {
             taos::Precision::Microsecond,
             taos::Precision::Nanosecond,
         ] {
-            let values = sql_values_from_record_batch(&batch, precision, true)
-                .unwrap()
-                .unwrap();
-
             let db = format!("precision_{precision}");
             taos.exec_many([
                 format!("drop database if exists {db}"),
@@ -489,6 +485,7 @@ mod tests {
             let table_prefix = "tb";
             let tables = 100;
 
+            let (values, _size) = &sql_values_from_record_batch(&batch, precision, true).unwrap()[0];
             let mut sql = String::new();
             sql.push_str("insert into ");
             for i in 0..tables {

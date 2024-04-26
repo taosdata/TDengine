@@ -36,6 +36,12 @@ pub struct RecordMessage {
     pub(crate) record: RecordBatch,
 }
 
+impl From<RecordBatch> for RecordMessage {
+    fn from(record: RecordBatch) -> Self {
+        Self { record }
+    }
+}
+
 impl RecordMessage {
     pub fn from_record(record: RecordBatch) -> Self {
         Self { record }
