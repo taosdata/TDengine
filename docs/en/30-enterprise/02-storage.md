@@ -10,7 +10,7 @@ This article describes how to use tiered storage in TDengine. With tiered storag
 
 ## Configuration
 
-TDengine supports three tiers of storage. Each tier can include 16 mount points.
+TDengine supports three tiers of storage. Each tier can include 128 mount points.
 
 To configure tiered storage, modify your `taos.cfg` file as follows:
 
