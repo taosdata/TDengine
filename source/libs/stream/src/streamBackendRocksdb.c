@@ -376,10 +376,10 @@ int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char
   return code;
 }
 int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  UPLOAD_TYPE type = getUploadType();
-  if (type == UPLOAD_S3) {
+  ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+  if (type == DATA_UPLOAD_S3) {
     return rebuildFromRemoteChkp_s3(key, chkpPath, chkpId, defaultPath);
-  } else if (type == UPLOAD_RSYNC) {
+  } else if (type == DATA_UPLOAD_RSYNC) {
     return rebuildFromRemoteChkp_rsync(key, chkpPath, chkpId, defaultPath);
   }
   return -1;
@@ -2111,11 +2111,11 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
   STaskDbWrapper* pDb = arg;
-  UPLOAD_TYPE     utype = type;
+  ECHECKPOINT_BACKUP_TYPE     utype = type;
 
-  if (utype == UPLOAD_RSYNC) {
+  if (utype == DATA_UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
-  } else if (utype == UPLOAD_S3) {
+  } else if (utype == DATA_UPLOAD_S3) {
     return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
   }
   return -1;
