@@ -68,7 +68,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ row.from_last_ts ? parsinginZone(row.from_last_ts) : 'null' }}</span>
+              <span>{{ row.from_last_ts ? parsinginZone(convertTsToMilliseconds(row.from_last_ts)) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -78,7 +78,7 @@
             min-width="200"
           >
             <template slot-scope="{ row }">
-              <span>{{ row.to_last_ts ? parsinginZone(row.to_last_ts) : 'null' }}</span>
+              <span>{{ row.to_last_ts ? parsinginZone(convertTsToMilliseconds(row.to_last_ts)) : 'null' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -88,7 +88,7 @@
             min-width="130"
           >
           <template slot-scope="{ row }">
-            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts) || 0 }}</span>
+            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts, row.from_last_ts, row.to_last_ts ) || 0 }}</span>
           </template>
           </el-table-column>
           <el-table-column
@@ -257,7 +257,18 @@ export default {
         return data.value;
       }
     },
-    formatDuration(durationInMs) {
+    convertTsToMilliseconds(timestamp) {
+      // 判断时间戳位数
+      if (timestamp.toString().length >= 19) {
+        return timestamp / 1000000; 
+      } else if (timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
+        return timestamp / 1000;
+      } else {
+        return timestamp; 
+      }
+    },
+    
+    formatDuration(durationInMs, from_last_ts, to_last_ts) {
       if (!durationInMs) return '';
       const duration = moment.duration(durationInMs);
       const years = Math.floor(duration.asYears());
@@ -289,6 +300,22 @@ export default {
       }
       if (milliseconds > 0) {
         formattedDuration += milliseconds + this.$t('milliseconds');
+      }
+
+      if (from_last_ts && from_last_ts.toString().length > 13 && from_last_ts.toString().length <= 16) {
+        let diffMicroseconds = to_last_ts - from_last_ts;
+        diffMicroseconds = diffMicroseconds % 1000;
+        if (diffMicroseconds > 0) {
+          formattedDuration += diffMicroseconds + this.$t('microseconds')
+        } 
+      }
+
+      if (from_last_ts && from_last_ts.toString().length >=19) {
+        let diffNanoseconds = to_last_ts - from_last_ts;
+        diffNanoseconds = diffNanoseconds % 1000000;
+        if (diffNanoseconds > 0) {
+          formattedDuration += diffNanoseconds + this.$t('nanoseconds')
+        } 
       }
 
       return formattedDuration;

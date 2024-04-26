@@ -253,6 +253,13 @@ export function getTableProgress(id,params) {
         baseURL: process.env.VUE_APP_X_API,
         url: `/tasks/${id}/table_progress?${params}`,
         method: 'get',
+        transformResponse: [function (data) {
+        try {
+            return JSONbig.parse(data);
+        } catch (error) {
+            return data;
+        }
+        }]
     })
 }
 

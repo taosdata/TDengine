@@ -208,6 +208,8 @@ export default {
   minutes: 'm ',
   seconds: 's ',
   milliseconds: 'ms',
+  microseconds: 'us ',
+  nanoseconds: 'ns ',
   systemPrompt: 'System Prompt',
   communityContent: 'You are using the community version of TDengine, some functionalities are not available, e.g. database backup and recovery, data replication, multi-level storage, data in for various kinds of data sources, access control, etc. TDengine Enterprise Edition provides these and some other functionalities to facilitate your business needs. Please feel free to contact the TDengine team to get access to TDengine Enterprise Edition.',
   dontDisturbMe: 'No more reminders within 7 days',

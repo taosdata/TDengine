@@ -191,6 +191,8 @@ export default {
   minutes: '分',
   seconds: '秒',
   milliseconds: '毫秒',
+  microseconds: '微秒',
+  nanoseconds: '纳秒',
   statuses: {
     created: "已创建",
     queued: "排队中",
