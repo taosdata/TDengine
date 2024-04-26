@@ -2179,6 +2179,7 @@ int32_t copyDataAt(RocksdbCfInst* pSrc, STaskDbWrapper* pDst, int8_t i) {
   }
 
 _EXIT:
+  rocksdb_writebatch_destroy(wb);
   rocksdb_iter_destroy(pIter);
   rocksdb_readoptions_destroy(pRdOpt);
   taosMemoryFree(err);
