@@ -848,6 +848,7 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
+int32_t streamTaskPrepareMonitorCheckRsp(SStreamTask* pTask);
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
 void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
