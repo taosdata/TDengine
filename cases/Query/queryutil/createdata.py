@@ -472,258 +472,455 @@ class TDCreateData():
                         fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
-       
-    def dropandcreateDB_random1(self,database,n):
-        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-        self.ts = 1630000000000
-        self.num_random = 100
+    def random_type_value(self,data_type='INT'):       
         fake = Faker('zh_CN')
-        # self.tdSql.execute('''drop database if exists %s ;''' %database)
-        # self.tdSql.execute('''create database %s keep 36500;'''%database)
-        self.show_local_variables()
-        self.tdCommon.createDb(database, True, keep=36500)
-        self.tdSql.execute('''use %s;'''%database)
         
-        type_num = random.randint(1,10)
-        varchar_length = random.randint(30,500)
-        if type_num == 1:
-            data_type = 'INT'
+        if data_type == 'INT':            
             data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
-        elif type_num == 2:
-            data_type = 'INT UNSIGNED'
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'INT UNSIGNED':            
             data_value = fake.random_int(min=0, max=4294967295, step=1)
-        elif type_num == 3:
-            data_type = 'BIGINT'
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'INT_PK':            
+            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
+        elif data_type == 'INT UNSIGNED_PK':            
+            data_value = fake.random_int(min=0, max=4294967295, step=1)
+            
+        elif data_type == 'BIGINT':
             data_value = fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1)
-        elif type_num == 4:
-            data_type = 'BIGINT UNSIGNED'
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'BIGINT UNSIGNED':
             data_value = fake.random_int(min=0, max=18446744073709551615, step=1)
-        elif type_num == 5:
-            data_type = 'VARCHAR(%d)' %varchar_length
-            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
-        elif type_num == 6:
-            data_type = 'VARCHAR(%d)' %varchar_length
-            data_value = fake.pystr() 
-        elif type_num == 7:
-            data_type = 'BINARY(%d)' %varchar_length
-            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
-        elif type_num == 8:
-            data_type = 'BINARY(%d)' %varchar_length
-            data_value = fake.address() 
-        else:
-            data_type = 'INT'
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'BIGINT_PK':
+            data_value = fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1)
+        elif data_type == 'BIGINT UNSIGNED_PK':
+            data_value = fake.random_int(min=0, max=18446744073709551615, step=1)
+            
+        elif data_type == 'SAMLLINT':
+            data_value = fake.random_int(min=-32767, max=32767, step=1)
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'SAMLLINT UNSIGNED':
+            data_value = fake.random_int(min=0, max=65535, step=1)
+            data_value = random.choice((data_value,"NULL"))
+            
+        elif data_type == 'TINYINT':
+            data_value = fake.random_int(min=-127, max=127, step=1)
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'TINYINT UNSIGNED':
+            data_value = fake.random_int(min=0, max=255, step=1)
+            data_value = random.choice((data_value,"NULL"))
+            
+        elif data_type == 'FLOAT':
             data_value = fake.pyfloat()
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'DOUBLE':
+            data_value = fake.pyfloat()
+            data_value = random.choice((data_value,"NULL"))
             
-            return data_type,data_value
-        self.logger.info("======data_type & data_value=========")
-        self.logger.info(type_num,data_type,data_value)
+        elif data_type == 'BOOL':
+            data_value = random.randint(0,1)
+            data_value = random.choice((data_value,"NULL"))
             
-
-        self.tdSql.execute(f'''create stable stable_1 (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+        elif data_type == 'TIMESTAMP':
+            data_value = fake.random_int(min=0, max=2345678901234, step=1)
+            data_value = random.choice((data_value,"NULL"))
+            
+        elif data_type == 'VARCHAR_D':
+            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'VARCHAR_S':
+            data_value = fake.pystr()
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'BINARY_D':
+            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'BINARY_S':
+            data_value = fake.pystr()
+            data_value = random.choice((data_value,"NULL"))
+        elif data_type == 'VARCHAR_D_PK':
+            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
+        elif data_type == 'VARCHAR_S_PK':
+            data_value = fake.pystr()
+        elif data_type == 'BINARY_D_PK':
+            data_value = fake.random_int(min=-2147483647, max=2147483647, step=1)
+        elif data_type == 'BINARY_S_PK':
+            data_value = fake.pystr()
+        else:
+            data_type = 'SAMLLINT'
+            data_value = fake.random_int(min=-32767, max=32767, step=1)
+            data_value = random.choice((data_value,"NULL"))
+            #print(data_type,data_value)
+            
+        return data_type,data_value
+               
+    def dropandcreateDB_random_pk(self,database,once_insert_num,dropdb='yes',insertdata='yes',deletedata='yes'):
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        self.ts = 1630000000000 + random.randint(0,10)
+        Faker('zh_CN')
+        self.show_local_variables()       
+            
+        if dropdb == 'yes':
+            self.tdCommon.createDb(database, True, keep=36500)
+            self.tdSql.execute('''use %s;'''%database)
+        
+            #stable
+            self.tdSql.execute(f'''create stable {database}.stable_0 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
-        self.tdSql.execute(f'''create stable stable_2 (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+            self.tdSql.execute(f'''create stable {database}.stable_1 (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+            self.tdSql.execute(f'''create stable {database}.stable_2 (ts timestamp , ts_pk INT UNSIGNED primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
-        
-        self.tdSql.execute(f'''create stable stable_null_data (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+            self.tdSql.execute(f'''create stable {database}.stable_3 (ts timestamp , ts_pk BIGINT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
-
-        self.tdSql.execute(f'''create stable stable_null_childtable (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+            self.tdSql.execute(f'''create stable {database}.stable_4 (ts timestamp , ts_pk BIGINT UNSIGNED primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
-        
-        self.tdSql.execute(f'''create stable stable_null_data_insert_data (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+            self.tdSql.execute(f'''create stable {database}.stable_5 (ts timestamp , ts_pk VARCHAR(100) primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
-
-        #self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        #self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' , \'1999-09-09 09:09:09.090\') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) , 
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' ,'4294967295' , '18446744073709551615' , '65535' , '255' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
-        self.tdSql.execute('''create table stable_1_4 using stable_1 tags('stable_1_4', '0' , '0' , '0' , '0' ,'0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_1_5 using stable_1 tags('stable_1_5', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_1_6 using stable_1 tags('stable_1_6', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-
-        #self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1' , '0' , '0' , '0' , '0' , 0 , 'binary21' , 'nchar21' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_1 using stable_2 tags('stable_2_1', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'0') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat())) 
-        self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-        self.tdSql.execute('''create table stable_2_3 using stable_2 tags('stable_2_3', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_4 using stable_2 tags('stable_2_4', '%d' , '%d', '%d' , '%d', '%d' , '%d', '%d' , '%d' , 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_5 using stable_2 tags('stable_2_5', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-        self.tdSql.execute('''create table stable_2_6 using stable_2 tags('stable_2_6', '%d' , '%d', '%d' , '%d' , '%d' , '%d', '%d' , '%d', 1 , 'binary2.%s' , 'nchar2.%s' , '%f', '%f' ,'%d') ;''' 
-                      %(fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
-
-        self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-
-        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
-
-        #regular table
-        self.tdSql.execute(f'''create table regular_table_1 \
-                    (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
-                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
-        self.tdSql.execute(f'''create table regular_table_2 \
-                    (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
-                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
-        self.tdSql.execute(f'''create table regular_table_3 \
-                    (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
-                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
-
-        self.tdSql.execute(f'''create table regular_table_null \
-                    (ts timestamp , ts_pk {data_type} primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
-                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
-
-        #self.tdSql.execute('''create topic %s_1 as select * from %s.stable_1 ;''' %(database,database))
-
-        for i in range(self.num_random*n):        
-            self.tdSql.execute('''insert into stable_1_1  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000, data_value, fake.random_int(min=-2147483647, max=2147483647, step=1), 
-                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
-            self.tdSql.execute('''insert into  regular_table_1 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000, data_value, fake.random_int(min=-2147483647, max=2147483647, step=1) , 
-                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1) , 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
-
-            self.tdSql.execute('''insert into stable_1_2 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000 -1, data_value, fake.random_int(min=0, max=2147483647, step=1), 
-                        fake.random_int(min=0, max=9223372036854775807, step=1), 
-                        fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
-            self.tdSql.execute('''insert into regular_table_2 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000, data_value, fake.random_int(min=0, max=2147483647, step=1), 
-                        fake.random_int(min=0, max=9223372036854775807, step=1), 
-                        fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            self.tdSql.execute(f'''create stable {database}.stable_6 (ts timestamp , ts_pk BINARY(100) primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_int_unsigned int unsigned, t_bigint_unsigned bigint unsigned, t_smallint_unsigned smallint unsigned, t_tinyint_unsigned tinyint unsigned,  t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
             
-            self.tdSql.execute('''insert into stable_1_2 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000 +1, data_value, fake.random_int(min=-2147483647, max=0, step=1), 
-                        fake.random_int(min=-9223372036854775807, max=0, step=1), 
-                        fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) ,
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) , 
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1))
-            self.tdSql.execute('''insert into regular_table_2 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000 +1, data_value, fake.random_int(min=-2147483647, max=0, step=1), 
-                        fake.random_int(min=-9223372036854775807, max=0, step=1), 
-                        fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1))
+            #regular table
+            self.tdSql.execute(f'''create table {database}.regular_table_0 \
+                    (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.regular_table_1 \
+                    (ts timestamp , ts_pk INT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.regular_table_2 \
+                    (ts timestamp , ts_pk INT UNSIGNED primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.regular_table_3 \
+                    (ts timestamp , ts_pk BIGINT primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
 
-            self.tdSql.execute('''insert into stable_2_1 (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %s, %d, %d, %d, %d,%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*15000000, data_value, fake.random_int(min=-2147483647, max=2147483647, step=1), 
-                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
-                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                        fake.random_int(min=0, max=4294967295, step=1), 
-                        fake.random_int(min=0, max=18446744073709551615, step=1), 
-                        fake.random_int(min=0, max=65535, step=1) , fake.random_int(min=0, max=255, step=1) ,
-                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            self.tdSql.execute(f'''create table {database}.regular_table_4 \
+                    (ts timestamp , ts_pk BIGINT UNSIGNED primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.regular_table_5 \
+                    (ts timestamp , ts_pk VARCHAR(100) primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
+            self.tdSql.execute(f'''create table {database}.regular_table_6 \
+                    (ts timestamp , ts_pk BINARY(100) primary key, q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint ,q_int_unsigned int unsigned, q_bigint_unsigned bigint unsigned, q_smallint_unsigned smallint unsigned, q_tinyint_unsigned tinyint unsigned, q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                    q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
 
-        i = random.randint(0,4)
-        if i ==0:
-            self.logger.info("======this case test use flush database =========")
-            self.tdSql.execute("flush database %s;" %database) 
-            self.drop_DB_index(database)
-        elif i ==1:  
-            self.logger.info("======this case test use flush database =========")
-            self.tdSql.execute("flush database %s;" %database)   
-            self.logger.info("======this case test keepcolumnname = 1 =========")  
-            self.tdSql.execute("alter local 'keepcolumnname' '1';")  
-        elif i ==2:  
-            self.logger.info("======this case test use flush database =========")
-            self.tdSql.execute("flush database %s;" %database)   
-            self.logger.info("======this case test keepcolumnname = 0 =========")  
-            self.tdSql.execute("alter local 'keepcolumnname' '0';")  
-            self.drop_DB_index(database)
+            #child table
+            for tag_i in range(1,11):
+                self.tdSql.execute(f'''create table {database}.stable_0_{tag_i} using {database}.stable_0 tags('stable_0_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_1_{tag_i} using {database}.stable_1 tags('stable_1_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_2_{tag_i} using {database}.stable_2 tags('stable_2_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary2.{tag_i}' , 'nchar2.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_3_{tag_i} using {database}.stable_3 tags('stable_3_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary3.{tag_i}' , 'nchar3.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_4_{tag_i} using {database}.stable_4 tags('stable_4_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary4.{tag_i}' , 'nchar4.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_5_{tag_i} using {database}.stable_5 tags('stable_5_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary5.{tag_i}' , 'nchar5.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                self.tdSql.execute(f'''create table {database}.stable_6_{tag_i} using {database}.stable_6 tags('stable_6_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary6.{tag_i}' , 'nchar6.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+            
+
         else:
-            self.logger.info("===!!!===this case test not use flush database =====!!!====")
+            self.tdSql.execute('''use %s;'''%database)
+            
         
-        self.tdSql.query("select count(*) from stable_1;")
-        self.tdSql.checkData(0,0,3*self.num_random*n)
-        self.tdSql.query("select count(*) from regular_table_1;")
-        self.tdSql.checkData(0,0,self.num_random*n)
-        
-        self.alter_cachemodel(database)
-        
-        self.tdSql.query("select count(*) from stable_1;")
-        self.tdSql.checkData(0,0,3*self.num_random*n)
-        self.tdSql.query("select count(*) from regular_table_1;")
-        self.tdSql.checkData(0,0,self.num_random*n)
+        if insertdata == 'yes':            
+            for tag_i in range(1,11):
+                for column_i in range(1,11):    
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }',  '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts) values('{self.ts + 100000000 + 10 }') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts) values('{self.ts + column_i*100000000 + 11 }') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts) values('{self.ts + 2000000000 - 1000000000 + 12 }') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("INT_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*100000000 + 11 }', '{self.random_type_value("INT_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_1_{tag_i}  (ts , ts_pk ) values('{self.ts + 2000000000 - 1000000000 + 12 }', '{self.random_type_value("INT_PK")[1]}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*200000000 + 2 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000 + 1 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*200000000 + 12 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_2_{tag_i}  (ts , ts_pk ) values('{self.ts + 1000000000 + 11 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BIGINT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*300000000 + 3 }', '{self.random_type_value("BIGINT_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 10000000000 + 1 }', '{self.random_type_value("BIGINT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*300000000 + 13 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_3_{tag_i}  (ts , ts_pk ) values('{self.ts + 10000000000 + 11 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*400000000 + 4 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000000 + 1 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*400000000 + 14 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_4_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000000 + 11 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("VARCHAR_D_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*500000000 + 5 }', '{self.random_type_value("VARCHAR_D_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000000 + 1 }', '{self.random_type_value("VARCHAR_D_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*500000000 + 15 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_5_{tag_i}  (ts , ts_pk ) values('{self.ts + 1000000000000 + 11 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' ) 
+                    
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BINARY_S_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*600000000 + 6 }', '{self.random_type_value("BINARY_S_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 10000000000000 + 1 }', '{self.random_type_value("BINARY_S_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' ) 
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk ) values('{self.ts + column_i*600000000 + 16 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' )
+                    self.tdSql.execute(f'''insert into {database}.stable_6_{tag_i}  (ts , ts_pk ) values('{self.ts + 10000000000000 + 11 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' ) 
+                
+            for column_i in range(1,11):    
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }','{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }','{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts) values('{self.ts + 100000000 + 10 }') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts) values('{self.ts + column_i*100000000 + 11 }') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_0  (ts) values('{self.ts + 2000000000 - 1000000000 + 12 }') ;''' ) 
+                    
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*100000000 + 1 }', '{self.random_type_value("INT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 2000000000 - 1000000000 + 2 }', '{self.random_type_value("INT_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("INT_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk ) values('{self.ts + column_i*100000000 + 11 }', '{self.random_type_value("INT_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_1  (ts , ts_pk ) values('{self.ts + 2000000000 - 1000000000 + 12 }', '{self.random_type_value("INT_PK")[1]}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*200000000 + 2 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000 + 1 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk ) values('{self.ts + column_i*200000000 + 12 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_2  (ts , ts_pk ) values('{self.ts + 1000000000 + 11 }', '{self.random_type_value("INT UNSIGNED_PK")[1]}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BIGINT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*300000000 + 3 }', '{self.random_type_value("BIGINT_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 10000000000 + 1 }', '{self.random_type_value("BIGINT_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk ) values('{self.ts + column_i*300000000 + 13 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_3  (ts , ts_pk ) values('{self.ts + 10000000000 + 11 }', '{self.random_type_value("BIGINT_PK")[1]}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*400000000 + 4 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000000 + 1 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk ) values('{self.ts + column_i*400000000 + 14 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_4  (ts , ts_pk ) values('{self.ts + 100000000000 + 11 }', '{self.random_type_value("BIGINT UNSIGNED_PK")[1]}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("VARCHAR_D_PK")[1]}','{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*500000000 + 5 }', '{self.random_type_value("VARCHAR_D_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 1000000000000 + 1 }', '{self.random_type_value("VARCHAR_D_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk ) values('{self.ts + column_i*500000000 + 15 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_5  (ts , ts_pk ) values('{self.ts + 1000000000000 + 11 }', '{self.random_type_value("VARCHAR_D_PK")[1]}') ;''' ) 
+                
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}', '{self.random_type_value("BINARY_S_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + column_i*600000000 + 6 }', '{self.random_type_value("BINARY_S_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 10000000000000 + 1 }', '{self.random_type_value("BINARY_S_PK")[1]}', '{self.random_type_value("INT")[1]}', '{self.random_type_value("BIGINT")[1]}', '{self.random_type_value("SAMLLINT")[1]}', '{self.random_type_value("TINYINT")[1]}', '{self.random_type_value("INT UNSIGNED")[1]}', '{self.random_type_value("BIGINT UNSIGNED")[1]}', '{self.random_type_value("SAMLLINT UNSIGNED")[1]}', '{self.random_type_value("TINYINT UNSIGNED")[1]}', '{self.random_type_value("FLOAT")[1]}','{self.random_type_value("DOUBLE")[1]}', '{self.random_type_value("BOOL")[1]}', '{self.random_type_value("BINARY_S")[1]}', '{self.random_type_value("VARCHAR_D")[1]}', '{self.random_type_value("TIMESTAMP")[1]}');''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' ) 
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk ) values('{self.ts + column_i*600000000 + 16 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' )
+                self.tdSql.execute(f'''insert into {database}.regular_table_6  (ts , ts_pk ) values('{self.ts + 10000000000000 + 11 }', '{self.random_type_value("BINARY_S_PK")[1]}') ;''' ) 
+                            
+        else:
+            self.tdSql.execute('''use %s;'''%database)
+            
+                    
+        if deletedata != 'yes':     
+            i = random.randint(0,4)
+            if i ==0:
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database) 
+                self.drop_DB_index(database)
+            elif i ==1:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 1 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '1';")  
+            elif i ==2:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 0 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+                self.drop_DB_index(database)
+            else:
+                self.logger.info("===!!!===this case test not use flush database =====!!!====")
+            
+            stable_list = ['stable_0','stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_0','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+            for i in stable_list:
+                self.tdSql.query("select count(*) from {}.{};".format(database, i))
+                self.tdSql.query("select count(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{} group by tbname;".format(database, i))
+            
+            self.alter_cachemodel(database)
+            
+            stable_list = ['stable_0','stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_0','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+            for i in stable_list:
+                self.tdSql.query("select count(*) from {}.{};".format(database, i))
+                self.tdSql.query("select count(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{} group by tbname;".format(database, i))
         
         # self.add_data_random(database,n,1630000000000)
         # self.add_data_random(database,n,1640000000000)
+        
+        #delete data
+        if deletedata == 'yes':            
+            for tag_i in range(1,11):
+                column_i = random.randint(0,11)
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_0_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + 100000000} ;''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + 100000000 + 10 }  ;''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + column_i*100000000 + 11 } ;''' )
+                self.tdSql.execute(f'''delete from {database}.stable_1_{tag_i}  where ts = {self.ts + 2000000000 - 1000000000 + 12 } ;''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + column_i*200000000 + 2 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + 1000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + column_i*200000000 + 12 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_2_{tag_i}  where ts = {self.ts + 1000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + column_i*300000000 + 3 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + 10000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + column_i*300000000 + 13 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_3_{tag_i}  where ts = {self.ts + 10000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + column_i*400000000 + 4 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + 100000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + column_i*400000000 + 14 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_4_{tag_i}  where ts = {self.ts + 100000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + column_i*500000000 + 5 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + 1000000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + column_i*500000000 + 15 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_5_{tag_i}  where ts = {self.ts + 1000000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + column_i*600000000 + 6 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + 10000000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + column_i*600000000 + 16 };''' )
+                self.tdSql.execute(f'''delete from {database}.stable_6_{tag_i}  where ts = {self.ts + 10000000000000 + 11 };''' ) 
+                   
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_0  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                    
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + column_i*100000000 + 1 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + 2000000000 - 1000000000 + 2 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + column_i*100000000 + 11 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_1  where ts = {self.ts + 2000000000 - 1000000000 + 12 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + column_i*200000000 + 2 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + 1000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + column_i*200000000 + 12 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_2  where ts = {self.ts + 1000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + column_i*300000000 + 3 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + 10000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + column_i*300000000 + 13 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_3  where ts = {self.ts + 10000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + column_i*400000000 + 4 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + 100000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + column_i*400000000 + 14 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_4  where ts = {self.ts + 100000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + column_i*500000000 + 5 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + 1000000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + column_i*500000000 + 15 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_5  where ts = {self.ts + 1000000000000 + 11 };''' ) 
+                
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + 100000000};''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + column_i*600000000 + 6 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + 10000000000000 + 1 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + 100000000 + 10 };''' ) 
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + column_i*600000000 + 16 };''' )
+                self.tdSql.execute(f'''delete from {database}.regular_table_6  where ts = {self.ts + 10000000000000 + 11 };''' ) 
+                            
+        else:
+            self.tdSql.execute('''use %s;'''%database)
+                    
+        #delete data
+        if deletedata == 'yes':    
+            i = random.randint(0,4)
+            if i ==0:
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database) 
+                self.drop_DB_index(database)
+            elif i ==1:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 1 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '1';")  
+            elif i ==2:  
+                self.logger.info("======this case test use flush database =========")
+                self.tdSql.execute("flush database %s;" %database)   
+                self.logger.info("======this case test keepcolumnname = 0 =========")  
+                self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+                self.drop_DB_index(database)
+            else:
+                self.logger.info("===!!!===this case test not use flush database =====!!!====")
+            
+            stable_list = ['stable_0','stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_0','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+            for i in stable_list:
+                self.tdSql.query("select count(*) from {}.{};".format(database, i))
+                self.tdSql.query("select count(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{} group by tbname;".format(database, i))
+            
+            self.alter_cachemodel(database)
+            
+            stable_list = ['stable_0','stable_1','stable_2','stable_3','stable_4','stable_5','stable_6','regular_table_0','regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
+            for i in stable_list:
+                self.tdSql.query("select count(*) from {}.{};".format(database, i))
+                self.tdSql.query("select count(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last(*) from {}.{} group by tbname;".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{};".format(database, i))
+                self.tdSql.query("select last_row(*) from {}.{} group by tbname;".format(database, i))
+            
         
         
     def dropandcreateDB_primary_key(self,database,once_insert_num,updata_num=1,dropdb='yes',insertdata='yes',deletedata='yes'): #fixed
