@@ -235,10 +235,12 @@ impl PutStream {
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).expect("metrics not found");
             let metrics = metrics_arc.ipc();
-            if let Some(sql) = metadata.init_sql_string() {
-                let init = metadata.init().unwrap();
-                let req_id = RequestID::new(stream_trace_id_u64);
-                handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
+            if worker.lush_model_config.get().is_none() {
+                if let Some(sql) = metadata.init_sql_string() {
+                    let init = metadata.init().unwrap();
+                    let req_id = RequestID::new(stream_trace_id_u64);
+                    handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
+                }
             }
             tracing::info!("Start IPC stream writer");
 
@@ -308,7 +310,7 @@ impl PutStream {
                                 let last_errors = contiguous_errors
                                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 metrics.add_failed_batches(1);
-                                tracing::warn!(
+                                tracing::error!(
                                     continuous_errors = last_errors,
                                     error = format!("{:#}", err),
                                     backtrace = %err.backtrace(),

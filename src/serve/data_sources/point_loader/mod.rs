@@ -477,8 +477,11 @@ pub async fn get_pi_default_config(
     tracing::debug!("params: {:?}", params);
     let update = params.update.unwrap_or(false);
     let file_name = match params.task_id {
-        Some(task_id) => format!("default_pi_config_for_task_{}.txt", task_id),
-        None => format!("default_pi_config_{}.txt", chrono::Local::now().timestamp()),
+        Some(task_id) => format!("./files/default_pi_config_for_task_{}.txt", task_id),
+        None => format!(
+            "./files/default_pi_config_{}.txt",
+            chrono::Local::now().timestamp()
+        ),
     };
     let exists = std::path::Path::new(file_name.as_str()).exists();
     if params.task_id.is_none() || !exists || update {

@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use taos::Dsn;
 use taosx_ipc::stream::reader::LushInsertAttrs;
 
@@ -36,9 +36,7 @@ impl TableTagCache {
     pub fn insert(&self, table_name: String, value: LushInsertAttrs) {
         self.0.borrow_mut().insert(table_name, value);
     }
-
 }
-
 
 unsafe impl Sync for TableTagCache {}
 
@@ -65,6 +63,7 @@ impl TryFrom<Dsn> for LushModelConfig {
                     .params
                     .get("transform_config_file")
                     .ok_or(anyhow!("Not found transform_config_file in DSN params"))?;
+                let transform_config_file = transform_config_file.trim_start_matches('@');
                 let model: PiModelType = dsn
                     .params
                     .get("model")
@@ -73,13 +72,27 @@ impl TryFrom<Dsn> for LushModelConfig {
                     .try_into()?;
                 match model {
                     PiModelType::SingleColumn => {
-                        let point_model_config: PIPointModelConfig =
-                            PIPointModelConfig::from_csv(transform_config_file)?;
+                        let point_model_config: PIPointModelConfig = PIPointModelConfig::from_csv(
+                            transform_config_file,
+                        )
+                        .with_context(|| {
+                            format!(
+                                "Failed to create PIPointModelConfig from {}",
+                                transform_config_file
+                            )
+                        })?;
                         Ok(point_model_config.into())
                     }
                     PiModelType::MultiColumn => {
                         let element_model_config: PIElementModelConfig =
-                            PIElementModelConfig::from_csv(transform_config_file)?;
+                            PIElementModelConfig::from_csv(transform_config_file).with_context(
+                                || {
+                                    format!(
+                                        "Failed to create PIElementModelConfig from {}",
+                                        transform_config_file
+                                    )
+                                },
+                            )?;
                         Ok(element_model_config.into())
                     }
                 }

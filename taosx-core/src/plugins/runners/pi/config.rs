@@ -421,11 +421,7 @@ impl PiConfig {
     pub fn get_points_from_transform_config_file(
         transform_config_file: &str,
     ) -> anyhow::Result<(Vec<String>, Vec<String>)> {
-        let transform_config_file = if transform_config_file.starts_with('@') {
-            transform_config_file.trim_start_matches('@')
-        } else {
-            transform_config_file
-        };
+        let transform_config_file = transform_config_file.trim_start_matches('@');
         let content = std::fs::read_to_string(transform_config_file)?;
         let mut element_id_list = Vec::new();
         let mut point_list = Vec::new();

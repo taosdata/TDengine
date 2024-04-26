@@ -157,7 +157,6 @@ impl IpcParser {
 
         let names = s.column_names();
         let values = s.columns();
-
         (0..s.len())
             .map(|i| {
                 let mut values: Vec<_> = names

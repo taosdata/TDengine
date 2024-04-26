@@ -3188,10 +3188,12 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
     let metrics_arc = get_metrics_arc_from_i64(task_id);
     let metrics = metrics_arc.ipc();
-    if let Some(sql) = metadata.init_sql_string() {
-        let init = metadata.init().unwrap();
-        let req_id = RequestID::new(stream_trace_id_u64);
-        handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
+    if lush_model_config.is_none() {
+        if let Some(sql) = metadata.init_sql_string() {
+            let init = metadata.init().unwrap();
+            let req_id = RequestID::new(stream_trace_id_u64);
+            handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
+        }
     }
     drop(taos);
     info!(?stream_type, "Processing stream");
@@ -3319,7 +3321,7 @@ pub struct IpcStreamWorker {
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<OpcModelConfig>,
-    lush_model_config: OnceCell<LushModelConfig>,
+    pub lush_model_config: OnceCell<LushModelConfig>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
