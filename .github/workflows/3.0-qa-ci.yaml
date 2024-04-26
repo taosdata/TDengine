@@ -395,7 +395,8 @@ jobs:
       - name: Send Feishu Message
         if: ${{ needs.build_rust.result != 'success' }} || ${{ needs.build_java.result != 'success' }} || ${{ needs.test_mqtt.result != 'success' }}
         run: |
-          echo "action encounter error, send feishu message"
+          echo ${{ needs.remove_artifacts.result }}
+          echo ${{ needs.build_rust.result }}
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"github action test send\"}}" \
           https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
