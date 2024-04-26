@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Context};
-use taos::Dsn;
-use taosx_ipc::stream::reader::LushInsertAttrs;
-
 use super::transform::Parser;
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
 };
+use anyhow::{anyhow, Context};
+use std::sync::Arc;
+use taos::Dsn;
+use taosx_ipc::stream::reader::LushInsertAttrs;
 
 #[derive(Clone, Debug)]
 pub struct LushModelConfig {
@@ -18,10 +18,10 @@ pub struct LushModelConfig {
     /// For PI point model, the column is point_name;
     /// For PI element model, the column is element_id;
     pub config: HashMap<String, Parser>,
-    pub table_tags: TableTagCache,
+    pub table_tags: Arc<TableTagCache>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TableTagCache(scc::HashMap<String, LushInsertAttrs>);
 
 impl TableTagCache {
@@ -117,7 +117,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "point_name".to_string(),
             config: map,
-            table_tags: TableTagCache::new(),
+            table_tags: Arc::new(TableTagCache::new()),
         }
     }
 }
@@ -134,7 +134,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "element_id".to_string(),
             config: map,
-            table_tags: TableTagCache::new(),
+            table_tags: Arc::new(TableTagCache::new()),
         }
     }
 }
