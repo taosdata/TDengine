@@ -1515,15 +1515,20 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     return 0;
   }
 
+  cfgLock(pCfg);
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
     taosSetAllDebugFlag(pCfg, pItem->i32);
+    cfgUnLock(pCfg);
     return 0;
   }
 
@@ -1580,17 +1585,21 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     }
   }
 
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-// todo fix race condition caused by update of config, pItem->str may be removed
 static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
+
+  cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if ((pItem == NULL) || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
@@ -1728,6 +1737,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         matched = true;
       } else if (strcasecmp("slowLogScope", name) == 0) {
         if (taosSetSlowLogScope(pItem->str)) {
+          cfgUnLock(pCfg);
           return -1;
         }
         uInfo("%s set to %s", name, pItem->str);
@@ -1747,6 +1757,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
         if (taosMulMkDir(tsTempDir) != 0) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
+          cfgUnLock(pCfg);
           return -1;
         }
         matched = true;
@@ -1802,6 +1813,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   }
 
 _out:
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
@@ -1844,6 +1856,8 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
     return;
   }
 
+  cfgLock(pCfg);
+
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
   if (pItem != NULL) {
@@ -1878,7 +1892,11 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosArrayClear(noNeedToSetVars);  // reset array
 
   uInfo("all debug flag are set to %d", flag);
-  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) {
+    terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  }
+
+  cfgUnLock(pCfg);
 }
 
 int8_t taosGranted(int8_t type) {
