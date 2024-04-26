@@ -6,9 +6,13 @@ if command -v sudo >/dev/null; then
 fi
 
 prefix="taos"
+versionType="enterprise"
 
-services=(${prefix}"d" ${prefix}"adapter" ${prefix}"x" ${prefix}"-explorer" ${prefix}"keeper")
-
+if [ "${versionType}" == "enterprise" ]; then
+    services=(${prefix}"d" ${prefix}"adapter" ${prefix}"x" ${prefix}"-explorer" ${prefix}"keeper")
+else
+    services=(${prefix}"d" ${prefix}"adapter" ${prefix}"-explorer" ${prefix}"keeper")
+fi
 
 for service in "${services[@]}"; do    
     ${csudo}systemctl start $service
