@@ -1457,8 +1457,8 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->igUpdate = 0;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
-  pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
+  pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
+  pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
 
   // construct tags
   pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
@@ -1494,7 +1494,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  pCxt->pDropStreamReq->sql = strdup(pCxt->pDropSmaReq->name);
+  pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
 
