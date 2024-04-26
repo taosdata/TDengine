@@ -1418,6 +1418,10 @@ export default {
       3. <strong>format</strong>: String formatting using placeholders <em>$\{\}</em> to reference fields, for example <em>$\{year\}-$\{month\}-$\{day\}</em> can be used to format as a date string.<br/>
       For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformation#expression">the enterprise version documentation</a>.`,
       uploadexe: "Please upload the csv file and execute the next step",
+      extractrule: {
+        nofield: "haven't select the field to extract",
+        norule: "haven't select the extract rule",
+      },
       sp: "Please select the target super table",
       septip: "Please enter the separator",
       sepntip: "Please enter the separator number",
