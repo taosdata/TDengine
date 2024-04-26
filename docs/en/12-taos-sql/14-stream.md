@@ -11,13 +11,14 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, filed2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
  FILL_HISTORY   [0|1]
+ IGNORE UPDATE  [0|1]
 }
 
 ```
@@ -32,7 +33,7 @@ subquery: SELECT [DISTINCT] select_list
     [window_clause]
 ```
 
-Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME.
+Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME. If the source table has a composite primary key, state windows, event windows, and count windows are not supported.
 
 Subtable Clause defines the naming rules of auto-created subtable, you can see more details in below part: Partitions of Stream.
 
