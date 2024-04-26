@@ -105,8 +105,8 @@ impl Consumer {
                         rows.push(row);
                     }
                     Err(e) => {
-                        tracing::error!("migrate mysql query error: {e:?}",);
-                        anyhow::bail!("migrate mysql query error: {e}")
+                        tracing::warn!("migrate mysql query error: {e:?}",);
+                        // anyhow::bail!("migrate mysql query error: {e}")
                     }
                 }
                 if rows.len() >= batch_size {

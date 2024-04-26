@@ -105,8 +105,8 @@ impl Consumer {
                         rows.push(row);
                     }
                     Err(e) => {
-                        tracing::error!("migrate postgres query error: {e:?}",);
-                        anyhow::bail!("migrate postgres query error: {e}")
+                        tracing::warn!("migrate postgres query error: {e:?}",);
+                        // anyhow::bail!("migrate postgres query error: {e}")
                     }
                 }
                 if rows.len() >= batch_size {

@@ -28,15 +28,15 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
     let now = Utc::now();
 
     // schema
-    let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
+    let mut query = MySqlQuery::try_new(config.connect.clone()).await?;
 
     // generate sql
     let sql = config.task.generate_sql()?;
     tracing::info!("migrate mysql start, sql: {}", sql);
 
-    let row = query.select_one_for_schema(&sql).await.unwrap();
+    let row = query.select_one_for_schema(&sql).await?;
     let schema = match row {
-        Some(row) => to_schema(row).await.unwrap(),
+        Some(row) => to_schema(row).await?,
         None => {
             return Ok(());
         }

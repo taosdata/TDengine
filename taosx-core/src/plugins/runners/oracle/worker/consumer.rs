@@ -96,13 +96,21 @@ impl Consumer {
                 &sql
             );
 
-            let batches = query.select_all_and_to_record_batches(&sql, batch_size)?;
+            let result = query.select_all_and_to_record_batches(&sql, batch_size);
 
-            for batch in batches {
-                // send to IPC
-                tx.send_async(batch.clone()).await?;
-                // stastics
-                batch_count += 1;
+            match result {
+                Ok(batches) => {
+                    for batch in batches {
+                        // send to IPC
+                        tx.send_async(batch.clone()).await?;
+                        // stastics
+                        batch_count += 1;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("migrate oracle query error: {e:?}",);
+                    // anyhow::bail!("migrate oracle query error: {e}")
+                }
             }
 
             // let (col_map, _) = query.select_all(&sql)?;
