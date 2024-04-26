@@ -2013,7 +2013,12 @@ export default {
         let ind = this.filterArr.findIndex((val) => val.key == key);
         this.filterArr.splice(ind, 1);
         this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
-        this.submitParse();
+
+        if (this.$refs.extract && this.$refs.extract.length > 0) {
+          this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
+        } else {
+          this.submitParse();
+        }
       });
     },
     deleteExtract(index, name) {
