@@ -159,7 +159,7 @@ done
 tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
-elif [ "${verMode}" == "community" ]; then
+elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
   else
@@ -229,6 +229,10 @@ function install_bin() {
     fi
   fi
   
+  if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
+    ${csudo}cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
+  fi
+
   ${csudo}chmod 0555 ${install_main_dir}/bin/*
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
 
@@ -503,7 +507,7 @@ function local_fqdn_check() {
 function install_taosx_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  fileName="${script_dir}/${xname}/etc/taos/${xname}.toml"
+  fileName="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
   if [ -f ${fileName} ]; then
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
     
@@ -520,10 +524,11 @@ function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
   if [ "$verMode" == "cluster" ]; then
-    fileName="${script_dir}/${xname}/etc/taos/explorer.toml"
+    fileName="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
     fileName="${script_dir}/cfg/explorer.toml"
-  }
+  fi
+
   if [ -f ${fileName} ]; then
     ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${fileName}
     
@@ -655,13 +660,13 @@ function install_connector() {
 
 function install_examples() {
   if [ -d ${script_dir}/examples ]; then
-    ${csudo}cp -rf ${script_dir}/examples/* ${install_main_dir}/examples || echo "failed to copy examples"
+    ${csudo}cp -rf ${script_dir}/examples ${install_main_dir}/ || echo "failed to copy examples"
   fi
 }
 
 function install_plugins() {
   if [ -d ${script_dir}/${xname}/plugins ]; then
-    ${csudo}cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy taosx plugins"
+    ${csudo}cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy ${PREFIX}x plugins"
   fi
 }
 
