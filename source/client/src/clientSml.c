@@ -845,7 +845,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
   }
 
   for (int j = 0; j < taosArrayGetSize(checkDumplicateCols); ++j) {
-    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
+    SSmlKv *kv = (SSmlKv *)taosArrayGet(checkDumplicateCols, j);
     if(taosHashGet(schemaHash, kv->key, kv->keyLen) != NULL){
       return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
