@@ -14,14 +14,14 @@ The encryption key need to be configured in every dnode. The configure is done a
 ```
 taosd -y {encryptKey}
 ```
-The characters in encryption key need longer than 8, and shorter than 16. The characters is able to include Uppercase and lowercase letters, numbers, all special characters.
+The characters in encryption key should be longer than 8, and shorter than 16. The characters is able to include Uppercase and lowercase letters, numbers, all special characters.
 
 ### Config in online mode
 When all nodes is online, the encryption key configure is done as follow in taos shell:
 ```
 create encrypt_key 'value'
 ```
-The characters in encryption key need longer than 8, and shorter than 16. The characters is able to include Uppercase and lowercase letters, numbers, all special characters.
+The characters in encryption key should be longer than 8, and shorter than 16. The characters is able to include Uppercase and lowercase letters, numbers, all special characters.
 
 ## Create encrypted database
 The encypted database is created when ENCRYPT_ALGORITHM is set in create database SQL. The detail grammar is as follow:
@@ -42,7 +42,7 @@ Changing ENCRYPT_ALGORITHM at existing database is not supported, including chan
 
 
 ## Chech database encryption configure
-The database encryption configure can be checked as follow:
+The database encryption configuration can be checked as follow:
 ```
 select name, `encrypt_algorithm` from ins_databases;
               name              | encrypt_algorithm |
@@ -69,9 +69,9 @@ key_status mean：
 - unknown: when the dnode is not started, the key status is not available.
 
 ## Update encyption key
-When the dnode hardware configure is changed, the encryption key need to be updated. The encryption key is updated as follow，this operation is same as configuring encyption key in offline mode：
+When the dnode hardware configuration is changed, the encryption key need to be updated. The encryption key is updated as follow，this operation is same as configuring encyption key in offline mode：
 ```
 taosd -y  {encryptKey}
 ```
 
-The taosd need to be shutdown before updating encryption key. And the encryption key cannot be changed.
+The taosd need to be shutdowned before updating encryption key. And the encryption key cannot be changed.
