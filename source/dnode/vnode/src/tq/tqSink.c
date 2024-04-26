@@ -551,7 +551,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, STSchema* pTSchema, SSDataBlock
           dataIndex++;
         } else {
           void* colData = colDataGetData(pColData, j);
-          if (IS_STR_DATA_TYPE(pCol->type)) {
+          if (IS_VAR_DATA_TYPE(pCol->type)) {
             // address copy, no value
             SValue  sv = (SValue){.nData = varDataLen(colData), .pData = (uint8_t*) varDataVal(colData)};
             SColVal cv = COL_VAL_VALUE(pCol->colId, pCol->type, sv);
