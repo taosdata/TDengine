@@ -338,7 +338,7 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
   }
 
   if (!pInfo->inCheckProcess) {
-    stWarn("s-task:%s already not in-check-procedure", id);
+//    stWarn("s-task:%s already not in-check-procedure", id);
   }
 
   int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;

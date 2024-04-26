@@ -1165,7 +1165,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
     return TSDB_CODE_SUCCESS;
   } else { // checkpoint already finished, and not in checkpoint status
-    if (req.checkpointId == pTask->chkInfo.checkpointId) {
+    if (req.checkpointId <= pTask->chkInfo.checkpointId) {
       tqWarn("s-task:%s repeatly recv checkpoint-source msg checkpointId:%" PRId64
              " transId:%d already handled, ignore and discard", pTask->id.idStr, req.checkpointId, req.transId);
 
