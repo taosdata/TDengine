@@ -1144,12 +1144,6 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
       if (entry.checkpointInfo.failed) {
         stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.transId);
       }
-    } else {
-      entry.checkpointFailed = 0;
-      entry.checkpointId = (*pTask)->chkInfo.checkpointId;
-      entry.chkpointTransId = -1;
-      stDebug("s-task:%s report the max checkpointId to mnode:%" PRId64, (*pTask)->id.idStr,
-              (*pTask)->chkInfo.checkpointId);
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {

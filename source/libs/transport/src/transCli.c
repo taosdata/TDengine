@@ -2201,10 +2201,8 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   return;
 }
 
-static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
-  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
-    return;
-  }
+static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+  STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
   cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
@@ -2214,6 +2212,7 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
 
   transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
 }
+
 
 FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
