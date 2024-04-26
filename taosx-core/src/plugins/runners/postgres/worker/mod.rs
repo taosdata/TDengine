@@ -16,6 +16,12 @@ const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
 pub async fn migrate_history(mut config: PostgresConfig) -> anyhow::Result<()> {
+    // mark the current time
+    let now = Utc::now();
+
+    // schema
+    let mut query = PostgresQuery::try_new(config.connect.clone()).await?;
+
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
     if breakpoint.is_some() {
@@ -23,12 +29,6 @@ pub async fn migrate_history(mut config: PostgresConfig) -> anyhow::Result<()> {
         tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
     }
     tracing::info!("migrate postgres start, config: {:?}", config);
-
-    // mark the current time
-    let now = Utc::now();
-
-    // schema
-    let mut query = PostgresQuery::try_new(config.connect.clone()).await?;
 
     // generate sql
     let sql = config.task.generate_sql()?;
