@@ -56,12 +56,17 @@ static void *dmNotifyThreadFp(void *param) {
     return NULL;
   }
 
-  bool wait = true;
+  bool    wait = true;
+  int64_t lastNotify = 0;
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
+    if (taosGetTimestampMs() - lastNotify < tsTimeSeriesInterval) {
+      taosMsleep(tsTimeSeriesInterval);
+    }
     dmSendNotifyReq(pMgmt);
+    lastNotify = taosGetTimestampMs();
     if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
       wait = true;
       continue;
