@@ -110,7 +110,7 @@
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
-          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary">{{
+          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary" :loading="requesting">{{
             $t("confirm") }}</el-button>
         </el-col>
       </el-row>
@@ -158,7 +158,8 @@ export default {
         ],
       },
       topicList: [],
-      parsinginZone
+      parsinginZone,
+      requesting: false,
     };
   },
   computed: {
@@ -214,7 +215,9 @@ export default {
       this.getReplication();
     },
     async addReplication() {
+      console.log('8888888');
       try {
+        this.requesting = true;
         let id = localStorage.getItem("local_clusterID");
         let params = {
           labels: [
@@ -232,9 +235,11 @@ export default {
           return;
         }
         Message.success(this.$t('createSucc'));
+        this.requesting = false;
         this.getReplication();
         this.dialog = false;
       } catch (err) {
+        this.requesting = false;
         console.error(err);
         this.$error(err?.message);
       }
