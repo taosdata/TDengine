@@ -15,7 +15,7 @@
 
 #ifndef _TD_COMMON_DEF_H_
 #define _TD_COMMON_DEF_H_
-// #include "taosdef.h"
+
 #include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
@@ -412,6 +412,7 @@ typedef struct STUidTagInfo {
 #define UD_TAG_COLUMN_INDEX        2
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
 
 #define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN 32

@@ -32,7 +32,7 @@
                 {
                     "name": "stb",
                     "child_table_exists": "no",
-                    "childtable_count": 10,
+                    "childtable_count": 6,
                     "insert_rows": 2000000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",

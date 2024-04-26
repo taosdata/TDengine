@@ -34,6 +34,13 @@ SELECT * FROM information_schema.INS_INDEXES
 
 也可以为上面的查询语句加上过滤条件以缩小查询范围。
 
+或者通过 SHOW 命令查看指定表上的索引
+
+```sql
+SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name;
+```
+
 ## 使用说明
 
 1. 索引使用得当能够提升数据过滤的效率，目前支持的过滤算子有 `=`, `>`, `>=`, `<`, `<=`。如果查询过滤条件中使用了这些算子，则索引能够明显提升查询效率。但如果查询过滤条件中使用的是其它算子，则索引起不到作用，查询效率没有变化。未来会逐步添加更多的算子。

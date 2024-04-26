@@ -367,7 +367,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       } while (0);
     }
 
-    // 2. check re-balance status
+    // 2. check rebalance status
     if (pHandle->consumerId != consumerId) {
       tqError("ERROR tmq poll: consumer:0x%" PRIx64
               " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
@@ -485,7 +485,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  // 2. check re-balance status
+  // 2. check rebalance status
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, vgId, req.subKey, pHandle->consumerId);
@@ -666,7 +666,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
       goto end;
     }
     STqHandle handle = {0};
@@ -1156,14 +1156,24 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // check if the checkpoint msg already sent or not.
   if (status == TASK_STATUS__CK) {
-    tqWarn("s-task:%s recv checkpoint-source msg again checkpointId:%" PRId64
-           " transId:%d already received, ignore this msg and continue process checkpoint",
+    tqWarn("s-task:%s repeatly recv checkpoint-source msg checkpointId:%" PRId64
+           " transId:%d already handled, ignore msg and continue process checkpoint",
            pTask->id.idStr, pTask->chkInfo.checkpointingId, req.transId);
 
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
 
     return TSDB_CODE_SUCCESS;
+  } else { // checkpoint already finished, and not in checkpoint status
+    if (req.checkpointId == pTask->chkInfo.checkpointId) {
+      tqWarn("s-task:%s repeatly recv checkpoint-source msg checkpointId:%" PRId64
+             " transId:%d already handled, ignore and discard", pTask->id.idStr, req.checkpointId, req.transId);
+
+      taosThreadMutexUnlock(&pTask->lock);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   streamProcessCheckpointSourceReq(pTask, &req);

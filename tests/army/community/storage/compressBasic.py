@@ -118,18 +118,10 @@ class TDTestCase(TBase):
         sql = f"describe {self.db}.{self.stb}"
         tdSql.query(sql)
 
-        '''
         # see AutoGen.types 
         defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
                        "simple8b","simple8b","delta-d","delta-d","bit-packing",
-                       "disabled","disabled","disabled","disabled","disabled"]
-        '''
-        
-        # pass-ci have error
-        defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
-                       "simple8b","simple8b","delta-d","delta-d","bit-packing",
-                       "disabled","disabled","disabled","disabled","simple8b"]
-        
+                       "disabled","disabled","disabled","disabled"]        
 
         count = tdSql.getRows()
         for i in range(count):

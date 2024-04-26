@@ -46,7 +46,7 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->blockDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(writer->blockData); i++) {
@@ -301,15 +301,3 @@ _exit:
   }
   return code;
 }
-// int32_t tsdbGetCompressByUid(SFSetWriter *writer, tb_uid_t uid, struct SColCompressInfo *info) {
-//   SHashObj *p = NULL;
-//   int32_t   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &p);
-//   if (code < 0) {
-//     ASSERT(0);
-//     taosHashCleanup(p);
-//     p = NULL;
-//   } else {
-//   }
-//   info->pColCmpr = p;
-//   return code;
-// }

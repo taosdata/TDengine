@@ -325,7 +325,7 @@ static int32_t createSchemaByFields(const SArray* pFields, SSchemaWrapper* pWrap
   return TSDB_CODE_SUCCESS;
 }
 
-static bool hasPrimaryKey(SSchemaWrapper* pWrapper) {
+static bool hasDestPrimaryKey(SSchemaWrapper* pWrapper) {
   if (pWrapper->nCols < 2) {
     return false;
   }
@@ -442,7 +442,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->outputSchema.pSchema = pFullSchema;
   }
 
-  bool hasKey = hasPrimaryKey(&pObj->outputSchema);
+  bool hasKey = hasDestPrimaryKey(&pObj->outputSchema);
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
@@ -847,7 +847,7 @@ int64_t mndStreamGenChkptId(SMnode *pMnode, bool lock) {
     if (pIter == NULL) break;
 
     maxChkptId = TMAX(maxChkptId, pStream->checkpointId);
-    mDebug("stream:%p, %s id:%" PRIx64 "checkpoint %" PRId64 "", pStream, pStream->name, pStream->uid,
+    mDebug("stream:%p, %s id:0x%" PRIx64 " checkpoint %" PRId64 "", pStream, pStream->name, pStream->uid,
            pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }

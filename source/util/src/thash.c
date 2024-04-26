@@ -719,6 +719,11 @@ void *taosHashGetKey(void *data, size_t *keyLen) {
   return GET_HASH_NODE_KEY(node);
 }
 
+int32_t taosHashGetValueSize(void *data) {
+  SHashNode *node = GET_HASH_PNODE(data);
+  return node->dataLen;
+}
+
 // release the pNode, return next pNode, and lock the current entry
 static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
   SHashNode *pOld = (SHashNode *)GET_HASH_PNODE(p);
