@@ -29,19 +29,15 @@ typedef struct SLaunchHTaskInfo {
   STaskId      hTaskId;
 } SLaunchHTaskInfo;
 
-typedef struct STaskRecheckInfo {
-  SStreamTask*        pTask;
-  SStreamTaskCheckReq req;
-  void*               checkTimer;
-} STaskRecheckInfo;
-
 static int32_t           streamSetParamForScanHistory(SStreamTask* pTask);
 static void              streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static int32_t           initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
-static SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t hStreamId,
+static SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, STaskId* pTaskId, int64_t hStreamId,
                                                int32_t hTaskId);
 static void              tryLaunchHistoryTask(void* param, void* tmrId);
-static void              doProcessDownstreamReadyRsp(SStreamTask* pTask);
+static void              doExecScanhistoryInFuture(void* param, void* tmrId);
+static int32_t           doStartScanHistoryTask(SStreamTask* pTask);
+static int32_t           streamTaskStartScanHistory(SStreamTask* pTask);
 
 int32_t streamTaskSetReady(SStreamTask* pTask) {
   int32_t           numOfDowns = streamTaskGetNumOfDownstream(pTask);
@@ -83,7 +79,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   return 0;
 }
 
-static void doExecScanhistoryInFuture(void* param, void* tmrId) {
+void doExecScanhistoryInFuture(void* param, void* tmrId) {
   SStreamTask* pTask = param;
   pTask->schedHistoryInfo.numOfTicks -= 1;
 
@@ -139,7 +135,7 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doStartScanHistoryTask(SStreamTask* pTask) {
+int32_t doStartScanHistoryTask(SStreamTask* pTask) {
   SVersionRange* pRange = &pTask->dataRange.range;
   if (pTask->info.fillHistory) {
     streamSetParamForScanHistory(pTask);
@@ -167,67 +163,6 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
   }
 
   return 0;
-}
-
-// check status
-void streamTaskCheckDownstream(SStreamTask* pTask) {
-  SDataRange*  pRange = &pTask->dataRange;
-  STimeWindow* pWindow = &pRange->window;
-
-  SStreamTaskCheckReq req = {
-      .streamId = pTask->id.streamId,
-      .upstreamTaskId = pTask->id.taskId,
-      .upstreamNodeId = pTask->info.nodeId,
-      .childId = pTask->info.selfChildId,
-      .stage = pTask->pMeta->stage,
-  };
-
-  ASSERT(pTask->status.downstreamReady == 0);
-
-  // serialize streamProcessScanHistoryFinishRsp
-  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    streamTaskStartMonitorCheckRsp(pTask);
-
-    req.reqId = tGenIdPI64();
-    req.downstreamNodeId = pTask->outputInfo.fixedDispatcher.nodeId;
-    req.downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
-
-    streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
-
-    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
-            " window:%" PRId64 "-%" PRId64 " reqId:0x%" PRIx64,
-            pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId,
-            pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
-
-    streamSendCheckMsg(pTask, &req, pTask->outputInfo.fixedDispatcher.nodeId, &pTask->outputInfo.fixedDispatcher.epSet);
-
-  } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    streamTaskStartMonitorCheckRsp(pTask);
-
-    SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
-
-    int32_t numOfVgs = taosArrayGetSize(vgInfo);
-    stDebug("s-task:%s check %d downstream tasks, ver:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64,
-            pTask->id.idStr, numOfVgs, pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey);
-
-    for (int32_t i = 0; i < numOfVgs; i++) {
-      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-      req.reqId = tGenIdPI64();
-      req.downstreamNodeId = pVgInfo->vgId;
-      req.downstreamTaskId = pVgInfo->taskId;
-
-      streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, req.downstreamTaskId, pTask->id.idStr);
-
-      stDebug("s-task:%s (vgId:%d) stage:%" PRId64
-              " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, reqId:0x%" PRIx64,
-              pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
-      streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
-    }
-  } else {  // for sink task, set it ready directly.
-    stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
-    streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
-    doProcessDownstreamReadyRsp(pTask);
-  }
 }
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
@@ -329,122 +264,6 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 //  }
 
   return TSDB_CODE_SUCCESS;
-}
-
-void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
-  EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-  streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
-
-  int64_t checkTs = pTask->execInfo.checkTs;
-  int64_t readyTs = pTask->execInfo.readyTs;
-  streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, checkTs, readyTs, true);
-
-  if (pTask->status.taskStatus == TASK_STATUS__HALT) {
-    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
-
-    // halt it self for count window stream task until the related fill history task completed.
-    stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
-            pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
-    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
-  }
-
-  // start the related fill-history task, when current task is ready
-  // not invoke in success callback due to the deadlock.
-  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    stDebug("s-task:%s try to launch related fill-history task", pTask->id.idStr);
-    streamLaunchFillHistoryTask(pTask);
-  }
-}
-
-static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
-  int32_t vgId = pTask->pMeta->vgId;
-
-  taosThreadMutexLock(&pTask->lock);
-  int32_t num = taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList);
-  bool    existed = false;
-  for (int i = 0; i < num; ++i) {
-    SDownstreamTaskEpset* p = taosArrayGet(pTask->outputInfo.pDownstreamUpdateList, i);
-    if (p->nodeId == nodeId) {
-      existed = true;
-      break;
-    }
-  }
-
-  if (!existed) {
-    SDownstreamTaskEpset t = {.nodeId = nodeId};
-    taosArrayPush(pTask->outputInfo.pDownstreamUpdateList, &t);
-
-    stInfo("s-task:%s vgId:%d downstream nodeId:%d needs to be updated, total needs updated:%d", pTask->id.idStr, vgId,
-           t.nodeId, (int32_t)taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList));
-  }
-
-  taosThreadMutexUnlock(&pTask->lock);
-}
-
-int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
-  ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
-
-  int64_t         now = taosGetTimestampMs();
-  const char*     id = pTask->id.idStr;
-  STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
-  int32_t         total = streamTaskGetNumOfDownstream(pTask);
-  int32_t         left = -1;
-
-  if (streamTaskShouldStop(pTask)) {
-    stDebug("s-task:%s should stop, do not do check downstream again", id);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pRsp->status == TASK_DOWNSTREAM_READY) {
-    int32_t code = streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
-    if (code != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (left == 0) {
-      doProcessDownstreamReadyRsp(pTask);  // all downstream tasks are ready, set the complete check downstream flag
-      streamTaskStopMonitorCheckRsp(pInfo, id);
-    } else {
-      stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
-              pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
-    }
-  } else {  // not ready, wait for 100ms and retry
-    int32_t code = streamTaskUpdateCheckInfo(pInfo, pRsp->downstreamTaskId, pRsp->status, now, pRsp->reqId, &left, id);
-    if (code != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_SUCCESS;  // return success in any cases.
-    }
-
-    if (pRsp->status == TASK_UPSTREAM_NEW_STAGE || pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
-      if (pRsp->status == TASK_UPSTREAM_NEW_STAGE) {
-        stError("s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%" PRId64
-                ", current stage:%" PRId64 ", not check wait for downstream task nodeUpdate, and all tasks restart",
-                id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
-        addIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
-      } else {
-        stError(
-            "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
-            "downstream again, nodeUpdate needed",
-            id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
-        addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
-      }
-
-      int32_t startTs = pTask->execInfo.checkTs;
-      streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, now, false);
-
-      // automatically set the related fill-history task to be failed.
-      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-        STaskId* pId = &pTask->hTaskInfo.id;
-        streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
-      }
-
-    } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
-      ASSERT(left > 0);
-      stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
-              pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
-    }
-  }
-
-  return 0;
 }
 
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
@@ -663,16 +482,15 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   taosMemoryFree(pInfo);
 }
 
-SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t hStreamId,
-                                        int32_t hTaskId) {
+SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, STaskId* pTaskId, int64_t hStreamId, int32_t hTaskId) {
   SLaunchHTaskInfo* pInfo = taosMemoryCalloc(1, sizeof(SLaunchHTaskInfo));
   if (pInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pInfo->id.streamId = streamId;
-  pInfo->id.taskId = taskId;
+  pInfo->id.streamId = pTaskId->streamId;
+  pInfo->id.taskId = pTaskId->taskId;
 
   pInfo->hTaskId.streamId = hStreamId;
   pInfo->hTaskId.taskId = hTaskId;
@@ -691,7 +509,8 @@ static int32_t launchNotBuiltFillHistoryTask(SStreamTask* pTask) {
 
   stWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since not built yet", idStr, pMeta->vgId, hTaskId);
 
-  SLaunchHTaskInfo* pInfo = createHTaskLaunchInfo(pMeta, pTask->id.streamId, pTask->id.taskId, hStreamId, hTaskId);
+  STaskId id = streamTaskGetTaskId(pTask);
+  SLaunchHTaskInfo* pInfo = createHTaskLaunchInfo(pMeta, &id, hStreamId, hTaskId);
   if (pInfo == NULL) {
     stError("s-task:%s failed to launch related fill-history task, since Out Of Memory", idStr);
     streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
@@ -800,82 +619,6 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
             pTask->step2Range.minVer, pTask->step2Range.maxVer, pRange->minVer, pRange->maxVer);
     return false;
   }
-}
-
-int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->reqId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->reqId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->stage) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->reqId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->downstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->childId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->oldStage) < 0) return -1;
-  if (tEncodeI8(pEncoder, pRsp->status) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->reqId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->oldStage) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pRsp->status) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
-  tEndEncode(pEncoder);
-  return 0;
-}
-
-int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
 }
 
 void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {

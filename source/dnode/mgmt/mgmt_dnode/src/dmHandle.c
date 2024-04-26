@@ -333,39 +333,10 @@ SSDataBlock *dmBuildVariablesBlock(void) {
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
-  int32_t numOfRows = 0;
-  blockDataEnsureCapacity(pBlock, numOfCfg);
+  /*int32_t code = */dumpConfToDataBlock(pBlock, 1);
 
-  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
-    SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
-    // GRANT_CFG_SKIP;
-
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
-
-    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, name, false);
-
-    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-    int32_t valueLen = 0;
-    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
-    varDataSetLen(value, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, value, false);
-
-    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
-    varDataSetLen(scope, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, scope, false);
-
-    numOfRows++;
-  }
-
-  pBlock->info.rows = numOfRows;
+  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+  colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);
 
   return TSDB_CODE_SUCCESS;
 }

@@ -27,12 +27,17 @@
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
 
+struct SConfig {
+  ECfgSrcType   stype;
+  SArray       *array;
+  TdThreadMutex lock;
+};
+
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
-int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath);
+int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile);
 int32_t cfgLoadFromEnvVar(SConfig *pConfig);
 int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd);
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
-int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSrcType stype);
 
 extern char **environ;
 
@@ -50,6 +55,7 @@ SConfig *cfgInit() {
     return NULL;
   }
 
+  taosThreadMutexInit(&pCfg->lock, NULL);
   return pCfg;
 }
 
@@ -87,9 +93,9 @@ static void cfgFreeItem(SConfigItem *pItem) {
       pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
     taosMemoryFreeClear(pItem->str);
   }
+
   if (pItem->array) {
-    taosArrayDestroy(pItem->array);
-    pItem->array = NULL;
+    pItem->array = taosArrayDestroy(pItem->array);
   }
 }
 
@@ -102,37 +108,18 @@ void cfgCleanup(SConfig *pCfg) {
       taosMemoryFreeClear(pItem->name);
     }
     taosArrayDestroy(pCfg->array);
+    taosThreadMutexDestroy(&pCfg->lock);
     taosMemoryFree(pCfg);
   }
 }
 
 int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->array); }
 
-static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
+static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
   cfgFreeItem(pItem);
-  pItem->str = taosStrdup(timezone);
-  if (pItem->str == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
+  ASSERT(pItem->str == NULL);
 
-  return 0;
-}
-
-static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
-  cfgFreeItem(pItem);
-  pItem->str = taosStrdup(charset);
-  if (pItem->str == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  return 0;
-}
-
-static int32_t cfgCheckAndSetLocale(SConfigItem *pItem, const char *locale) {
-  cfgFreeItem(pItem);
-  pItem->str = taosStrdup(locale);
+  pItem->str = taosStrdup(conf);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -229,7 +216,7 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
     return -1;
   }
 
-  taosMemoryFree(pItem->str);
+  taosMemoryFreeClear(pItem->str);
   pItem->str = tmp;
   pItem->stype = stype;
   return 0;
@@ -246,20 +233,8 @@ static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType styp
   return 0;
 }
 
-static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (cfgCheckAndSetLocale(pItem, value) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), value, terrstr());
-    return -1;
-  }
-
-  pItem->stype = stype;
-  return 0;
-}
-
-static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (cfgCheckAndSetCharset(pItem, value) != 0) {
+static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+  if (cfgCheckAndSetConf(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), value, terrstr());
@@ -271,18 +246,13 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (cfgCheckAndSetTimezone(pItem, value) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
-           cfgStypeStr(stype), value, terrstr());
-    return -1;
+  int32_t code = doSetConf(pItem, value, stype);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
-  pItem->stype = stype;
 
-  // apply new timezone
   osSetTimezone(value);
-
-  return 0;
+  return code;
 }
 
 static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
@@ -342,40 +312,61 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
 
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
   // GRANT_CFG_SET;
+  int32_t      code = 0;
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     terrno = TSDB_CODE_CFG_NOT_FOUND;
     return -1;
   }
 
+  taosThreadMutexLock(&pCfg->lock);
+
   switch (pItem->dtype) {
-    case CFG_DTYPE_BOOL:
-      return cfgSetBool(pItem, value, stype);
-    case CFG_DTYPE_INT32:
-      return cfgSetInt32(pItem, value, stype);
-    case CFG_DTYPE_INT64:
-      return cfgSetInt64(pItem, value, stype);
+    case CFG_DTYPE_BOOL: {
+      code = cfgSetBool(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_INT32: {
+      code = cfgSetInt32(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_INT64: {
+      code = cfgSetInt64(pItem, value, stype);
+      break;
+    }
     case CFG_DTYPE_FLOAT:
-    case CFG_DTYPE_DOUBLE:
-      return cfgSetFloat(pItem, value, stype);
-    case CFG_DTYPE_STRING:
-      return cfgSetString(pItem, value, stype);
-    case CFG_DTYPE_DIR:
-      return cfgSetDir(pItem, value, stype);
-    case CFG_DTYPE_TIMEZONE:
-      return cfgSetTimezone(pItem, value, stype);
-    case CFG_DTYPE_CHARSET:
-      return cfgSetCharset(pItem, value, stype);
-    case CFG_DTYPE_LOCALE:
-      return cfgSetLocale(pItem, value, stype);
+    case CFG_DTYPE_DOUBLE: {
+      code = cfgSetFloat(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_STRING: {
+      code = cfgSetString(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_DIR: {
+      code = cfgSetDir(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_TIMEZONE: {
+      code = cfgSetTimezone(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_CHARSET: {
+      code = doSetConf(pItem, value, stype);
+      break;
+    }
+    case CFG_DTYPE_LOCALE: {
+      code = doSetConf(pItem, value, stype);
+      break;
+    }
     case CFG_DTYPE_NONE:
     default:
+      terrno = TSDB_CODE_INVALID_CFG;
       break;
   }
 
-_err_out:
-  terrno = TSDB_CODE_INVALID_CFG;
-  return -1;
+  taosThreadMutexUnlock(&pCfg->lock);
+  return code;
 }
 
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
@@ -388,16 +379,16 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
     }
   }
 
-  // uError("name:%s, cfg not found", name);
   terrno = TSDB_CODE_CFG_NOT_FOUND;
   return NULL;
 }
 
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
   ECfgDynType  dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & dynType) == 0) {
-    uError("failed to config:%s, not support", name);
+    uError("failed to config:%s, not support update this config", name);
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
   }
@@ -459,7 +450,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     return -1;
   }
 
-  int size = pCfg->array->size;
+  int32_t size = taosArrayGetSize(pCfg->array);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *existItem = taosArrayGet(pCfg->array, i);
     if (existItem != NULL && strcmp(existItem->name, pItem->name) == 0) {
@@ -559,7 +550,7 @@ int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_
 
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
   SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope, .dynScope = dynScope};
-  if (cfgCheckAndSetLocale(&item, defaultVal) != 0) {
+  if (cfgCheckAndSetConf(&item, defaultVal) != 0) {
     return -1;
   }
 
@@ -568,7 +559,7 @@ int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, in
 
 int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
   SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .scope = scope, .dynScope = dynScope};
-  if (cfgCheckAndSetCharset(&item, defaultVal) != 0) {
+  if (cfgCheckAndSetConf(&item, defaultVal) != 0) {
     return -1;
   }
 
@@ -577,7 +568,7 @@ int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, i
 
 int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
   SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .scope = scope, .dynScope = dynScope};
-  if (cfgCheckAndSetTimezone(&item, defaultVal) != 0) {
+  if (cfgCheckAndSetConf(&item, defaultVal) != 0) {
     return -1;
   }
 
@@ -1355,4 +1346,36 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
 
   uInfo("fail get apollo url from cmd env file");
   return -1;
+}
+
+struct SConfigIter {
+  int32_t  index;
+  SConfig *pConf;
+};
+
+SConfigIter *cfgCreateIter(SConfig *pConf) {
+  SConfigIter* pIter = taosMemoryCalloc(1, sizeof(SConfigIter));
+  if (pIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pIter->pConf = pConf;
+  return pIter;
+}
+
+SConfigItem *cfgNextIter(SConfigIter* pIter) {
+  if (pIter->index < cfgGetSize(pIter->pConf)) {
+    return taosArrayGet(pIter->pConf->array, pIter->index++);
+  }
+
+  return NULL;
+}
+
+void cfgDestroyIter(SConfigIter *pIter) {
+  if (pIter == NULL) {
+    return;
+  }
+
+  taosMemoryFree(pIter);
 }

@@ -897,6 +897,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // commit
   code = commit_edit(fs);
+  ASSERT(code == 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule merge
@@ -973,11 +974,11 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->tsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
-    tsem_post(&fs->canEdit);
+    tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
+  tsem_post(&fs->canEdit);
   return code;
 }
 

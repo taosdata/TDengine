@@ -2343,7 +2343,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
-    SExprNode* pExpr = (SExprNode*)pNode;
+
     bool bFound = false;
     SNode* pn = NULL;
     FOREACH(pn, pCxt->pFuncs) {

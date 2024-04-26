@@ -278,7 +278,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
-      // todo add a dummy funtion to avoid process check
+      // todo add a dummy function to avoid process check
       if (pCtx[k].fpSet.process == NULL) {
         continue;
       }
