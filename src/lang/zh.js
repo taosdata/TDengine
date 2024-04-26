@@ -1200,6 +1200,10 @@ export default {
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取 3 个字段 y、m 和 d。<br/>
       更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
       uploadexe: "请上传csv文件并执行下一步操作",
+      extractrule: {
+        nofield: "未指定提取列名",
+        norule: "未指定解析规则",
+      },
       sp: "请选则目标超级表",
       septip: "请输入分隔符",
       sepntip: "请输入分隔符个数",

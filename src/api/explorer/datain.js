@@ -155,7 +155,29 @@ export function downlaodAllNodes(data, agentid) {
     })
 }
 
-export function getParser(data) {
+export function checkParseData(data) {
+    let mutateRules = data.parser?.mutate;
+    if (!mutateRules) {
+        return;
+    }
+
+    // 检查 extract 规则
+    for (let i = 0; i < mutateRules.length; i++) {
+        if (mutateRules[i].extract) {
+            let extract = mutateRules[i].extract;
+            if ("" in extract) {
+                return "datasource.transformer.extractrule.nofield";
+            }
+            for (let key in extract) {
+                if ("" in extract[key]) {
+                    return "datasource.transformer.extractrule.norule";
+                }
+            }
+        }
+    }
+}
+
+export function getParser(data, messagebox) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/transform/sample/flat?tz=${getLocalTimezone()}`,

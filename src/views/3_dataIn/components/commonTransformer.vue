@@ -578,7 +578,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser, getHistorianMsgbody } from "@/api/explorer/datain";
+import { getParser, checkParseData, getHistorianMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
@@ -1001,6 +1001,11 @@ export default {
                 ? this.$store.state.app.csvTransformerParser.inputList
                 : [].concat(this.generateInput()),
           };
+        }
+        let checkResult = checkParseData(topparser);
+        if (checkResult) {
+          this.$message.warning(this.$t(checkResult));
+          return;
         }
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
@@ -1604,6 +1609,11 @@ export default {
     },
     async getParserData(data) {
       try {
+        let checkResult = checkParseData(data);
+        if (checkResult) {
+          this.$message.warning(this.$t(checkResult));
+          return;
+        }
         let result = await getParser(data);
         if (result.message) {
           this.$error(result.message);
@@ -2007,6 +2017,13 @@ export default {
       });
     },
     deleteExtract(index, name) {
+
+      if (!name) {
+        // 没有设置name的情况下，直接删除
+        this.extractArr.splice(index, 1);
+        return;
+      }
+
       this.$confirm(
         this.$t("datasource.deletetip"),
         this.$t("datasource.warning"),
@@ -2026,18 +2043,15 @@ export default {
           delete oldextract.extract[name];
         }
 
-        if (name) {
-          let ind = this.extractArr.findIndex(
-            (item) => item.columnname == name
-          );
-          this.extractArr.splice(ind, 1);
-          let restoreIndex = this.columnsArr.findIndex(
-            (item) => item.name == name
-          );
-          this.$set(this.columnsArr[restoreIndex], "show", true);
-        } else {
-          this.extractArr.splice(index, 1);
-        }
+        let ind = this.extractArr.findIndex(
+          (item) => item.columnname == name
+        );
+        this.extractArr.splice(ind, 1);
+        let restoreIndex = this.columnsArr.findIndex(
+          (item) => item.name == name
+        );
+        this.$set(this.columnsArr[restoreIndex], "show", true);
+        
         if (this.extractArr.length > 0) {
           if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
             this.$refs.filter[0].submit();
