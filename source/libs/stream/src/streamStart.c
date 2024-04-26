@@ -432,7 +432,6 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         STaskId* pId = &pTask->hTaskInfo.id;
         streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
       }
-
     } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
       ASSERT(left > 0);
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
