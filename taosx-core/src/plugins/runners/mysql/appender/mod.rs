@@ -5,8 +5,6 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use arrow_schema::DECIMAL256_MAX_PRECISION;
-use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
@@ -16,21 +14,10 @@ pub mod column_meta;
 pub async fn to_schema(row: MySqlRow) -> anyhow::Result<Schema> {
     let mut fields = Vec::new();
     for col in row.columns() {
-        let col_cidx = col.ordinal();
         let col_name = col.name();
         let col_type = col.type_info().name();
         // arrow data type
-        let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-        // modify the scale of decimal
-        if col_type == "DECIMAL" {
-            let val = row
-                .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                .unwrap()
-                .unwrap();
-            let (_, scale) = val.as_bigint_and_exponent();
-            arrow_type =
-                arrow::datatypes::DataType::Decimal256(DECIMAL256_MAX_PRECISION, scale as i8);
-        }
+        let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
         fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
     }
     let schema = build_schema(fields)?;
@@ -56,23 +43,10 @@ pub async fn to_record_batches(
     for (ridx, row) in rows.iter().enumerate() {
         if ridx == 0 {
             for col in row.columns() {
-                let col_cidx = col.ordinal();
                 let col_name = col.name();
                 let col_type = col.type_info().name();
                 // arrow data type
-                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
-                    let val = row
-                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                        .unwrap()
-                        .unwrap();
-                    let (_, scale) = val.as_bigint_and_exponent();
-                    arrow_type = arrow::datatypes::DataType::Decimal256(
-                        DECIMAL256_MAX_PRECISION,
-                        scale as i8,
-                    );
-                }
+                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
                 fields.push(Field::new(col_name.to_string(), arrow_type.clone(), true));
                 builders.push(array::make_builder(&arrow_type, 10));
             }
@@ -83,375 +57,571 @@ pub async fn to_record_batches(
             match col_type {
                 // 整型数
                 "TINYINT" => {
-                    let val = row.try_get::<Option<i8>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i8>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int8Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int8Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'TINYINT' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int8Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int8Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "TINYINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u8>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u8>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt8Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt8Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'TINYINT UNSIGNED' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt8Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "SMALLINT" => {
-                    let val = row.try_get::<Option<i16>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i16>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int16Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int16Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'SMALLINT' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int16Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int16Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "SMALLINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u16>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u16>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt16Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt16Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'SMALLINT UNSIGNED' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt16Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "MEDIUMINT" | "INT" => {
-                    let val = row.try_get::<Option<i32>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i32>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int32Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int32Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'MEDIUMINT/INT' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int32Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int32Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "MEDIUMINT UNSIGNED" | "INT UNSIGNED" => {
-                    let val = row.try_get::<Option<u32>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u32>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt32Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt32Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'MEDIUMINT UNSIGNED/INT UNSIGNED' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt32Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt32Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "BIGINT" => {
-                    let val = row.try_get::<Option<i64>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<i64>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int64Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Int64Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'BIGINT' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Int64Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Int64Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "BIGINT UNSIGNED" => {
-                    let val = row.try_get::<Option<u64>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u64>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt64Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt64Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'BIGINT UNSIGNED' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt64Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt64Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 // 浮点数
                 "FLOAT" => {
-                    let val = row.try_get::<Option<f32>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<f32>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float32Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float32Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'FLOAT' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float32Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Float32Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "DOUBLE" => {
-                    let val = row.try_get::<Option<f64>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<f64>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float64Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::Float64Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'DOUBLE' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::Float64Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Float64Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "DECIMAL" => {
-                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val.to_string());
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'DECIMAL' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Decimal256Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            let (int_val, _) = val.as_bigint_and_exponent();
-                            let value = int_val.to_string();
-                            let value: i32 = value.parse().unwrap();
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Decimal256Builder>()
-                                .unwrap()
-                                .append_value(arrow::datatypes::i256::from(value));
                         }
                     }
                 }
                 // 字符串
                 "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
-                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'CHAR/VARCHAR/...' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 "BINARY" | "VARBINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
-                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'BINARY/VARBINARY/...' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::BinaryBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 // 日期时间
                 "DATE" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'DATE' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Date32Builder>()
-                                .unwrap()
-                                .append_value(
-                                    val.num_days_from_ce()
-                                        - sqlx::types::chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
-                                            .unwrap()
-                                            .num_days_from_ce(),
-                                );
                         }
                     }
                 }
                 "TIME" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'TIME' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Time32SecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::Time32SecondBuilder>()
-                                .unwrap()
-                                .append_value(val.num_seconds_from_midnight() as i32);
                         }
                     }
                 }
                 "DATETIME" | "TIMESTAMP" => {
-                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                    .unwrap()
+                                    .append_value(val.timestamp_nanos_opt().unwrap());
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'DATETIME/TIMESTAMP' result error: {e:?}"
+                            );
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
-                                .unwrap()
-                                .append_value(val.timestamp_nanos_opt().unwrap());
                         }
                     }
                 }
                 "YEAR" => {
-                    let val = row.try_get::<Option<u16>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u16>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt16Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt16Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'YEAR' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt16Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt16Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 // 二进制
                 "BIT" => {
-                    let val = row.try_get::<Option<u8>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<u8>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt8Builder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::UInt8Builder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'BIT' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::UInt8Builder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::UInt8Builder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
                 _ => {
-                    let val = row.try_get::<Option<String>, _>(col_cidx)?;
+                    let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
-                        None => {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'UNKNOWN' result error: {e:?}");
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
-                        }
-                        Some(val) => {
-                            builders[col_cidx]
-                                .as_any_mut()
-                                .downcast_mut::<array::StringBuilder>()
-                                .unwrap()
-                                .append_value(val);
                         }
                     }
                 }
@@ -467,22 +637,9 @@ pub async fn to_record_batches(
             // reset builders
             builders = Vec::new();
             for col in row.columns() {
-                let col_cidx = col.ordinal();
                 let col_type = col.type_info().name();
                 // arrow data type
-                let mut arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
-                // modify the scale of decimal
-                if col_type == "DECIMAL" {
-                    let val = row
-                        .try_get::<Option<bigdecimal::BigDecimal>, _>(col_cidx)
-                        .unwrap()
-                        .unwrap();
-                    let (_, scale) = val.as_bigint_and_exponent();
-                    arrow_type = arrow::datatypes::DataType::Decimal256(
-                        DECIMAL256_MAX_PRECISION,
-                        scale as i8,
-                    );
-                }
+                let arrow_type = column_meta::to_arrow_data_type(col_type.to_string())?;
                 builders.push(array::make_builder(&arrow_type, 10));
             }
             // reset row count

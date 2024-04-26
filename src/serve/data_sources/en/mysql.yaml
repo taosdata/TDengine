@@ -46,9 +46,9 @@ authentication:
 
 groups:
   - name: Connection options
-    collapsible: true
     display_order: 1
     description: Other connection options.
+    connection_option: true
     params:
       - name: charset
         display: Character Set
@@ -66,7 +66,7 @@ groups:
             - big5
             - latin1
             - ascii
-      - name: ssl
+      - name: ssl_mode
         display: SSL Mode
         description: Set whether to negotiate a secure SSL TCP/IP connection with the server or what priority to negotiate with.
         placeholder: "Please select the SSL mode"
@@ -75,25 +75,8 @@ groups:
           type: str
           choices:
             - DISABLED
-            - PREFERERED
+            - PREFERRED
             - REQUIRED
-            - VERIFY_CA
-            - VERIFY_IDENTITY
-      - name: ssl_ca
-        display: CA Certificate
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_cert
-        display: Client certificate file
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_key
-        display: Client key file
-        required: true
-        hint:
-          type: file
   - name: Data Collection
     display_order: 2
     description: Data collection related configuration items.

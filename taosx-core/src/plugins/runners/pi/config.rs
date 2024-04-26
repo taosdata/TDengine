@@ -455,10 +455,6 @@ impl PiConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use taos::Dsn;
-
     use super::*;
 
     #[test]

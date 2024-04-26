@@ -3,8 +3,9 @@ use std::{collections::BTreeMap, ops::Deref, sync::Arc, time::Duration};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy_metric::LegacyToTaosMetrics,
-    sync_super_table_schema, sync_super_table_schema_with_subs,
+    sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
+    utils::constants::VERSION_3_3_0,
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -225,32 +226,22 @@ async fn write_data(
                                 .await?
                                 .unwrap();
                             if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                            let from = source.get().await?;
-                            let target_opts = Default::default();
-                            sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
-                            // 临时代码，保证编译通过
-                            let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
-                            taos.write_raw_block(&raw)
-                                .await
-                                .context("Write raw block into target error")?;
-                        } else if let Some(meta) = raw.to_create() {
-                            if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                if err.to_string().contains("0x032C") {
-                                    tokio::time::sleep(Duration::from_nanos(1000)).await;
-                                } else {
-                                    bail!("create table error: {err}");
-                                }
-                            };
-                            taos.write_raw_block(&raw)
-                                .await
-                                .context("Write raw block into target error")?;
-                        } else {
-                            bail!(
-                                "write table failed: {err}, with block: {}",
-                                raw.pretty_format()
-                            );
-                        }
+                                let from = source.get().await?;
+                                let target_opts = Default::default();
+                                sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
+                                // 临时代码，保证编译通过
+                                let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                                sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
+                                taos.write_raw_block(&raw)
+                                    .await
+                                    .context("Write raw block into target error")?;
+                            } else {
+                                // normal table
+                                sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
+                                taos.write_raw_block(&raw)
+                                    .await
+                                    .context("Write raw block into target error")?;
+                            }
                         }
                         _ => {
                             bail!(
@@ -351,13 +342,33 @@ async fn write_meta(
     with_meta_drop: bool,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
-    let mut json_meta = meta.as_json_meta().await.context("Fetch json meta error")?;
+    let mut json_meta = match meta.as_json_meta().await.context("Fetch json meta error") {
+        Ok(json_meta) => json_meta,
+        Err(err) => {
+            // Without fallback.
+            tracing::debug!("Can't get json meta: {err}");
+
+            if actions.is_empty() {
+                if target_is_v3 {
+                    let raw_meta = meta.as_raw_meta().await?;
+                    taos.write_raw_meta(&raw_meta)
+                        .await
+                        .context("Write raw meta without fallback error")?;
+                } else {
+                    tracing::warn!("v2 target does not support raw meta");
+                }
+            } else {
+                tracing::warn!("Can't get json meta, skip the meta transform");
+            }
+            return Ok(());
+        }
+    };
     tracing::debug!(meta.sql = %json_meta, meta.idx = cur, "Start writing meta");
     match &json_meta {
         JsonMeta::Delete(meta) => {
             tracing::debug!("Start writing meta: {meta}");
             if !with_meta_delete {
-                tracing::debug!("Ignor meta with type delete");
+                tracing::debug!("Ignore meta with type delete");
                 return anyhow::Ok(());
             }
         }
@@ -582,7 +593,7 @@ pub async fn tmq_to_td(
 ) -> Result<()> {
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
-    tracing::info!("Source version: {version}");
+    tracing::debug!("Source version: {version}");
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
@@ -605,6 +616,15 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
+    let target_version = target_builder.server_version().await?.to_owned();
+    {
+        let source_version = semver::Version::parse(&version.split('.').take(3).join("."))?;
+        let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
+
     let source_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let target_pool = target_builder.pool()?;
 

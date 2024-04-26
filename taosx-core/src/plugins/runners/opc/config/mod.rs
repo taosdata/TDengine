@@ -29,14 +29,14 @@ pub struct OPCConfig {
     pub connect: ConnectConfig,
     pub report: ReportConfig,
     pub points: Option<PointsConfig>,
-    pub collect: CollectConfig,
+    pub collect: Option<CollectConfig>,
 
     #[serde(skip)]
     model_config: Option<OpcModelConfig>,
 }
 
 impl OPCConfig {
-    /// 从 dsn 中解析参数 select_all_points
+    /// 从 dsn 中解析参数 select_all_points 参数
     /// 1. dsn 没有参数，返回 None
     /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
     /// 3. dsn 有参数，不合法，Error, return Error()
@@ -80,11 +80,22 @@ impl OPCConfig {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
                 taos.exec(drop_sql).await.map_err(|err| {
-                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                    anyhow::anyhow!(
+                        "failed to drop table: {}, cause: {}",
+                        child_table_name,
+                        err.to_string()
+                    )
                 })?;
             }
 
-            Some(parser.get_model_config())
+            let mut model_config = parser.get_model_config();
+            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
+                if table_config.enabled == Some(0i8) {
+                    model_config.point_config_map.remove(point_id);
+                }
+            }
+
+            Some(model_config)
         } else {
             // 如果没有 csv_config_file 参数，那么, 从 dsn 中解析 point_config_map 和 table_config_map
             let point_config_map = Self::build_point_config_map(dsn)?;
@@ -117,7 +128,7 @@ impl OPCConfig {
             connect,
             report,
             points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
+            collect: Some(CollectConfig::from_dsn(dsn, id).await?),
             model_config,
         })
     }
@@ -140,8 +151,8 @@ impl OPCConfig {
             opc_type: OpcType::from_dsn(&dsn)?,
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
-            points: PointsConfig::from_dsn(&dsn),
-            collect: CollectConfig::new_empty(),
+            points: Some(PointsConfig::from_dsn(&dsn)?),
+            collect: None,
             report: ReportConfig::from_dsn(&dsn, 0)?,
             model_config: None,
         })
@@ -157,7 +168,7 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::new_empty(),
+            collect: None,
             report: ReportConfig::from_dsn(dsn, 0)?,
             model_config: None,
         })

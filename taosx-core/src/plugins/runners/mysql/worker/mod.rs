@@ -28,15 +28,15 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
     let now = Utc::now();
 
     // schema
-    let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
+    let mut query = MySqlQuery::try_new(config.connect.clone()).await?;
 
     // generate sql
-    let sql = config.task.generate_sql().unwrap();
+    let sql = config.task.generate_sql()?;
     tracing::info!("migrate mysql start, sql: {}", sql);
 
-    let row = query.select_one_for_schema(&sql).await.unwrap();
+    let row = query.select_one_for_schema(&sql).await?;
     let schema = match row {
-        Some(row) => to_schema(row).await.unwrap(),
+        Some(row) => to_schema(row).await?,
         None => {
             return Ok(());
         }
@@ -62,17 +62,16 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
         });
         consumers.push(consumer);
     }
-    // produce task
-    let producer = Producer::new(&config);
-    let _ = producer.produce(&tx).await?;
 
     // sync live data, if end is None
     if config.task.end.is_none() {
+        let config_live = config.clone();
+        let tx_live = tx.clone();
         // from 'now' marked by the beginning of the task
-        let mut real_start = now - config.task.delay;
+        let mut real_start = now - config_live.task.delay;
         tokio::spawn(async move {
             loop {
-                let real_end = Utc::now() - config.task.delay;
+                let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
                 if real_end - real_start > chrono::Duration::seconds(10) {
                     tracing::trace!(
@@ -81,13 +80,13 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
                         real_end
                     );
                     // create a new window
-                    let mut config_clone = config.clone();
+                    let mut config_clone = config_live.clone();
                     config_clone.task.start = real_start;
                     config_clone.task.end = Some(real_end);
 
                     // produce task
                     let producer = Producer::new(&config_clone);
-                    let _ = producer.produce(&tx).await;
+                    let _ = producer.produce(tx_live.clone()).await;
 
                     // move the window
                     real_start = real_end;
@@ -97,6 +96,10 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
             }
         });
     }
+
+    // produce task
+    let producer = Producer::new(&config);
+    let _ = producer.produce(tx).await?;
 
     // consumer join
     for consumer in consumers {
@@ -115,7 +118,9 @@ pub async fn set_breakpoint(
     let sub_task_id = config.sub_task_id.clone().unwrap();
     let breakpoint = format!("{}", breakpoint.to_rfc3339());
 
-    breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint)
+    // set break point and ignore error
+    let _ = breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint);
+    Ok(())
 }
 
 fn get_breakpoint(task_id: Option<i64>) -> Option<DateTime<Utc>> {

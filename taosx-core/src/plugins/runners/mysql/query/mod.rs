@@ -152,10 +152,10 @@ impl MySqlQuery {
         while let Some(result) = stream.next().await {
             match result {
                 Ok(row) => {
-                    rows.push(row);
                     if rows.len() >= top_n as usize {
                         break;
                     }
+                    rows.push(row);
                 }
                 Err(e) => {
                     println!("error: {:?}", e);

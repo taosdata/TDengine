@@ -142,7 +142,7 @@ impl FromStr for IpcDataType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "null" | "none" => Ok(Self::Null),
-            "b" | "bool" => Ok(Self::Bool),
+            "b" | "bool" | "boolean" => Ok(Self::Bool),
             "i8" | "tinyint" => Ok(Self::Int8),
             "i16" | "smallint" => Ok(Self::Int16),
             "i32" | "int" => Ok(Self::Int32),

@@ -40,6 +40,7 @@ groups:
   - name: SSL 证书
     description: 使用证书和私钥建立连接以启用 SSL。
     collapsible: true
+    connection_option: true
     params:
       - name: ca
         display: CA
@@ -62,6 +63,7 @@ groups:
   - name: 采集配置
     display_order: 1
     description: 采集任务配置
+    connection_option: true
     params:
       - name: version
         display: MQTT 协议

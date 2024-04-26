@@ -21,6 +21,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
+use utils::license::is_cloud;
 use utils::port_pool::PortPool;
 
 // use crate::plugins::transform::*;
@@ -28,6 +29,8 @@ use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
 use crate::runners::mysql::mysql_to_taos;
+use crate::runners::oracle::oracle_to_taos;
+use crate::runners::postgres::postgres_to_taos;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
@@ -248,12 +251,13 @@ impl TaskOpts {
                 (_, "tmq" | "taos") => {
                     let mut to = to.clone();
                     to.subject.take();
-                    let builder = TaosBuilder::from_dsn(to)?;
+                    let builder = TaosBuilder::from_dsn(&to)?;
                     let _ = builder.build().await.context("Target connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
+                    if !is_cloud(&to)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check target edition")?
                     {
                         anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
@@ -261,12 +265,13 @@ impl TaskOpts {
                 ("tmq" | "taos", _) => {
                     let mut from = from.clone();
                     from.subject.take();
-                    let builder = TaosBuilder::from_dsn(from)?;
+                    let builder = TaosBuilder::from_dsn(&from)?;
                     let _ = builder.build().await.context("Source connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check source edition")?
+                    if !is_cloud(&from)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check source edition")?
                     {
                         anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
@@ -496,6 +501,40 @@ impl TaskOpts {
                 }
                 (runners::mysql::MYSQL_ID, "taos") => {
                     mysql_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::postgres::POSTGRES_ID, "taos") => {
+                    postgres_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::oracle::ORACLE_ID, "taos") => {
+                    oracle_to_taos(
                         from.clone(),
                         parser.clone(),
                         transform.clone(),

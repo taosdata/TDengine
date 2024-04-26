@@ -1238,7 +1238,6 @@ mod handle_transform_tests {
     use taosx_ipc::stream::point::RecordMessage;
 
     #[tokio::test]
-    #[ignore]
     async fn test_handle_transform() {
         let message = RecordMessage::from_record(
             RecordBatch::try_new(
@@ -1288,7 +1287,8 @@ mod handle_transform_tests {
             .unwrap(),
         );
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-utf8bom.csv").unwrap();
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
 
         let transformed_msg = handle_transform(&message, &model_config).unwrap();
@@ -1337,25 +1337,25 @@ fn stable_name(
     prefix: &Option<String>,
     raw_type: &IpcDataType,
 ) -> Option<String> {
-    if stable_name.is_some() {
-        return Some(stable_name.clone().unwrap());
+    if let Some(stable_name) = stable_name {
+        if stable_name.contains("{type}") {
+            let stable = match raw_type {
+                IpcDataType::VarChar(_len) => stable_name.replace("{type}", "varchar"),
+                IpcDataType::NChar(_len) => stable_name.replace("{type}", "nchar"),
+                _ => stable_name.replace("{type}", &raw_type.sql_repr().replace(" ", "_")),
+            };
+            return Some(stable);
+        } else {
+            return Some(stable_name.clone());
+        }
     }
 
-    if prefix.is_some() {
-        let prefix = prefix.clone().unwrap();
-
+    if let Some(prefix) = prefix {
         let stable_name = match raw_type {
-            IpcDataType::VarChar(_len) => {
-                format!("{}_varchar", prefix)
-            }
-            IpcDataType::NChar(_len) => {
-                format!("{}_nchar", prefix)
-            }
-            _ => {
-                format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_"))
-            }
+            IpcDataType::VarChar(_len) => format!("{}_varchar", prefix),
+            IpcDataType::NChar(_len) => format!("{}_nchar", prefix),
+            _ => format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_")),
         };
-
         return Some(stable_name);
     }
 
@@ -1509,12 +1509,12 @@ async fn consume_point_record(
                 .unwrap();
 
             // point_config
-            let code = point_config_map.get(&point_id);
-            if code.is_none() {
+            let point_config = point_config_map.get(&point_id);
+            if point_config.is_none() {
                 tracing::warn!("cannot get point_config with point_id: {}", point_id);
                 continue;
             }
-            let point_config = code.unwrap();
+            let point_config = point_config.unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);
@@ -1843,18 +1843,17 @@ async fn consume_point_record(
                                     }
                                     Err(err) => {
                                         let code: i32 = err.code().into();
-                                        // STable already exists
-                                        if code != 0x0360 {
+                                        if matches!(
+                                            code,
+                                            0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
+                                        ) {
+                                            tracing::debug!("error encountered, ignore: {err:#}",);
+                                        } else {
                                             tracing::warn!(
                                                 "create stable {stable_name} error: {err:#}"
                                             );
                                             let err_str = err.to_string();
-                                            if err_str.contains("0x032C") {
-                                                // Object is creating, maybe should ignore
-                                                tracing::warn!(
-                                                    "create stable sql encounter 0x032C"
-                                                );
-                                            } else if err_str.contains("0xE00") {
+                                            if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
                                                 retry += 1;
                                                 break_err = Err(err);
@@ -2490,6 +2489,13 @@ async fn consume_flat_record(
                                                     "error code [0x032C] encountered, ignore"
                                                 );
                                                 continue;
+                                            } else if matches!(
+                                                code,
+                                                0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
+                                            ) {
+                                                tracing::debug!(
+                                                    "error encountered, ignore: {err:#}",
+                                                );
                                             } else if code != 0x0360 {
                                                 tracing::error!(
                                                     sql,

@@ -475,7 +475,7 @@ pub(super) async fn init_download_file_task(
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
-            message: format!("{:#}", err),
+            message: err.to_string(),
         }),
     }
 }

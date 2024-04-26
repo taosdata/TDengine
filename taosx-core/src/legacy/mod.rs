@@ -26,7 +26,10 @@ use tracing::{info, instrument, warn};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::breakpoints::{breakpoints_get_async, breakpoints_set},
+    utils::{
+        breakpoints::{breakpoints_get_async, breakpoints_set},
+        constants::VERSION_3_3_0,
+    },
     Action,
 };
 
@@ -869,6 +872,10 @@ pub async fn sync_super_table_schema(
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
+                0x03D3 => {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    continue;
+                }
                 0x2600 | 0x2601 => {
                     // 0x2600: Syntax error
                     // 0x2601: Incomplete SQL statement
@@ -1297,10 +1304,10 @@ fn transform_tbname_with_actions<'a>(
     Ok(new_table_name.into())
 }
 
-async fn sync_normal_table_schema(
+pub async fn sync_normal_table_schema(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
@@ -1352,7 +1359,7 @@ async fn sync_normal_table_schema(
 async fn sync_normal_table_schema_fallback(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
@@ -2881,6 +2888,15 @@ async fn legacy_to_taos_impl(
     let source_is_v3 = !v1.starts_with("2");
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
+
+    {
+        let (source_version, target_version) = (&v1, &v2);
+        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+        let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
 
     metrics
         .read_concurrency

@@ -43,9 +43,9 @@ authentication:
 
 groups:
   - name: 连接选项
-    collapsible: true
     display_order: 1
     description: 其他数据库连接选项。
+    connection_option: true
     params:
       - name: charset
         display: 字符集
@@ -63,7 +63,7 @@ groups:
             - big5
             - latin1
             - ascii
-      - name: ssl
+      - name: ssl_mode
         display: SSL 模式
         description: 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。
         placeholder: "请选择 SSL 模式"
@@ -72,25 +72,8 @@ groups:
           type: str
           choices:
             - DISABLED
-            - PREFERERED
+            - PREFERRED
             - REQUIRED
-            - VERIFY_CA
-            - VERIFY_IDENTITY
-      - name: ssl_ca
-        display: CA 证书
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_cert
-        display: 客户端证书
-        required: true
-        hint:
-          type: file
-      - name: ssl_client_key
-        display: 客户端 Key
-        required: true
-        hint:
-          type: file
   - name: SQL 查询
     display_order: 2
     description: 数据采集相关配置项。

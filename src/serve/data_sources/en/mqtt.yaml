@@ -42,6 +42,7 @@ groups:
     display_order: 0
     description: Use self-signed certificate file and private key.
     collapsible: true
+    connection_option: true
     params:
       - name: ca
         display: CA
@@ -64,6 +65,7 @@ groups:
   - name: Collect
     display_order: 1
     description: Some configurations used in collection task.
+    connection_option: true
     params:
       - name: version
         display: MQTT protocol version

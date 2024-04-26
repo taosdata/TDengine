@@ -23,6 +23,7 @@ __pycache__
 plugins/influxdb/target/
 plugins/mqtt/dist/
 plugins/mqtt/mqtt
+plugins/mqtt/taosx-mqtt
 plugins/mqtt/target/
 plugins/opc/target/
 release

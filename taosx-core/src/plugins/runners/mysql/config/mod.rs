@@ -176,11 +176,11 @@ impl TaskConfig {
     fn parse_sample_data_limit(dsn: &Dsn) -> anyhow::Result<u32> {
         Ok(dsn
             .params
-            .get("sampleDataLimit")
+            .get("sample_data_limit")
             .map(|s| {
                 let limit = s.parse::<u32>().map_err(|err| {
                     anyhow::anyhow!(
-                        "failed to parse sampleDataLimit: {}, cause: {}",
+                        "failed to parse sample_data_limit: {}, cause: {}",
                         s.to_string(),
                         err.to_string()
                     )
@@ -191,7 +191,7 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_sql(&self) -> Result<String, anyhow::Error> {
+    pub fn generate_sql(&self) -> anyhow::Result<String> {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
         let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
@@ -230,7 +230,11 @@ impl TaskConfig {
                 .replace("${end_date}", &query_end);
         } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start.format("%H:%M:%S"));
-            let query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            let mut query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            // modify endtime to 24:00:00 instead of 00:00:00
+            if query_end == "STR_TO_DATE('00:00:00','%H:%i:%s')" {
+                query_end = String::from("'24:00:00'");
+            }
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
@@ -253,7 +257,7 @@ impl TaskConfig {
         sql = sql.replace("${dm}", start.format("%d%m").to_string().as_str());
         sql = sql.replace("${Yj}", start.format("%Y%j").to_string().as_str());
         sql = sql.replace("${yj}", start.format("%y%j").to_string().as_str());
-        Ok(sql)
+        anyhow::Ok(sql)
     }
 }
 

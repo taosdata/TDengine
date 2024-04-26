@@ -76,11 +76,8 @@ impl DumpConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use taos::Dsn;
-
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_from_dsn() {

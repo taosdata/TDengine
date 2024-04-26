@@ -9,7 +9,10 @@ use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     tmq::tmq_metric::TmqMetrics,
 };
-use crate::{taoz::ZFile, tmq::*};
+use crate::{
+    taoz::{RawType, ZFile},
+    tmq::*,
+};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
@@ -22,8 +25,11 @@ use tracing::{instrument, Instrument};
 
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
+use taos_query::common::RawData;
 
 struct ZFileMan {
+    api_version: String,
+    server_version: String,
     path: PathBuf,
     // db: String,
     topic: String,
@@ -57,7 +63,13 @@ impl ZFileMan {
             let _ = self.sync.lock().await;
             if !self.writers.contains_key(&vgroup) {
                 let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
-                let file = ZFile::new(prefix, async_compression::Level::Best).await?;
+                let file = ZFile::new(
+                    prefix,
+                    async_compression::Level::Best,
+                    &self.api_version,
+                    &self.server_version,
+                )
+                .await?;
                 let _ = self.writers.insert(vgroup, Mutex::new(file));
             }
         }
@@ -125,6 +137,62 @@ impl ZFileMan {
         Ok((nrows, stop))
     }
 
+    async fn write_vgroup_with_raw(
+        &self,
+        vgroup: i32,
+        raw: &RawData,
+        raw_type: RawType,
+    ) -> Result<()> {
+        self.assert_vgroup(vgroup).await?;
+        let entry = self.writers.get(&vgroup).expect("should always exist");
+        let mut writer = entry.value().lock().await;
+        writer.write_raw(raw, raw_type).await?;
+        Ok(())
+    }
+
+    async fn stop_at(
+        &self,
+        vgroup: i32,
+        data: taos::Data,
+        metrics: &TmqMetrics,
+        stop_at: Option<DateTime<Local>>,
+    ) -> Result<(usize, bool)> {
+        let mut nrows = 0;
+        let mut last_ts = None;
+        while let Some(block) = data.fetch_raw_block().await.unwrap() {
+            // dbg!(&block);
+            if let Some(view) = block.column_views().get(0) {
+                match view {
+                    ColumnView::Timestamp(view) => {
+                        last_ts = view.iter().last().unwrap();
+                    }
+                    _ => unreachable!("expect first column is timestamp"),
+                }
+            }
+            nrows += block.nrows();
+            tracing::debug!(
+                "[vg:{vgroup}] table {} rows: {}",
+                block.table_name().unwrap_or_default(),
+                block.nrows()
+            );
+            metrics.add_suc_blocks(1);
+            metrics.add_written_rows(block.nrows() as _);
+            metrics.add_written_points((block.nrows() * block.ncols()) as _);
+        }
+
+        let mut stop = false;
+        match (stop_at, last_ts) {
+            (Some(stop_at), Some(last_ts)) => {
+                if last_ts.to_datetime_with_tz() >= stop_at {
+                    stop = true;
+                }
+            }
+            _ => (),
+        }
+        metrics.add_messages_of_data(1);
+        Ok((nrows, stop))
+    }
+
     async fn flush_vgroup(&self, vgroup: i32) -> Result<()> {
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
@@ -169,25 +237,32 @@ async fn backup(
 
                     match message {
                         MessageSet::Meta(meta) => {
-                            man.write_vgroup_with_meta(vgroup, meta, metrics).await?;
+                            let raw = meta.as_raw_meta().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Meta).await?;
                             man.flush_vgroup(vgroup).await?;
+                            metrics.add_messages_of_meta(1);
                             consumer.commit(offset).await?;
                         }
                         MessageSet::Data(data) => {
-                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, metrics, stop_at).await?;
-                            rows += size;
+                            let raw = data.as_raw_data().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Data).await?;
                             man.flush_vgroup(vgroup).await?;
+                            metrics.add_messages_of_data(1);
+
                             consumer.commit(offset).await?;
+                            let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
+                            rows += size;
                             if stop {
                                 break;
                             }
                         }
                         MessageSet::MetaData(meta, data) => {
-                            man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
+                            let raw = data.as_raw_data().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
                             man.flush_vgroup(vgroup).await?;
-                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, metrics, stop_at).await?;
-                            man.flush_vgroup(vgroup).await?;
-                            consumer.commit(offset).await?;
+                            metrics.add_messages_of_data(1);
+
+                            let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
                             rows += size;
                             if stop {
                                 break;
@@ -396,6 +471,8 @@ pub async fn tmq_to_local(
         let barrier = Arc::new(Barrier::new(jobs));
 
         let man = Arc::new(ZFileMan {
+            api_version: crate::build::PKG_VERSION.to_owned(),
+            server_version: version.clone(),
             path: path.to_owned(),
             // db: topic.database.clone(),
             topic: topic.name.clone(),

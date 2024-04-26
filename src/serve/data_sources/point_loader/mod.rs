@@ -157,6 +157,7 @@ pub async fn download_all_point_csv_file(
 enum TaskStatus {
     Running,
     Complete((TempPath, usize)),
+    Error(String),
 }
 
 // Define a static shared hashmap， task_id -> task_status
@@ -183,7 +184,8 @@ pub async fn arrange_point_file_download_task(
 
     tokio::spawn(async move {
         tracing::debug!("start async download task: {}", &task_id);
-        let (data, point_count) = get_all_points(
+
+        match get_all_points(
             params.from,
             params.via,
             params.categories,
@@ -191,20 +193,32 @@ pub async fn arrange_point_file_download_task(
             params.lang,
         )
         .await
-        .unwrap_or_default();
-
-        let mut config_file = tempfile::NamedTempFile::new().unwrap();
-        tracing::debug!(
-            "temp file path: {}",
-            &config_file.path().to_str().unwrap_or("")
-        );
-        write!(config_file, "{}", &data).unwrap();
         {
-            let mut map = SHARED_MAP.write().await;
-            map.insert(
-                task_id,
-                TaskStatus::Complete((config_file.into_temp_path(), point_count)),
-            );
+            Ok((data, point_count)) => {
+                let mut config_file = tempfile::NamedTempFile::new().unwrap();
+                tracing::debug!(
+                    "temp file path: {}",
+                    &config_file.path().to_str().unwrap_or("")
+                );
+                write!(config_file, "{}", &data).unwrap();
+                {
+                    let mut map = SHARED_MAP.write().await;
+                    map.insert(
+                        task_id,
+                        TaskStatus::Complete((config_file.into_temp_path(), point_count)),
+                    );
+                }
+            }
+            Err(err) => {
+                let mut map = SHARED_MAP.write().await;
+                let err_msg = err.to_string();
+                let err_msg = if let Some(idx) = err_msg.find("\n") {
+                    err_msg[..idx].to_string()
+                } else {
+                    err_msg
+                };
+                map.insert(task_id, TaskStatus::Error(err_msg));
+            }
         }
     });
 
@@ -218,6 +232,7 @@ pub async fn check_task_complete(ticket: String) -> anyhow::Result<bool> {
         .map(|status| match status {
             TaskStatus::Running => Ok(false),
             TaskStatus::Complete(_) => Ok(true),
+            TaskStatus::Error(_) => Ok(true),
         })
         .unwrap_or(Err(anyhow!("task not found")))
 }
@@ -230,6 +245,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
             .map(|status| match status {
                 TaskStatus::Running => Err(anyhow!("task is running")),
                 TaskStatus::Complete((file_path, _)) => Ok(NamedFile::open(file_path)?),
+                TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
             })
             .unwrap_or(Err(anyhow!("task not found")))
     } else {
@@ -238,6 +254,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
             .map(|status| match status {
                 TaskStatus::Running => Err(anyhow!("task is running")),
                 TaskStatus::Complete((file_path, _)) => Ok(NamedFile::open(file_path)?),
+                TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
             })
             .unwrap_or(Err(anyhow!("task not found")))
     }
@@ -275,6 +292,7 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                     .with_total(*point_count)
                     .with_list(data))
             }
+            TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
         })
         .unwrap_or(Err(anyhow!("task not found")))
 }

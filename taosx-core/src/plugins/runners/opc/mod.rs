@@ -16,7 +16,6 @@ use tracing::{instrument, Span};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
-use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::OPCConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
@@ -588,9 +587,8 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-
     use super::*;
+    use std::env;
 
     #[test]
     fn test_tbname_pattern() {
@@ -719,7 +717,6 @@ impl Display for OpcType {
 
 #[cfg(test)]
 mod opc_type_tests {
-    use taos::Dsn;
 
     use super::*;
 

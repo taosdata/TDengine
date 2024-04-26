@@ -28,7 +28,7 @@ mod worker;
 pub const MYSQL_ID: &str = "mysql";
 pub const MYSQL_NAME: &str = "MySQL";
 
-/// check historian dsn is valid
+/// check mysql dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
@@ -51,7 +51,20 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                         err.to_string()
                     ),
                 ),
-                Ok(_cli) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
+                Ok(mut _cli) => {
+                    let rs: Result<Vec<String>, anyhow::Error> = _cli.show_tables().await;
+                    match rs {
+                        Err(err) => DataSourceValidation::invalid(
+                            MYSQL_ID.to_string(),
+                            format!(
+                                "failed to connect to dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(_) => DataSourceValidation::valid(MYSQL_ID.to_string(), None),
+                    }
+                }
             }
         }
     }
@@ -77,7 +90,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut parse_sample: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
 
     // generate sql
-    let sql = config.task.generate_sql().unwrap();
+    let sql = config.task.generate_sql()?;
     tracing::info!(
         "get sample data, sql: {}, limit: {}",
         sql,
@@ -86,6 +99,10 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // query sample data
     let rows = query.top_n(&sql, config.task.sample_data_limit).await?;
+
+    if rows.is_empty() {
+        return Err(anyhow::anyhow!("no data found"));
+    }
 
     // generate sample data
     for row in &rows {
@@ -128,7 +145,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     Ok(ds_sample_in)
 }
 
-/// migrate or synchronize data from historian to taos
+/// migrate or synchronize data from mysql to taos
 pub async fn mysql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -334,7 +351,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         // 日期时间
@@ -342,14 +359,14 @@ fn generate_json_value(
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "TIME" => {
             let val = row.try_get::<Option<sqlx::types::chrono::NaiveTime>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         "DATETIME" | "TIMESTAMP" => {
@@ -395,17 +412,45 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_connector").unwrap();
+        // invalid port
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("mysql", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mysql://root:tbase125%21@192.168.1.40:3305/test_connector, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: mysql://root:123456@192.168.1.40:3305/test_taosx, cause: failed to connect to mysql, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // user: test_ssl_only -- ssl_mode: DISABLED -- Access denied
+        let dsn = Dsn::from_str(
+            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mysql", res.data_source);
+        assert_eq!(
+            "failed to connect to dsn: mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED, cause: failed to connect to mysql, cause: error returned from database: 1045 (28000): Access denied for user 'test_ssl_only'@'192.168.2.13' (using password: YES)",
+            res.message.unwrap()
+        );
+
+        // user: test_ssl_only -- ssl_mode: REQUIRED -- Access succ
+        let dsn = Dsn::from_str(
+            "mysql://test_ssl_only:taosdata@192.168.1.40:3306/test_taosx?ssl_mode=REQUIRED",
+        )
+        .unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("mysql", res.data_source);
+
+        // user: test_disabled_only -- not support
+
+        // normal
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
@@ -414,7 +459,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_full_columns where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from (select id, concat('${F}', 'T', ts, '+08:00') as ts, current, voltage, phase  from meters_${Ymd}) t where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;

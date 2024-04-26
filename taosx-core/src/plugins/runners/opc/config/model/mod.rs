@@ -39,31 +39,40 @@ impl OpcModelConfig {
         row_index: usize,
     ) -> anyhow::Result<()> {
         let point_id = parse_point_id(header, &row)?;
-
-        // add point config
-        let is_duplicated = self.point_config_map.insert(
-            point_id.clone(),
-            PointConfig::from_csv(&header, &row, row_index)?,
-        );
-
         // check point_id duplicated
-        if let Some(point_config) = is_duplicated {
-            match header.get_opc_type() {
+        match self.get_row_index(&point_id) {
+            None => {}
+            Some(index) => match header.get_opc_type() {
                 OpcType::OPCUA => {
-                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index,row_index);
+                    bail!("point_id: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index,row_index);
                 }
                 OpcType::OPCDA => {
-                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,point_config.row_index, row_index);
+                    bail!("tag_name: {} should be unique in one OPC DataIn Task, duplicated in CSV row: [{}, {}]", point_id,index, row_index);
                 }
                 OpcType::FAKE => {
                     unimplemented!()
                 }
-            }
+            },
         }
 
-        // add table config
-        self.table_config_map
-            .insert(point_id.clone(), TableConfig::from_csv(&header, &row)?);
+        // parse point config and table config
+        let point_config = PointConfig::from_csv(&header, &row, row_index)?;
+        let table_config = TableConfig::from_csv(&header, &row)?;
+
+        // check conflict
+        match self.is_conflict(&point_id, &point_config, &table_config) {
+            Ok(_) => {
+                self.point_config_map.insert(point_id.clone(), point_config);
+                self.table_config_map.insert(point_id.clone(), table_config);
+            }
+            Err(err) => {
+                bail!(
+                    "csv config conflict at row: {}, cause: {}",
+                    row_index,
+                    err.to_string()
+                );
+            }
+        }
 
         Ok(())
     }
@@ -73,14 +82,65 @@ impl OpcModelConfig {
 
         for (point_id, table_config) in &self.table_config_map {
             let column_config = table_config.column_config(col_name);
-            if column_config.is_none() {
-                continue;
+            if let Some(column_config) = column_config {
+                transform_map.insert(point_id.clone(), column_config.clone());
             }
-            let column_config = column_config.unwrap().clone();
-            transform_map.insert(point_id.clone(), column_config);
         }
 
         transform_map
+    }
+
+    pub fn get_row_index(&self, point_id: &str) -> Option<usize> {
+        self.point_config_map.get(point_id).map(|v| v.row_index)
+    }
+
+    fn is_conflict(
+        &self,
+        point_id: &String,
+        point_config: &PointConfig,
+        table_config: &TableConfig,
+    ) -> anyhow::Result<()> {
+        if table_config.enabled.is_some_and(|v| v == 0) {
+            return Ok(());
+        }
+
+        let stable = point_config.stable.as_ref();
+        let tbname = point_config.code.as_str();
+
+        if let Some(stable) = stable {
+            if stable.contains("{type}") {
+                return Ok(());
+            }
+        }
+        if tbname.contains("{id}") || tbname.contains("{ns}") || tbname.contains("{tag_name}") {
+            return Ok(());
+        }
+
+        let value_col = table_config
+            .column_config(ColumnConfig::VALUE)
+            .map(|v| v.alias.as_ref())
+            .flatten();
+
+        // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
+        for (id, p_config) in &self.point_config_map {
+            if let Some(t_config) = self.table_config_map.get(id) {
+                if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
+                    if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
+                        if v_col.alias.as_ref() == value_col {
+                            bail!(
+                                "point_id: {} and point_id: {} have same stable: {} and tbname: {}, value_col should be different",
+                                id,
+                                point_id,
+                                stable.unwrap(),
+                                tbname,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -114,6 +174,34 @@ fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Stri
         .ok_or(anyhow::anyhow!("point_id cannot be None in csv row"))
 }
 
+#[cfg(test)]
+mod model_config_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_append() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "tbname", "value_col", "type"]),
+        )
+        .await
+        .unwrap();
+        let mut model_config = OpcModelConfig::new();
+        let first_line = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
+        let second_line = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
+
+        let result = model_config.append(&header, first_line, 1).await;
+        assert!(result.is_ok());
+
+        let result = model_config.append(&header, second_line, 2).await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "csv config conflict at row: 2, cause: point_id: ns=3;i=1001 and point_id: ns=3;i=1002 have same stable: stb1 and tbname: tb1, value_col should be different"
+        );
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PointConfig {
     pub row_index: usize,
@@ -133,15 +221,14 @@ impl PointConfig {
         let value_type = parse_type(header, row)?;
         let stable = parse_stable(header, row);
         let tag_values = parse_tag_values(header, row);
-        if stable.is_some() && !validate_table_column_name(stable.as_ref().unwrap()) {
-            bail!("invalid stable: [{}]", stable.unwrap());
+        if stable.is_some() {
+            validate_table_column_name("stable name", stable.as_ref().unwrap())?;
         }
+
         // 遍历tag_values，校验tag_values中的tag_name是否合法
         if tag_values.is_some() {
             for (tag_name, _) in tag_values.as_ref().unwrap() {
-                if !validate_table_column_name(tag_name) {
-                    bail!("invalid tag_name: [{}]", tag_name);
-                }
+                validate_table_column_name("tag name", tag_name)?;
             }
         }
 
@@ -155,7 +242,7 @@ impl PointConfig {
     }
 }
 
-fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Result<String> {
+fn parse_tbname(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
     let point_id = parse_point_id(header, &row)?;
 
     let column = header
@@ -177,9 +264,7 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
     } else {
         value.to_string()
     };
-    if !validate_table_column_name(&tbname) {
-        bail!("invalid tbname: [{}]", tbname);
-    }
+    validate_table_column_name("table name", &tbname)?;
 
     match tbname.is_empty() {
         true => bail!("tbname cannot be empty"),
@@ -187,10 +272,7 @@ fn parse_tbname(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::Re
     }
 }
 
-fn parse_type(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> anyhow::Result<Option<IpcDataType>> {
+fn parse_type(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<IpcDataType>> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
@@ -199,10 +281,9 @@ fn parse_type(
             if val.is_empty() {
                 return Ok(None);
             }
-
             let value_type = IpcDataType::from_str(val);
             if value_type.is_err() {
-                bail!("invalid column data type: [{}]", val)
+                bail!("invalid column data type: {}", val)
             } else {
                 Ok(Some(value_type.unwrap()))
             }
@@ -210,35 +291,39 @@ fn parse_type(
         .unwrap_or(Ok(None))
 }
 
-fn get_raw_type(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
+fn parse_raw_type(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("type")
         .map(|col| row.get(col.index))
         .flatten()
-        .map(|val| match val.find("(") {
-            Some(index) => val[..index].to_string(),
-            None => val.to_string(),
+        .map(|val| {
+            if val.is_empty() {
+                return None;
+            }
+            match val.find("(") {
+                Some(index) => Some(val[..index].to_string().replace(" ", "_")),
+                None => Some(val.replace(" ", "_")),
+            }
         })
+        .flatten()
 }
 
-fn parse_stable(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<String> {
+fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     header
         .get_column("stable")
         .map(|col| row.get(col.index))
         .flatten()
         .map(|val| {
-            let val_type = get_raw_type(header, row);
-            if val.contains("{type}") && val_type.is_none() {
-                tracing::warn!("stable contains '{{type}}' but type is None, use None");
+            if val.is_empty() {
                 return None;
             }
-
-            let stable_name = if val_type.is_some() {
-                Some(val.replace("{type}", &val_type.unwrap()))
-            } else {
-                Some(val.to_string())
+            let val = val.replace(".", "_");
+            let val_type = parse_raw_type(header, row);
+            let stable_name = match (val.contains("{type}"), val_type) {
+                (true, Some(val_type)) => val.replace("{type}", &val_type),
+                _ => val,
             };
-            stable_name
+            Some(stable_name)
         })
         .flatten()
 }
@@ -271,6 +356,64 @@ fn parse_tag_values(
     }
 }
 
+#[cfg(test)]
+mod point_config_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_stable() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", "stable1"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["point1", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, None);
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "meters_{type}", ""]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("meters_{type}".to_string()));
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["point_id", "stable", "type"]),
+        )
+        .await
+        .unwrap();
+        let row = StringRecord::from(vec!["ns=3;i=1001", "stable1_{type}", "varchar(200)"]);
+        let stable = parse_stable(&header, &row);
+        assert_eq!(stable, Some("stable1_varchar".to_string()));
+    }
+}
+
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct TableConfig {
     pub enabled: Option<i8>,
@@ -293,10 +436,9 @@ impl TableConfig {
 
     pub fn from_csv(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Self> {
         let stable = parse_stable(header, row);
-        let stable_prefix = if stable.is_none() {
-            Some(String::from(DEFAULT_STABLE_PREFIX))
-        } else {
-            None
+        let stable_prefix = match stable {
+            None => Some(String::from(DEFAULT_STABLE_PREFIX)),
+            Some(_stable) => None,
         };
         let enabled = parse_enabled(header, row)?;
         let column_configs = parse_columns(header, row)?;
@@ -328,6 +470,12 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
         .map(|val| if val.is_empty() { None } else { Some(val) })
         .flatten()
         .map(|v| {
+            if v != "0" && v != "1" {
+                return Err(anyhow::anyhow!(
+                    "invalid enabled: {} in csv row, must be 0 or 1",
+                    v
+                ));
+            }
             v.parse::<i8>()
                 .map_err(|_| anyhow::anyhow!("invalid enabled: {} in csv row, must be 0 or 1", v))
         })
@@ -335,95 +483,45 @@ fn parse_enabled(header: &CsvHeader, row: &csv_async::StringRecord) -> anyhow::R
     Ok(enabled)
 }
 
-fn parse_columns(
-    header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> anyhow::Result<Vec<ColumnConfig>> {
+fn parse_columns(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Vec<ColumnConfig>> {
     let mut columns = Vec::new();
 
     // value => value_col
-    let value = parse_value_col(header, row);
-    if value.transform.is_some() {
-        // 校验表达式
-        let value_name = value.alias.as_ref().unwrap();
-        if !validate_table_column_name(value_name) {
-            bail!("invalid value column name: [{}]", value_name);
-        }
-
-        let value_transform = value.transform.as_ref().unwrap();
-        check_math_expression(value_name, value_transform).map_err(|e| {
-            anyhow::anyhow!(
-                "invalid value_transform: {}, cause: {}",
-                value_transform,
-                e.to_string()
-            )
-        })?;
-    }
+    let value = parse_value_col(header, row)?;
     columns.push(value);
 
     // quality => quality_col
-    let quality = parse_quality_col(header, row);
-    if quality.is_some() {
-        let quality_column = quality.unwrap();
-        let quality_name = quality_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(quality_name) {
-            bail!("invalid quality column name: [{}]", quality_name);
-        }
-        columns.push(quality_column);
+    let quality = parse_quality_col(header, row)?;
+    if let Some(quality) = quality {
+        columns.push(quality);
     }
 
-    // received_ts => received_ts_col/received_time_col
-    let received_ts = parse_received_ts_col(header, row);
-    let original_ts = parse_original_ts_col(header, row);
-    // when received_ts and original_ts are both none, add original_ts
-    if received_ts.is_none() && original_ts.is_none() {
-        columns.push(ColumnConfig {
-            name: "original_ts".to_string(),
-            r#type: Some(Ty::Timestamp),
-            alias: Some("ts".to_string()),
-            transform: None,
-            is_primary_key: true,
-        });
-    }
+    // original_ts
+    let original_ts = parse_original_ts_col(header, row)?;
+    // received_ts
+    let received_ts = parse_received_ts_col(header, row)?;
 
-    if received_ts.is_some() {
-        let received_ts_column = received_ts.unwrap();
-        let ts_name = received_ts_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(ts_name) {
-            bail!("invalid received_ts column name: [{}]", ts_name);
+    match (original_ts, received_ts) {
+        (Some(origin_ts), Some(received_ts)) => {
+            columns.push(origin_ts);
+            columns.push(received_ts);
         }
-        if received_ts_column.transform.is_some() {
-            // 校验表达式
-            let ts_transform = received_ts_column.transform.as_ref().unwrap();
-            check_math_expression(ts_name, ts_transform).map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid received_ts_transform: {}, cause: {}",
-                    ts_transform,
-                    e.to_string()
-                )
-            })?;
+        (Some(origin_ts), None) => {
+            columns.push(origin_ts);
         }
-        columns.push(received_ts_column);
-    }
-
-    if original_ts.is_some() {
-        let original_ts_column = original_ts.unwrap();
-        let ts_name = original_ts_column.alias.as_ref().unwrap();
-        if !validate_table_column_name(ts_name) {
-            bail!("invalid original_ts column name: [{}]", ts_name);
+        (None, Some(received_ts)) => {
+            columns.push(received_ts);
         }
-        if original_ts_column.transform.is_some() {
-            // 校验表达式
-            let ts_transform = original_ts_column.transform.as_ref().unwrap();
-            check_math_expression(ts_name, ts_transform).map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid original_ts_transform: {}, cause: {}",
-                    ts_transform,
-                    e.to_string()
-                )
-            })?;
+        (None, None) => {
+            // when received_ts and original_ts are both none, add original_ts
+            columns.push(ColumnConfig {
+                name: "original_ts".to_string(),
+                r#type: Some(Ty::Timestamp),
+                alias: Some("ts".to_string()),
+                transform: None,
+                is_primary_key: true,
+            });
         }
-        columns.push(original_ts_column);
     }
 
     Ok(columns)
@@ -449,50 +547,71 @@ fn parse_tags(header: &CsvHeader) -> Vec<TagConfig> {
     tags
 }
 
-fn parse_value_col(header: &CsvHeader, row: &csv_async::StringRecord) -> ColumnConfig {
+fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<ColumnConfig> {
     let value_name = header
         .get_column("value_col")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .map_or(Some("val".to_string()), |val| {
             if val.is_empty() {
                 Some("val".to_string())
             } else {
                 Some(val.to_string())
             }
-        })
-        .flatten();
+        });
 
     let value_transform = header
         .get_column("value_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
             if val.is_empty() {
                 None
             } else {
                 Some(val.to_string())
             }
-        })
-        .flatten();
+        });
 
-    ColumnConfig {
+    match (value_name.as_ref(), value_transform.as_ref()) {
+        (Some(value_name), Some(value_transform)) => {
+            // 校验列名
+            validate_table_column_name("value column name", value_name)?;
+            // 校验表达式
+            check_math_expression(value_name, value_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid value_transform: {}, cause: {}",
+                    value_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+        (Some(value_name), None) => {
+            // 校验列名
+            validate_table_column_name("value column name", value_name)?;
+        }
+        (None, _) => {
+            panic!("value column name cannot be None");
+        }
+    }
+
+    Ok(ColumnConfig {
         name: ColumnConfig::VALUE.to_string(),
         r#type: None,
         alias: value_name,
         transform: value_transform,
         is_primary_key: false,
-    }
+    })
 }
 
-fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Option<ColumnConfig> {
+fn parse_quality_col(
+    header: &CsvHeader,
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
     let col = header
         .get_column("quality_col")
         .map(|col| row.get(col.index))
         .flatten();
 
     if col.is_none() {
-        return None;
+        return Ok(None);
     }
 
     let quality_col = col.unwrap();
@@ -502,107 +621,252 @@ fn parse_quality_col(header: &CsvHeader, row: &csv_async::StringRecord) -> Optio
         quality_col.to_string()
     };
 
-    Some(ColumnConfig {
+    // todo!("check column name")
+    // if quality.is_some() {
+    //     let quality_column = quality.unwrap();
+    //     let quality_name = quality_column.alias.as_ref().unwrap();
+    //     validate_table_column_name("quality column name", quality_name)?;
+    // }
+
+    Ok(Some(ColumnConfig {
         name: ColumnConfig::QUALITY.to_string(),
         r#type: Some(Ty::Int),
         alias: Some(quality_col),
         transform: None,
         is_primary_key: false,
-    })
+    }))
 }
 
 fn parse_received_ts_col(
     header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<ColumnConfig> {
-    let col = header
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
+    let rts_col = header
         .get_column("received_ts_col")
         .or(header.get_column("received_time_col"));
-    if col.is_none() {
-        return None;
+    if rts_col.is_none() {
+        return Ok(None);
     }
 
-    let col = col.unwrap();
-    let col_name = row
-        .get(col.index)
-        .map(|v| {
-            if v.is_empty() {
-                None
-            } else {
-                Some(v.to_string())
-            }
-        })
-        .flatten();
-    if col_name.is_none() {
-        return None;
+    let col = rts_col.unwrap();
+    let col_name = row.get(col.index).and_then(|v| {
+        if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        }
+    });
+
+    if let Some(col_name) = col_name {
+        validate_table_column_name("received_ts column name", &col_name)?;
+
+        let received_ts_transform = header
+            .get_column("received_ts_transform")
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| {
+                if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                }
+            });
+
+        if let Some(rts_transform) = received_ts_transform.as_ref() {
+            // 校验表达式
+            check_math_expression(&col_name, rts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid received_ts_transform: {}, cause: {}",
+                    rts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+
+        return Ok(Some(ColumnConfig {
+            name: ColumnConfig::RECEIVED_TS.to_string(),
+            r#type: Some(Ty::Timestamp),
+            alias: Some(col_name),
+            transform: received_ts_transform,
+            is_primary_key: col.is_primary_key,
+        }));
     }
 
-    let received_ts_transform = header
-        .get_column("received_ts_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
-            if val.is_empty() {
-                None
-            } else {
-                Some(val.to_string())
-            }
-        })
-        .flatten();
-
-    Some(ColumnConfig {
-        name: ColumnConfig::RECEIVED_TS.to_string(),
-        r#type: Some(Ty::Timestamp),
-        alias: col_name,
-        transform: received_ts_transform,
-        is_primary_key: col.is_primary_key,
-    })
+    return Ok(None);
 }
 
 fn parse_original_ts_col(
     header: &CsvHeader,
-    row: &csv_async::StringRecord,
-) -> Option<ColumnConfig> {
-    let col = header.get_column("ts_col");
-    if col.is_none() {
-        return None;
+    row: &StringRecord,
+) -> anyhow::Result<Option<ColumnConfig>> {
+    let ts_col = header.get_column("ts_col");
+    if ts_col.is_none() {
+        return Ok(None);
     }
 
-    let col = col.unwrap();
-    let col_name = row
-        .get(col.index)
-        .map(|v| {
-            if v.is_empty() {
-                None
-            } else {
-                Some(v.to_string())
-            }
-        })
-        .flatten();
-    if col_name.is_none() {
-        return None;
+    let col = ts_col.unwrap();
+    let col_name = row.get(col.index).and_then(|val| {
+        if val.is_empty() {
+            None
+        } else {
+            Some(val.to_string())
+        }
+    });
+
+    if let Some(origin_ts_name) = col_name {
+        validate_table_column_name("original_ts column name", &origin_ts_name)?;
+
+        let origin_ts_transform = header
+            .get_column("ts_transform")
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| {
+                if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                }
+            });
+
+        if let Some(ts_transform) = origin_ts_transform.as_ref() {
+            // 校验表达式
+            check_math_expression(&origin_ts_name, ts_transform).map_err(|e| {
+                anyhow::anyhow!(
+                    "invalid original_ts_transform: {}, cause: {}",
+                    ts_transform,
+                    e.to_string()
+                )
+            })?;
+        }
+
+        return Ok(Some(ColumnConfig {
+            name: ColumnConfig::ORIGINAL_TS.to_string(),
+            r#type: Some(Ty::Timestamp),
+            alias: Some(origin_ts_name),
+            transform: origin_ts_transform,
+            is_primary_key: col.is_primary_key,
+        }));
     }
 
-    let original_ts_transform = header
-        .get_column("ts_transform")
-        .map(|col| row.get(col.index))
-        .flatten()
-        .map(|val| {
-            if val.is_empty() {
-                None
-            } else {
-                Some(val.to_string())
-            }
-        })
-        .flatten();
+    return Ok(None);
+}
 
-    Some(ColumnConfig {
-        name: ColumnConfig::ORIGINAL_TS.to_string(),
-        r#type: Some(Ty::Timestamp),
-        alias: col_name,
-        transform: original_ts_transform,
-        is_primary_key: col.is_primary_key,
-    })
+#[cfg(test)]
+mod table_config_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_value_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["value", "value + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "value");
+        assert_eq!(value_col.transform.unwrap(), "value + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "value + 1"]);
+        let value_col = parse_value_col(&header, &row);
+        assert!(value_col.is_err());
+        assert_eq!(
+            value_col.unwrap_err().to_string(),
+            "invalid value_transform: value + 1, cause: Variable not found: value"
+        );
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["value_col", "value_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "val + 1"]);
+        let value_col = parse_value_col(&header, &row).unwrap();
+        assert_eq!(value_col.alias.unwrap(), "val");
+        assert_eq!(value_col.transform.unwrap(), "val + 1");
+    }
+
+    #[tokio::test]
+    async fn test_parse_original_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ts", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(ts_col.alias.unwrap(), "ts");
+        assert_eq!(ts_col.transform.unwrap(), "ts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row).unwrap();
+        assert!(ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["ts_col", "ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["ts", "origin_ts + 1"]);
+        let ts_col = parse_original_ts_col(&header, &row);
+        assert!(ts_col.is_err());
+        assert_eq!(
+            ts_col.unwrap_err().to_string(),
+            "invalid original_ts_transform: origin_ts + 1, cause: Variable not found: origin_ts"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_received_ts_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["rts", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap().unwrap();
+        assert_eq!(received_ts_col.alias.unwrap(), "rts");
+        assert_eq!(received_ts_col.transform.unwrap(), "rts + 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["", "rts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row).unwrap();
+        assert!(received_ts_col.is_none());
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &csv_async::StringRecord::from(vec!["received_ts_col", "received_ts_transform"]),
+        )
+        .await
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec!["rts", "received_ts + 1"]);
+        let received_ts_col = parse_received_ts_col(&header, &row);
+        assert!(received_ts_col.is_err());
+        assert_eq!(
+            received_ts_col.unwrap_err().to_string(),
+            "invalid received_ts_transform: received_ts + 1, cause: Variable not found: received_ts"
+        );
+    }
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
