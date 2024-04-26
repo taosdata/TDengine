@@ -416,7 +416,6 @@ export default {
       const sourceForm = this.sourceParent.sourceForm;
       let type = sourceForm.type
       let via = sourceForm.agent
-      let activeTabKey = getActiveTabKey(sourceForm.data)
       let filter_params = getActiveTabValueObject(sourceForm.data)
       if (!filter_params.filter_value_type) {
         filter_params.filter_value_type = 'element'
@@ -425,8 +424,9 @@ export default {
       delete filter_params['filter_element'];
       delete filter_params['filter_template'];
       filter_params[`filter_${filter_params.filter_value_type}`] = filter_params.filter_value
+      filter_params['model'] = getActiveTabKey(sourceForm.data)
 
-      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition) + `&model=${activeTabKey}`;
+      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition);
       
       try {
         this.fullscreenLoading = true;
