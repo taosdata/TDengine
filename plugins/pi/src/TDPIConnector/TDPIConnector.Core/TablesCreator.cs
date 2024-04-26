@@ -43,7 +43,7 @@ namespace TDPIConnector.Core
         public async Task<List<TDTable>> GetPIPointTables(string tdDatabaseName)
         {
             var points = new List<PIPointWrapper>();
-            if (AppSettings.tomlConfig.PointList != null && piSystemManager != null)
+            if (AppSettings.tomlConfig.PointList != null && piServerManager != null)
             {
                 points = piServerManager.FindPIPoints(AppSettings.tomlConfig.PointList);
             }
@@ -94,8 +94,9 @@ namespace TDPIConnector.Core
             {
                 string tdColumnType = PointTypeConverter.Convert(point.PointType);
                 string superTableName = PIInfoScanner.GeneratePointSuperTableName(point);
-                var tags = GetPiPointTags(point);
-                var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tags);
+                var tagVals = GetPiPointTags(point);
+                var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tagVals);
+                table.Location = point.GetPath();
                 piPoints.Add(table);
                 log.Info($"Add new table {table.STableName} {table.Name}");
             }
@@ -109,11 +110,12 @@ namespace TDPIConnector.Core
                 }
             }
 
-            List<string> STableNames = piPoints.Select(p => p.STableName.ToLower()).Distinct().ToList();
+            var tags = PIPointWrapper.GetPointSavedAttrsType();
+            List<string> STableNames = piPoints.Select(p => p.STableName).Distinct().ToList();
             foreach (string STableName in STableNames)
             {
-                var piPoint = piPoints.Where(p => p.STableName.ToLower() == STableName.ToLower()).First();
-                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType, null);
+                var piPoint = piPoints.Where(p => p.STableName == STableName).First();
+                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType, tags.ToList());
             }
 
             await tdEngineProxy.CreateTablesForPIPoints(tdDatabaseName, piPoints);
@@ -128,7 +130,7 @@ namespace TDPIConnector.Core
             log.Info($"Found {elements.Count()} elements.");
 
             Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
-            HashSet<string> existTemplates = new HashSet<string>();
+            Dictionary<string, List<AFElementWrapper>> existTemplates = new Dictionary<string, List<AFElementWrapper>>();
             HashSet<Guid> usedElements = new HashSet<Guid>();
             foreach (var element in elements)
             {
@@ -138,13 +140,14 @@ namespace TDPIConnector.Core
 
                     if (element.hasTemplate())
                     {
-                        if (!existTemplates.Contains(element.Template.Name))
+                        if (!existTemplates.ContainsKey(element.Template.Name))
                         {
-                            existTemplates.Add(element.Template.Name);
+                            existTemplates.Add(element.Template.Name, new List<AFElementWrapper>());
                             var superTable = TemplateSTableConverter.Convert(element.Template);
                             if (!superTable.HasValidColumn()) continue;
                             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
                         }
+                        existTemplates[element.Template.Name].Add(element);
                     }
                     else
                     {
@@ -152,8 +155,26 @@ namespace TDPIConnector.Core
                         if (!superTable.HasValidColumn()) return null;
                         await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
                     }
-                    elementsCollection.Add(element.ID.ToString(), element);
                 }
+            }
+
+            foreach(var template in existTemplates) {
+                var superTableName = template.Key;
+                var templateAttributeColumns = AttributeColumnConverter.Convert(template.Value.First().Template.AttributeTemplates);
+
+                List<TDTable> tables = new List<TDTable>();
+                foreach (var element in template.Value)
+                {
+                    TDTable table = ElemenetTableConverter.Convert(element, superTableName, templateAttributeColumns);
+                    log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
+                    if (!elementsCollection.ContainsKey(table.Name))
+                    {
+                        tables.Add(table);
+                        elementsCollection.Add(table.Name, element);
+                    }
+                };
+                await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
+
             }
             return elementsCollection;
         }

@@ -41,7 +41,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
             // builder.tagNames = tags;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>("pointid", "INT") };
+            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.POINTID, "INT") };
+            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, "String"));
+            builder.tagNames.AddRange(tags); 
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, "String")); 
 
             builder.tsArrowArray = new TimestampArray.Builder();
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
@@ -49,7 +52,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new StringArray.Builder());
 
             builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, "NCHAR(100)"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, "NCHAR(100)"));
             builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointValColomn(), colomnType));
             builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointStatusColomn(), "INT"));
 
@@ -70,7 +73,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = tags;
+            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "NCHAR(40)") };
+            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "NCHAR(100)"));
+            builder.tagNames.AddRange(tags);
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, "String"));
 
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
@@ -222,12 +228,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        internal void AddPointTableTag(string tdEngineTableName, int pointId)
+        internal void AddPointTableTag(string tdEngineTableName, List<KeyValuePair<string, string>> tags)
         {
-            if (!builder.pointIds.ContainsKey(tdEngineTableName))
+            if (!builder.tagVals.ContainsKey(tdEngineTableName))
             {
-                //var tag = new KeyValuePair<string, string>($"pointId", "INT");
-                builder.pointIds.Add($"{tdEngineTableName}", pointId);
+                builder.tagVals[tdEngineTableName] = tags;
+                //builder.pointIds.Add($"{tdEngineTableName}", pointId);
             }
             else
             {
@@ -238,7 +244,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void InitTables() {
             lock (stLock)
             {
-                if (builder.pointIds.Count == 0 && builder.tagVals.Count == 0) return;
+                if (builder.tagVals.Count == 0) return;
                 log.Debug($"Stable:{builder.stableName} Write tables into stream start...");
 
                 var recordBatch = builder.BuildTablesMessage();
@@ -351,8 +357,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 stopTaosxSend = true;
                 send();
             }
-            stream.Close();
-            client.Close();
+            if(null != stream) stream.Close();
+            if(null != client) client.Close();
             return;
         }
     }

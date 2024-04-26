@@ -153,7 +153,7 @@ namespace TDPIConnector.Core
 
         internal string GetInfo(ScanPiInfo.ScanMode scanMode, string filter, ScanPiInfo.FilterMode filterMode)
         {
-            if (piSystemManager == null)
+            if (piServerManager == null)
             {
                 return "PI System not found!";
             }
@@ -220,6 +220,10 @@ namespace TDPIConnector.Core
         }
         internal string GetScanAFPointInfo(string filter, FilterMode filterMode)
         {
+            if (piSystemManager == null)
+            {
+                return "PI System not found!";
+            }
             if (FilterMode.FilterElement == filterMode) {
                 return GetScanAFPointInfoByElementFilter(ref filter);
             } else if (FilterMode.FilterTemplate == filterMode) {
@@ -324,6 +328,10 @@ namespace TDPIConnector.Core
         }
         internal string GetScanElementInfo(string filter, FilterMode filterMode)
         {
+            if (piSystemManager == null)
+            {
+                return "PI System not found!";
+            }
             if (FilterMode.FilterElement == filterMode)
             {
                 return GetScanElementInfoByElementFilter(ref filter);
@@ -489,7 +497,7 @@ namespace TDPIConnector.Core
         }
         static public string GeneratePointSuperTableName(PIPointWrapper point)
         {    
-            return "TS_" + point.PointType;
+            return "ts_" + point.PointType.ToLower();
         }
     }
 }

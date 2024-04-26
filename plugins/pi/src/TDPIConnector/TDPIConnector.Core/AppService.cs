@@ -263,7 +263,7 @@ namespace TDPIConnector.Core
 
         private void BackfillData()
         {
-            var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+            var backfillStartLimit = DateTime.Now.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
             this.backfillPIPointsTask = null;
             this.backfillAFElementsTask = null;
             if (this.piPoints != null && this.piPoints.Count > 0)

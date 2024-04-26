@@ -120,14 +120,13 @@ namespace TDPIConnector.TDEngine
         {
             lock (taosxClientsLock)
             {
-                var stableName = superTableName.ToTDEngineNamingPattern();
                 if (!taosxClients.ContainsKey(superTableName))
                 {
-                    var taosxClient = new TDEngineTaosxClient(hostname, port, database, stableName,
+                    var taosxClient = new TDEngineTaosxClient(hostname, port, database, superTableName,
                         tdColumnType, tags, maxWaitLength);
-                    taosxClients.Add(stableName, taosxClient);
+                    taosxClients.Add(superTableName, taosxClient);
                     taosxClient.Connect();
-                    log.Info($"create PIPoint superTable {stableName}:{tdColumnType}");
+                    log.Info($"create PIPoint superTable {superTableName}:{tdColumnType}");
                 }
             }
             return Task.FromResult<TDEngineResponse>(null);
@@ -141,7 +140,6 @@ namespace TDPIConnector.TDEngine
                 {
                     var columnNameTypes = new List<KeyValuePair<string, string>>();
                     var tags = new List<KeyValuePair<string, string>>();
-                    tags.Add(new KeyValuePair<string, string>($"element_id", "NCHAR(100)"));
                     foreach (var column in sTable.Columns)
                     {
                         if (column.IsTDengineTag())
@@ -210,7 +208,8 @@ namespace TDPIConnector.TDEngine
             {
                 var element = elements[i];
                 var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.Id));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name));
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())
@@ -235,13 +234,24 @@ namespace TDPIConnector.TDEngine
             for (int i = 0; i < piPoints.Count; i++)
             {
                 var piPoint = piPoints[i];
-                string tdEngineTableUniKey = piPoint.PointId.ToString();
+                string tdEngineTableUniKey = piPoint.Name;
                 var stableName = piPoint.STableName.ToTDEngineNamingPattern();
 
                 var taosxClient = getTaosxClient(stableName);
+                var tags = new List<KeyValuePair<string, string>>();
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, piPoint.PointId.ToString()));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, piPoint.Name));
+                foreach (TDColumn column in piPoint.Columns)
+                {
+                    if (column.IsTDengineTag())
+                    {
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
+                    }
+                }
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, piPoint.Location));
                 if (taosxClient != null)
                 {
-                    taosxClient.AddPointTableTag(tdEngineTableUniKey, piPoint.PointId);
+                    taosxClient.AddPointTableTag(tdEngineTableUniKey, tags);
                 }
                 else {
                     log.Error($"Create stable for Point failed, not found {stableName}");
@@ -308,6 +318,20 @@ namespace TDPIConnector.TDEngine
                 log.Error($"Insert PIPoint data failed! not found client, stable:{superTable}.");
             }
         }
+        public virtual Task<TDEngineResponse> InsertValueForPIPoints(string superTable, TDValue value)
+        {
+            var taosxClient = getTaosxClient(superTable);
+            if (taosxClient != null)
+            {
+                taosxClient.AddPointValue(value.Name, value);
+            }
+            else
+            {
+                log.Error($"{superTable} TaosxClient not found!");
+            }
+            return Task.FromResult<TDEngineResponse>(null);
+        }
+
         public virtual Task<TDEngineResponse> InsertValuesForPIPoints(string database, Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
             foreach (var table in tables)

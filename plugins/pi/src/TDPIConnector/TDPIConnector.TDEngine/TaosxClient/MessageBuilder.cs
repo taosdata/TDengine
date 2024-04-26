@@ -49,8 +49,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
             = new Dictionary<string, StringArray.Builder>();
 
         // pointId is table tag for PI mode 
-        public Dictionary<string, int> pointIds
-            = new Dictionary<string, int>();
+        // public Dictionary<string, int> pointIds
+        //    = new Dictionary<string, int>();
         // AFElement mode tags
         public Dictionary<string, List<KeyValuePair<string, string>>> tagVals
             = new Dictionary<string, List<KeyValuePair<string, string>>>();
@@ -147,7 +147,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             int length = 0;
             if (mode == PIDataMode.PointMode)
             {
-                length = pointIds.Count;
+                length = tagVals.Count;
             }
             else
             {
@@ -229,19 +229,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             var ipcTagField = new List<IpcField>();
             var tagField = new List<Field>();
-
-            tagField.Add(new Field(TaosxConstants.POINTID, StringType.Default, true));
+         
             foreach (var tag in tagNames)
             {
                 string tagType = "NCHAR(100)";
                 // if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
                 ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tagType));
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
-            }
-
-            if (mode == PIDataMode.AFElementMode) {
-                ipcTagField.Add(new IpcField(StaticConfig.Default.AFTreeTagName, true, StringType.Default, "NCHAR(256)"));
-                tagField.Add(new Field(StaticConfig.Default.AFTreeTagName, StringType.Default, true));
             }
             GenerateMetadata(stableName, colIpcField, ipcTagField);
 

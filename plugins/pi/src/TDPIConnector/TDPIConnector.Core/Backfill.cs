@@ -86,7 +86,7 @@ namespace TDPIConnector.Core
                 stopwatch.Reset();
                 stopwatch.Start();
                 log.Info($"PI point {point.Name}, {afValues.Count} values saved in {stopwatch.ElapsedMilliseconds} ms");
-                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.ID.ToString(), tdValues);
+                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
                 count += tdValues.Count;
                 if (tdValues.Count < 10)
                 {

@@ -188,44 +188,22 @@ namespace TDPIConnector.Core
             }
 
             this.OnPIEventReceivedListSuccess(this, allEvents.Take(100).ToList());
-            var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
-
             foreach (var dpEvent in allEvents)
             {
-                var pointID = dpEvent.Value.PIPoint.PointId.ToString();
+                var superTableName = PIInfoScanner.GeneratePointSuperTableName(dpEvent.Value.PIPoint);
                 var tdValue = dpEvent.Value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
+                tdValue.Name = dpEvent.Value.PIPoint.Name;
 
-                tdValue.Name = pointID;
-
-                if (tables.ContainsKey(pointID))
+                try
                 {
-                    var table = tables[pointID];
-                    if (table.ContainsKey(timestamp))
-                    {
-                        // not support different value at the same one timestamp, use the last one.
-                        table[timestamp] = new List<TDValue>() { tdValue };
-                    }
-                    else
-                    {
-                        table.Add(timestamp, new List<TDValue>() { tdValue });
-                    }
+                    this.tdEngineProxy.InsertValueForPIPoints(superTableName, tdValue);
                 }
-                else
+                catch (Exception e)
                 {
-                    tables.Add(pointID, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    throw e.InnerException;
                 }
-            }
-
-            log.Info($"Point mode events: {allEvents.Count}");
-            try
-            {
-                this.tdEngineProxy.InsertValuesForPIPoints(AppSettings.tomlConfig.TDDataBase, tables).Wait();
-            }
-            catch(Exception e)
-            {
-                throw e.InnerException;
             }
         }
 
