@@ -108,7 +108,7 @@ You can perform the following modifications on existing tables:
 2. DROP COLUMN: deletes a column from the supertable.
 3. MODIFY COLUMN: changes the length of the data type specified for the column. Note that you can only specify a length greater than the current length.
 4. RENAME COLUMN: renames a specified column in the table.
-5. The primary key column a table cannot be modified or added or deleted using ADD/DROP COLUMN.
+5. The primary key column of a table cannot be modified or added or deleted using ADD/DROP COLUMN.
 
 ### Add a Column
 
