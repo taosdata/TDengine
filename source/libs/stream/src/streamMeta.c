@@ -1073,9 +1073,9 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
 
   taosThreadMutexLock(&pTask->lock);
 
-  int32_t num = taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList);
+  int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
   for (int j = 0; j < num; ++j) {
-    SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pDownstreamUpdateList, j);
+    SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, j);
 
     bool exist = existInHbMsg(pMsg, pTaskEpset);
     if (!exist) {
@@ -1085,7 +1085,7 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
     }
   }
 
-  taosArrayClear(pTask->outputInfo.pDownstreamUpdateList);
+  taosArrayClear(pTask->outputInfo.pNodeEpsetUpdateList);
   taosThreadMutexUnlock(&pTask->lock);
 }
 
