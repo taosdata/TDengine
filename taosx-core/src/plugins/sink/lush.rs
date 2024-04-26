@@ -1,14 +1,14 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Context};
 use taos::Dsn;
 use taosx_ipc::stream::reader::LushInsertAttrs;
 
+use super::transform::Parser;
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
 };
-use std::{cell::RefCell, collections::HashMap};
-
-use super::transform::Parser;
 
 #[derive(Clone, Debug)]
 pub struct LushModelConfig {
@@ -22,23 +22,26 @@ pub struct LushModelConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct TableTagCache(RefCell<HashMap<String, LushInsertAttrs>>);
+pub struct TableTagCache(scc::HashMap<String, LushInsertAttrs>);
 
 impl TableTagCache {
     pub fn new() -> Self {
-        TableTagCache(RefCell::new(HashMap::new()))
+        TableTagCache(scc::HashMap::new())
     }
 
     pub fn get(&self, table_name: &str) -> Option<LushInsertAttrs> {
-        self.0.borrow().get(table_name).cloned()
+        // get the value from the cache
+        let entry = self.0.get(table_name);
+        match entry {
+            Some(entry) => Some(entry.get().clone()),
+            None => None,
+        }
     }
 
     pub fn insert(&self, table_name: String, value: LushInsertAttrs) {
-        self.0.borrow_mut().insert(table_name, value);
+        let _ = self.0.insert(table_name, value);
     }
 }
-
-unsafe impl Sync for TableTagCache {}
 
 impl LushModelConfig {
     pub fn index_super_table_by_name(
@@ -133,5 +136,17 @@ impl From<PIElementModelConfig> for LushModelConfig {
             config: map,
             table_tags: TableTagCache::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_table_cache() {
+        use super::TableTagCache;
+        let cache = TableTagCache::new();
+        cache.insert("table1".to_string(), Default::default());
+        assert!(cache.get("table1").is_some());
+        assert!(cache.get("table2").is_none());
     }
 }

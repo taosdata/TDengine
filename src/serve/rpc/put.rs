@@ -347,21 +347,22 @@ impl PutStream {
                                     );
                                     bail!("IPC worker will be stopped since {err:#}");
                                 }
-                                if let Some(tx) = tx.upgrade() {
-                                    tracing::warn!(
-                                        trace_id = trace_id_str,
-                                        "Re-queue with {} rows record",
-                                        record.num_rows()
-                                    );
-                                    tx.send_async((record, trace_id))
-                                        .await
-                                        .context("Re-queue error")?;
-                                } else {
-                                    tracing::warn!(
-                                        trace_id = trace_id_str,
-                                        "IPC channel is closed, cannot re-queue record {trace_id}"
-                                    );
-                                }
+                                tracing::debug!("Abort record {trace_id_str}");
+                                // if let Some(tx) = tx.upgrade() {
+                                //     tracing::warn!(
+                                //         trace_id = trace_id_str,
+                                //         "Re-queue with {} rows record",
+                                //         record.num_rows()
+                                //     );
+                                //     tx.send_async((record, trace_id))
+                                //         .await
+                                //         .context("Re-queue error")?;
+                                // } else {
+                                //     tracing::warn!(
+                                //         trace_id = trace_id_str,
+                                //         "IPC channel is closed, cannot re-queue record {trace_id}"
+                                //     );
+                                // }
                             } else {
                                 metrics.add_processed_batches(1);
                                 let last_errors =

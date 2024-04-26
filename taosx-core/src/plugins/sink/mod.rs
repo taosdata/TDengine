@@ -759,15 +759,15 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
-            tracing::debug!(?tables, "Receive LushInsertAttrs"); // debug
-                                                                 // cache table name and tags
-            let table_cache = &lush_model_config.table_tags;
+            tracing::debug!("Received LushInsertAttrs size {}", tables.len()); // debug
+            let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
             for table in tables {
                 table_cache.insert(table.table_name().to_string(), table);
             }
+            tracing::debug!(?table_cache, "table_cache_1"); // debug
         }
         LushMessage::Insert(record) => {
-            tracing::debug!(?record, "Receive LushMessageInsert"); // debug
+            tracing::debug!(?record, "Received LushMessageInsert"); // debug
             for record in record {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
@@ -786,12 +786,15 @@ async fn consume_lush_record_with_transform(
 
                 // 只包含 tag 列的值
                 let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
+                tracing::debug!(?table_cache, "table_cache_2"); // debug
                 let tags_record: RecordBatch = create_tags_record(table_name_column, table_cache)?;
+
+                // 合并 RecordBatch
                 let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
                 let table_name: &str = table_name_column.value(0);
                 let parser = lush_model_config.config.get(table_name).ok_or_else(|| {
                     anyhow!(
-                        "table_name {} not found in transfrom_config",
+                        "table_name {} not found in model_config",
                         table_name.to_string()
                     )
                 })?;
@@ -823,13 +826,24 @@ async fn consume_lush_record_with_transform(
 fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch) -> RecordBatch {
     let mut fields: Vec<Field> = Vec::new();
     let mut columns: Vec<ArrayRef> = Vec::new();
+    let mut added_name = std::collections::BTreeSet::<&str>::new();
     let tags_schema = tags_record.schema();
     let values_schema = values_record.schema();
     for i in 0..tags_schema.fields().len() {
+        let name = tags_schema.field(i).name().as_str();
+        if added_name.contains(name) {
+            continue;
+        }
+        added_name.insert(name);
         fields.push(tags_schema.field(i).clone());
         columns.push(tags_record.column(i).clone());
     }
     for i in 0..values_schema.fields().len() {
+        let name = values_schema.field(i).name().as_str();
+        if added_name.contains(name) {
+            continue;
+        }
+        added_name.insert(name);
         fields.push(values_schema.field(i).clone());
         columns.push(values_record.column(i).clone());
     }

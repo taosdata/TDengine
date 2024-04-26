@@ -511,6 +511,16 @@ pub struct LushInsertAttrs {
     tags: Option<Vec<(String, Value)>>,
 }
 
+impl Default for LushInsertAttrs {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            using: None,
+            tags: None,
+        }
+    }
+}
+
 impl LushInsertAttrs {
     pub fn stable_name(&self) -> &Option<String> {
         &self.using
