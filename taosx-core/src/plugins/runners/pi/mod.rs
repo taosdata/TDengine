@@ -86,7 +86,6 @@ pub async fn pi_to_taos(
     let driver = from.driver.clone();
     let config =
         PiConfig::new(from.clone(), td_database.unwrap(), ipc_port, sql_port, true).await?;
-    tracing::debug!("PointList={:?}", &config.point_list);
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
