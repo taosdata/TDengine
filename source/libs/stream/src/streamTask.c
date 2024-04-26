@@ -261,8 +261,8 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &taskId)) return -1;
   pTask->streamTaskId.taskId = taskId;
 
-  if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
-  if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
+  if (tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.minVer)) return -1;
+  if (tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.maxVer)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.ekey)) return -1;
 
