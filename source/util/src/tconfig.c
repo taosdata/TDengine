@@ -420,6 +420,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   if (!pItem || (pItem->dynScope & dynType) == 0) {
     uError("failed to config:%s, not support update this config", name);
     terrno = TSDB_CODE_INVALID_CFG;
+    cfgUnLock(pCfg);
     return -1;
   }
 
@@ -429,28 +430,37 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       if (ival != 0 && ival != 1) {
         uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name, cfgDtypeStr(pItem->dtype), ival);
         terrno = TSDB_CODE_OUT_OF_RANGE;
+        cfgUnLock(pCfg);
         return -1;
       }
     } break;
     case CFG_DTYPE_INT32: {
       int32_t ival;
       int32_t code = (int32_t)taosStrHumanToInt32(pVal, &ival);
-      if (code != TSDB_CODE_SUCCESS) return code;
+      if (code != TSDB_CODE_SUCCESS) {
+        cfgUnLock(pCfg);
+        return code;
+      }
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
         terrno = TSDB_CODE_OUT_OF_RANGE;
+        cfgUnLock(pCfg);
         return -1;
       }
     } break;
     case CFG_DTYPE_INT64: {
       int64_t ival;
       int32_t code = taosStrHumanToInt64(pVal, &ival);
-      if (code != TSDB_CODE_SUCCESS) return code;
+      if (code != TSDB_CODE_SUCCESS) {
+        cfgUnLock(pCfg);
+        return code;
+      }
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
         terrno = TSDB_CODE_OUT_OF_RANGE;
+        cfgUnLock(pCfg);
         return -1;
       }
     } break;
@@ -458,11 +468,15 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     case CFG_DTYPE_DOUBLE: {
       double dval;
       int32_t code = parseCfgReal(pVal, &dval);
-      if (code != TSDB_CODE_SUCCESS) return code;
+      if (code != TSDB_CODE_SUCCESS) {
+        cfgUnLock(pCfg);
+        return code;
+      }
       if (dval < pItem->fmin || dval > pItem->fmax) {
         uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), dval,
                pItem->fmin, pItem->fmax);
         terrno = TSDB_CODE_OUT_OF_RANGE;
+        cfgUnLock(pCfg);
         return -1;
       }
     } break;
@@ -470,6 +484,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       break;
   }
 
+  cfgUnLock(pCfg);
   return 0;
 }
 

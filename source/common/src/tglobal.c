@@ -1856,8 +1856,6 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
     return;
   }
 
-  cfgLock(pCfg);
-
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
   if (pItem != NULL) {
@@ -1895,8 +1893,6 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   if (terrno == TSDB_CODE_CFG_NOT_FOUND) {
     terrno = TSDB_CODE_SUCCESS;  // ignore not exist
   }
-
-  cfgUnLock(pCfg);
 }
 
 int8_t taosGranted(int8_t type) {
