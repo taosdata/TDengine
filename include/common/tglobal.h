@@ -148,6 +148,7 @@ extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
 extern int32_t tsSlowLogScope;
 extern int32_t tsTimeSeriesThreshold;
+extern int64_t tsTimeSeriesInterval;
 
 // client
 extern int32_t tsMinSlidingTime;
