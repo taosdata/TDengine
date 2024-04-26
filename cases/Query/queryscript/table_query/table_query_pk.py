@@ -62,7 +62,7 @@ class TDTestQuery(TDCase):
     def query_pk(self,db,num=1):
         
         
-        self.fun_pk_interp(self.db,'interp','') 
+        #self.fun_pk_interp(self.db,'interp','') 
         # self.multiple_agg_groupby(self.db,1) 
         #self.fun_pk_diff(self.db,'diff','') 
         # #self.fun_pk_twa(self.db,'twa','') 
@@ -71,7 +71,7 @@ class TDTestQuery(TDCase):
         # #self.fun_pk_twa(self.db,'irate','')
         # self.fun_pk_unique(self.db,'unique','')  
         #self.fun_pk_last_init(self.db,'last','')  
-        #self.fun_pk_last(self.db,'last','')  
+        self.fun_pk_last(self.db,'last','')  
         # self.fun_pk_last(self.db,'last_row','') 
         # self.fun_pk_first(self.db,'first','') 
         
