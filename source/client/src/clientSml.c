@@ -653,7 +653,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   return result;
 }
 
-static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
+static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols, SArray *checkDumplicateCols,
                                       ESchemaAction *action, bool isTag) {
   int32_t code = TSDB_CODE_SUCCESS;
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
@@ -664,6 +664,14 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
       return code;
     }
   }
+
+  for (int j = 0; j < taosArrayGetSize(checkDumplicateCols); ++j) {
+    SSmlKv *kv = (SSmlKv *)taosArrayGet(checkDumplicateCols, j);
+    if(taosHashGet(schemaHash, kv->key, kv->keyLen) != NULL){
+      return TSDB_CODE_PAR_DUPLICATED_COLUMN;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -913,7 +921,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       }
 
       ESchemaAction action = SCHEMA_ACTION_NULL;
-      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, &action, true);
+      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, sTableData->cols, &action, true);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -987,7 +995,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
       action = SCHEMA_ACTION_NULL;
-      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, &action, false);
+      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, sTableData->tags, &action, false);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
