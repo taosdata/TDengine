@@ -26,7 +26,7 @@ jobs:
         run: |
           rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
-          exit 1
+
   build_rust:
     needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -396,6 +396,6 @@ jobs:
         if: ${{ needs.generate_report.result != 'success' }}
         run: |
           curl -X POST -H "Content-Type: application/json" \
-          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
           https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
 
