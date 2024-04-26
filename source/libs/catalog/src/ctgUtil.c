@@ -592,7 +592,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_CFG:
     case TDMT_MND_TABLE_CFG: {
       STableCfgRsp* pOut = (STableCfgRsp*)pCtx->out;
-      tFreeSTableCfgRsp(pOut);
+      tFreeSTableCfgRsp(pOut, true);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -765,7 +765,7 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_CFG: {
       if (*pRes) {
         STableCfg* pInfo = (STableCfg*)*pRes;
-        tFreeSTableCfgRsp(pInfo);
+        tFreeSTableCfgRsp(pInfo, true);
         taosMemoryFreeClear(*pRes);
       }
       break;
@@ -872,7 +872,7 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_CFG: {
       if (*pRes) {
         STableCfg* pInfo = (STableCfg*)*pRes;
-        tFreeSTableCfgRsp(pInfo);
+        tFreeSTableCfgRsp(pInfo, true);
         taosMemoryFreeClear(*pRes);
       }
       break;

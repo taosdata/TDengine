@@ -106,6 +106,9 @@ cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # zlib
 cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# avro
+cat("${TD_SUPPORT_DIR}/avro_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 

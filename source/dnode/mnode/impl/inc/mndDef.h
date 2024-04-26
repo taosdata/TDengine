@@ -517,6 +517,7 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  SHashObj* pHashJsonTemplate;
 } SStbObj;
 
 typedef struct {

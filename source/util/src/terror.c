@@ -760,6 +760,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec ca
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_STATETRANS,      "Invalid task state to handle event")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status to proceed")
 
+// json
+TAOS_DEFINE_ERROR(TSDB_CODE_ADD_TEMPLATE_ONLY_JSON,        "Template can only be added to JSON type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_NOT_EXIST,            "Template not exists")
+
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open directory")

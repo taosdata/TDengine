@@ -494,6 +494,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
+  pTableMeta->pHashJsonTemplate = msg->pHashJsonTemplate;
+  msg->pHashJsonTemplate = NULL;
   qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
          " sver %d tver %d"
          " tagNum %d colNum %d precision %d rowSize %d",
@@ -715,7 +717,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
-    tFreeSTableCfgRsp(out);
+    tFreeSTableCfgRsp(out, true);
     taosMemoryFree(out);
     return TSDB_CODE_INVALID_MSG;
   }

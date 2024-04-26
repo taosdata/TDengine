@@ -1754,8 +1754,22 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
         pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       }
       break;
-      case COLUMN_OPTION_PRIMARYKEY:
+    case COLUMN_OPTION_PRIMARYKEY:
       ((SColumnOptions*)pOptions)->bPrimaryKey = true;
+      break;
+    case COLUMN_OPTION_JSON_TEMPLATE:
+      memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_COL_LEN);
+      COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->jsonTemplate, (SToken*)pVal);
+      if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
+        pCxt->errCode = TSDB_CODE_TSC_INVALID_JSON;
+      }
+      break;
+    case COLUMN_OPTION_DROP_JSON_TEMPLATE:
+      memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_COL_LEN);
+      strncpy(((SColumnOptions*)pOptions)->jsonTemplate, ((SToken*)pVal)->z, TMIN(((SToken*)pVal)->n, TSDB_MAX_JSON_COL_LEN - 1));
+      if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
+        pCxt->errCode = TSDB_CODE_INVALID_PARA;
+      }
       break;
     default:
       break;
@@ -1903,7 +1917,7 @@ SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pReal
   }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS;
+  pStmt->alterType =alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->pColOptions = (SColumnOptions*)pOptions;
   return createAlterTableStmtFinalize(pRealTable, pStmt);

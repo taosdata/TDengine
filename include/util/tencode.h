@@ -432,24 +432,6 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, uint32_t* len) {
-  uint32_t length = 0;
-  if (tDecodeU32v(pCoder, &length) < 0) return -1;
-  if (length) {
-    if (len) *len = length;
-
-    if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) return -1;
-    *val = taosMemoryMalloc(length);
-    if (*val == NULL) return -1;
-    memcpy(*val, TD_CODER_CURRENT(pCoder), length);
-
-    TD_CODER_MOVE_POS(pCoder, length);
-  } else {
-    *val = NULL;
-  }
-  return 0;
-}
-
 static FORCE_INLINE int32_t tDecodeCStrAndLenAlloc(SDecoder* pCoder, char** val, uint64_t* len) {
   if (tDecodeBinaryAlloc(pCoder, (void**)val, len) < 0) return -1;
   (*len) -= 1;

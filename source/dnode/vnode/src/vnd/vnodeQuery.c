@@ -300,7 +300,7 @@ _exit:
     *pMsg = rpcMsg;
   }
 
-  tFreeSTableCfgRsp(&cfgRsp);
+  tFreeSTableCfgRsp(&cfgRsp, false);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;

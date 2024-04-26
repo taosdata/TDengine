@@ -596,7 +596,7 @@ void ctgTestRspTableCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
 
-  tFreeSTableCfgRsp(&tblRsp);
+  tFreeSTableCfgRsp(&tblRsp, true);
 }
 
 void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -2866,7 +2866,7 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
   ASSERT_TRUE(NULL != pCfg);
   ASSERT_EQ(pCfg->numOfColumns, ctgTestColNum);
 
-  tFreeSTableCfgRsp((STableCfgRsp *)pCfg);
+  tFreeSTableCfgRsp((STableCfgRsp *)pCfg, true);
   taosMemoryFree(pCfg);
 
   catalogDestroy();

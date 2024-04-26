@@ -171,6 +171,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
+#define TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE      14
+#define TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE     15
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -477,6 +479,7 @@ typedef struct SFieldWithOptions {
   int8_t   flags;
   int32_t  bytes;
   uint32_t compress;
+  char     jsonTemplate[TSDB_MAX_JSON_COL_LEN];
 } SFieldWithOptions;
 
 typedef struct SRetention {
@@ -557,8 +560,9 @@ struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 };
 struct SSchemaExt {
-  col_id_t colId;
-  uint32_t compress;
+  col_id_t  colId;
+  uint32_t  compress;
+  SArray*   jsonTemplate;
 };
 
 //
@@ -589,6 +593,7 @@ typedef struct {
   int8_t      sysInfo;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
+  SHashObj*   pHashJsonTemplate;
 } STableMetaRsp;
 
 typedef struct {
@@ -768,9 +773,82 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   return 0;
 }
 
+typedef struct {
+  int32_t templateId;
+  char   *templateJsonString;
+  bool    isValidate;
+}SJsonTemplate;
+
+void destroyJsonTemplateArray(void *data);
+
+static FORCE_INLINE int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate) {
+  if (tEncodeI32(pEncoder, taosHashGetSize(pHashJsonTemplate)) < 0) return -1;
+  void* pIter = taosHashIterate(pHashJsonTemplate, NULL);
+  while (pIter != NULL) {
+    int32_t* colId = (int32_t*)taosHashGetKey(pIter, NULL);
+    SArray* pArray = (SArray*)(pIter);
+    if (tEncodeI32(pEncoder, *colId) < 0) return -1;
+    if (tEncodeI32(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
+    for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
+      if (tEncodeI32(pEncoder, pTemplate->templateId) < 0) return -1;
+      if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString) + 1) < 0) return -1;
+      if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
+    }
+    pIter = taosHashIterate(pHashJsonTemplate, pIter);
+  }
+
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate) {
+  int32_t len = 0;
+  if (tDecodeI32(pDecoder, &len) < 0) return -1;
+  if (len > 0) {
+    *pHashJsonTemplate = taosHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    if (*pHashJsonTemplate == NULL) {
+      return -1;
+    }
+    taosHashSetFreeFp(*pHashJsonTemplate, destroyJsonTemplateArray);
+    for (int32_t i = 0; i < len; ++i) {
+      int32_t colId = 0;
+      if (tDecodeI32(pDecoder, &colId) < 0) return -1;
+      int32_t arrLen = 0;
+      if (tDecodeI32(pDecoder, &arrLen) < 0) return -1;
+      SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
+      if (arr == NULL) {
+        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+        return -1;
+      }
+      if(taosHashPut(*pHashJsonTemplate, &colId, sizeof(colId), &arr, POINTER_BYTES) != 0){
+        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+        taosArrayDestroy(arr);
+        return -1;
+      }
+      for (int32_t j = 0; j < arrLen; ++j) {
+        SJsonTemplate pTemplate = {0};
+        if (tDecodeI32(pDecoder, &pTemplate.templateId) < 0) return -1;
+        if (tDecodeBinaryAlloc(pDecoder, (void**)&pTemplate.templateJsonString, NULL) < 0) return -1;
+        taosArrayPush(arr, &pTemplate);
+        if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
+      }
+    }
+  }
+  return 0;
+}
+
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
   if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
   if (tEncodeU32(pEncoder, pSchemaExt->compress) < 0) return -1;
+  if (pSchemaExt->jsonTemplate != NULL) {
+    if (tEncodeI32(pEncoder, taosArrayGetSize(pSchemaExt->jsonTemplate)) < 0) return -1;
+    for(int32_t i = 0; i < taosArrayGetSize(pSchemaExt->jsonTemplate); i++) {
+      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pSchemaExt->jsonTemplate, i);
+      if (tEncodeI32(pEncoder, pTemplate->templateId) < 0) return -1;
+      if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString)) < 0) return -1;
+      if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
+    }
+  }
   return 0;
 }
 
@@ -1198,6 +1276,7 @@ typedef struct {
   int32_t     tagsLen;
   char*       pTags;
   SSchemaExt* pSchemaExt;
+  SHashObj*   pHashJsonTemplate;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -1207,7 +1286,7 @@ int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
 int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
-void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp, bool freeJsonTemplate);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

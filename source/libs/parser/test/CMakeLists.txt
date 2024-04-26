@@ -1,7 +1,7 @@
 
 MESSAGE(STATUS "build parser unit test")
 
-IF(NOT TD_DARWIN)
+#IF(NOT TD_DARWIN)
     # GoogleTest requires at least C++11
     SET(CMAKE_CXX_STANDARD 11)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
@@ -31,4 +31,4 @@ IF(NOT TD_DARWIN)
         NAME parserTest
         COMMAND parserTest
     )
-ENDIF()
+#ENDIF()

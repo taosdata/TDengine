@@ -575,6 +575,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
     if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
+    if (tEncodeCStr(&encoder, pField->jsonTemplate) < 0) return -1;
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
@@ -652,6 +653,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
     if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
     if (tDecodeU32(&decoder, &field.compress) < 0) return -1;
+    if (tDecodeCStrTo(&decoder, field.jsonTemplate) < 0) return -1;
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -2950,6 +2952,10 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
+  if (pRsp->pHashJsonTemplate != NULL){
+    tEncodeHashJsonTemplate(&encoder, pRsp->pHashJsonTemplate);
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3021,13 +3027,17 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       pRsp->pSchemaExt = NULL;
     }
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    tDecodeHashJsonTemplate(&decoder, &pRsp->pHashJsonTemplate);
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
 }
 
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
+void tFreeSTableCfgRsp(STableCfgRsp *pRsp, bool freeJsonTemplate) {
   if (NULL == pRsp) {
     return;
   }
@@ -3036,6 +3046,10 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
   taosMemoryFreeClear(pRsp->pSchemas);
   taosMemoryFreeClear(pRsp->pSchemaExt);
   taosMemoryFreeClear(pRsp->pTags);
+  if (freeJsonTemplate){
+    taosHashCleanup(pRsp->pHashJsonTemplate);
+    pRsp->pHashJsonTemplate = NULL;
+  }
 
   taosArrayDestroy(pRsp->pFuncs);
 }
@@ -4626,6 +4640,10 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
 
+  if (pRsp->pHashJsonTemplate != NULL){
+    tEncodeHashJsonTemplate(pEncoder, pRsp->pHashJsonTemplate);
+  }
+
   return 0;
 }
 
@@ -4669,6 +4687,10 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     } else {
       pRsp->pSchemaExt = NULL;
     }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    tDecodeHashJsonTemplate(pDecoder, &pRsp->pHashJsonTemplate);
   }
 
   return 0;
@@ -4802,6 +4824,8 @@ void tFreeSTableMetaRsp(void *pRsp) {
 
   taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas);
   taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemaExt);
+  taosHashCleanup(((STableMetaRsp *)pRsp)->pHashJsonTemplate);
+  ((STableMetaRsp *)pRsp)->pHashJsonTemplate = NULL;
 }
 
 void tFreeSTableIndexRsp(void *info) {
@@ -8982,8 +9006,10 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
     if (offsetVersion >= TQ_OFFSET_VERSION) {
       if (tDecodeI8(pDecoder, &pOffsetVal->primaryKey.type) < 0) return -1;
       if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)) {
-        if (tDecodeBinaryAlloc32(pDecoder, (void **)&pOffsetVal->primaryKey.pData, &pOffsetVal->primaryKey.nData) < 0)
+        uint64_t len = 0;
+        if (tDecodeBinaryAlloc(pDecoder, (void **)&pOffsetVal->primaryKey.pData, &len) < 0)
           return -1;
+        pOffsetVal->primaryKey.nData = len;
       } else {
         if (tDecodeI64(pDecoder, &pOffsetVal->primaryKey.val) < 0) return -1;
       }
@@ -10551,3 +10577,14 @@ void tFreeFetchTtlExpiredTbsRsp(void* p) {
   SVFetchTtlExpiredTbsRsp* pRsp = p;
   taosArrayDestroy(pRsp->pExpiredTbs);
 }
+
+void destroyJsonTemplateArray(void *data){
+  SArray* array = (SArray*)data;
+  for(int i = 0; i < taosArrayGetSize(array); i++){
+    SJsonTemplate* tmp = (SJsonTemplate*)taosArrayGet(array, i);
+    taosMemoryFree(tmp->templateJsonString);
+  }
+
+  taosArrayDestroy(data);
+}
+

@@ -29,6 +29,7 @@
 #include "os.h"
 #include "parTestUtil.h"
 #include "parToken.h"
+#include "parUtil.h"
 
 namespace ParserTest {
 
@@ -117,6 +118,50 @@ static void parseArg(int argc, char* argv[]) {
 }  // namespace ParserTest
 
 int main(int argc, char* argv[]) {
+  char json[4096] = "{\n"
+      "    \"Cmd\": 2,\n"
+      "    \"Encrypt\": 1,\n"
+      "    \"Vin\": \"1G1BL52P7TR115520\",\n"
+      "    \"Data\": {\n"
+      "        \"Infos\": [\n"
+      "            {\n"
+      "                \"Motors\": [\n"
+      "                    {\n"
+      "                        \"CtrlTemp\": 125,\n"
+      "                        \"DCBusCurrent\": 31203,\n"
+      "                        \"InputVoltage\": 30012,\n"
+      "                        \"MotorTemp\": 125,\n"
+      "                        \"No\": 1,\n"
+      "                        \"Rotating\": 30000,\n"
+      "                        \"Status\": 1,\n"
+      "                        \"Torque\": 25000\n"
+      "                    },\n"
+      "                    {\n"
+      "                        \"CtrlTemp\": 125,\n"
+      "                        \"DCBusCurrent\": 30200,\n"
+      "                        \"InputVoltage\": 32000,\n"
+      "                        \"MotorTemp\": 145,\n"
+      "                        \"No\": 2,\n"
+      "                        \"Rotating\": 30200,\n"
+      "                        \"Status\": 1,\n"
+      "                        \"Torque\": 25300\n"
+      "                    }\n"
+      "                ],\n"
+      "                \"Number\": 2,\n"
+      "                \"Type\": \"DriveMotor\"\n"
+      "            }\n"
+      "        ],\n"
+      "        \"Time\": {\n"
+      "            \"Day\": 1,\n"
+      "            \"Hour\": 2,\n"
+      "            \"Minute\": 59,\n"
+      "            \"Month\": 1,\n"
+      "            \"Second\": 0,\n"
+      "            \"Year\": 16\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  jsonData2JsonTemplate(json);
   testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
   testing::InitGoogleTest(&argc, argv);
   ParserTest::parseArg(argc, argv);

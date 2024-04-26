@@ -5291,11 +5291,13 @@ static int32_t jsonToTableOptions(const SJson* pJson, void* pObj) {
 static const char* jkColumnOptionsEncode = "encode";
 static const char* jkColumnOptionsCompress = "compress";
 static const char* jkColumnOptionsLevel = "level";
+static const char* jkColumnOptionsJsonTemplate = "template";
 static int32_t     columnOptionsToJson(const void* pObj, SJson* pJson) {
   const SColumnOptions* pNode = (const SColumnOptions*)pObj;
   int32_t               code = tjsonAddStringToObject(pJson, jkColumnOptionsEncode, pNode->encode);
   code = tjsonAddStringToObject(pJson, jkColumnOptionsCompress, pNode->compress);
   code = tjsonAddStringToObject(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  code = tjsonAddStringToObject(pJson, jkColumnOptionsJsonTemplate, pNode->jsonTemplate);
   return code;
 }
 
@@ -5305,6 +5307,7 @@ static int32_t jsonToColumnOptions(const SJson* pJson, void* pObj) {
   int32_t code = tjsonGetStringValue(pJson, jkColumnOptionsEncode, pNode->encode);
   code = tjsonGetStringValue(pJson, jkColumnOptionsCompress, pNode->compress);
   code = tjsonGetStringValue(pJson, jkColumnOptionsLevel, pNode->compressLevel);
+  code = tjsonGetStringValue(pJson, jkColumnOptionsJsonTemplate, pNode->jsonTemplate);
   return code;
 }
 

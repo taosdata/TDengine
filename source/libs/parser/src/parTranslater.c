@@ -7250,12 +7250,15 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     } else {
       field.bytes = pCol->dataType.bytes;
     } 
-
+    if (field.type == TSDB_DATA_TYPE_JSON) {
+      field.bytes = TSDB_MAX_JSON_COL_LEN;
+    }
     strcpy(field.name, pCol->colName);
     if (pCol->pOptions) {
       setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
       setColCompress(&field.compress, columnCompressVal(((SColumnOptions*)pCol->pOptions)->compress));
       setColLevel(&field.compress, columnLevelVal(((SColumnOptions*)pCol->pOptions)->compressLevel));
+      strncpy(field.jsonTemplate, ((SColumnOptions*)pCol->pOptions)->jsonTemplate, TSDB_MAX_JSON_COL_LEN);
     }
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
@@ -8126,6 +8129,20 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
                                  columnLevelVal(pStmt->pColOptions->compressLevel), false, (uint32_t*)&field.bytes);
       if (!valid) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       taosArrayPush(pAlterReq->pFields, &field);
+      break;
+    }
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      TAOS_FIELD field = {0};
+      strcpy(field.name, pStmt->colName);
+      taosArrayPush(pAlterReq->pFields, &field);
+
+      // use comment to store json template
+      pAlterReq->comment = taosStrdup(pStmt->pColOptions->jsonTemplate);
+      if (NULL == pAlterReq->comment) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pAlterReq->commentLen = strlen(pStmt->pColOptions->jsonTemplate);
       break;
     }
     default:
@@ -12925,6 +12942,14 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       } else {
         return buildAlterTableColumnCompress(pCxt, pStmt, pTableMeta, pReq);
       }
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:{
+      ASSERT(0);
+      break;
+    }
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      ASSERT(0);
+      break;
+    }
     default:
       break;
   }
