@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use chrono::{Local, NaiveDateTime};
 use taos::Dsn;
 use toml::value::Datetime;
@@ -112,8 +112,24 @@ impl PiConfig {
             .params
             .get("transform_config_file")
             .ok_or(anyhow!("No param transform_config_file in from DSN"))?;
-        let (element_id_list, point_list) =
-            Self::parse_transform_config_file(transform_config_file)?;
+
+        let (element_id_list, point_list) = if let Some(point_list) = dsn.params.get("point_list") {
+            let point_list = point_list.to_string();
+            let point_list = point_list.split(',').map(|s| s.to_string()).collect();
+            (Vec::new(), point_list)
+        } else if let Some(element_id_list) = dsn.params.get("element_id_list") {
+            let element_id_list = element_id_list.to_string();
+            let element_id_list = element_id_list.split(',').map(|s| s.to_string()).collect();
+            (element_id_list, Vec::new())
+        } else {
+            Self::get_points_from_transform_config_file(transform_config_file).with_context(|| {
+                format!(
+                    "Failed to parse transform config file: {}",
+                    transform_config_file
+                )
+            })?
+        };
+
         if is_real_run && point_list.is_empty() && element_id_list.is_empty() {
             return Err(anyhow!(
                 "ElementIDList and PointList should config at least one of them"
@@ -401,7 +417,7 @@ impl PiConfig {
     }
 
     /// Parse transform config file to get element_id_list or point_list
-    fn parse_transform_config_file(
+    pub fn get_points_from_transform_config_file(
         transform_config_file: &str,
     ) -> anyhow::Result<(Vec<String>, Vec<String>)> {
         let content = std::fs::read_to_string(transform_config_file)?;
@@ -738,15 +754,12 @@ mod tests {
     #[test]
     fn test_parse_transform_config_file() {
         // Note(ding)): this test can only run in my local envrionment
-        let (element_id_list, point_list) = PiConfig::parse_transform_config_file(
-            "point_model.csv",
-        )
-        .unwrap();
+        let (element_id_list, point_list) =
+            PiConfig::get_points_from_transform_config_file("point_model.csv").unwrap();
         assert_eq!(0, element_id_list.len());
         assert_eq!(2, point_list.len());
-        let (element_id_list, point_list) = PiConfig::parse_transform_config_file(
-            "element_model.csv",
-        ).unwrap();
+        let (element_id_list, point_list) =
+            PiConfig::get_points_from_transform_config_file("element_model.csv").unwrap();
         assert_eq!(3, element_id_list.len());
         assert_eq!(0, point_list.len());
     }

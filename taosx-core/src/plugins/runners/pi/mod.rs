@@ -22,7 +22,7 @@ use crate::{
     Action, DataSet, DataSetsReq, Transferred,
 };
 
-mod config;
+pub mod config;
 pub mod transform;
 
 fn pi_exe_path() -> anyhow::Result<PathBuf> {
@@ -66,7 +66,7 @@ pub async fn pi_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: {}", from.driver);
+    tracing::info!("# loading plugin: {}", from.driver);
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");

@@ -21,7 +21,9 @@ use std::{
     sync::{atomic::Ordering, Arc},
 };
 use taos::IntoDsn;
-use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
+use taosx_core::{
+    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse,
+};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
@@ -1021,6 +1023,17 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
             }
             if str_len > 0 {
                 new_value.pop();
+            }
+        } else if k == "transform_config_file" {
+            let (point_list, element_id_list) =
+                PiConfig::get_points_from_transform_config_file(v.as_str()).with_context(|| {
+                    anyhow::format_err!("Modify task dsn error, failed to parse file:{}", v)
+                })?;
+            if !element_id_list.is_empty() {
+                map.insert("element_id_list".to_string(), element_id_list.join(","));
+            }
+            if !point_list.is_empty() {
+                map.insert("point_list".to_string(), point_list.join(","));
             }
         } else if v.contains("@") {
             new_value.push_str(
