@@ -137,11 +137,12 @@ pub async fn send_verification_code_with_cloud_open_api(
         language: lang_code.to_string(),
     };
     let json_body = serde_json::to_string(&body)?;
-    // log::debug!("send_verification_code === url: {}", url);
     log::debug!("send_verification_code json_body: {}", json_body);
 
+    // 连接超时时间为30秒，请求超时时间为60秒
     let http_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .build()?;
     let response = http_client
         .post(url)
