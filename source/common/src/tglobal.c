@@ -271,7 +271,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 60;
+int32_t tsStreamCheckpointInterval = 300;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 16;
 int32_t tsTtlUnit = 86400;
@@ -1032,7 +1032,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   sndDebugFlag = cfgGetItem(pCfg, "sndDebugFlag")->i32;
 }
 
-static int32_t taosSetSlowLogScope(char *pScope) {
+static int32_t taosSetSlowLogScope(const char *pScope) {
   if (NULL == pScope || 0 == strlen(pScope)) {
     tsSlowLogScope = SLOW_LOG_TYPE_ALL;
     return 0;
@@ -1505,7 +1505,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
+static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
   if (strcasecmp(name, "resetlog") == 0) {
@@ -1583,11 +1583,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
+// todo fix race condition caused by update of config, pItem->str may be removed
+static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
-  if (!pItem || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
+  if ((pItem == NULL) || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
@@ -1598,6 +1599,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
   switch (lowcaseName[0]) {
     case 'd': {
       if (strcasecmp("debugFlag", name) == 0) {
@@ -1803,9 +1805,12 @@ _out:
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer) {
-  if (forServer) return taosCfgDynamicOptionsForServer(pCfg, name);
-  return taosCfgDynamicOptionsForClient(pCfg, name);
+int32_t taosCfgDynamicOptions(SConfig *pCfg, const char *name, bool forServer) {
+  if (forServer) {
+    return taosCfgDynamicOptionsForServer(pCfg, name);
+  } else {
+    return taosCfgDynamicOptionsForClient(pCfg, name);
+  }
 }
 
 void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {

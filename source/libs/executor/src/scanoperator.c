@@ -1380,7 +1380,7 @@ bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal) {
   return false;
 }
 
-bool hasPrimaryKey(SStreamScanInfo* pInfo) {
+bool hasPrimaryKeyCol(SStreamScanInfo* pInfo) {
   return pInfo->primaryKeyIndex != -1;
 }
 
@@ -1391,7 +1391,7 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
   }
 
   int32_t rowId = 0;
-  if (hasPrimaryKey(pInfo)) {
+  if (hasPrimaryKeyCol(pInfo)) {
     SColumnInfoData* pPkCol = taosArrayGet(pPreRes->pDataBlock, pInfo->primaryKeyIndex);
     for (; rowId < pPreRes->info.rows; rowId++) {
       if (comparePrimaryKey(pPkCol, rowId, pVal)) {
@@ -1630,7 +1630,7 @@ static void getPreVersionDataBlock(uint64_t uid, TSKEY startTs, TSKEY endTs, int
 
   SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pPreRes->pDataBlock, pInfo->primaryTsIndex);
   SColumnInfoData* pPkCol = NULL;
-  if (hasPrimaryKey(pInfo)) {
+  if (hasPrimaryKeyCol(pInfo)) {
     pPkCol = (SColumnInfoData*)taosArrayGet(pPreRes->pDataBlock, pInfo->primaryKeyIndex);
   }
   for (int32_t i = 0; i < pPreRes->info.rows; i++) {
@@ -1640,7 +1640,7 @@ static void getPreVersionDataBlock(uint64_t uid, TSKEY startTs, TSKEY endTs, int
   printDataBlock(pBlock, "new delete", taskIdStr);
 }
 
-static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType mode) {
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1659,7 +1659,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   }
   int64_t ver = pSrcBlock->info.version - 1;
 
-  if (pInfo->partitionSup.needCalc && (startData[0] != endData[0] || hasPrimaryKey(pInfo))) {
+  if (pInfo->partitionSup.needCalc && ( startData[0] != endData[0] || (hasPrimaryKeyCol(pInfo) && mode == STREAM_DELETE_DATA) )) {
     getPreVersionDataBlock(uidCol[0], startData[0], endData[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
     startData = (TSKEY*)pStartTsCol->pData;
     endData = (TSKEY*)pEndTsCol->pData;
@@ -1682,7 +1682,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
+      if (hasPrimaryKeyCol(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], ver, pVal);
@@ -1736,7 +1736,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   }
   int64_t ver = pSrcBlock->info.version - 1;
 
-  if (pInfo->partitionSup.needCalc && (startData[0] != endData[0] || hasPrimaryKey(pInfo))) {
+  if (pInfo->partitionSup.needCalc && ( startData[0] != endData[0] || (hasPrimaryKeyCol(pInfo) && mode == STREAM_DELETE_DATA) )) {
     getPreVersionDataBlock(uidCol[0], startData[0], endData[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
     startData = (TSKEY*)pStartTsCol->pData;
     endData = (TSKEY*)pEndTsCol->pData;
@@ -1759,7 +1759,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
     uint64_t groupId = pSrcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
+      if (hasPrimaryKeyCol(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], ver, pVal);
@@ -1779,7 +1779,7 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType mode) {
   blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1800,7 +1800,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   TSKEY*  srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   int64_t ver = pSrcBlock->info.version - 1;
 
-  if (pInfo->partitionSup.needCalc && (srcStartTsCol[0] != srcEndTsCol[0] || hasPrimaryKey(pInfo))) {
+  if (pInfo->partitionSup.needCalc && ( srcStartTsCol[0] != srcEndTsCol[0] || (hasPrimaryKeyCol(pInfo) && mode == STREAM_DELETE_DATA) )) {
     getPreVersionDataBlock(srcUidData[0], srcStartTsCol[0], srcEndTsCol[0], ver, GET_TASKID(pTaskInfo), pInfo, pSrcBlock);
     srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
     srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
@@ -1824,7 +1824,7 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
     uint64_t groupId = srcGp[i];
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
+      if (hasPrimaryKeyCol(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], ver, pVal);
@@ -1915,7 +1915,7 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     char     tbname[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN] = {0};
     if (groupId == 0) {
       void* pVal = NULL;
-      if (hasPrimaryKey(pInfo) && pSrcPkCol) {
+      if (hasPrimaryKeyCol(pInfo) && pSrcPkCol) {
         pVal = colDataGetData(pSrcPkCol, i);
       }
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], ver, pVal);
@@ -1959,9 +1959,9 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
 static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType type) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (isIntervalWindow(pInfo)) {
-    code = generateIntervalScanRange(pInfo, pSrcBlock, pDestBlock);
+    code = generateIntervalScanRange(pInfo, pSrcBlock, pDestBlock, type);
   } else if (isSessionWindow(pInfo) || isStateWindow(pInfo)) {
-    code = generateSessionScanRange(pInfo, pSrcBlock, pDestBlock);
+    code = generateSessionScanRange(pInfo, pSrcBlock, pDestBlock, type);
   } else if (isCountWindow(pInfo)) {
     code = generateCountScanRange(pInfo, pSrcBlock, pDestBlock, type);
   } else {
@@ -1979,9 +1979,9 @@ void appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndT
   appendOneRowToSpecialBlockImpl(pBlock, pStartTs, pEndTs, pStartTs, pEndTs, pUid, pGp, pTbName, NULL);
 }
 
-bool checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts) {
+bool checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len) {
   bool isExpired = false;
-  bool isInc = pAPI->isIncrementalTimeStamp(pUpdateInfo, tableId, ts);
+  bool isInc = pAPI->isIncrementalTimeStamp(pUpdateInfo, tableId, ts, pPkVal, len);
   if (!isInc) {
     isExpired = isOverdue(ts, pTwSup);
   }
@@ -1997,7 +1997,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   TSKEY* tsCol = (TSKEY*)pColDataInfo->pData;
   SColumnInfoData* pPkColDataInfo = NULL;
-  if (hasPrimaryKey(pInfo)) {
+  if (hasPrimaryKeyCol(pInfo)) {
     pPkColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryKeyIndex);
   }
 
@@ -2017,7 +2017,13 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
     // must check update info first.
-    bool update = pInfo->stateStore.updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId]);
+    void* pPkVal = NULL;
+    int32_t pkLen = 0;
+    if (hasPrimaryKeyCol(pInfo)) {
+      pPkVal = colDataGetData(pPkColDataInfo, rowId);
+      pkLen = colDataGetRowLength(pPkColDataInfo, rowId);
+    }
+    bool update = pInfo->stateStore.updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId], pPkVal, pkLen);
     bool isDeleted = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedStreamWindow(&win, pBlock->info.id.groupId, pInfo->pState, &pInfo->twAggSup, &pInfo->stateStore);
     if ((update || isDeleted) && out) {
@@ -2517,7 +2523,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     if (pInfo->pRecoverRes != NULL) {
       calBlockTbName(pInfo, pInfo->pRecoverRes, 0);
       if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
-        TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
+        TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex, pInfo->primaryKeyIndex);
         pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
       }
       if (pInfo->pCreateTbRes->info.rows > 0) {
@@ -2660,7 +2666,7 @@ FETCH_NEXT_BLOCK:
         }
       } break;
       case STREAM_SCAN_FROM_DELETE_DATA: {
-        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_DELETE_DATA);
+        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_PARTITION_DELETE_DATA);
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
         copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
@@ -3202,8 +3208,10 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pDeleteDataRes = createSpecialDataBlock(STREAM_DELETE_DATA);
   pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
-  if (hasPrimaryKey(pInfo)) {
+  if (hasPrimaryKeyCol(pInfo)) {
     addPrimaryKeyCol(pInfo->pUpdateDataRes, pkType.type, pkType.bytes);
+    pInfo->pkColType = pkType.type;
+    pInfo->pkColLen = pkType.bytes;
   }
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;

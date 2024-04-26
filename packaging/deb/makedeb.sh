@@ -57,9 +57,9 @@ else
   arch=$cpuType
 fi
 
-echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper"
+echo "${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r ${arch} -e taoskeeper -t ver-${tdengine_ver}"
 echo "$top_dir=${top_dir}"
-taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper`
+taoskeeper_binary=`${top_dir}/../enterprise/packaging/build_taoskeeper.sh -r $arch -e taoskeeper -t ver-${tdengine_ver}`
 echo "taoskeeper_binary: ${taoskeeper_binary}"
 
 # copy config files
@@ -74,6 +74,13 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
 fi
 if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
+fi
+
+if [ -f "%{_compiledir}/../../../explorer/target/taos-explorer.service" ]; then
+    cp %{_compiledir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+fi
+if [ -f "%{_compiledir}/../../../explorer/server/example/explorer.toml" ]; then
+    cp %{_compiledir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
@@ -91,6 +98,10 @@ cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
+fi
+
+if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then
+    cp ${compile_dir}/../../../explorer/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin

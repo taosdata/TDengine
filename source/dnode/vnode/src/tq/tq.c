@@ -153,10 +153,10 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   }
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, req.reqOffset);
-  dataRsp.blockNum = 0;
+  tqInitDataRsp(&dataRsp.common, req.reqOffset);
+  dataRsp.common.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
-  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.common.reqOffset);
   tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s, reqId:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
@@ -165,7 +165,7 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   return 0;
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp,
                       int32_t type, int32_t vgId) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
@@ -174,11 +174,11 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
 
   char buf1[TSDB_OFFSET_LEN] = {0};
   char buf2[TSDB_OFFSET_LEN] = {0};
-  tFormatOffset(buf1, TSDB_OFFSET_LEN, &pRsp->reqOffset);
-  tFormatOffset(buf2, TSDB_OFFSET_LEN, &pRsp->rspOffset);
+  tFormatOffset(buf1, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->reqOffset);
+  tFormatOffset(buf2, TSDB_OFFSET_LEN, &((SMqDataRspCommon*)pRsp)->rspOffset);
 
   tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64,
-          vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
+          vgId, pReq->consumerId, pReq->epoch, ((SMqDataRspCommon*)pRsp)->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
 }
@@ -367,7 +367,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       } while (0);
     }
 
-    // 2. check re-balance status
+    // 2. check rebalance status
     if (pHandle->consumerId != consumerId) {
       tqError("ERROR tmq poll: consumer:0x%" PRIx64
               " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
@@ -485,7 +485,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  // 2. check re-balance status
+  // 2. check rebalance status
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, vgId, req.subKey, pHandle->consumerId);
@@ -499,7 +499,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRUnLockLatch(&pTq->lock);
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, req.reqOffset);
+  tqInitDataRsp(&dataRsp.common, req.reqOffset);
 
   if (req.useSnapshot == true) {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
@@ -508,10 +508,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
+  dataRsp.common.rspOffset.type = TMQ_OFFSET__LOG;
 
   if (reqOffset.type == TMQ_OFFSET__LOG) {
-    dataRsp.rspOffset.version = reqOffset.version;
+    dataRsp.common.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
     STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
     if (pOffset != NULL) {
@@ -522,17 +522,17 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
         return -1;
       }
 
-      dataRsp.rspOffset.version = pOffset->val.version;
+      dataRsp.common.rspOffset.version = pOffset->val.version;
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%" PRId64, consumerId, vgId,
-             req.subKey, dataRsp.rspOffset.version);
+             req.subKey, dataRsp.common.rspOffset.version);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
-        dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
+        dataRsp.common.rspOffset.version = sver;  // not consume yet, set the earliest position
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        dataRsp.rspOffset.version = ever;
+        dataRsp.common.rspOffset.version = ever;
       }
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from init:%" PRId64, consumerId, vgId, req.subKey,
-             dataRsp.rspOffset.version);
+             dataRsp.common.rspOffset.version);
     }
   } else {
     tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
@@ -666,7 +666,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
       goto end;
     }
     STqHandle handle = {0};
@@ -760,16 +760,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
-
-  // checkpoint ver is the kept version, handled data should be the next version.
-  if (pChkInfo->checkpointId != 0) {
-    pChkInfo->nextProcessVer = pChkInfo->checkpointVer + 1;
-    pChkInfo->processedVer = pChkInfo->checkpointVer;
-    pTask->execInfo.startCheckpointVer = pChkInfo->nextProcessVer;
-    pTask->execInfo.startCheckpointId = pChkInfo->checkpointId;
-    tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
-           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
-  }
+  tqSetRestoreVersionInfo(pTask);
 
   char* p = streamTaskGetStatus(pTask)->name;
   const char* pNext = streamTaskGetStatusStr(pTask->status.taskStatus);

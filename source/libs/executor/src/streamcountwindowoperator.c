@@ -50,12 +50,13 @@ void destroyStreamCountAggOperatorInfo(void* param) {
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  pInfo->pUpdated = NULL;
 
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
-  pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
@@ -185,7 +186,7 @@ void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, ESt
     return;
   }
   pDelRange->win = tmpKey.win;
-  while (mode == STREAM_DELETE_DATA) {
+  while (mode == STREAM_DELETE_DATA || mode == STREAM_PARTITION_DELETE_DATA) {
     pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pCur);
     code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &tmpKey, NULL, 0);
     if (code != TSDB_CODE_SUCCESS) {
@@ -242,7 +243,7 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   for (int32_t i = 0; i < rows;) {
     if (pInfo->ignoreExpiredData &&
         checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo, &pInfo->twAggSup,
-                         pSDataBlock->info.id.uid, startTsCols[i])) {
+                         pSDataBlock->info.id.uid, startTsCols[i], NULL, 0)) {
       i++;
       continue;
     }
@@ -728,7 +729,7 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   setOperatorStreamStateFn(pOperator, streamCountReleaseState, streamCountReloadState);
 
   if (downstream) {
-    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup);
+    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup, &pInfo->basic);
     code = appendDownstream(pOperator, &downstream, 1);
   }
   return pOperator;

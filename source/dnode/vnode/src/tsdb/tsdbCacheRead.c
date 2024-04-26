@@ -64,13 +64,15 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     col_id_t       colId = -1;
 
     SArray* funcTypeBlockArray = taosArrayInit(pReader->numOfCols, sizeof(int32_t));
+
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       int32_t          funcType = FUNCTION_TYPE_CACHE_LAST;
+
       if (pReader->pFuncTypeList != NULL && taosArrayGetSize(pReader->pFuncTypeList) > i) {
         funcType = *(int32_t*)taosArrayGet(pReader->pFuncTypeList, i);
+        taosArrayInsert(funcTypeBlockArray, dstSlotIds[i], taosArrayGet(pReader->pFuncTypeList, i));
       }
-      taosArrayInsert(funcTypeBlockArray, dstSlotIds[i], taosArrayGet(pReader->pFuncTypeList, i));
 
       if (slotIds[i] == -1) {
         if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
@@ -367,11 +369,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int32_t pkBufLen = 0;
-  if (pr->rowKey.numOfPKs > 0) {
-    pkBufLen = pr->pkColumn.bytes;
-  }
-
+  int32_t pkBufLen = (pr->rowKey.numOfPKs > 0)? pr->pkColumn.bytes:0;
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
 
@@ -386,7 +384,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  int8_t         ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
+  if (pr->rowKey.numOfPKs > 0) {
+    ltype |= CACHESCAN_RETRIEVE_PK;
+  }
+
   STableKeyInfo* pTableList = pr->pTableList;
 
   // retrieve the only one last row of all tables in the uid list.

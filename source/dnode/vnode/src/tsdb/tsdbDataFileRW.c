@@ -48,9 +48,24 @@ static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
   if (reader->fd[ftype]) {
     int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
     char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+#if 1
     code = tsdbReadFile(reader->fd[ftype], reader->config->files[ftype].file.size - sizeof(SHeadFooter),
                         (uint8_t *)reader->headFooter, sizeof(SHeadFooter), 0, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
+#else
+    int64_t size = reader->config->files[ftype].file.size;
+    for (; size > TSDB_FHDR_SIZE; size--) {
+      code = tsdbReadFile(reader->fd[ftype], size - sizeof(SHeadFooter), (uint8_t *)reader->headFooter,
+                          sizeof(SHeadFooter), 0, encryptAlgorithm, encryptKey);
+      if (code) continue;
+      if (reader->headFooter->brinBlkPtr->offset + reader->headFooter->brinBlkPtr->size + sizeof(SHeadFooter) == size) {
+        break;
+      }
+    }
+    if (size <= TSDB_FHDR_SIZE) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
+#endif
   }
 
   reader->ctx->headFooterLoaded = true;

@@ -596,6 +596,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   memcpy(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  (*pTableMeta)->schemaExt =  NULL;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2883,14 +2884,24 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     SMetaRes    res = {0};
     STableMeta *pTableMeta = NULL;
     if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+      int32_t schemaExtSize = 0;
       int32_t metaSize = CTG_META_SIZE(tbMeta);
-      pTableMeta = taosMemoryCalloc(1, metaSize);
+      if (tbMeta->schemaExt != NULL) {
+        schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
       if (NULL == pTableMeta) {
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
       memcpy(pTableMeta, tbMeta, metaSize);
+      if (tbMeta->schemaExt != NULL) {
+        pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+        memcpy(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
+      } else {
+        pTableMeta->schemaExt = NULL;
+      }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
@@ -2999,6 +3010,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     memcpy(&pTableMeta->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+    pTableMeta->schemaExt = NULL;
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);

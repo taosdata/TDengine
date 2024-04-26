@@ -33,8 +33,16 @@ extern "C" {
 const char* tstrerror(int32_t err);
 const char* terrstr();
 
+#define  ERR_MSG_LEN                        256
+
+char*    taosGetErrMsgReturn();
+char*    taosGetErrMsg();
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
+#define terrMsg                             (taosGetErrMsg())
+
+#define SET_ERROR_MSG(MSG, ...) \
+  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
@@ -174,6 +182,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_STMT_CACHE_ERROR          TAOS_DEF_ERROR_CODE(0, 0X0230)
 #define TSDB_CODE_TSC_ENCODE_PARAM_ERROR        TAOS_DEF_ERROR_CODE(0, 0X0231)
 #define TSDB_CODE_TSC_ENCODE_PARAM_NULL         TAOS_DEF_ERROR_CODE(0, 0X0232)
+#define TSDB_CODE_TSC_COMPRESS_PARAM_ERROR      TAOS_DEF_ERROR_CODE(0, 0X0233)
+#define TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR TAOS_DEF_ERROR_CODE(0, 0X0234)
 #define TSDB_CODE_TSC_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0X02FF)
 
 // mnode-common
@@ -275,7 +285,6 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_STB_OPTION        TAOS_DEF_ERROR_CODE(0, 0x036E)
 #define TSDB_CODE_MND_INVALID_ROW_BYTES         TAOS_DEF_ERROR_CODE(0, 0x036F)
 #define TSDB_CODE_MND_FIELD_VALUE_OVERFLOW           TAOS_DEF_ERROR_CODE(0, 0x0370)
-#define TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST TAOS_DEF_ERROR_CODE(0, 0x0371)
 
 
 // mnode-func
@@ -398,6 +407,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_TARGET_TABLE      TAOS_DEF_ERROR_CODE(0, 0x03F7)
 
 
+#define TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST TAOS_DEF_ERROR_CODE(0, 0x03F8)
 
 // dnode
 // #define TSDB_CODE_DND_MSG_NOT_PROCESSED      TAOS_DEF_ERROR_CODE(0, 0x0400) // 2.x

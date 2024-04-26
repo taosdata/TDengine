@@ -130,7 +130,7 @@ static void tsdbClosePgCache(STsdb *pTsdb) {
 enum {
   LFLAG_LAST_ROW = 0,
   LFLAG_LAST = 1,
-  LFLAG_PRIMARY_KEY = (1 << 4),
+  LFLAG_PRIMARY_KEY = CACHESCAN_RETRIEVE_PK,
 };
 
 typedef struct {
@@ -1637,8 +1637,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
       SLastCol lastCol = *pLastCol;
-      for (int8_t i = 0; i < lastCol.rowKey.numOfPKs; i++) {
-        reallocVarDataVal(&lastCol.rowKey.pks[i]);
+      for (int8_t j = 0; j < lastCol.rowKey.numOfPKs; j++) {
+        reallocVarDataVal(&lastCol.rowKey.pks[j]);
       }
       reallocVarData(&lastCol.colVal);
       taosArrayPush(pLastArray, &lastCol);
@@ -1667,8 +1667,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
         SLastCol lastCol = *pLastCol;
-        for (int8_t i = 0; i < lastCol.rowKey.numOfPKs; i++) {
-          reallocVarDataVal(&lastCol.rowKey.pks[i]);
+        for (int8_t j = 0; j < lastCol.rowKey.numOfPKs; j++) {
+          reallocVarDataVal(&lastCol.rowKey.pks[j]);
         }
         reallocVarData(&lastCol.colVal);
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
