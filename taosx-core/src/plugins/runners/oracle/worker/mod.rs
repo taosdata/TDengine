@@ -16,6 +16,12 @@ const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
 pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
+    // mark the current time
+    let now = Utc::now();
+
+    // schema
+    let mut query = OracleQuery::try_new(config.connect.clone())?;
+
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
     if breakpoint.is_some() {
@@ -23,12 +29,6 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
         tracing::info!("migrate oracle from breakpoint: {}", config.task.start);
     }
     tracing::info!("migrate oracle start, config: {:?}", config);
-
-    // mark the current time
-    let now = Utc::now();
-
-    // schema
-    let mut query = OracleQuery::try_new(config.connect.clone())?;
 
     // generate sql
     let sql = config.task.generate_sql()?;

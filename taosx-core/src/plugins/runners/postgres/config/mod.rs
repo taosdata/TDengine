@@ -232,7 +232,7 @@ impl TaskConfig {
             let query_start = format!("'{}'", start.format("%H:%M:%S"));
             let mut query_end = format!("'{}'", end.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "'00:00:00'" {
+            if query_end == "'00:00:00'" || end.signed_duration_since(start) > Duration::days(1) {
                 query_end = String::from("'24:00:00'");
             }
             sql = sql
