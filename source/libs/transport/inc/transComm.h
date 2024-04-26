@@ -19,16 +19,12 @@ extern "C" {
 #endif
 
 #include <uv.h>
-#include "os.h"
-#include "taoserror.h"
 #include "theap.h"
-#include "tmisce.h"
 #include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
-#include "tutil.h"
 
 typedef bool (*FilteFunc)(void* arg);
 
@@ -121,7 +117,6 @@ typedef struct SExHandle {
   queue    q;
   int8_t   inited;
   SRWLatch latch;
-
 } SExHandle;
 
 typedef struct {
@@ -260,21 +255,21 @@ void        transAsyncPoolDestroy(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
 bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
-#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
-  do {                                                        \
-    for (int i = 0; i < pool->nAsync; i++) {                  \
-      uv_async_t* async = &(pool->asyncs[i]);                 \
-      SAsyncItem* item = async->data;                         \
-      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
-        tTrace("destroy msg in async pool ");                 \
-        queue* h = QUEUE_HEAD(&item->qmsg);                   \
-        QUEUE_REMOVE(h);                                      \
-        msgType* msg = QUEUE_DATA(h, msgType, q);             \
-        if (msg != NULL) {                                    \
-          freeFunc(msg);                                      \
-        }                                                     \
-      }                                                       \
-    }                                                         \
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
+  do {                                                               \
+    for (int i = 0; i < pool->nAsync; i++) {                         \
+      uv_async_t* async = &(pool->asyncs[i]);                        \
+      SAsyncItem* item = async->data;                                \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                         \
+        tTrace("destroy msg in async pool ");                        \
+        queue* h = QUEUE_HEAD(&item->qmsg);                          \
+        QUEUE_REMOVE(h);                                             \
+        msgType* msg = QUEUE_DATA(h, msgType, q);                    \
+        if (msg != NULL) {                                           \
+          freeFunc(msg, param);                                      \
+        }                                                            \
+      }                                                              \
+    }                                                                \
   } while (0)
 
 #define ASYNC_CHECK_HANDLE(exh1, id)                                                                         \

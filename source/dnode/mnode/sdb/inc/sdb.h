@@ -153,7 +153,8 @@ typedef enum {
   SDB_COMPACT = 24,
   SDB_COMPACT_DETAIL = 25,
   SDB_GRANT = 26,  // grant log
-  SDB_MAX = 27
+  SDB_ARBGROUP = 27,
+  SDB_MAX = 28
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -350,6 +351,11 @@ void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2
  * @return int32_t The number of rows in the table
  */
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
+
+/**
+ * @brief get valid number of rows, removed rows are ignored
+ */
+int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type);
 
 /**
  * @brief Get the max id of the table, keyType of table should be INT32

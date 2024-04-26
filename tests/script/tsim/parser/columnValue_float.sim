@@ -29,22 +29,22 @@ if $data05 != NULL then
 endi
 sql create table st_float_2  using mt_float tags ('NULL')
 sql show tags from  st_float_2
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_3  using mt_float tags ('NULL')
 sql show tags from  st_float_3
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_4  using mt_float tags ("NULL")
 sql show tags from  st_float_4
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_5  using mt_float tags ("NULL")
 sql show tags from  st_float_5
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_6  using mt_float tags (-123.321)
@@ -156,16 +156,62 @@ if $data05 != 0.00150 then
   print expect 0.00150, actual: $data05
   return -1
 endi
-#sql create table st_float_15_0 using mt_float tags (3.40282347e+38)
-#sql show tags from  st_float_15_0
-#if $data05 != 0.001500 then
-#  return -1
-#endi
-#sql create table st_float_16_0 using mt_float tags (-3.40282347e+38)
-#sql show tags from  st_float_16_0
-#if $data05 != 0.001500 then
-#  return -1
-#endi
+sql create table st_float_15_0 using mt_float tags (3.40282346638528859811704183484516925e+38)
+sql show tags from  st_float_15_0
+if $data05 < 340282346638528859811704183484516925000 then
+  return -1
+endi
+if $data05 > 340282346638528859811704183484516925900 then
+  return -1
+endi
+sql create table st_float_16_0 using mt_float tags (-3.40282346638528859811704183484516925e+38)
+sql show tags from  st_float_16_0
+if $data05 < -340282346638528859811704183484516925900 then
+  return -1
+endi
+if $data05 > -340282346638528859811704183484516925000 then
+  return -1
+endi
+sql create table st_float_100 using mt_float tags ("0x01")
+sql show tags from  st_float_100
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_101 using mt_float tags ("0b01")
+sql show tags from  st_float_101
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_102 using mt_float tags ("+0x01")
+sql show tags from  st_float_102
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_103 using mt_float tags ("-0b01")
+sql show tags from  st_float_103
+if $data05 != -1.00000 then
+  return -1
+endi
+sql create table st_float_200 using mt_float tags ( 0x01)
+sql show tags from  st_float_200
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_201 using mt_float tags (0b01 )
+sql show tags from  st_float_201
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_202 using mt_float tags (+0x01)
+sql show tags from  st_float_202
+if $data05 != 1.00000 then
+  return -1
+endi
+sql create table st_float_203 using mt_float tags ( -0b01 )
+sql show tags from  st_float_203
+if $data05 != -1.00000 then
+  return -1
+endi
 
 ## case 01: insert values  for test column values
 sql insert into st_float_0  values (now, NULL)
@@ -214,6 +260,70 @@ if $rows != 1 then
   return -1
 endi
 if $data01 != NULL then
+  return -1
+endi
+sql insert into  st_float_100 values(now, "0x01")
+sql select * from st_float_100
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_101 values(now, "0b01")
+sql select * from st_float_101
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_102 values(now, "+0x01")
+sql select * from st_float_102
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_103 values(now, "-0b01")
+sql select * from st_float_103
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -1.00000 then
+  return -1
+endi
+sql insert into  st_float_200 values(now,  0x01)
+sql select * from st_float_200
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_201 values(now, 0b01 )
+sql select * from st_float_201
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_202 values(now, +0x01)
+sql select * from st_float_202
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into  st_float_203 values(now,  -0b01 )
+sql select * from st_float_203
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -1.00000 then
   return -1
 endi
 
@@ -425,6 +535,78 @@ sql select * from st_float_28
 if $data01 != -5.60000 then
   return -1
 endi
+sql insert into st_float_100 using mt_float tags ("0x01") values (now, "0x01")
+sql show tags from  st_float_100
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_100
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_101 using mt_float tags ("0b01") values (now, "0b01")
+sql show tags from  st_float_101
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_101
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_102 using mt_float tags ("+0x01") values (now, "+0x01")
+sql show tags from  st_float_102
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_102
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_103 using mt_float tags ("-0b01") values (now, "-0b01")
+sql show tags from  st_float_103
+if $data05 != -1.00000 then
+  return -1
+endi
+sql select * from st_float_103
+if $data01 != -1.00000 then
+  return -1
+endi
+sql insert into st_float_200 using mt_float tags ( 0x01) values (now, 0x01)
+sql show tags from  st_float_200
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_200
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_201 using mt_float tags (0b01 ) values (now, 0b01)
+sql show tags from  st_float_201
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_201
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_202 using mt_float tags (+0x01) values (now, +0x01)
+sql show tags from  st_float_202
+if $data05 != 1.00000 then
+  return -1
+endi
+sql select * from st_float_202
+if $data01 != 1.00000 then
+  return -1
+endi
+sql insert into st_float_203 using mt_float tags ( -0b01 ) values (now, -0b01)
+sql show tags from  st_float_203
+if $data05 != -1.00000 then
+  return -1
+endi
+sql select * from st_float_203
+if $data01 != -1.00000 then
+  return -1
+endi
 
 ### case 03: alter tag values
 sql alter table st_float_0 set tag tagname=340282346638528859811704183484516925440.00000
@@ -468,6 +650,46 @@ sql show tags from  st_float_0
 if $data05 != -63.58200 then
   return -1
 endi
+sql alter table st_float_100 set tag tagname="0x01"
+sql show tags from  st_float_100
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_101 set tag tagname="0b01"
+sql show tags from  st_float_101
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_102 set tag tagname="+0x01"
+sql show tags from  st_float_102
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_103 set tag tagname="-0b01"
+sql show tags from  st_float_103
+if $data05 != -1.00000 then
+  return -1
+endi
+sql alter table st_float_200 set tag tagname= 0x01
+sql show tags from  st_float_200
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_201 set tag tagname=0b01 
+sql show tags from  st_float_201
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_202 set tag tagname=+0x01
+sql show tags from  st_float_202
+if $data05 != 1.00000 then
+  return -1
+endi
+sql alter table st_float_203 set tag tagname= -0b01 
+sql show tags from  st_float_203
+if $data05 != -1.00000 then
+  return -1
+endi
 
 ## case 04: illegal input
 sql_error create table st_float_e0 using mt_float tags (3.50282347e+38)
@@ -477,11 +699,11 @@ sql_error create table st_float_e0 using mt_float tags (-333.40282347e+38)
 #sql_error create table st_float_e0 using mt_float tags (12.80)   truncate integer part
 #sql_error create table st_float_e0 using mt_float tags (-11.80)
 sql_error create table st_float_e0 using mt_float tags (123abc)
-sql create table st_float_e0_1 using mt_float tags ("123abc")
+sql_error create table st_float_e0_1 using mt_float tags ("123abc")
 sql_error create table st_float_e0 using mt_float tags (abc)
-sql create table st_float_e0_2 using mt_float tags ("abc")
-sql create table st_float_e0_3 using mt_float tags (" ")
-sql create table st_float_e0_4 using mt_float tags ('')
+sql_error create table st_float_e0_2 using mt_float tags ("abc")
+sql_error create table st_float_e0_3 using mt_float tags (" ")
+sql_error create table st_float_e0_4 using mt_float tags ('')
 
 sql create table st_float_e0  using mt_float tags (123)
 sql create table st_float_e1  using mt_float tags (123)
@@ -534,7 +756,7 @@ sql_error insert into st_float_e20 using mt_float tags ("123abc") values (now, -
 sql_error insert into st_float_e22 using mt_float tags (abc)      values (now, -033)
 sql_error insert into st_float_e23 using mt_float tags ("abc")    values (now, -033)
 sql_error insert into st_float_e24 using mt_float tags (" ")      values (now, -033)
-sql insert into st_float_e25_3 using mt_float tags ('')       values (now, -033)
+sql_error insert into st_float_e25_3 using mt_float tags ('')     values (now, -033)
 
 sql insert into st_float_e13 using mt_float tags (033) values (now, 00062)
 sql insert into st_float_e14 using mt_float tags (033) values (now, 00062)
@@ -555,10 +777,10 @@ sql_error alter table st_float_e14 set tag tagname=-3.50282347e+38
 sql_error alter table st_float_e15 set tag tagname=13.40282347e+38
 sql_error alter table st_float_e16 set tag tagname=-13.40282347e+38
 sql_error alter table st_float_e19 set tag tagname=123abc
-sql alter table st_float_e20 set tag tagname="123abc"
+sql_error alter table st_float_e20 set tag tagname="123abc"
 sql_error alter table st_float_e22 set tag tagname=abc
-sql alter table st_float_e23 set tag tagname="abc"
-sql alter table st_float_e24 set tag tagname=" "
-sql alter table st_float_e25 set tag tagname=''
+sql_error alter table st_float_e23 set tag tagname="abc"
+sql_error alter table st_float_e24 set tag tagname=" "
+sql_error alter table st_float_e25 set tag tagname=''
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

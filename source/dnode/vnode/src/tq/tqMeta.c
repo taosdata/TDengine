@@ -76,7 +76,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
 }
 
 int32_t tqMetaOpen(STQ* pTq) {
-  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, 0, NULL) < 0) {
     return -1;
   }
 
@@ -87,10 +87,6 @@ int32_t tqMetaOpen(STQ* pTq) {
   if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
     return -1;
   }
-
-//  if (tqMetaRestoreHandle(pTq) < 0) {
-//    return -1;
-//  }
 
   if (tqMetaRestoreCheckInfo(pTq) < 0) {
     return -1;
@@ -167,32 +163,30 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
   void*    pVal = NULL;
   int      vLen = 0;
   SDecoder decoder;
+  int32_t  code = 0;
 
   tdbTbcMoveToFirst(pCur);
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     STqCheckInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
+    code = tDecodeSTqCheckInfo(&decoder, &info);
+    if (code != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-      return -1;
+      goto END;
     }
     tDecoderClear(&decoder);
-    if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
+    code = taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo));
+    if (code != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-      return -1;
+      goto END;
     }
   }
+END:
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
-  return 0;
+  return code;
 }
 
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {

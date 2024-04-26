@@ -28,8 +28,8 @@
 #define MIN_NUM_OF_ROW_BUFF            10240
 #define MIN_NUM_OF_RECOVER_ROW_BUFF    128
 
-#define TASK_KEY                       "streamFileState"
-#define STREAM_STATE_INFO_NAME         "StreamStateCheckPoint"
+#define TASK_KEY               "streamFileState"
+#define STREAM_STATE_INFO_NAME "StreamStateCheckPoint"
 
 struct SStreamFileState {
   SList*   usedBuffs;
@@ -442,6 +442,7 @@ SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
 }
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pFileState->maxTs = TMAX(pFileState->maxTs, pFileState->getTs(pKey));
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
   if (pos) {
@@ -449,17 +450,18 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     *pVal = *pos;
     (*pos)->beUsed = true;
     (*pos)->beFlushed = false;
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   ASSERT(pNewPos->pRowBuff);
   memcpy(pNewPos->pKey, pKey, keyLen);
+  code = TSDB_CODE_FAILED;
 
   TSKEY ts = pFileState->getTs(pKey);
   if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts, 0)) {
     int32_t len = 0;
     void*   p = NULL;
-    int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
+    code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
     qDebug("===stream===get %" PRId64 " from disc, res %d", ts, code);
     if (code == TSDB_CODE_SUCCESS) {
       memcpy(pNewPos->pRowBuff, p, len);
@@ -472,7 +474,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     *pVLen = pFileState->rowSize;
     *pVal = pNewPos;
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
@@ -558,7 +560,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 
   int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
 
-  int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 1;
+  int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 64;
   char*   buf = taosMemoryCalloc(1, len);
 
   void* batch = streamStateCreateBatch();
@@ -610,7 +612,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 }
 
 int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
-  char        keyBuf[128] = {0};
+  char keyBuf[128] = {0};
   sprintf(keyBuf, "%s:%" PRId64 "", TASK_KEY, checkpointId);
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
 }
@@ -620,8 +622,8 @@ int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
 }
 
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  int64_t     maxCheckPointId = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t maxCheckPointId = 0;
   {
     char    buf[128] = {0};
     void*   val = NULL;

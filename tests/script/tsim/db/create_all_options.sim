@@ -362,7 +362,7 @@ if $data4_db != 1 then
   return -1
 endi
 sql drop database db
-sql_error create database db REPLICA 2
+#sql_error create database db REPLICA 2
 sql_error create database db REPLICA 0
 sql_error create database db REPLICA -1
 sql_error create database db REPLICA 4

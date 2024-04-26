@@ -168,7 +168,7 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql, queryTimes=30, show=False):
+    def execute(self, sql, queryTimes=10, show=False):
         self.sql = sql
         if show:
             tdLog.info(sql)
@@ -658,6 +658,7 @@ class TDSql:
     def checkAgg(self, sql, expectCnt):
         self.query(sql)
         self.checkData(0, 0, expectCnt)
+        tdLog.info(f"{sql} expect {expectCnt} ok.")
     
     # expect first value
     def checkFirstValue(self, sql, expect):

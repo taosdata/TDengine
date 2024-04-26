@@ -56,10 +56,11 @@ typedef struct SMsortComparParam {
   bool    cmpGroupId;
 
   int32_t sortType;
-  // the following field to speed up when sortType == SORT_BLOCK_TS_MERGE
+  // the following fields to speed up sorting when sortType == SORT_BLOCK_TS_MERGE
   int32_t tsSlotId;
-  int32_t order;
-  __compar_fn_t cmpFn;
+  int32_t tsOrder;
+  __compar_fn_t cmpTsFn;
+  void* pPkOrder; // SBlockOrderInfo*
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
@@ -194,6 +195,9 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsSize);
+
+void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 /**
  * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
  * @param [in] pSortCols cols to comp and build
@@ -208,6 +212,9 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
  * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
 */
 void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
+
+int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
+                      int32_t leftRowIndex, int32_t rightRowIndex, void* pOrder);
 #ifdef __cplusplus
 }
 #endif

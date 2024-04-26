@@ -470,7 +470,9 @@ class TDTestCase:
         tdSql.checkRows(40)
 
         # bug need fix
-        tdSql.query("select tbname , csum(c1), csum(c12) from db.stb1 partition by tbname")
+        tdSql.query("select tbname , st1, csum(c1), csum(c12) from db.stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select tbname , cast(st1 as binary(24)), csum(c1), csum(c12) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
         tdSql.query("select tbname , csum(st1) from db.stb1 partition by tbname")
         tdSql.checkRows(70)

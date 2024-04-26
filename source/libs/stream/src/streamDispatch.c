@@ -589,9 +589,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
       if(pTask->subtableWithoutMd5 != 1 &&
-         !isAutoTableName(pDataBlock->info.parTbName) &&
-         !alreadyAddGroupId(pDataBlock->info.parTbName) &&
-         groupId != 0){
+          !isAutoTableName(pDataBlock->info.parTbName) &&
+          !alreadyAddGroupId(pDataBlock->info.parTbName) &&
+          groupId != 0){
         if(pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER){
           buildCtbNameAddGroupId(NULL, pDataBlock->info.parTbName, groupId);
         }else if(pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
@@ -958,6 +958,7 @@ void streamClearChkptReadyMsg(SStreamTask* pTask) {
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
   stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
+
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
 
   if (delayDispatch) {
