@@ -64,13 +64,15 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     col_id_t       colId = -1;
 
     SArray* funcTypeBlockArray = taosArrayInit(pReader->numOfCols, sizeof(int32_t));
+
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       int32_t          funcType = FUNCTION_TYPE_CACHE_LAST;
+
       if (pReader->pFuncTypeList != NULL && taosArrayGetSize(pReader->pFuncTypeList) > i) {
         funcType = *(int32_t*)taosArrayGet(pReader->pFuncTypeList, i);
+        taosArrayInsert(funcTypeBlockArray, dstSlotIds[i], taosArrayGet(pReader->pFuncTypeList, i));
       }
-      taosArrayInsert(funcTypeBlockArray, dstSlotIds[i], taosArrayGet(pReader->pFuncTypeList, i));
 
       if (slotIds[i] == -1) {
         if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {

@@ -424,7 +424,7 @@ typedef struct STaskOutputInfo {
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
-  SArray*       pDownstreamUpdateList;
+  SArray*       pNodeEpsetUpdateList;
 } STaskOutputInfo;
 
 typedef struct SUpstreamInfo {
@@ -445,6 +445,8 @@ typedef struct STaskCheckInfo {
   int32_t       notReadyTasks;
   int32_t       inCheckProcess;
   int32_t       stopCheckProcess;
+  int32_t       notReadyRetryCount;
+  int32_t       timeoutRetryCount;
   tmr_h         checkRspTmr;
   TdThreadMutex checkInfoLock;
 } STaskCheckInfo;
@@ -484,7 +486,7 @@ struct SStreamTask {
   SSHashObj*          pNameMap;
   void*               pBackend;
   int8_t              subtableWithoutMd5;
-  char                reserve[255];
+  char                reserve[256];
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
@@ -848,7 +850,7 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id);
 int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
                                   int32_t* pNotReady, const char* id);
-void    streamTaskCleanCheckInfo(STaskCheckInfo* pInfo);
+void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
 
