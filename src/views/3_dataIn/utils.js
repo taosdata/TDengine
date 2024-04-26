@@ -760,8 +760,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
           return !!conflict;
         };
       }
-      // postgres 的 sql 在编辑状态下不能修改
-      if (currentType == 'postgres' && paramConfig.field == 'sql') {
+      // postgres/mysql 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
@@ -796,6 +796,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         }
       }
       if (paramConfig.type == 'time') {
+        console.log('value',value);
         paramConfig.valueFormat = 'yyyy-MM-dd HH:mm:ss';
         paramConfig.dateType = 'datetime';
       }

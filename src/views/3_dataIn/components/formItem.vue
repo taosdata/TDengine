@@ -353,18 +353,18 @@ export default {
       switch (type) {
         case "taos":
         case "postgres":
-          this.date1 = new Date(groupsData?.start) ?? 0;
-          this.date2 = new Date(groupsData?.end) ?? 0;
+        case "mysql":
+          this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
+          this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;
         case "avevaHistorian":
-        case "mysql":
-          this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
-          this.date2 = new Date(groupsData?.endDateTime) ?? 0;
+          this.date1 = groupsData?.beginDateTime ? new Date(groupsData?.beginDateTime) : 0;
+          this.date2 = groupsData?.endDateTime ? new Date(groupsData?.endDateTime) : 0;
           break;
         case "influxdb":
         case "opentsdb":
-          this.date1 = new Date(groupsData?.beginTime) ?? 0;
-          this.date2 = new Date(groupsData?.endTime) ?? 0;
+          this.date1 = groupsData?.beginTime ? new Date(groupsData?.beginTime) : 0;
+          this.date2 = groupsData?.endTime ? new Date(groupsData?.endTime) : 0;
           break;
         default:
           break;
