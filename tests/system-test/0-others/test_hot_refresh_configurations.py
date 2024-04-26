@@ -100,7 +100,7 @@ class TDTestCase:
                     "name": "timeseriesInterval",
                     "alias": "tsTimeSeriesInterval",
                     "values": [1, 10, 100],
-                    "except_values": [-2, 2001]
+                    "except_values": [-1, 0, 101]
                 },
                 {
                     "name": "minDiskFreeSize",
