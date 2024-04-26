@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+#define PROCESS_THRESHOLD (2000 * 1000)
+
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
   int32_t code = 0;
   taosThreadRwlockRdlock(&pMgmt->lock);
@@ -52,6 +54,14 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = mndProcessRpcMsg(pMsg);
+
+  if (pInfo->timestamp != 0) {
+    int64_t cost = taosGetTimestampUs() - pInfo->timestamp;
+    if (cost > PROCESS_THRESHOLD) {
+      dGWarn("worker:%d,message has been processed for too long, type:%s, cost: %" PRId64 "s", pInfo->threadNum,
+             TMSG_INFO(pMsg->msgType), cost / (1000 * 1000));
+    }
+  }
 
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
