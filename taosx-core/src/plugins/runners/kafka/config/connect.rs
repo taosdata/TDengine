@@ -21,10 +21,7 @@ impl KafkaConnectConfig {
             ca_cert: dsn.get("ca").map(|s| s.to_string()),
             client_cert: dsn.get("cert").map(|s| s.to_string()),
             client_key: dsn.get("cert_key").map(|s| s.to_string()),
-            use_sasl: dsn
-                .get("use_sasl")
-                .map(|s| s.parse::<bool>().unwrap_or(false))
-                .unwrap_or(false),
+            use_sasl: Self::parse_use_sasl(dsn)?,
             sasl_mechanism: dsn.get("sasl_mechanism").map(|s| s.to_string()),
             sasl_username: dsn.get("sasl_username").map(|s| s.to_string()),
             sasl_password: dsn.get("sasl_password").map(|s| s.to_string()),
@@ -48,15 +45,32 @@ impl KafkaConnectConfig {
         Ok(bootstrap_servers)
     }
 
+    // use `ca` to determine whether to use ssl
     fn parse_use_ssl(dsn: &Dsn) -> anyhow::Result<bool> {
-        Ok(dsn
-            .get("use_ssl")
-            .map(|s| {
-                s.parse::<bool>()
-                    .map_err(|e| anyhow::anyhow!("invalid use_ssl, cause: {}", e.to_string()))
-            })
-            .transpose()?
-            .unwrap_or(false))
+        match dsn.get("ca") {
+            Some(ca) => {
+                if ca.is_empty() {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            }
+            None => Ok(false),
+        }
+    }
+
+    // use `sasl_mechanism` to determine whether to use sasl
+    fn parse_use_sasl(dsn: &Dsn) -> anyhow::Result<bool> {
+        match dsn.get("sasl_mechanism") {
+            Some(sasl_mechanism) => {
+                if sasl_mechanism.is_empty() {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            }
+            None => Ok(false),
+        }
     }
 }
 
@@ -94,25 +108,17 @@ mod tests {
 
     #[test]
     fn test_parse_use_ssl() {
-        let dsn = Dsn::from_str("kafka://?use_ssl=true").unwrap();
+        let dsn = Dsn::from_str("kafka://?ca=file").unwrap();
         let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
         assert_eq!(true, use_ssl);
-
-        let dsn = Dsn::from_str("kafka://?use_ssl=false").unwrap();
-        let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(false, use_ssl);
 
         let dsn = Dsn::from_str("kafka://").unwrap();
         let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
         assert_eq!(false, use_ssl);
 
-        let dsn = Dsn::from_str("kafka://?use_ssl=invalid").unwrap();
-        let result = KafkaConnectConfig::parse_use_ssl(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "invalid use_ssl, cause: provided string was not `true` or `false`",
-            result.unwrap_err().to_string()
-        );
+        let dsn = Dsn::from_str("kafka://?ca=").unwrap();
+        let use_ssl = KafkaConnectConfig::parse_use_ssl(&dsn).unwrap();
+        assert_eq!(false, use_ssl);
     }
 
     #[test]
@@ -133,5 +139,20 @@ mod tests {
         assert_eq!("../tests/kafka/ca.cert", config.ca_cert.unwrap());
         assert_eq!("../tests/kafka/client.key", config.client_key.unwrap());
         assert_eq!("../tests/kafka/client.cert", config.client_cert.unwrap());
+    }
+
+    #[test]
+    fn test_parse_use_sasl() {
+        let dsn = Dsn::from_str("kafka://?sasl_mechanism=PLAIN").unwrap();
+        let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
+        assert_eq!(true, use_sasl);
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
+        assert_eq!(false, use_sasl);
+
+        let dsn = Dsn::from_str("kafka://?sasl_mechanism=").unwrap();
+        let use_sasl = KafkaConnectConfig::parse_use_sasl(&dsn).unwrap();
+        assert_eq!(false, use_sasl);
     }
 }
