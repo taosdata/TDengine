@@ -47,7 +47,7 @@ You can see that `ENCRYPTION_ALGORITHM` is the key option for enabling encryptio
 
 ## Alter Encryption Algorithm
 
-You can change the encryption algorithm using `alter database` SQL command to switch between the supported algorithms. Because we support only `sm4` and `none`, the real effect for now is enabling and disabling if you use `alter` command to change the encryption algorithm.
+It's not allowed to change the encryption algorithm after a database is created.
 
 ## View Encryption Details
 
