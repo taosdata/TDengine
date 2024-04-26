@@ -416,7 +416,6 @@
                       size="small"
                       filterable
                       :key="Math.random()"
-                      @change="changeMappingExpr(scope)"
                       class="mapping-rule-expression"
                       :multiple="scope.row.exprname != 'mapping'"
                     >
@@ -833,9 +832,6 @@ export default {
       this.configuredCount = this.tableData.filter(
         (item) => item["Expression"] != ""
       ).length;
-    },
-    changeMappingExpr(scope) {
-      this.$set(this.mappingcolumns[scope.$index], "Expression", "");
     },
     changeCurrentMapExpr(scope) {
       this.$nextTick(() => {
