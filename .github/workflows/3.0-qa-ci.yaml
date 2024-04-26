@@ -389,15 +389,13 @@ jobs:
   
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [remove_artifacts, build_rust, build_java, build_go, deploy_for_mqtt, test_mqtt, deploy_for_others, test_others, generate_report]
+    needs: [generate_report]
     if: always()
     steps: 
       - name: Send Feishu Message
-        if: ${{ needs.build_rust.result != 'success' }} || ${{ needs.build_java.result != 'success' }} || ${{ needs.test_mqtt.result != 'success' }}
+        if: ${{ needs.generate_report.result != 'success' }}
         run: |
-          echo ${{ needs.remove_artifacts.result }}
-          echo ${{ needs.build_rust.result }}
           curl -X POST -H "Content-Type: application/json" \
-          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"github action test send\"}}" \
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
           https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
 
