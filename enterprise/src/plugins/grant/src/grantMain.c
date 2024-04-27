@@ -267,7 +267,7 @@ typedef struct {
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
-static int64_t      grantNotifyCnt = 0;
+static int64_t      grantNotifyTimestamp = 0;
 static int64_t      grantNotifyTimeSeries = INT64_MAX;
 static int64_t      grantClusterEpoch = 0;
 static int64_t      grantClusterTime = 0;
@@ -1343,28 +1343,26 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
     mndSendGrantNotifyToDnode(pMnode, info, &notify);
   }
 
+  grantNotifyTimestamp = taosGetTimestampMs();
+
   taosArrayDestroy(pDnodeInfo);
   return 0;
 }
 
 int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
+  SMnode  *pMnode = pReq->info.node;
+  uint64_t lastTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
 
 #ifndef GRANTS_CFG
-  if (gStatus.curTimeSeries >= gStatus.limitTimeSeries) {
-    if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
-      mndProcessGrantNotify(pReq);
-    }
-    if (grantNotifyCnt >= INT32_MAX) {
-      atomic_store_64(&grantNotifyCnt, grantNotifyCnt & 127);
-    }
+  if ((gStatus.curTimeSeries > gStatus.limitTimeSeries) ||
+      ((gStatus.curTimeSeries - lastTimeSeries > 0) && (taosGetTimestampMs() - grantNotifyTimestamp > 500))) {
+    mndProcessGrantNotify(pReq);
   } else {
     if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
       mndProcessGrantNotify(pReq);
     }
-    if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
   }
 #endif
 
@@ -1600,6 +1598,21 @@ int32_t grantCheckExpire(EGrantType grant) {
       break;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int64_t grantRemain(EGrantType grant) {
+#ifdef GRANTS_CFG
+  return INT64_MAX;
+#else
+  switch (grant) {
+    case TSDB_GRANT_TIMESERIES:
+      return gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED ? INT64_MAX
+                                                             : gStatus.limitTimeSeries - gStatus.curTimeSeries;
+    default:
+      break;
+  }
+  return 0;
+#endif
 }
 
 int32_t grantCheck(EGrantType grant) {
