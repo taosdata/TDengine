@@ -43,12 +43,12 @@ use self::{
     parse::{FieldParser, ParserImpl},
 };
 
-mod select;
+pub(crate) mod select;
 
 // mod json;
 pub mod constants;
 
-mod parse;
+pub(crate) mod parse;
 
 pub(crate) mod filter;
 
@@ -985,10 +985,10 @@ impl FromStr for Parser {
 }
 
 impl Parser {
-    pub fn new(parser: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+    pub fn new(parse: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
         Self {
             global: Arc::new(TableOptions::default()),
-            parse: parser,
+            parse,
             mutate: mutate,
             model: model,
         }

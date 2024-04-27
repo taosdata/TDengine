@@ -67,6 +67,7 @@ use crate::plugins::transform::filter::{Filter, FilterImpl};
 use crate::plugins::transform::map::expr::ExprValueBuilder;
 use crate::plugins::transform::modeler::{Modeler, Table};
 use crate::plugins::transform::mutate::Mutate;
+use crate::plugins::transform::parse::ParserImpl;
 use crate::{
     expr::Expr,
     plugins::transform::{
@@ -83,6 +84,7 @@ use std::str::Lines;
 /// 单列模型配置对象
 /// 从配置对象可以生成 csv 配置文件，反之亦然。
 /// 从配置对象也可以生成 transform 相关对象。
+#[derive(Debug)]
 pub struct PIPointModelConfig {
     pub super_tables: Vec<SuperTableConfig>,
     pub points: Vec<PointRow>,
@@ -193,6 +195,7 @@ impl PIPointModelConfig {
                     template_name: None,
                     filter: None,
                     schema,
+                    template_schema: None,
                 }
             })
             .collect();
@@ -270,6 +273,7 @@ impl Display for PIPointModelConfig {
 /// 多列模型配置对象
 /// 从配置对象可以生成配置文件，反之亦然。
 /// 从配置对象也可以生成 transform 相关对象。
+#[derive(Debug)]
 pub struct PIElementModelConfig {
     pub super_tables: Vec<SuperTableConfig>,
     pub elements: Vec<ElementRow>,
@@ -380,6 +384,7 @@ impl PIElementModelConfig {
                     template_name: Some(template_name.to_string()),
                     filter: None,
                     schema,
+                    template_schema: None,
                 }
             })
             .collect();
@@ -479,6 +484,7 @@ impl PIElementModelConfig {
                 template_name: None,
                 filter: None,
                 schema,
+                template_schema: None,
             });
         }
     }
@@ -491,7 +497,6 @@ impl PIElementModelConfig {
 /// # Returns
 /// * 返回一个元组，第一个元素是超级表定义列表，第二个元素是对象列表
 fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<String>) {
-    let content = content.to_lowercase();
     let lines: Lines<'_> = content.lines();
     let lines: SkipWhile<Lines, _> =
         lines.skip_while(|line| line.trim().is_empty() || line.trim().starts_with('#'));
@@ -504,8 +509,9 @@ fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<S
         let line = line.map(|line| line.trim());
         match line {
             Some(line) => {
+                let lower_line = line.to_lowercase();
                 // 非 elemnt 即 supertable
-                if line.contains(object_filter) {
+                if lower_line.contains(object_filter) {
                     object_lines.push(line.to_string());
                 } else if !line.is_empty() {
                     current_super_table.push_str(line);
@@ -516,7 +522,8 @@ fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<S
                 let next_line = next_line.map(|line| line.trim());
                 match next_line {
                     Some(next_line) => {
-                        if next_line.starts_with("supertable") {
+                        let lower_next_line = next_line.to_lowercase();
+                        if lower_next_line.starts_with("supertable") {
                             current_super_table.pop(); // remove the last '\n'
                             super_table_csv_lines.push(current_super_table);
                             current_super_table = String::new();
@@ -647,6 +654,9 @@ pub struct SuperTableConfig {
     pub filter: Option<String>,
     // schema 部分
     pub schema: Vec<SchemaRow>,
+    // 关联的模板的 Schema，用于生成 Parser 的 parse 对象
+    // 可以把它看做 transform 之前的数据的 schema
+    pub template_schema: Option<Vec<SchemaRow>>,
 }
 
 impl SuperTableConfig {
@@ -659,7 +669,8 @@ impl SuperTableConfig {
         let mut schema: Vec<SchemaRow> = Vec::<SchemaRow>::new();
         for line in lines {
             let parts = line.split(',').collect::<Vec<&str>>();
-            match parts[0] {
+            let part_0 = parts[0].to_lowercase();
+            match part_0.as_str() {
                 "supertable" => {
                     super_table_name = Some(parts[1].to_string());
                 }
@@ -680,7 +691,9 @@ impl SuperTableConfig {
                         ));
                     }
                     let column_name = parts[0].to_string();
-                    let column_type = match parts[1] {
+                    let obj_type = parts[1].to_string();
+                    let obj_type = obj_type.to_lowercase();
+                    let column_type = match obj_type.as_str() {
                         "tag" => ColumnType::TAG,
                         "column" => ColumnType::COLUMN,
                         "key" => ColumnType::Key,
@@ -711,6 +724,7 @@ impl SuperTableConfig {
             template_name,
             filter,
             schema,
+            template_schema: None,
         })
     }
 
@@ -750,9 +764,10 @@ impl SuperTableConfig {
         }
 
         let options = std::sync::OnceLock::<std::sync::Arc<TableOptions>>::new();
-
+        let sub_table_name = self.sub_table_name_pattern.replace('$', "");
+        let sub_table_name = format!("${{{}}}", sub_table_name);
         Table {
-            name: self.sub_table_name_pattern.clone(),
+            name: sub_table_name,
             using: Some(self.super_table_name.clone()),
             tags: Some(tags),
             columns: Some(columns),
@@ -775,11 +790,29 @@ impl Into<Parser> for SuperTableConfig {
         }
         let table = self.get_table_model();
         let model = Modeler::new(vec![table]);
+        // let parse: ParserImpl = serde_json::from_str(
+        //     r#"{
+        //         "ts": {"as": "TIMESTAMP(ms)"},
+        //         "value": {"as": "FLOAT"},
+        //         "status": {"as": "INT"},
+        //         "path": {"as": "NCHAR(100)"},
+        //         "tag": {"as": "NCHAR(100)"},
+        //         "descriptor": {"as": "NCHAR(100)"},
+        //         "exdesc": {"as": "NCHAR(100)"},
+        //         "engunits": {"as": "NCHAR(100)"},
+        //         "pointsource": {"as": "NCHAR(100)"},
+        //         "step": {"as": "NCHAR(100)"},
+        //         "future": {"as": "NCHAR(100)"},
+        //         "element_paths": {"as": "NCHAR(100)"}
+        //     }"#,
+        // )
+        // .expect("Deserialize ParserImpl failed");
         Parser::new(None, mutate, model)
     }
 }
 
 /// 代表单列模型配置文件点位列表部分的一行
+#[derive(Debug)]
 pub struct PointRow {
     pub point_name: String,
     pub super_table: String,
@@ -788,7 +821,9 @@ pub struct PointRow {
 impl PointRow {
     fn from_csv(csv: String) -> anyhow::Result<Self> {
         let parts = csv.split(',').collect::<Vec<&str>>();
-        if parts[1] != "point" {
+        let obj_type = parts[1].to_lowercase();
+        let obj_type = obj_type.as_str();
+        if obj_type != "point" {
             return Err(anyhow::anyhow!("Invalid point row"));
         }
         if parts.len() != 3 {
@@ -804,6 +839,7 @@ impl PointRow {
 }
 
 /// 代表多列模型配置文件元素列表部分的一行
+#[derive(Debug)]
 pub struct ElementRow {
     pub element_name: String,
     pub super_table: String,
@@ -814,7 +850,9 @@ pub struct ElementRow {
 impl ElementRow {
     fn from_csv(csv: String) -> anyhow::Result<Self> {
         let parts = csv.split(',').collect::<Vec<&str>>();
-        if parts[1] != "element" {
+        let obj_type = parts[1].to_lowercase();
+        let obj_type = obj_type.as_str();
+        if obj_type != "element" {
             return Err(anyhow::anyhow!("Invalid element row"));
         }
         if parts.len() < 4 {
@@ -908,6 +946,8 @@ const DOC_FOR_POINT_MODEL: &str = r#"# ------------------- How to Configure ----
 
 #[cfg(test)]
 mod tests {
+    use crate::sink::lush::LushModelConfig;
+
     use super::*;
 
     #[test]
@@ -924,6 +964,39 @@ mod tests {
         std::fs::write("element_model.csv", config.unwrap().to_string()).unwrap();
         let config = PIElementModelConfig::from_csv("element_model.csv").unwrap();
         println!("{}", config.to_csv());
+    }
+
+    #[test]
+    fn test_from_csv() {
+        let config = PIPointModelConfig::from_csv("point_model.csv").unwrap();
+        let config: LushModelConfig = config.into();
+        println!("{:?}", config);
+
+        let config = PIElementModelConfig::from_csv("element_model.csv").unwrap();
+        let config: LushModelConfig = config.into();
+        println!("{:?}", config);
+    }
+
+    #[test]
+    fn test_create_parse() {
+        let parse: ParserImpl = serde_json::from_str(
+            r#"{
+                "ts": {"as": "TIMESTAMP(ms)"},
+                "value": {"as": "FLOAT"},
+                "status": {"as": "INT"},
+                "path": {"as": "NCHAR(100)"},
+                "tag": {"as": "NCHAR(100)"},
+                "descriptor": {"as": "NCHAR(100)"},
+                "exdesc": {"as": "NCHAR(100)"},
+                "engunits": {"as": "NCHAR(100)"},
+                "pointsource": {"as": "NCHAR(100)"},
+                "step": {"as": "NCHAR(100)"},
+                "future": {"as": "NCHAR(100)"},
+                "element_paths": {"as": "NCHAR(100)"}
+            }"#,
+        )
+        .expect("Deserialize ParserImpl failed");
+        println!("{:?}", parse);
     }
 
     const POINT_DATA: &str = r#"
