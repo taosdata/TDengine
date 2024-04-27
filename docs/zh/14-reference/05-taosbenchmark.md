@@ -381,7 +381,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **gen**: 字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”, 会按自然数顺序增长
 
-- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 false, 只有当 generate_row_rule 为 2 时有效
+- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
 
 #### 插入行为配置参数
 
