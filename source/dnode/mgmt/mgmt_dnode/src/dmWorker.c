@@ -74,7 +74,7 @@ static void *dmNotifyThreadFp(void *param) {
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
 
-    uint64_t remainTimeSeries = grantRemain(TSDB_GRANT_TIMESERIES);
+    int64_t remainTimeSeries = grantRemain(TSDB_GRANT_TIMESERIES);
     if (remainTimeSeries == INT64_MAX || remainTimeSeries <= 0) {
       goto _skip;
     }
@@ -110,7 +110,7 @@ static void *dmNotifyThreadFp(void *param) {
     notifyTimeStamp[tail] = taosGetTimestampNs();
     ++nTotalNotify;
 
-    uint64_t approximateTimeSeries = 0;
+    int64_t approximateTimeSeries = 0;
     if (nTotalNotify >= TIMESERIES_STASH_NUM) {
       int64_t timeDiff = notifyTimeStamp[tail] - notifyTimeStamp[head];
       int64_t tsDiff = notifyTimeSeries[tail] - notifyTimeSeries[head];
