@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "tgrant.h"
 #include "thttp.h"
 
 static void *dmStatusThreadFp(void *param) {
@@ -47,7 +48,7 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-
+#define TIMESERIES_STASH_NUM 5
 static void *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -57,17 +58,75 @@ static void *dmNotifyThreadFp(void *param) {
     return NULL;
   }
 
-  bool    wait = true;
-  int64_t lastNotify = 0;
+  // calculate approximate timeSeries per second
+  int64_t  notifyTimeStamp[TIMESERIES_STASH_NUM];
+  int64_t  notifyTimeSeries[TIMESERIES_STASH_NUM];
+  uint64_t nTotalNotify = 0;
+  int32_t  head = -1;
+  int32_t  tail = 0;
+
+  bool       wait = true;
+  int32_t    nDnode = 0;
+  int64_t    lastNotify = 0;
+  SNotifyReq req = {0};
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
-    if (taosGetTimestampMs() - lastNotify < tsTimeSeriesInterval) {
-      taosMsleep(tsTimeSeriesInterval);
+
+    uint64_t remainTimeSeries = grantRemain(TSDB_GRANT_TIMESERIES);
+    if (remainTimeSeries == INT64_MAX || remainTimeSeries <= 0) {
+      goto _skip;
     }
-    dmSendNotifyReq(pMgmt);
+    int64_t current = taosGetTimestampMs();
+    if (current - lastNotify > 1000) {
+      nDnode = dmGetDnodeSize(pMgmt->pData);
+    }
+    if(req.dnodeId == 0 || req.clusterId == 0) {
+      req.dnodeId = pMgmt->pData->dnodeId;
+      req.clusterId = pMgmt->pData->clusterId;
+    }
+
+    if (current - lastNotify < 10) {
+      if (remainTimeSeries > 1000000) {
+        taosMsleep(10);
+      } else if (remainTimeSeries > 500000) {
+        taosMsleep(5);
+      } else {
+        taosMsleep(2);
+      }
+    }
+
+    SMonVloadInfo vinfo = {0};
+    (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
+    req.pVloads = vinfo.pVloads;
+    int32_t nVgroup = taosArrayGetSize(req.pVloads);
+    int64_t nTimeSeries = 0;
+    for (int32_t i = 0; i < nVgroup; ++i) {
+      SVnodeLoadLite *vload = TARRAY_GET_ELEM(req.pVloads, i);
+      nTimeSeries += vload->nTimeSeries;
+    }
+    notifyTimeSeries[tail] = nTimeSeries;
+    notifyTimeStamp[tail] = taosGetTimestampNs();
+    ++nTotalNotify;
+
+    uint64_t approximateTimeSeries = 0;
+    if (nTotalNotify >= TIMESERIES_STASH_NUM) {
+      int64_t timeDiff = notifyTimeStamp[tail] - notifyTimeStamp[head];
+      int64_t tsDiff = notifyTimeSeries[tail] - notifyTimeSeries[head];
+      if (timeDiff > 0 && timeDiff < 1e9 && tsDiff > 0) {
+        approximateTimeSeries = (double)tsDiff * 1e9 / timeDiff;
+      }
+    }
+    if (++head == TIMESERIES_STASH_NUM) head = 0;
+    if (++tail == TIMESERIES_STASH_NUM) tail = 0;
+
+    if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+      dmSendNotifyReq(pMgmt, &req);
+    }
+    tFreeSNotifyReq(&req);
     lastNotify = taosGetTimestampMs();
+  _skip:
     if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
       wait = true;
       continue;

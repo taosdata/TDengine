@@ -144,23 +144,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
-void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
-  SNotifyReq req = {0};
-
-  taosThreadRwlockRdlock(&pMgmt->pData->lock);
-  req.dnodeId = pMgmt->pData->dnodeId;
-  taosThreadRwlockUnlock(&pMgmt->pData->lock);
-
-  req.clusterId = pMgmt->pData->clusterId;
-
-  SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
-  req.pVloads = vinfo.pVloads;
-
-  int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
+void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
+  int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
   void   *pHead = rpcMallocCont(contLen);
-  tSerializeSNotifyReq(pHead, contLen, &req);
-  tFreeSNotifyReq(&req);
+  tSerializeSNotifyReq(pHead, contLen, pReq);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
