@@ -19,7 +19,7 @@
 #include "streamInt.h"
 
 typedef struct {
-  UPLOAD_TYPE type;
+  ECHECKPOINT_BACKUP_TYPE type;
   char*       taskId;
   int64_t     chkpId;
 
@@ -416,7 +416,7 @@ int32_t getChkpMeta(char* id, char* path, SArray* list) {
   return code;
 }
 
-int32_t doUploadChkp(void* param) {
+int32_t uploadCheckpointData(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
   int32_t          code = 0;
@@ -426,13 +426,13 @@ int32_t doUploadChkp(void* param) {
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
-  if (arg->type == UPLOAD_S3) {
+  if (arg->type == DATA_UPLOAD_S3) {
     if (code == 0 && (code = getChkpMeta(arg->taskId, path, toDelFiles)) != 0) {
       stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
     }
   }
 
-  if (code == 0 && (code = uploadCheckpoint(arg->taskId, path)) != 0) {
+  if (code == 0 && (code = streamTaskBackupCheckpoint(arg->taskId, path)) != 0) {
     stError("s-task:%s failed to upload checkpoint:%" PRId64, arg->pTask->id.idStr, arg->chkpId);
   }
 
@@ -459,8 +459,8 @@ int32_t doUploadChkp(void* param) {
 
 int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   // async upload
-  UPLOAD_TYPE type = getUploadType();
-  if (type == UPLOAD_DISABLE) {
+  ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+  if (type == DATA_UPLOAD_DISABLE) {
     return 0;
   }
 
@@ -474,7 +474,7 @@ int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   arg->chkpId = chkpId;
   arg->pTask = pTask;
 
-  return streamMetaAsyncExec(pTask->pMeta, doUploadChkp, arg, NULL);
+  return streamMetaAsyncExec(pTask->pMeta, uploadCheckpointData, arg, NULL);
 }
 
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
@@ -558,7 +558,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   return code;
 }
 
-static int uploadCheckpointToS3(char* id, char* path) {
+static int32_t uploadCheckpointToS3(char* id, char* path) {
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) return -1;
 
@@ -590,8 +590,8 @@ static int uploadCheckpointToS3(char* id, char* path) {
   return 0;
 }
 
-static int downloadCheckpointByNameS3(char* id, char* fname, char* dstName) {
-  int   code = 0;
+static int32_t downloadCheckpointByNameS3(char* id, char* fname, char* dstName) {
+  int32_t   code = 0;
   char* buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
   sprintf(buf, "%s/%s", id, fname);
   if (s3GetObjectToFile(buf, dstName) != 0) {
@@ -601,19 +601,19 @@ static int downloadCheckpointByNameS3(char* id, char* fname, char* dstName) {
   return code;
 }
 
-UPLOAD_TYPE getUploadType() {
+ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   if (strlen(tsSnodeAddress) != 0) {
-    return UPLOAD_RSYNC;
+    return DATA_UPLOAD_RSYNC;
   } else if (tsS3StreamEnabled) {
-    return UPLOAD_S3;
+    return DATA_UPLOAD_S3;
   } else {
-    return UPLOAD_DISABLE;
+    return DATA_UPLOAD_DISABLE;
   }
 }
 
-int uploadCheckpoint(char* id, char* path) {
+int32_t streamTaskBackupCheckpoint(char* id, char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
-    stError("uploadCheckpoint parameters invalid");
+    stError("streamTaskBackupCheckpoint parameters invalid");
     return -1;
   }
   if (strlen(tsSnodeAddress) != 0) {
@@ -625,7 +625,7 @@ int uploadCheckpoint(char* id, char* path) {
 }
 
 // fileName:  CURRENT
-int downloadCheckpointByName(char* id, char* fname, char* dstName) {
+int32_t downloadCheckpointByName(char* id, char* fname, char* dstName) {
   if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
     stError("uploadCheckpointByName parameters invalid");
     return -1;
@@ -638,7 +638,7 @@ int downloadCheckpointByName(char* id, char* fname, char* dstName) {
   return 0;
 }
 
-int downloadCheckpoint(char* id, char* path) {
+int32_t downloadCheckpoint(char* id, char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("downloadCheckpoint parameters invalid");
     return -1;
@@ -651,7 +651,7 @@ int downloadCheckpoint(char* id, char* path) {
   return 0;
 }
 
-int deleteCheckpoint(char* id) {
+int32_t deleteCheckpoint(char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
     return -1;
@@ -664,7 +664,7 @@ int deleteCheckpoint(char* id) {
   return 0;
 }
 
-int deleteCheckpointFile(char* id, char* name) {
+int32_t deleteCheckpointFile(char* id, char* name) {
   char object[128] = {0};
   snprintf(object, sizeof(object), "%s/%s", id, name);
   char* tmp = object;
