@@ -75,7 +75,7 @@ static void *dmNotifyThreadFp(void *param) {
     atomic_store_8(&dmNotifyHdl.state, 1);
 
     uint64_t remainTimeSeries = grantRemain(TSDB_GRANT_TIMESERIES);
-    if (remainTimeSeries == INT64_MAX || remainTimeSeries <= 0) {
+    if (remainTimeSeries == UINT64_MAX || remainTimeSeries <= 0) {
       goto _skip;
     }
     int64_t current = taosGetTimestampMs();
