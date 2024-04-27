@@ -1350,7 +1350,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 }
 
 int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
-  SMnode  *pMnode = pReq->info.node;
+  SMnode *pMnode = pReq->info.node;
   int64_t lastTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
