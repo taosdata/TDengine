@@ -1,18 +1,20 @@
 ---
-title: 压缩算法
-description: TDengine 对数据进压缩 
+title: 可配置压缩算法
+description: 可配置压缩算法
 ---
 
 # 可配置存储压缩
 
+从 TDengine 3.3.0.0 版本开始，TDengine 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
+
 ## 压缩术语定义
 
-### 压缩等级定义
+### 压缩等级
 
 - 一级压缩：对数据进行编码，本质也是一种压缩
-- 二级压缩：对数据块进行压缩。
+- 二级压缩：在编码的基础上对数据块进行压缩
 
-### 压缩算法级别
+### 压缩级别
 
 在本文中特指二级压缩算法内部的级别，比如zstd，至少8个level可选，每个level 下都有不同表现，本质是压缩率、压缩速度、解压速度之间的 tradeoff，为了避免选择困难，特简化定义为如下三种级别：
 
@@ -40,9 +42,9 @@ description: TDengine 对数据进压缩
 
 ## SQL 语法
 
-### 创建表的的时候指定压缩方式
+### 建表时指定压缩
 
-```
+```sql
 CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
 ```
 
@@ -59,7 +61,7 @@ CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compr
 
 ### 更改列的压缩方式
 
-```
+```sql
 ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
 
 ```
@@ -75,7 +77,7 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 ### 查看列的压缩方式
 
-```
+```sql
 DESCRIBE [dbname.]tabName
 ```
 
@@ -86,4 +88,4 @@ DESCRIBE [dbname.]tabName
 ## 兼容性
 
 - 完全兼容已经存在的数据
-- 不支持回退
+- 从更低版本升级到 3.3.0.0 后不能回退
