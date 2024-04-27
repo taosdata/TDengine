@@ -97,12 +97,6 @@ class TDTestCase:
                     "except_values": [-2, 2001]
                 },
                 {
-                    "name": "timeseriesInterval",
-                    "alias": "tsTimeSeriesInterval",
-                    "values": [1, 10, 100],
-                    "except_values": [-1, 0, 101]
-                },
-                {
                     "name": "minDiskFreeSize",
                     "alias": "tsMinDiskFreeSize",
                     "values": ["51200K", "100M", "1G"],

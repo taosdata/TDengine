@@ -181,7 +181,6 @@ int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
 int32_t tsTimeSeriesThreshold = 50;
-int64_t tsTimeSeriesInterval = 10;  // ms
 bool    tsMultiResultFunctionStarReturnTags = false;
 
 /*
@@ -784,8 +783,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
-  if (cfgAddInt64(pCfg, "timeseriesInterval", tsTimeSeriesInterval, 1, 100, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
-    return -1;
 
   if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX,
                   CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
@@ -1242,7 +1239,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
   tsTimeSeriesThreshold = cfgGetItem(pCfg, "timeseriesThreshold")->i32;
-  tsTimeSeriesInterval = cfgGetItem(pCfg, "timeseriesInterval")->i64;
 
   tsWalFsyncDataSizeLimit = cfgGetItem(pCfg, "walFsyncDataSizeLimit")->i64;
 
@@ -1561,7 +1557,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"numOfLogLines", &tsNumOfLogLines},
                                          {"queryRspPolicy", &tsQueryRspPolicy},
                                          {"timeseriesThreshold", &tsTimeSeriesThreshold},
-                                         {"timeseriesInterval", &tsTimeSeriesInterval},
                                          {"tmqMaxTopicNum", &tmqMaxTopicNum},
                                          {"tmqRowSize", &tmqRowSize},
                                          {"transPullupInterval", &tsTransPullupInterval},
