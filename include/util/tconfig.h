@@ -107,7 +107,7 @@ int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
-int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
+int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
 
 SConfigIter *cfgCreateIter(SConfig *pConf);

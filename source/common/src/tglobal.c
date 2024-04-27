@@ -1081,13 +1081,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   SEp          firstEp = {0};
   taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
   snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, true);
 
   SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
   SEp          secondEp = {0};
   taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? defaultFirstEp : pSecondpItem->str, &secondEp);
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype, true);
 
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
@@ -1149,9 +1149,10 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
 static void taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+
   osSetTimezone(pItem->str);
   uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
-  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, true);
 
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
@@ -1639,7 +1640,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("firstEp", name) == 0) {
@@ -1654,7 +1656,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       }
@@ -1701,7 +1704,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp secondEp = {0};
         taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? tsFirst : pItem->str, &secondEp);
         snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype);
+        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, false);
         uInfo("%s set to %s", name, tsSecond);
         matched = true;
       } else if (strcasecmp("smlChildTableName", name) == 0) {
@@ -1732,7 +1735,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("slowLogScope", name) == 0) {
@@ -1749,7 +1753,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       if (strcasecmp("timezone", name) == 0) {
         osSetTimezone(pItem->str);
         uInfo("%s set from %s to %s", name, tsTimezoneStr, pItem->str);
-        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+
+        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, false);
         matched = true;
       } else if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);

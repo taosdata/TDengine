@@ -80,7 +80,7 @@ int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
     SConfigPair *pPair = taosArrayGet(pArgs, i);
-    if (cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST) != 0) {
+    if (cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST, true) != 0) {
       return -1;
     }
   }
@@ -325,10 +325,13 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   return 0;
 }
 
-int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
+int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
   // GRANT_CFG_SET;
   int32_t code = 0;
-  taosThreadMutexLock(&pCfg->lock);
+
+  if (lock) {
+    taosThreadMutexLock(&pCfg->lock);
+  }
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
@@ -381,7 +384,10 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
       break;
   }
 
-  taosThreadMutexUnlock(&pCfg->lock);
+  if (lock) {
+    taosThreadMutexUnlock(&pCfg->lock);
+  }
+
   return code;
 }
 
@@ -923,7 +929,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR);
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR, true);
     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 
     if (strcasecmp(name, "dataDir") == 0) {
@@ -966,7 +972,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_CMD);
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_CMD, true);
     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 
     if (strcasecmp(name, "dataDir") == 0) {
@@ -1031,7 +1037,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_FILE);
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_FILE, true);
     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 
     if (strcasecmp(name, "dataDir") == 0) {
@@ -1101,7 +1107,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
         count++;
       }
 
-      code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE);
+      code = cfgSetItem(pConfig, name, newValue, CFG_STYPE_CFG_FILE, true);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     } else {
       paGetToken(value + vlen + 1, &value2, &vlen2);
@@ -1111,7 +1117,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
         if (vlen3 != 0) value3[vlen3] = 0;
       }
 
-      code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+      code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE, true);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
 
@@ -1286,7 +1292,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
           if (vlen3 != 0) value3[vlen3] = 0;
         }
 
-        code = cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL);
+        code = cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL, true);
         if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 
         if (strcasecmp(name, "dataDir") == 0) {
