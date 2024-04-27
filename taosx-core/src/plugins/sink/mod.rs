@@ -775,7 +775,7 @@ async fn consume_lush_record_with_transform(
                 }
                 // 只包含普通列的值
                 let values_record: &RecordBatch = record.record();
-                tracing::debug!(?values_record, "values_record"); // debug
+                // tracing::debug!(?values_record, "values_record"); // debug
                 let table_name_column: &Arc<dyn Array> = values_record
                     .column_by_name(lush_model_config.table_name_column.as_str())
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
@@ -788,11 +788,11 @@ async fn consume_lush_record_with_transform(
                 let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
                 // tracing::debug!(?table_cache, "table_cache_2"); // debug
                 let tags_record: RecordBatch = create_tags_record(table_name_column, table_cache)?;
-                tracing::debug!(?tags_record, "tags_record"); // debug
+                // tracing::debug!(?tags_record, "tags_record"); // debug
 
                 // 合并 RecordBatch
                 let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
-                tracing::debug!(?concated_record, "concated_record"); // debug
+                // tracing::debug!(?concated_record, "concated_record"); // debug
 
                 let table_name: &str = table_name_column.value(0);
                 let parser = lush_model_config.config.get(table_name).ok_or_else(|| {
@@ -801,7 +801,7 @@ async fn consume_lush_record_with_transform(
                         table_name.to_string()
                     )
                 })?;
-                tracing::debug!(?parser, "parser"); // debug
+                // tracing::debug!("parser: {}", serde_json::to_string(&parser).unwrap()); // debug
 
                 let message: transform::Message =
                     parser.parse_message_from_records(&concated_record)?;

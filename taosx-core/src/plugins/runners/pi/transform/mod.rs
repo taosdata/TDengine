@@ -80,6 +80,7 @@ use linked_hash_map::LinkedHashMap;
 use std::fmt::{self, Display};
 use std::iter::{Peekable, SkipWhile};
 use std::str::Lines;
+use taosx_ipc::stream::writer::IpcDataType;
 
 /// 单列模型配置对象
 /// 从配置对象可以生成 csv 配置文件，反之亦然。
@@ -624,20 +625,47 @@ pub struct SchemaRow {
     pub column_map: String,
 }
 
+use std::str::FromStr;
 impl SchemaRow {
-    /// 如果列值是 map 表达式，则尝试把它转换为一个 FieldValue, 用于构造 transform 的 Map 对象。
+    /// 从配置文件的一行生成一个 FieldValue 对象
     fn try_to_map_field(&self) -> Option<FieldValue> {
         let column_name = self.column_name.as_str();
-        let column_expr = self.column_map.as_str();
-        if column_expr[1..] == column_name[..] {
-            None
-        } else {
-            let column_expr = column_expr.replace('$', "");
-            let expr = Expr::try_new(column_expr, true).ok()?;
-            let expr_builder = ExprValueBuilder::new(expr);
-            let field_value_builder = FieldValueBuilder::Expr(expr_builder);
-            Some(FieldValue::new(field_value_builder, None))
+        let column_td_type = self.column_data_type.as_str();
+        // 临时代码，测试发现
+        // 1. 如果对 Timestamp 再 cast，且目标类型为 Timestamp 值会变成 null
+        // 2. 如果对 Timestamp 做 cast，且目标类型为 None，则入库类型会是 “NULL”
+        // 所以暂时忽略 Timestamp 类型的列
+        if column_td_type.to_lowercase().contains("timestamp") {
+            return None;
         }
+        let column_expr = self.column_map.as_str();
+        let column_expr = column_expr.replace('$', "");
+        let expr = Expr::try_new(column_expr, true).ok()?;
+        let expr_builder = ExprValueBuilder::new(expr);
+        let field_value_builder = FieldValueBuilder::Expr(expr_builder);
+        let ipc_data_type = match IpcDataType::from_str(column_td_type) {
+            Ok(ipc_data_type) => Some(ipc_data_type),
+            Err(err) => {
+                tracing::error!(
+                    "Invalid data type: {} for column {}. Err:{}",
+                    column_td_type,
+                    column_name,
+                    err
+                );
+                None
+            }
+        };
+        Some(FieldValue::new(field_value_builder, ipc_data_type))
+
+        // if column_expr[1..] == column_name[..] {
+        //     None
+        // } else {
+        //     let column_expr = column_expr.replace('$', "");
+        //     let expr = Expr::try_new(column_expr, true).ok()?;
+        //     let expr_builder = ExprValueBuilder::new(expr);
+        //     let field_value_builder = FieldValueBuilder::Expr(expr_builder);
+        //     Some(FieldValue::new(field_value_builder, None))
+        // }
     }
 }
 

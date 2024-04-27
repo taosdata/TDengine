@@ -1053,7 +1053,6 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     }
     dsn.params = map;
     task.from = dsn.to_string();
-    tracing::debug!("Dsn after modify: {:?}", task.from);
     Ok(())
 }
 

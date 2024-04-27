@@ -1059,7 +1059,6 @@ impl Parser {
         let batches = vec![batch];
         let batch = &batches[0];
         // tracing::info!("Parse message {:?}", batch);
-
         fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
             batches
                 .iter()
