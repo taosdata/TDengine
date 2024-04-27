@@ -1351,13 +1351,13 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
 int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   SMnode  *pMnode = pReq->info.node;
-  uint64_t lastTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
+  int64_t lastTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
 
 #ifndef GRANTS_CFG
   if ((gStatus.curTimeSeries > gStatus.limitTimeSeries) ||
-      ((gStatus.curTimeSeries - lastTimeSeries > 0) && (taosGetTimestampMs() - grantNotifyTimestamp > 500))) {
+      ((gStatus.curTimeSeries > lastTimeSeries) && (taosGetTimestampMs() - grantNotifyTimestamp > 500))) {
     mndProcessGrantNotify(pReq);
   } else {
     if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
