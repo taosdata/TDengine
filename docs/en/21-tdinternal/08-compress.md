@@ -1,11 +1,13 @@
 
 ---
 
-title: Configurable Storage Compression
+title: Configurable Column Compression
 description: Configurable column storage compression method
 ---
 
 # Configurable Storage Compression
+
+Since TDengine 3.3.0.0, more advanced compression feature is introduced, you can specify compression or not, the compression method and compression level for each column.
 
 ## Compression Terminology Definition
 
@@ -40,11 +42,11 @@ In this article, it specifically refers to the level within the secondary compre
 
 Note: For floating point types, if configured as tsz, its precision is determined by the global configuration of taosd. If configured as tsz, but the lossy compression flag is not configured, lz4 is used for compression by default.
 
-## SQL 语法
+## SQL
 
-### Specify the compression method when creating a table
+### Create Table with Compression
 
-```
+```sql
 CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
 ```
 
@@ -59,9 +61,9 @@ CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compr
 
 - Specify the compression method for the column when creating a table
 
-### Change the compression method of the column
+### Change Compression Method
 
-```
+```sql
 ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
 ```
 
@@ -74,9 +76,9 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 - Change the compression method of the column
 
-### View the compression method of the column
+### View Compression Dethod
 
-```
+```sql
 DESCRIBE [dbname.]tabName
 ```
 
@@ -87,4 +89,4 @@ DESCRIBE [dbname.]tabName
 ## Compatibility
 
 - Fully compatible with existing data
-- Does not support rollback
+- Can't be rolled back once you upgrade to 3.3.0.0
