@@ -173,7 +173,6 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
   void   *pHead = rpcMallocCont(contLen);
   tSerializeSNotifyReq(pHead, contLen, pReq);
-  tFreeSNotifyReq(&req);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
