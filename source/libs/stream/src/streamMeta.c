@@ -1711,7 +1711,7 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  streamMetaWLock(pMeta);
+  streamMetaRLock(pMeta);
   stDebug("vgId:%d add failed task:0x%x", pMeta->vgId, taskId);
 
   STaskId       id = {.streamId = streamId, .taskId = taskId};
@@ -1732,6 +1732,6 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  streamMetaWUnLock(pMeta);
+  streamMetaRUnLock(pMeta);
   return code;
 }
