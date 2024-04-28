@@ -308,12 +308,31 @@ _exit:
 
 // =======================
 
-static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int32_t columnId, int8_t type, const void *tagData,
-                                  int32_t tagDataSize, int64_t uid, STagIdxKey **key, int32_t *size) {
+static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column,
+                                  STagIdxKey **key, int32_t *size) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (IS_VAR_DATA_TYPE(type)) {
+  void   *tagData = NULL;
+  int32_t tagDataSize = 0;
+
+  STagVal tv = {
+      .cid = column->colId,
+  };
+
+  if (tTagGet(tags, &tv)) {
+    if (IS_VAR_DATA_TYPE(column->type)) {
+      tagData = tv.pData;
+      tagDataSize = tv.nData;
+    } else {
+      tagData = &tv.i64;
+      tagDataSize = tDataTypes[column->type].bytes;
+    }
+  } else if (!IS_VAR_DATA_TYPE(column->type)) {
+    tagDataSize = tDataTypes[column->type].bytes;
+  }
+
+  if (IS_VAR_DATA_TYPE(column->type)) {
     *size = sizeof(STagIdxKey) + tagDataSize + VARSTR_HEADER_SIZE + sizeof(tb_uid_t);
   } else {
     *size = sizeof(STagIdxKey) + tagDataSize + sizeof(tb_uid_t);
@@ -324,12 +343,12 @@ static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int32_t columnId, i
   }
 
   (*key)->suid = suid;
-  (*key)->cid = columnId;
+  (*key)->cid = column->colId;
   (*key)->isNull = (tagData == NULL) ? 1 : 0;
-  (*key)->type = type;
+  (*key)->type = column->type;
 
   uint8_t *data = (*key)->data;
-  if (IS_VAR_DATA_TYPE(type)) {
+  if (IS_VAR_DATA_TYPE(column->type)) {
     *(uint16_t *)data = tagDataSize;
     data += VARSTR_HEADER_SIZE;
     memcpy(data, &tagDataSize, VARSTR_HEADER_SIZE);
@@ -357,39 +376,21 @@ static int32_t metaCreateTagColumnIndex(SMeta *meta, int64_t suid, int64_t uid, 
   int32_t code = 0;
   int32_t lino = 0;
 
-  void   *tagData = NULL;
-  int32_t tagDataSize;
-  STagVal tv = {
-      .cid = column->colId,
-  };
+  STagIdxKey *tagIdxKey = NULL;
+  int32_t     tagIdxKeySize = 0;
 
-  if (tTagGet(tags, &tv)) {
-    if (IS_VAR_DATA_TYPE(column->type)) {
-      tagData = tv.pData;
-      tagDataSize = tv.nData;
-    } else {
-      tagData = &tv.i64;
-      tagDataSize = tDataTypes[column->type].bytes;
-    }
-  } else if (!IS_VAR_DATA_TYPE(column->type)) {
-    tagDataSize = tDataTypes[column->type].bytes;
-  }
-
-  STagIdxKey *key = NULL;
-  int32_t     size = 0;
-  code = metaTagIdxKeyBuild(meta, suid, column->colId, column->type, tagData, tagDataSize, uid, &key, &size);
+  code = metaTagIdxKeyBuild(meta, suid, uid, tags, column, &tagIdxKey, &tagIdxKeySize);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (tdbTbUpsert(meta->pTagIdx, key, size, NULL, 0, meta->txn) != 0) {
-    metaTagIdxKeyDestroy(key);
+  if (tdbTbUpsert(meta->pTagIdx, tagIdxKey, tagIdxKeySize, NULL, 0, meta->txn) != 0) {
     TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
   }
-  metaTagIdxKeyDestroy(key);
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  metaTagIdxKeyDestroy(tagIdxKey);
   return code;
 }
 
@@ -397,34 +398,15 @@ static int32_t metaDropTagColumnIndex(SMeta *meta, int64_t suid, int64_t uid, co
   int32_t code = 0;
   int32_t lino = 0;
 
-  void   *tagData = NULL;
-  int32_t tagDataSize;
-  STagVal tv = {
-      .cid = column->colId,
-  };
+  STagIdxKey *tagIdxKey = NULL;
+  int32_t     tagIdxKeySize = 0;
 
-  if (tTagGet(tags, &tv)) {
-    if (IS_VAR_DATA_TYPE(column->type)) {
-      tagData = tv.pData;
-      tagDataSize = tv.nData;
-    } else {
-      tagData = &tv.i64;
-      tagDataSize = tDataTypes[column->type].bytes;
-    }
-  } else if (!IS_VAR_DATA_TYPE(column->type)) {
-    tagDataSize = tDataTypes[column->type].bytes;
-  }
-
-  STagIdxKey *key = NULL;
-  int32_t     size = 0;
-  code = metaTagIdxKeyBuild(meta, suid, column->colId, column->type, tagData, tagDataSize, uid, &key, &size);
+  code = metaTagIdxKeyBuild(meta, suid, uid, tags, column, &tagIdxKey, &tagIdxKeySize);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (tdbTbDelete(meta->pTagIdx, key, size, meta->txn) != 0) {
-    metaTagIdxKeyDestroy(key);
+  if (tdbTbDelete(meta->pTagIdx, tagIdxKey, tagIdxKeySize, meta->txn) != 0) {
     TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
   }
-  metaTagIdxKeyDestroy(key);
 
 _exit:
   if (code) {
@@ -464,47 +446,31 @@ static int32_t metaDropNormalTagIndex(SMeta *meta, const SMetaEntry *childTableE
 
   const SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
   const STag           *tags = (STag *)childTableEntry->ctbEntry.pTags;
+  STagIdxKey           *tagIdxKey = NULL;
+  int32_t               tagIdxKeySize = 0;
 
   for (int i = 0; i < tagSchema->nCols; i++) {
     if (!IS_IDX_ON(&tagSchema->pSchema[i])) {
       continue;
     }
 
-    const SSchema *column = &tagSchema->pSchema[i];
+    metaTagIdxKeyDestroy(tagIdxKey);
+    tagIdxKey = NULL;
 
-    void   *tagData = NULL;
-    int32_t tagDataSize;
-    STagVal tv = {.cid = column->colId};
-
-    if (tTagGet(tags, &tv)) {
-      if (IS_VAR_DATA_TYPE(column->type)) {
-        tagData = tv.pData;
-        tagDataSize = tv.nData;
-      } else {
-        tagData = &tv.i64;
-        tagDataSize = tDataTypes[column->type].bytes;
-      }
-    } else if (!IS_VAR_DATA_TYPE(column->type)) {
-      tagDataSize = tDataTypes[column->type].bytes;
-    }
-
-    STagIdxKey *key = NULL;
-    int32_t     size = 0;
-    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, column->colId, column->type, tagData, tagDataSize,
-                              childTableEntry->uid, &key, &size);
+    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, childTableEntry->uid, tags, &tagSchema->pSchema[i],
+                              &tagIdxKey, &tagIdxKeySize);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (tdbTbDelete(meta->pTagIdx, key, size, meta->txn) != 0) {
-      metaTagIdxKeyDestroy(key);
+    if (tdbTbDelete(meta->pTagIdx, tagIdxKey, tagIdxKeySize, meta->txn) != 0) {
       TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
     }
-    metaTagIdxKeyDestroy(key);
   }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  metaTagIdxKeyDestroy(tagIdxKey);
   return code;
 }
 
@@ -1513,54 +1479,64 @@ _exit:
 
 extern int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaHandleChildTableEntryUpdate(SMeta *meta, const SMetaEntry *childTableEntry,
+static int32_t metaHandleChildTableEntryUpdate(SMeta *meta, const SMetaEntry *newChildTableEntry,
                                                const SMetaEntry *oldChildTableEntry) {
   int32_t     code = 0;
   int32_t     lino = 0;
-  SArray     *tagValArray = NULL;
-  SArray     *tagValArrayOld = NULL;
+  STagIdxKey *newTagIdxKey = NULL;
+  int32_t     newTagIdxKeySize = 0;
+  STagIdxKey *oldTagIdxKey = NULL;
+  int32_t     oldTagIdxKeySize = 0;
   SMetaEntry *superTableEntry = NULL;
 
-  ASSERT(childTableEntry->ctbEntry.suid == oldChildTableEntry->ctbEntry.suid);
+  ASSERT(newChildTableEntry->ctbEntry.suid == oldChildTableEntry->ctbEntry.suid);
 
-  code = metaGetTableEntryByUidImpl(meta, childTableEntry->ctbEntry.suid, &superTableEntry);
+  code = metaGetTableEntryByUidImpl(meta, newChildTableEntry->ctbEntry.suid, &superTableEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // check tag index update
   SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+  const STag     *oldTag = oldChildTableEntry->ctbEntry.pTags;
+  const STag     *newTag = newChildTableEntry->ctbEntry.pTags;
+
   for (int32_t i = 0; i < tagSchema->nCols; i++) {
-    STagIdxKey *key = NULL;
-    int32_t     keySize = 0;
-    STagIdxKey *keyOld = NULL;
-    int32_t     keyOldSize = 0;
-
-#if 0
-    code = metaTagIdxKeyBuild(meta, superTableEntry, childTableEntry, i, &key, &keySize);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = metaTagIdxKeyBuild(meta, superTableEntry, oldChildTableEntry, i, &keyOld, keyOldSize);
-    TSDB_CHECK_CODE(code, lino, _exit);
-#endif
-
-    if (tagIdxKeyCmpr(key, keySize, keyOld, keyOldSize) != 0) {
-#if 0
-      code = metaDropTagColumnIndex(SMeta * meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = metaCreateTagColumnIndex(SMeta * meta, int64_t suid, int64_t uid, const STag *tags, const SSchema *column);
-      TSDB_CHECK_CODE(code, lino, _exit);
-#endif
+    if (!IS_IDX_ON(&tagSchema->pSchema[i])) {
+      continue;
     }
 
-    metaTagIdxKeyDestroy(key);
-    metaTagIdxKeyDestroy(keyOld);
+    metaTagIdxKeyDestroy(newTagIdxKey);
+    metaTagIdxKeyDestroy(oldTagIdxKey);
+    newTagIdxKey = NULL;
+    oldTagIdxKey = NULL;
+
+    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, newChildTableEntry->uid, newTag, &tagSchema->pSchema[i],
+                              &newTagIdxKey, &newTagIdxKeySize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = metaTagIdxKeyBuild(meta, superTableEntry->uid, oldChildTableEntry->uid, oldTag, &tagSchema->pSchema[i],
+                              &oldTagIdxKey, &oldTagIdxKeySize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (tagIdxKeyCmpr(newTagIdxKey, newTagIdxKeySize, oldTagIdxKey, oldTagIdxKeySize) != 0) {
+      if (tdbTbDelete(meta->pTagIdx, oldTagIdxKey, oldTagIdxKeySize, meta->txn) != 0) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+      }
+      if (tdbTbUpsert(meta->pTagIdx, newTagIdxKey, newTagIdxKeySize, NULL, 0, meta->txn) != 0) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
+      }
+    }
+  }
+
+  if (oldTag->len != newTag->len || memcmp(oldTag, newTag, oldTag->len) != 0) {
+    code = metaUpsertCtbIdx(meta, newChildTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
-  taosArrayDestroy(tagValArray);
-  taosArrayDestroy(tagValArrayOld);
+  metaTagIdxKeyDestroy(newTagIdxKey);
+  metaTagIdxKeyDestroy(oldTagIdxKey);
   metaEntryCloneDestroy(superTableEntry);
   return code;
 }

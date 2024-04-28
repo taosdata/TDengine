@@ -857,15 +857,15 @@ static int32_t metaUpdateTableTagValue(SMeta *meta, SMetaEntry *childTableEntry,
           taosArrayPush(tagValArray, &tagValue);
         }
       }
-
-      // generate new tag
-      void *newTag = NULL;
-      code = tTagNew(tagValArray, tagSchema->version, false, (STag **)&newTag);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      taosMemoryFree(childTableEntry->ctbEntry.pTags);
-      childTableEntry->ctbEntry.pTags = newTag;
     }
+
+    // generate new tag
+    void *newTag = NULL;
+    code = tTagNew(tagValArray, tagSchema->version, false, (STag **)&newTag);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    taosMemoryFree(childTableEntry->ctbEntry.pTags);
+    childTableEntry->ctbEntry.pTags = newTag;
   }
 
 _exit:
