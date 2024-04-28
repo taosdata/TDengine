@@ -13,7 +13,6 @@ use std::{
     time::Duration,
 };
 
-use crate::runners::opc::config::model::TableConfig;
 use anyhow::{bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
@@ -36,6 +35,7 @@ use taos::{
     taos_query::{common::Describe, Manager},
     Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
+
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
     prelude::*,
@@ -47,7 +47,20 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
+use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
+use crate::utils::breakpoints::breakpoints_set;
+use crate::utils::trace::create_data_trace_id;
+use crate::utils::trace::create_stream_trace_id;
+use crate::utils::trace::get_data_trace_id_str;
+use crate::utils::trace::set_data_trace_id_for_current_span;
+use crate::utils::trace::RequestID;
+
+use crate::ConnectorLicense;
+use crate::Parser;
+use crate::Transferred;
+
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
