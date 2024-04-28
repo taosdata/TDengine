@@ -586,8 +586,32 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
     use std::env;
+
+    #[test]
+    fn test_tbname_pattern() {
+        let cases = [
+            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
+            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
+            (
+                "{ns}_{id}",
+                "ns=13;g=00000000-0000-0000-0000-000000009204",
+                "13_00000000-0000-0000-0000-000000009204",
+            ),
+            (
+                "{ns}_{id}",
+                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
+                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+            ),
+        ];
+        for (pattern, point_id, expected) in cases.iter() {
+            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
+            assert_eq!(tbname, *expected);
+        }
+    }
 
     #[test]
     fn test_tbname_pattern() {
@@ -716,6 +740,7 @@ impl Display for OpcType {
 
 #[cfg(test)]
 mod opc_type_tests {
+    use taos::Dsn;
 
     use super::*;
 

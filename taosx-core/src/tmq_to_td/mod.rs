@@ -129,11 +129,12 @@ async fn write_data(
             .table_name()
             .ok_or_else(|| anyhow!("Table name not found while subscribing from source"))?
             .to_string();
+        tracing::trace!("source_table_name: {source_table_name}");
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -150,7 +151,7 @@ async fn write_data(
                 }
                 raw.with_table_name(&name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -176,6 +177,7 @@ async fn write_data(
                 );
             }
         } else {
+            // 会走到这里吗？
             tracing::debug!(
                 "write {} rows(total {}) with {} columns",
                 raw.nrows(),

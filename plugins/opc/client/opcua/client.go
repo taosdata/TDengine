@@ -102,6 +102,10 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, inde
 	if connectConfig.MaxAge != nil {
 		maxAge = *connectConfig.MaxAge
 	}
+	maxAge := float64(2000)
+	if connectConfig.MaxAge != nil {
+		maxAge = *connectConfig.MaxAge
+	}
 	return &UAClient{
 		conn:                     conn,
 		ctx:                      ctx,
