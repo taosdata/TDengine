@@ -938,7 +938,7 @@ const DOC_FOR_ELEMENT_MODEL: &str = r#"# ------------------- How to Configure --
 # The second field identifies it's a TAG or a COLUMN, you can NOT change this field.
 # The third field identifies the data type, you can NOT change this field.
 # The fourth field is the attribute defined Pi system, you can change this field to a reasonable expression consisting of the attributes.
-# Addtionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
+# Additionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
 # Or, you can remove the whole definition of a data schema if you don't want that template.
 # ---------------------Part Two - Element List ----------------------------
 # In this part, each line represents one element in Pi System. There are 5 fields in each line. 
@@ -963,7 +963,7 @@ const DOC_FOR_POINT_MODEL: &str = r#"# ------------------- How to Configure ----
 # The second field identifies it's a TAG or a COLUMN, you can NOT change this field.
 # The third field identifies the data type, you can NOT change this field.
 # The fourth field is the attribute defined Pi system, you can change this field to a reasonable expression consisting of the attributes.
-# Addtionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
+# Additionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
 # ---------------------Part Two - Point List ----------------------------
 # In this part, each line represents one point in Pi System. There are 3 fields in each line. 
 # The first field is the Point name, which you can NOT change. 

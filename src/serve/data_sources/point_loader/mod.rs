@@ -537,6 +537,9 @@ pub async fn get_pi_default_config(
             }
             _ => unimplemented!(),
         };
+        // 保存原始 json 数据
+        std::fs::write(file_name.as_str().replace(".txt", ".json"), pi_data).unwrap();
+        // 保存配置文件
         std::fs::write(file_name.as_str(), config_data).unwrap();
     }
 

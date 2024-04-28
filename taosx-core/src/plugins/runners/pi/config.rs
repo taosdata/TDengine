@@ -435,12 +435,12 @@ impl PiConfig {
                 let object_type = parts[1].to_lowercase();
                 match object_type.as_str() {
                     "element" => {
-                        if parts.len() < 3 {
+                        if parts.len() < 4 {
                             return Err(anyhow!(
                                 "Invalid transform config file, cause: ElementID is required"
                             ));
                         }
-                        element_id_list.push(parts[2].to_string());
+                        element_id_list.push(parts[3].to_string());
                     }
                     "point" => {
                         point_list.push(parts[0].to_string());
