@@ -253,7 +253,7 @@ async fn add_task_metrics_tables(
 ) {
     for (_, task) in tasks.read().await.iter() {
         let task_id = task.task_id;
-        let metrics = core_metrics::get_metrics(task_id);
+        let metrics = core_metrics::get_metrics(task_id).await;
         match metrics {
             Some(metrics) => match metrics.as_ref() {
                 core_metrics::CoreMetrics::Legacy(metrics) => {
