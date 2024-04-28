@@ -50,7 +50,8 @@ class TDSql:
 
     def init(self, cursor, log=False):
         self.cursor = cursor
-
+        self.sql = None
+        
         if (log):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             self.cursor.log(caller.filename + ".sql")
