@@ -561,15 +561,6 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
-  if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
-    terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
-    mError("topic num out of range");
-    return code;
-  }
-
-  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
-    return code;
-  }
 
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -606,6 +597,16 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   if (pDb->cfg.walRetentionPeriod == 0) {
     terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to create topic when WAL_RETENTION_PERIOD is zero", pDb->name);
+    goto _OVER;
+  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
+    terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
+    mError("topic num out of range");
+    goto _OVER;
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
     goto _OVER;
   }
 

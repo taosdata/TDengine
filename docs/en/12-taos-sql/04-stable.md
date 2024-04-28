@@ -147,6 +147,7 @@ Modifications to the table schema of a supertable take effect on all subtables w
 - DROP TAG: deletes a tag from the supertable. When you delete a tag from a supertable, it is automatically deleted from all subtables within the supertable.
 - MODIFY TAG: modifies the definition of a tag in the supertable. You can use this keyword to change the length of a BINARY or NCHAR tag column. Note that you can only specify a length greater than the current length.
 - RENAME TAG: renames a specified tag in the supertable. When you rename a tag in a supertable, it is automatically renamed in all subtables within the supertable.
+- Like odinary tables, the primary key of a supertable cannot be modified or added or deleted using ADD/DROP COLUMN.
 
 ### Add a Column
 

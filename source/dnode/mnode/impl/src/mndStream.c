@@ -325,7 +325,7 @@ static int32_t createSchemaByFields(const SArray* pFields, SSchemaWrapper* pWrap
   return TSDB_CODE_SUCCESS;
 }
 
-static bool hasPrimaryKey(SSchemaWrapper* pWrapper) {
+static bool hasDestPrimaryKey(SSchemaWrapper* pWrapper) {
   if (pWrapper->nCols < 2) {
     return false;
   }
@@ -442,7 +442,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->outputSchema.pSchema = pFullSchema;
   }
 
-  bool hasKey = hasPrimaryKey(&pObj->outputSchema);
+  bool hasKey = hasDestPrimaryKey(&pObj->outputSchema);
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
@@ -699,10 +699,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   terrno = TSDB_CODE_SUCCESS;
 
-  if ((terrno = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
-    return terrno;
-  }
-
   SCMCreateStreamReq createReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -730,6 +726,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       goto _OVER;
     }
   } else if (terrno != TSDB_CODE_MND_STREAM_NOT_EXIST) {
+    goto _OVER;
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
 

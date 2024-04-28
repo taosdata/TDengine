@@ -57,6 +57,7 @@ INSERT INTO
    ```
 
 6. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
+7. The primary key column value must be specified and cannot be NULL.
 
 **Normal Syntax**
 1. The USING clause automatically creates the specified subtable if it does not exist. If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. Any tags that you do not specify will be assigned a null value.

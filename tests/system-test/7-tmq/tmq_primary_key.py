@@ -62,7 +62,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -173,7 +173,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -282,7 +282,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -391,7 +391,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
