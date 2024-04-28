@@ -443,6 +443,7 @@ typedef struct SDownstreamStatusInfo {
 typedef struct STaskCheckInfo {
   SArray*       pList;
   int64_t       startTs;
+  int64_t       timeoutStartTs;
   int32_t       notReadyTasks;
   int32_t       inCheckProcess;
   int32_t       stopCheckProcess;
