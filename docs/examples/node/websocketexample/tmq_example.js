@@ -33,7 +33,7 @@ async function prepare() {
     await wsSql.exec(createStable);
 
     // ANCHOR: create_topic 
-    let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} as select * from ${db}.${stable}`;
+    let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} as SELECT * FROM ${db}.${stable}`;
     await wsSql.exec(createTopic);
     // ANCHOR_END: create_topic 
 
@@ -84,7 +84,6 @@ async function test() {
             await consumer.close();
         }
         taos.destroy();
-        console.log("finish!");
     }
 }
 
