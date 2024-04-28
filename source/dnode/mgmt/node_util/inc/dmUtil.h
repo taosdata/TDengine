@@ -174,6 +174,7 @@ int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
 
 // dmEps.c
+int32_t dmGetDnodeSize(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
