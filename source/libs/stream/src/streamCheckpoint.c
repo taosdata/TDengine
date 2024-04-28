@@ -27,6 +27,7 @@ typedef struct {
 } SAsyncUploadArg;
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
+static int32_t deleteCheckpointFile(char* id, char* name);
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -461,8 +462,7 @@ int32_t uploadCheckpointData(void* param) {
   return code;
 }
 
-int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
-  // async upload
+int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
   if (type == DATA_UPLOAD_DISABLE) {
     return 0;
@@ -518,7 +518,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   if (code == TSDB_CODE_SUCCESS) {
     code = streamSaveTaskCheckpointInfo(pTask, ckId);
     if (code == TSDB_CODE_SUCCESS) {
-      code = streamTaskUploadChkp(pTask, ckId, (char*)id);
+      code = streamTaskRemoteBackupCheckpoint(pTask, ckId, (char*)id);
       if (code != TSDB_CODE_SUCCESS) {
         stError("s-task:%s failed to upload checkpoint:%" PRId64 " failed", id, ckId);
       }
@@ -589,8 +589,8 @@ static int32_t uploadCheckpointToS3(char* id, char* path) {
     stDebug("[s3] upload checkpoint:%s", filename);
     // break;
   }
-  taosCloseDir(&pDir);
 
+  taosCloseDir(&pDir);
   return 0;
 }
 

@@ -1495,6 +1495,13 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
 
+    // checkpoint backup type
+    char backup[20 + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(backup, "none")
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)backup, false);
+
+    // history scan idle
     char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
     strcpy(scanHistoryIdle, "100a");
 

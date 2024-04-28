@@ -547,7 +547,7 @@ typedef struct SStreamMeta {
   SArray*  chkpSaved;
   SArray*  chkpInUse;
   SRWLatch chkpDirLock;
-  void*    qHandle;
+  void*    qHandle;           // todo remove it
   void*    bkdChkptMgt;
 } SStreamMeta;
 

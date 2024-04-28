@@ -160,8 +160,6 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 int32_t streamTaskBackupCheckpoint(char* id, char* path);
 int32_t downloadCheckpoint(char* id, char* path);
 int32_t deleteCheckpoint(char* id);
-int32_t deleteCheckpointFile(char* id, char* name);
-//int32_t downloadCheckpointDataByName(const char* id, char* fname, char* dstName);
 
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
