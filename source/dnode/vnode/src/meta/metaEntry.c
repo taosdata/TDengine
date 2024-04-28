@@ -1164,6 +1164,7 @@ static int32_t metaGetChildTableUidList(SMeta *meta, int64_t suid, SArray **chil
   int32_t lino = 0;
   void   *key = NULL;
   int32_t keySize = 0;
+  int32_t rc;
 
   if ((*childTableUids = taosArrayInit(0, sizeof(int64_t))) == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
@@ -1179,7 +1180,7 @@ static int32_t metaGetChildTableUidList(SMeta *meta, int64_t suid, SArray **chil
                        .suid = suid,
                        .uid = INT64_MIN,
                    },
-                   sizeof(SCtbIdxKey), NULL) >= 0) {
+                   sizeof(SCtbIdxKey), &rc) >= 0) {
     for (;;) {
       if (tdbTbcNext(cursor, &key, &keySize, NULL, NULL) < 0) {
         break;
