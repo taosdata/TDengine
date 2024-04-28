@@ -64,11 +64,7 @@ impl CsvParser {
 
             // parse header
             let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!(
-                    "failed to read csv header in file: {}, cause: {}",
-                    file.clone(),
-                    e.to_string()
-                )
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
             let csv_header = CsvHeader::try_new(opc_type.clone(), header).await?;
             csv_header.check_required_columns()?;
@@ -78,11 +74,7 @@ impl CsvParser {
             let mut row_index = 1;
             while let Some(record) = records.next().await {
                 let csv_line = record.map_err(|e| {
-                    anyhow::anyhow!(
-                        "failed to read csv line in file: {}, cause: {}",
-                        file.clone(),
-                        e.to_string()
-                    )
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
                 })?;
                 model_config
                     .append(&csv_header, csv_line, row_index)
@@ -195,8 +187,9 @@ impl CsvParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_open_csv_files() {
