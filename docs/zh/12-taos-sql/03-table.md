@@ -23,7 +23,7 @@ create_subtable_clause: {
 }
 
 create_definition:
-    col_name column_type
+    col_name column_type [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']  
 
 table_options:
     table_option ...

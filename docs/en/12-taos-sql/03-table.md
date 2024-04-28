@@ -22,7 +22,7 @@ create_subtable_clause: {
 }
 
 create_definition:
-    col_name column_definition
+    col_name column_type [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 column_definition:
     type_name [comment 'string_value']
@@ -50,6 +50,7 @@ table_option: {
    Only ASCII visible characters can be used with escape character.
 
 **Parameter description**
+
 1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables.
 2. SMA: specifies functions on which to enable small materialized aggregates (SMA). SMA is user-defined precomputation of aggregates based on data blocks. Enter one of the following values: max, min, or sum This parameter can be used with supertables and standard tables.
 3. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The default value is 0, i.e. never expire.
@@ -103,6 +104,7 @@ alter_table_option: {
 
 **More explanations**
 You can perform the following modifications on existing tables:
+
 1. ADD COLUMN: adds a column to the supertable.
 2. DROP COLUMN: deletes a column from the supertable.
 3. MODIFY COLUMN: changes the length of the data type specified for the column. Note that you can only specify a length greater than the current length.
@@ -152,6 +154,7 @@ alter_table_option: {
 ```
 
 **More explanations**
+
 1. Only the value of a tag can be modified directly. For all other modifications, you must modify the supertable from which the subtable was created.
 
 ### Change Tag Value Of Sub Table
