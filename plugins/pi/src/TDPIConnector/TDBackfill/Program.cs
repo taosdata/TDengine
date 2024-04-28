@@ -123,7 +123,7 @@ namespace TDBackfill
                 AppService appService = new AppService();
                 if (options.workMode == CommandLineOptions.WorkMode.PrintPIInfo)
                 {
-                    appService.PrintPIInfo(options.filter);
+                    appService.PrintPIInfo(options.printMode, options.filter, options.fileterMode);
                     return;
                 }
                 else if (options.workMode == CommandLineOptions.WorkMode.CheckConfig)
@@ -133,24 +133,11 @@ namespace TDBackfill
                 }
 
                 TDEngineProxy tdEngineProxy;
-                if (!AppSettings.TaosXEnabled)
-                {
-                    tdEngineProxy = TDEngineProxyBuild.NewTDEngineClient(AppSettings.TDEngineHost,
-                        AppSettings.TDEnginePort,
-                        AppSettings.TDEngineUsername,
-                        AppSettings.TDEnginePassword,
-                        AppSettings.TDEngineToken,
-                        AppSettings.TDEnginePITablesPrefix
-                        );
-                }
-                else
-                {
-                    tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
-                        AppSettings.tomlConfig.SQLAPI,
-                        AppSettings.TDEnginePITablesPrefix,
-                        AppSettings.tomlConfig.MaxWaitLen
-                        );
-                }
+                tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
+                    AppSettings.tomlConfig.SQLAPI,
+                    AppSettings.TDEnginePITablesPrefix,
+                    AppSettings.tomlConfig.MaxWaitLen
+                    );
 
                 try
                 {
@@ -203,6 +190,14 @@ namespace TDBackfill
                 {
                     if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
                     {
+                        backfillManager.BackfillAFElementFromTool(AppSettings.tomlConfig.TDDataBase,
+                                AppSettings.tomlConfig.AFDatabaseName,
+                                AppSettings.tomlConfig.ElementList,
+                                AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                                AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
+                                AppSettings.tomlConfig.ToTDengineFirstTime,
+                                AppSettings.tomlConfig.FromTDengineLastTime,
+                                options.DropTables).Wait();
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,

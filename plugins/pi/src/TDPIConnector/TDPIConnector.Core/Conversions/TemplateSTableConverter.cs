@@ -2,6 +2,7 @@
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Helper;
+using TDPIConnector.TDEngine;
 
 namespace TDPIConnector.Core.Conversions
 {
@@ -15,10 +16,32 @@ namespace TDPIConnector.Core.Conversions
             };
             return sTable;
         }
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(element.Name)
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
     }
-    
+
+    internal class ElemenetSTableConverter
+    {
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(TableNameConvert.GetSingleElementSuperTableName(element))
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
+    }
     internal class ElemenetTableConverter
     {
+        internal static string GetTDTableNameForElement(AFElementWrapper element) {
+            return TDEngineProxy.GetFullTableName(element.Name).ToTDEngineNamingPattern() + "_" + element.ID.ToString();
+        }
         internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
@@ -51,6 +74,7 @@ namespace TDPIConnector.Core.Conversions
             };
             return table;
         }
+
         static string getLocation(string path)
         {
             // "\\\\WIN-2OA23UM12TN\\Meters\\California\\San Francisco\\Meter_10001"

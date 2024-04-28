@@ -4,6 +4,7 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using TDPIConnector.Core.Monitoring;
+using TDPIConnector.Core.ScanPiInfo;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
@@ -69,23 +70,12 @@ namespace TDPIConnector.Core
 
         public void InitializeTaosConnections()
         {
-            if (!AppSettings.TaosXEnabled)
-            {
-                tdEngineProxy = TDEngineProxyBuild.NewTDEngineClient(AppSettings.TDEngineHost,
-                    AppSettings.TDEnginePort,
-                    AppSettings.TDEngineUsername,
-                    AppSettings.TDEnginePassword,
-                    AppSettings.TDEngineToken,
-                    AppSettings.TDEnginePITablesPrefix
-                    );
-            }
-            else {
-                tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
-                    AppSettings.tomlConfig.SQLAPI,
-                    AppSettings.TDEnginePITablesPrefix,
-                    AppSettings.tomlConfig.MaxWaitLen
-                    );
-            }
+            tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
+                AppSettings.tomlConfig.SQLAPI,
+                AppSettings.TDEnginePITablesPrefix,
+                AppSettings.tomlConfig.MaxWaitLen
+                );
+
             StaticConfig.Default
                 .SetAFTreeTagName(AppSettings.tomlConfig.AFTreeTagName)
                 .SetPITablesPrefix(AppSettings.TDEnginePITablesPrefix)
@@ -168,7 +158,8 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    piPoints = await tablesCreator.GetPIPointTables(AppSettings.tomlConfig.TDDataBase);
+                    // piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     log.Info($"TDengine PI Point tables ({this.piPoints.Count}) has been created.");
                 }
                 catch (Exception e)
@@ -182,7 +173,8 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    elements = await tablesCreator.CreateAFElementTablesByElementIds(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    // elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     if (elements == null)
                     {
                         log.Info($"No any AF Elements template found.");
@@ -271,7 +263,7 @@ namespace TDPIConnector.Core
 
         private void BackfillData()
         {
-            var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+            var backfillStartLimit = DateTime.Now.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
             this.backfillPIPointsTask = null;
             this.backfillAFElementsTask = null;
             if (this.piPoints != null && this.piPoints.Count > 0)
@@ -350,13 +342,13 @@ namespace TDPIConnector.Core
             StartBackfill();
             log.Debug("Checking PI Data Archive connection: SUCCESS");
         }
-        public void PrintPIInfo(string pointFilter) {
+        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
             //startWebService();
             //InitMonitoring();
             try {
                 InitializePIConnections();
                 var scanner = new PIInfoScanner(piServerManager, piSystemManager);
-                string info = scanner.GetInfo(pointFilter);
+                string info = scanner.GetInfo(scanMode, filter, filterMode);
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
                 log.Info(info);

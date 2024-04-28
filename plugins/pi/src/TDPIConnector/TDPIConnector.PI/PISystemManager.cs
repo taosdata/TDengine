@@ -119,9 +119,34 @@ namespace TDPIConnector.PI
                 .Where(et => et.InstanceType == typeof(AFElement))
                 .Select(e => new AFElementTemplateWrapper(e));
         }
+        public IEnumerable<AFElementTemplateWrapper> GetElementTemplates(string afDatabaseName, string filter) {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            
+            AFNamedCollectionList<AFElementTemplate> templates = AFElementTemplate.FindElementTemplates(afDatabase, filter, AFSearchField.Name, AFSortField.Name, AFSortOrder.Ascending, int.MaxValue);
+            return templates.Select(t => new AFElementTemplateWrapper(t));
+        }
         public IEnumerable<AFElementWrapper> GetElementTemplateInstances(AFElementTemplateWrapper elementTemplate)
         {
             using (var search = new AFElementSearch(elementTemplate.AFSDKObject.Database, "Find_" + elementTemplate.Name, $"Template: '{elementTemplate.Name}'"))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                return elements.Select(e => new AFElementWrapper(e));
+            }
+        }
+        public IEnumerable<AFElementWrapper> GetElementsByIds(string afDatabaseName, List<String> ids)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            string query = string.Join(" OR ", ids.Select(id => $"ID: '{id}'"));
+
+            using (var search = new AFElementSearch(afDatabase, "ElementSearch", query))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
                 return elements.Select(e => new AFElementWrapper(e));
@@ -140,6 +165,55 @@ namespace TDPIConnector.PI
                 throw new Exception($"Could not find AF Element Template {elementTemplateName}.");
             }
             using (var search = new AFElementSearch(afDatabase, "TemplateSearch", $"TemplateName: '{elementTemplateName}'"))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                return elements.Select(e => new AFElementWrapper(e));
+            }
+        }
+        public IEnumerable<AFElementWrapper> GetAllElements(string afDatabaseName)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            using (var search = new AFElementSearch(afDatabase, "ElementSearch", $"TemplateName: ''"))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                return elements.Select(e => new AFElementWrapper(e));
+            }
+        }
+        public IEnumerable<AFElementWrapper> GetElementsNoTemplate(string afDatabaseName)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            using (var search = new AFElementSearch(afDatabase, "ElementSearch", $"TemplateName: ''"))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                return elements.Where(e => e.Template == null).Select(e =>  new AFElementWrapper(e));
+            }
+        }
+        public IEnumerable<AFElementWrapper> GetElementByName(string afDatabaseName, string elementName)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            var elements = AFElement.FindElements(afDatabase, null, elementName, AFSearchField.Name, true, AFSortField.Name, AFSortOrder.Ascending, 1) ;
+            return elements.Select(e => new AFElementWrapper(e));
+        }
+        public IEnumerable<AFElementWrapper> GetElementByFilter(string afDatabaseName, string filter)
+        {
+            AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
+            if (afDatabase == null)
+            {
+                throw new Exception($"Could not find AF Database {afDatabaseName}.");
+            }
+            using (var search = new AFElementSearch(afDatabase, "*", $"name:{filter}"))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
                 return elements.Select(e => new AFElementWrapper(e));
