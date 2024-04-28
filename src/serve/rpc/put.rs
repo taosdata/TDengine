@@ -1,9 +1,12 @@
-use std::sync::{Arc, Weak};
+use std::{
+    sync::{Arc, Weak},
+};
 
 use anyhow::{bail, Context};
 use arrow_flight::{error::FlightError, FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
+use linked_hash_map::LinkedHashMap;
 use parquet::data_type::AsBytes;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
@@ -235,6 +238,23 @@ impl PutStream {
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).expect("metrics not found");
             let metrics = metrics_arc.ipc();
+            use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
+            let lush_parser: Option<ParserImpl> = metadata.init().map(|init| {
+                let columns = init.columns();
+                let tags = init.tags();
+                let fields: LinkedHashMap<String, FieldParser> = columns
+                    .iter()
+                    .chain(tags.iter())
+                    .map(|(col_name, ipc_type)| {
+                        (
+                            col_name.clone(),
+                            FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
+                        )
+                    })
+                    .collect();
+                ParserImpl::new(fields)
+            });
+            let lush_parser = lush_parser.as_ref();
             if worker.lush_model_config.get().is_none() {
                 if let Some(sql) = metadata.init_sql_string() {
                     let init = metadata.init().unwrap();
@@ -242,6 +262,7 @@ impl PutStream {
                     handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
                 }
             }
+
             tracing::info!("Start IPC stream writer");
 
             let stream = rx.stream();
@@ -303,6 +324,7 @@ impl PutStream {
                                     trace_id,
                                     &trace_id_str,
                                     metrics,
+                                    lush_parser
                                 )
                                 .in_current_span()
                                 .await

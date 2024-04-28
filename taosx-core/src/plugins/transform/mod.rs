@@ -48,7 +48,7 @@ pub(crate) mod select;
 // mod json;
 pub mod constants;
 
-pub(crate) mod parse;
+pub mod parse;
 
 pub(crate) mod filter;
 

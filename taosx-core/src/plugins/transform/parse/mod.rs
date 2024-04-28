@@ -25,7 +25,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-mod cast;
+pub mod cast;
 mod json;
 mod regex;
 mod split;
@@ -148,6 +148,11 @@ impl Parse for FieldParser {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ParserImpl(LinkedHashMap<String, FieldParser>);
 
+impl ParserImpl {
+    pub fn new(map: LinkedHashMap<String, FieldParser>) -> Self {
+        Self(map)
+    }
+}
 impl std::ops::Deref for ParserImpl {
     type Target = LinkedHashMap<String, FieldParser>;
 

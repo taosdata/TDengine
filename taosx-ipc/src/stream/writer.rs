@@ -20,7 +20,6 @@ use crate::{
 use self::attrs_builder::AttrsBuilder;
 
 use super::components::ListOfStructBuilder;
-
 mod attrs_builder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

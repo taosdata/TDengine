@@ -13,7 +13,29 @@ use std::{
     time::Duration,
 };
 
-use crate::runners::opc::config::model::TableConfig;
+use crate::core_metrics::get_metrics_arc_from_i64;
+use crate::plugins::transform::TransformExt;
+use crate::runners::opc::config::model::TagConfig;
+use crate::{
+    core_metrics::{CoreMetrics, TaskMetrics},
+    runners::opc::config::OPCConfig,
+    utils::{get_main_version_from_server_version, get_server_version},
+};
+use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
+use crate::{
+    plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
+};
+use crate::{runners::opc::config::model::TableConfig, sink::transform::parse::FieldParser};
+use crate::{
+    utils::{
+        breakpoints::breakpoints_set,
+        trace::{
+            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str,
+            set_data_trace_id_for_current_span, RequestID,
+        },
+    },
+    ConnectorLicense, Parser, Transferred,
+};
 use anyhow::{anyhow, bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
@@ -30,6 +52,7 @@ use bytes::Bytes;
 use deadpool::managed::Timeouts;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
+use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
 use serde_json::json;
 use taos::{
@@ -46,32 +69,11 @@ use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
-use crate::core_metrics::get_metrics_arc_from_i64;
-use crate::runners::opc::config::model::TagConfig;
-use crate::{
-    core_metrics::{CoreMetrics, TaskMetrics},
-    runners::opc::config::OPCConfig,
-    utils::{get_main_version_from_server_version, get_server_version},
-};
-use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
-use crate::{
-    plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
-};
-use crate::{
-    utils::{
-        breakpoints::breakpoints_set,
-        trace::{
-            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str,
-            set_data_trace_id_for_current_span, RequestID,
-        },
-    },
-    ConnectorLicense, Parser, Transferred,
-};
-
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
-use self::{ipc_metric::IpcMetrics, lush::LushModelConfig};
+use self::{ipc_metric::IpcMetrics, lush::LushModelConfig, transform::parse::ParserImpl};
+use crate::plugins::transform::parse::cast;
 
 pub mod flat;
 pub mod ipc_metric;
@@ -755,6 +757,7 @@ async fn consume_lush_record_with_transform(
     trace_id_str: &str,
     metrics: &IpcMetrics,
     lush_model_config: &LushModelConfig,
+    lush_parser: &ParserImpl,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id);
     match record {
@@ -795,16 +798,22 @@ async fn consume_lush_record_with_transform(
                 // tracing::debug!(?concated_record, "concated_record"); // debug
 
                 let table_name: &str = table_name_column.value(0);
-                let parser = lush_model_config.config.get(table_name).ok_or_else(|| {
-                    anyhow!(
-                        "table_name {} not found in model_config",
-                        table_name.to_string()
-                    )
-                })?;
-                // tracing::debug!("parser: {}", serde_json::to_string(&parser).unwrap()); // debug
-
+                let parser: &transform::Parser =
+                    lush_model_config.config.get(table_name).ok_or_else(|| {
+                        anyhow!(
+                            "table_name {} not found in model_config",
+                            table_name.to_string()
+                        )
+                    })?;
+                tracing::debug!("parser: {}", serde_json::to_string(&parser).unwrap()); // debug
+                let parsed_message = lush_parser.transform_record_batch(&concated_record)?;
                 let message: transform::Message =
-                    parser.parse_message_from_records(&concated_record)?;
+                    parser.parse_message_from_records(&parsed_message).with_context(|| {
+                        format!(
+                            "lush_parser parse message from records failed, table_name: {}, parser: {}",
+                            table_name, serde_json::to_string(&lush_parser).unwrap()
+                        )
+                    })?;
                 match message {
                     crate::plugins::transform::Message::Raw(_) => todo!(),
                     crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -2714,11 +2723,29 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
 
     let mut count = 0;
+    let lush_parser: Option<ParserImpl> = ipc_reader.metadata().init().map(|init| {
+        let columns = init.columns();
+        let tags = init.tags();
+        let fields: LinkedHashMap<String, FieldParser> = columns
+            .iter()
+            .chain(tags.iter())
+            .map(|(col_name, ipc_type)| {
+                (
+                    col_name.clone(),
+                    FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
+                )
+            })
+            .collect();
+        ParserImpl::new(fields)
+    });
+    let lush_parser = lush_parser.as_ref();
+
     let mut stream = ipc_reader.into_stream();
 
     let mut batches: u32 = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
     let lush_model_config = lush_model_config.as_ref();
+
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
         metrics.add_received_batches(1);
@@ -2747,6 +2774,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &data_trace_id_str,
                 metrics,
                 lush_model_config,
+                lush_parser.unwrap(),
             )
             .await
         } else {
@@ -3443,6 +3471,7 @@ impl IpcStreamWorker {
         data_trace_id: u64,
         trace_id_str: &str,
         metrics: &IpcMetrics,
+        lush_parser: Option<&ParserImpl>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3509,6 +3538,7 @@ impl IpcStreamWorker {
                         trace_id_str,
                         metrics,
                         lush_model_config,
+                        lush_parser.unwrap(),
                     )
                     .await?;
                 } else {
