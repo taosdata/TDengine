@@ -171,6 +171,8 @@ if $data13 != 789 then
   goto loop2
 endi
 
+sql drop stream s1
+
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 print =============== check

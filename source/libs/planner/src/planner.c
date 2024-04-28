@@ -79,7 +79,7 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
-    if (pMerge->srcGroupId == groupId) {
+    if (pMerge->srcGroupId <= groupId && pMerge->srcEndGroupId >= groupId) {
       SExchangePhysiNode* pExchange =
           (SExchangePhysiNode*)nodesListGetNode(pMerge->node.pChildren, pMerge->numOfChannels - 1);
       if (1 == pMerge->numOfChannels) {

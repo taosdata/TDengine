@@ -58,12 +58,11 @@ typedef enum {
   TSDB_GRANT_BACKUP_RESTORE,
 } EGrantType;
 
+int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
+int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 int32_t grantCheck(EGrantType grant);
 int32_t grantCheckExpire(EGrantType grant);
-char*   tGetMachineId();
-#ifdef TD_UNIQ_GRANT
-int32_t grantCheckLE(EGrantType grant);
-#endif
+char   *tGetMachineId();
 
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
@@ -76,7 +75,7 @@ int32_t grantCheckLE(EGrantType grant);
       {.name = "state", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},         \
       {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
-      {.name = "cpu_cores", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "cpu_cores", .bytes = 13 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
   }
 #else
 #define GRANTS_SCHEMA                                                                                              \
@@ -88,7 +87,7 @@ int32_t grantCheckLE(EGrantType grant);
       {.name = "state", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},         \
       {.name = "timeseries", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
-      {.name = "cpu_cores", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "cpu_cores", .bytes = 13 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
   }
 #endif
 // #define GRANT_CFG_ADD

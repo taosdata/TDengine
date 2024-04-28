@@ -14,10 +14,7 @@ class StreamStateEnv : public ::testing::Test {
     streamMetaInit();
     backend = streamBackendInit(path, 0, 0);
   }
-  virtual void TearDown() {
-    streamMetaCleanup();
-    // indexClose(index);
-  }
+  virtual void TearDown() { streamMetaCleanup(); }
 
   const char *path = TD_TMP_DIR_PATH "stream";
   void       *backend;
@@ -50,6 +47,14 @@ bool equalSBF(SScalableBf *left, SScalableBf *right) {
 }
 
 TEST(TD_STREAM_UPDATE_TEST, update) {
+  const char *streamPath = "/tmp";
+
+  char *absPath = NULL;
+  void *p = NULL;
+  // SBackendWrapper *p = streamBackendInit(streamPath, -1, 2);
+  // p = taskDbOpen((char *)streamPath, (char *)"test", -1);
+  p = bkdMgtCreate((char *)streamPath);
+
   // const int64_t interval = 20 * 1000;
   // const int64_t watermark = 10 * 60 * 1000;
   // SUpdateInfo  *pSU = updateInfoInit(interval, TSDB_TIME_PRECISION_MILLI, watermark);

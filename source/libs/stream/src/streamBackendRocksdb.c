@@ -14,6 +14,7 @@
  */
 
 #include "streamBackendRocksdb.h"
+#include "lz4.h"
 #include "streamInt.h"
 #include "tcommon.h"
 #include "tref.h"
@@ -906,6 +907,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t chkpIdComp(const void* a, const void* b) {
   int64_t x = *(int64_t*)a;
   int64_t y = *(int64_t*)b;
@@ -964,6 +966,7 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
   taosMemoryFree(chkpPath);
   return 0;
 }
+#endif
 
 #ifdef BUILD_NO_CALL
 int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*** ppHandle, SArray* refs) {
@@ -1548,48 +1551,107 @@ void destroyCompare(void* arg) {
 }
 
 int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
-  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .data = (char*)(value)};
+  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .rawLen = vlen, .compress = 0, .data = (char*)(value)};
   int32_t      len = 0;
+  char*        dst = NULL;
+  if (vlen > 512) {
+    dst = taosMemoryCalloc(1, vlen + 128);
+    int32_t dstCap = vlen + 128;
+    int32_t compressedSize = LZ4_compress_default((char*)value, dst, vlen, dstCap);
+    if (compressedSize < vlen) {
+      key.compress = 1;
+      key.len = compressedSize;
+      value = dst;
+    }
+    stDebug("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
+  }
+
   if (*dest == NULL) {
-    char* p = taosMemoryCalloc(1, sizeof(int64_t) + sizeof(int32_t) + key.len);
+    char* p = taosMemoryCalloc(
+        1, sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len);
     char* buf = p;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
     *dest = p;
   } else {
     char* buf = *dest;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
   }
+  taosMemoryFree(dst);
+
   return len;
 }
+
 /*
  *  ret >= 0 : found valid value
  *  ret < 0 : error or timeout
  */
 int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
+  int32_t      code = -1;
   SStreamValue key = {0};
   char*        p = value;
+
+  char* pCompressData = NULL;
+  char* pOutput = NULL;
   if (streamStateValueIsStale(p)) {
     goto _EXCEPT;
   }
+
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
-  if (vlen != (sizeof(int64_t) + sizeof(int32_t) + key.len)) {
-    stError("vlen: %d, read len: %d", vlen, key.len);
+  if (key.len == 0) {
+    code = 0;
     goto _EXCEPT;
   }
-  if (key.len != 0 && dest != NULL) p = taosDecodeBinary(p, (void**)dest, key.len);
+  if (vlen == (sizeof(key.unixTimestamp) + sizeof(key.len) + key.len)) {
+    // compatiable with previous data
+    p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+  } else {
+    p = taosDecodeFixedI32(p, &key.rawLen);
+    p = taosDecodeFixedI8(p, &key.compress);
+    if (vlen != (sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len)) {
+      stError("vlen: %d, read len: %d", vlen, key.len);
+      goto _EXCEPT;
+    }
+    if (key.compress == 1) {
+      p = taosDecodeBinary(p, (void**)&pCompressData, key.len);
+      pOutput = taosMemoryCalloc(1, key.rawLen);
+      int32_t rawLen = LZ4_decompress_safe(pCompressData, pOutput, key.len, key.rawLen);
+      if (rawLen != key.rawLen) {
+        stError("read invalid read, rawlen: %d, currlen: %d", key.rawLen, key.len);
+        goto _EXCEPT;
+      }
+      key.len = rawLen;
+    } else {
+      p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+    }
+  }
 
   if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
+
+  code = 0;
+  if (dest) {
+    *dest = pOutput;
+    pOutput = NULL;
+  }
+  taosMemoryFree(pCompressData);
+  taosMemoryFree(pOutput);
   return key.len;
 
 _EXCEPT:
   if (dest != NULL) *dest = NULL;
   if (ttl != NULL) *ttl = 0;
-  return -1;
+
+  taosMemoryFree(pOutput);
+  taosMemoryFree(pCompressData);
+  return code;
 }
 
 const char* compareDefaultName(void* arg) {
@@ -2788,7 +2850,6 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
-#ifdef BUILD_NO_CALL
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateGetCur_rocksdb");
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
@@ -2838,7 +2899,6 @@ int32_t streamStateFuncDel_rocksdb(SStreamState* pState, const STupleKey* key) {
   STREAM_STATE_DEL_ROCKSDB(pState, "func", key);
   return 0;
 }
-#endif
 
 // session cf
 int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
@@ -3432,7 +3492,6 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   SSessionKey tmpKey = *key;
   int32_t     valSize = *pVLen;
   void*       tmp = taosMemoryMalloc(valSize);
-  // tdbRealloc(NULL, valSize);
   if (!tmp) {
     return -1;
   }
@@ -3506,13 +3565,11 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
   return code;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen) {
   int code = 0;
   STREAM_STATE_PUT_ROCKSDB(pState, "default", key, pVal, pVLen);
   return code;
 }
-#endif
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen) {
   int code = 0;
   STREAM_STATE_GET_ROCKSDB(pState, "default", key, pVal, pVLen);
@@ -3535,10 +3592,10 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
   if (pIter == NULL) {
     return -1;
   }
-
+  size_t klen = 0;
   rocksdb_iter_seek(pIter, start, strlen(start));
   while (rocksdb_iter_valid(pIter)) {
-    const char* key = rocksdb_iter_key(pIter, NULL);
+    const char* key = rocksdb_iter_key(pIter, &klen);
     int32_t     vlen = 0;
     const char* vval = rocksdb_iter_value(pIter, (size_t*)&vlen);
     char*       val = NULL;
@@ -3647,7 +3704,7 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[i].toStrFunc((void*)key, tbuf);
-    stDebug("streamState str: %s succ to write to %s_%s, len: %d", tbuf, wrapper->idstr, ginitDict[i].key, vlen);
+    stTrace("streamState str: %s succ to write to %s_%s, len: %d", tbuf, wrapper->idstr, ginitDict[i].key, vlen);
   }
   return 0;
 }
@@ -3672,7 +3729,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[cfIdx].toStrFunc((void*)key, tbuf);
-    stDebug("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[cfIdx].key);
+    stTrace("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[cfIdx].key);
   }
   return 0;
 }
@@ -3700,6 +3757,8 @@ uint32_t nextPow2(uint32_t x) {
   x = x | (x >> 16);
   return x + 1;
 }
+
+#ifdef BUILD_NO_CALL
 int32_t copyFiles(const char* src, const char* dst) {
   int32_t code = 0;
   // opt later, just hard link
@@ -3739,6 +3798,7 @@ _err:
   taosCloseDir(&pDir);
   return code >= 0 ? 0 : -1;
 }
+#endif
 
 int32_t isBkdDataMeta(char* name, int32_t len) {
   const char* pCurrent = "CURRENT";

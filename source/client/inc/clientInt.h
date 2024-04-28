@@ -221,7 +221,11 @@ typedef struct {
   SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
-  SMqDataRsp     rsp;
+} SMqRspObjCommon;
+
+typedef struct {
+  SMqRspObjCommon common;
+  SMqDataRsp      rsp;
 } SMqRspObj;
 
 typedef struct {
@@ -233,14 +237,8 @@ typedef struct {
 } SMqMetaRspObj;
 
 typedef struct {
-  int8_t         resType;
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  int32_t        vgId;
-  SSchemaWrapper schema;
-  int32_t        resIter;
-  SReqResultInfo resInfo;
-  STaosxRsp      rsp;
+  SMqRspObjCommon common;
+  STaosxRsp       rsp;
 } SMqTaosxRspObj;
 
 typedef struct SReqRelInfo {
@@ -284,6 +282,7 @@ typedef struct SRequestObj {
   void*                pWrapper;
   SMetaData            parseMeta;
   char*                effectiveUser;
+  int8_t               source;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -305,10 +304,10 @@ void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 
-TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
-void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly, int8_t source);
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
@@ -319,7 +318,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
-  return (SReqResultInfo*)&msg->resInfo;
+  return (SReqResultInfo*)&msg->common.resInfo;
 }
 
 SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
@@ -353,6 +352,7 @@ SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
 void         doDestroyRequest(void* p);
+int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);

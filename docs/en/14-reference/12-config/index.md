@@ -231,6 +231,26 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Default Value | 0          |
 | Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
 
+### multiResultFunctionStarReturnTags
+
+| Attribute     | Description                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                     |
+| Meaning       | When querying a super table, whether last(\*)/last_row(\*)/first(\*) returns tags is affected by this parameter. When querying a normal table or subtable, this parameter has no effect. |
+| Value Range   | 0: do not return tags, 1: return tags |
+| Default Value | 0          |
+| Notes         |  When this parameter is set to 0, last(\*)/last_row(\*)/first(\*) only returns the columns of the super table; When it is 1, return the columns and tags of the super table.               |
+
+### maxTsmaCalcDelay
+
+| Attribute     | Description                                                                                                                                  |
+| --------      | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                                                  |
+| Meaning       | Query allowed tsma calculation delay, if the tsma calculation delay is greater than the configured value, the TSMA will not be used.         |
+| Value Range   | 600s - 86400s, 10 minutes to 1 hour                                                                                                          |
+| Default value | 600s                                                                                                                                         |
+
+
 ## Locale Parameters
 
 ### timezone
@@ -749,6 +769,15 @@ The charset that takes effect is UTF-8.
 | Meaning     | The max num of topics  |
 | Value Range | 1-10000|
 | Default Value   | 20                  |
+
+### maxTsmaNum
+
+| Attribute | Description                   |
+| --------- | ----------------------------- |
+| Applicable | Server Only                  |
+| Meaning   | Max num of TSMAs              |
+| Value Range | 0-12                        |
+| Default Value | 8                         |
 
 ## 3.0 Parameters
 

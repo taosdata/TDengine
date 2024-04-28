@@ -15,6 +15,7 @@
 
 #include "tsdbFile2.h"
 #include "cos.h"
+#include "vnd.h"
 
 // to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
@@ -42,24 +43,9 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-void remove_file(const char *fname, bool last_level) {
-  int32_t code = taosRemoveFile(fname);
-  if (code) {
-    if (tsS3Enabled && last_level) {
-      const char *object_name = taosDirEntryBaseName((char *)fname);
-      long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
-      if (!strncmp(fname + strlen(fname) - 5, ".data", 5) && s3_size > 0) {
-        s3DeleteObjects(&object_name, 1);
-        tsdbInfo("file:%s is removed from s3", fname);
-      } else {
-        tsdbError("file:%s remove failed", fname);
-      }
-    } else {
-      tsdbError("file:%s remove failed", fname);
-    }
-  } else {
-    tsdbInfo("file:%s is removed", fname);
-  }
+void remove_file(const char *fname) {
+  taosRemoveFile(fname);
+  tsdbInfo("file:%s is removed", fname);
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
@@ -70,6 +56,11 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
 
   /* did.id */
   if (cJSON_AddNumberToObject(json, "did.id", file->did.id) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  /* lcn - last chunk number */
+  if (cJSON_AddNumberToObject(json, "lcn", file->lcn) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -119,6 +110,14 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     file->did.id = item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* lcn */
+  item = cJSON_GetObjectItem(json, "lcn");
+  if (cJSON_IsNumber(item)) {
+    file->lcn = item->valuedouble;
+  } else {
+    // return TSDB_CODE_FILE_CORRUPTED;
   }
 
   /* fid */
@@ -236,7 +235,8 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
-  fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
 }
 
@@ -258,12 +258,63 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
-      remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
+      remove_file(fobj->fname);
     }
     taosMemoryFree(fobj);
   }
 
   return 0;
+}
+
+static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
+  if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
+    remove_file(fobj->fname);
+    return;
+  }
+
+  if (!remove_all) {
+    // remove local last chunk file
+    char lc_path[TSDB_FILENAME_LEN];
+    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+
+    char *dot = strrchr(lc_path, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", lc_path);
+      return;
+    }
+    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+    remove_file(lc_path);
+
+  } else {
+    // delete by data file prefix
+    char lc_path[TSDB_FILENAME_LEN];
+    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+
+    char   *object_name = taosDirEntryBaseName(lc_path);
+    int32_t node_id = fobj->nlevel;
+    char    object_name_prefix[TSDB_FILENAME_LEN];
+    snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
+
+    char *dot = strrchr(object_name_prefix, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", object_name_prefix);
+      return;
+    }
+    *(dot + 1) = 0;
+
+    s3DeleteObjectsByPrefix(object_name_prefix);
+
+    // remove local last chunk file
+    dot = strrchr(lc_path, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", lc_path);
+      return;
+    }
+    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+    remove_file(lc_path);
+  }
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
@@ -274,7 +325,21 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
+    tsdbTFileObjRemoveLC(fobj, true);
+    taosMemoryFree(fobj);
+  }
+  return 0;
+}
+
+int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
+  taosThreadMutexLock(&fobj->mutex);
+  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+  fobj->state = TSDB_FSTATE_DEAD;
+  int32_t nRef = --fobj->ref;
+  taosThreadMutexUnlock(&fobj->mutex);
+  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  if (nRef == 0) {
+    tsdbTFileObjRemoveLC(fobj, false);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -310,13 +375,45 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   return 0;
 }
 
+int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+  SVnode *pVnode = pTsdb->pVnode;
+  STfs   *pTfs = pVnode->pTfs;
+
+  if (pTfs) {
+    snprintf(fname,                                 //
+             TSDB_FILENAME_LEN,                     //
+             "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+             tfsGetDiskPath(pTfs, f->did),          //
+             TD_DIRSEP,                             //
+             pTsdb->path,                           //
+             TD_DIRSEP,                             //
+             TD_VID(pVnode),                        //
+             f->fid,                                //
+             f->cid,                                //
+             f->lcn,                                //
+             g_tfile_info[f->type].suffix);
+  } else {
+    snprintf(fname,                             //
+             TSDB_FILENAME_LEN,                 //
+             "%s%sv%df%dver%" PRId64 ".%d.%s",  //
+             pTsdb->path,                       //
+             TD_DIRSEP,                         //
+             TD_VID(pVnode),                    //
+             f->fid,                            //
+             f->cid,                            //
+             f->lcn,                            //
+             g_tfile_info[f->type].suffix);
+  }
+  return 0;
+}
+
 bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->type != f2->type) return false;
   if (f1->did.level != f2->did.level) return false;
   if (f1->did.id != f2->did.id) return false;
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
-  if (f1->s3flag != f2->s3flag) return false;
+  if (f1->lcn != f2->lcn) return false;
   return true;
 }
 

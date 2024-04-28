@@ -1,6 +1,7 @@
 enable_testing()
 
 add_subdirectory(acct)
+add_subdirectory(arbgroup)
 #add_subdirectory(db)
 #add_subdirectory(dnode)
 add_subdirectory(func)

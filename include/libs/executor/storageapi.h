@@ -35,6 +35,7 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
+#define CACHESCAN_RETRIEVE_PK          0x10
 
 #define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
@@ -78,7 +79,9 @@ typedef struct SMetaEntry {
     } smaEntry;
   };
 
-  uint8_t* pBuf;
+  uint8_t*        pBuf;
+
+  SColCmprWrapper colCmpr;  // col compress alg
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -132,7 +135,7 @@ typedef struct SMetaTableInfo {
 } SMetaTableInfo;
 
 typedef struct SSnapContext {
-  SMeta*    pMeta;  // todo remove it
+  SMeta*    pMeta;
   int64_t   snapVersion;
   void*     pCur;
   int64_t   suid;
@@ -143,6 +146,7 @@ typedef struct SSnapContext {
   int32_t   index;
   int8_t    withMeta;
   int8_t    queryMeta;  // true-get meta, false-get data
+  bool      hasPrimaryKey;
 } SSnapContext;
 
 typedef struct {
@@ -191,7 +195,7 @@ typedef struct TsdReader {
 typedef struct SStoreCacheReader {
   int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                          SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                         SArray *pFuncTypeList);
+                         SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
   void    *(*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                            SArray *pTableUidList);
@@ -220,6 +224,8 @@ typedef struct SStoreTqReader {
   int32_t (*tqReaderAddTables)();
   int32_t (*tqReaderRemoveTables)();
 
+  void (*tqSetTablePrimaryKey)();
+  bool (*tqGetTablePrimaryKey)();
   bool (*tqReaderIsQueriedTable)();
   bool (*tqReaderCurrentBlockConsumed)();
 
@@ -231,6 +237,8 @@ typedef struct SStoreTqReader {
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
+  bool    (*taosXGetTablePrimaryKey)(SSnapContext *ctx);
+  void    (*taosXSetTablePrimaryKey)(SSnapContext *ctx, int64_t uid);
   int32_t (*setForSnapShot)(SSnapContext* ctx, int64_t uid);
   int32_t (*destroySnapshot)(SSnapContext* ctx);
   SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
@@ -300,6 +308,13 @@ typedef struct SUpdateInfo {
   SScalableBf* pCloseWinSBF;
   SHashObj*    pMap;
   uint64_t     maxDataVersion;
+  int8_t       pkColType;
+  int32_t      pkColLen;
+  char*        pKeyBuff;
+  char*        pValueBuff;
+
+  int (*comparePkRowFn)(void* pValue1, void* pTs, void* pPkVal, __compar_fn_t cmpPkFn);
+  __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
 typedef struct {
@@ -363,20 +378,21 @@ typedef struct SStateStore {
   int32_t (*streamStateSessionAllocWinBuffByNextPosition)(SStreamState* pState, SStreamStateCur* pCur,
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
-  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+  int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
+                                              void** ppVal, int32_t* pVLen);
   int32_t (*streamStateCountWinAdd)(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
-  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
-  TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
-  bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
+  SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen);
+  TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol);
+  bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
-  bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
+  bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
 
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
   void (*windowSBfDelete)(SUpdateInfo* pInfo, uint64_t count);
   void (*windowSBfAdd)(SUpdateInfo* pInfo, uint64_t count);
 
-  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
+  SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
   void (*updateInfoDestoryColseWinSBF)(SUpdateInfo* pInfo);
   int32_t (*updateInfoSerialize)(void* buf, int32_t bufLen, const SUpdateInfo* pInfo);

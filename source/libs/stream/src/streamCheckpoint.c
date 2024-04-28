@@ -94,6 +94,24 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
   return 0;
 }
 
+int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
 static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   int64_t old = atomic_val_compare_exchange_32(&pTask->chkInfo.downstreamAlignNum, 0, num);
@@ -190,6 +208,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s handle checkpoint-trigger block failed, code:%s", id, tstrerror(code));
+      streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     }
   }
@@ -309,6 +328,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
 
     pCKInfo->checkpointId = pCKInfo->checkpointingId;
     pCKInfo->checkpointVer = pCKInfo->processedVer;
+    pCKInfo->checkpointTime = pCKInfo->startTs;
 
     streamTaskClearCheckInfo(p, false);
     taosThreadMutexUnlock(&p->lock);
@@ -395,6 +415,7 @@ int32_t getChkpMeta(char* id, char* path, SArray* list) {
   taosMemoryFree(file);
   return code;
 }
+
 int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
@@ -435,6 +456,7 @@ int32_t doUploadChkp(void* param) {
   taosMemoryFree(arg);
   return code;
 }
+
 int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   // async upload
   UPLOAD_TYPE type = getUploadType();

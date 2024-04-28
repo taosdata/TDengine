@@ -56,6 +56,9 @@ class TBase:
     def stop(self):
         tdSql.close()
 
+    def createDb(self, options=""):
+        sql = f"create database {self.db} {options}"
+        tdSql.execute(sql, show=True)
 
 #
 #   db action
@@ -126,7 +129,7 @@ class TBase:
 #                
 
     # basic
-    def checkInsertCorrect(self):
+    def checkInsertCorrect(self, difCnt = 0):
         # check count
         sql = f"select count(*) from {self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
@@ -136,9 +139,8 @@ class TBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
-        tdSql.query(sql)
-        tdSql.checkRows(0)
+        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        tdSql.checkAgg(sql, difCnt)
 
     # save agg result
     def snapshotAgg(self):        

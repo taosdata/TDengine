@@ -33,10 +33,12 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
   // init
   struct {
     // config
-    int32_t  maxRow;
-    int8_t   cmprAlg;
-    int32_t  szPage;
-    uint8_t *bufArr[8];
+    int32_t maxRow;
+    int8_t  cmprAlg;
+    int32_t szPage;
+    SBuffer buffers[10];
+    int32_t  encryptAlgorithm;
+    char*    encryptKey;
     // reader
     SArray    *aBlockIdx;
     SMapData   mDataBlk[1];
@@ -50,6 +52,8 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
       .maxRow = tsdb->pVnode->config.tsdbCfg.maxRows,
       .cmprAlg = tsdb->pVnode->config.tsdbCfg.compression,
       .szPage = tsdb->pVnode->config.tsdbPageSize,
+      .encryptAlgorithm = tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+      .encryptKey = tsdb->pVnode->config.tsdbCfg.encryptKey,
   }};
 
   // read SBlockIdx array
@@ -80,7 +84,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
     char fname[TSDB_FILENAME_LEN];
     tsdbTFileName(tsdb, &file, fname);
 
-    code = tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
+    code = tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     // convert
@@ -97,10 +101,24 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         SBrinRecord record = {
             .suid = pBlockIdx->suid,
             .uid = pBlockIdx->uid,
-            .firstKey = dataBlk->minKey.ts,
-            .firstKeyVer = dataBlk->minKey.version,
-            .lastKey = dataBlk->maxKey.ts,
-            .lastKeyVer = dataBlk->maxKey.version,
+            .firstKey =
+                (STsdbRowKey){
+                    .key =
+                        (SRowKey){
+                            .ts = dataBlk->minKey.ts,
+                            .numOfPKs = 0,
+                        },
+                    .version = dataBlk->minKey.version,
+                },
+            .lastKey =
+                (STsdbRowKey){
+                    .key =
+                        (SRowKey){
+                            .ts = dataBlk->maxKey.ts,
+                            .numOfPKs = 0,
+                        },
+                    .version = dataBlk->maxKey.version,
+                },
             .minVer = dataBlk->minVer,
             .maxVer = dataBlk->maxVer,
             .blockOffset = dataBlk->aSubBlock->offset,
@@ -119,30 +137,31 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         code = tBrinBlockPut(ctx->brinBlock, &record);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        if (BRIN_BLOCK_SIZE(ctx->brinBlock) >= ctx->maxRow) {
+        if (ctx->brinBlock->numOfRecords >= ctx->maxRow) {
           SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
           code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                        ctx->brinBlkArray, ctx->bufArr, &range);
+                                        ctx->brinBlkArray, ctx->buffers, &range, ctx->encryptAlgorithm, ctx->encryptKey);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
     }
 
-    if (BRIN_BLOCK_SIZE(ctx->brinBlock) > 0) {
+    if (ctx->brinBlock->numOfRecords > 0) {
       SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
       code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                    ctx->brinBlkArray, ctx->bufArr, &range);
+                                    ctx->brinBlkArray, ctx->buffers, &range, ctx->encryptAlgorithm, ctx->encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     code = tsdbFileWriteBrinBlk(ctx->fd, ctx->brinBlkArray, ctx->footer->brinBlkPtr,
-                                &fset->farr[TSDB_FTYPE_HEAD]->f->size);
+                                &fset->farr[TSDB_FTYPE_HEAD]->f->size, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbFileWriteHeadFooter(ctx->fd, &fset->farr[TSDB_FTYPE_HEAD]->f->size, ctx->footer);
+    code = tsdbFileWriteHeadFooter(ctx->fd, &fset->farr[TSDB_FTYPE_HEAD]->f->size, ctx->footer, ctx->encryptAlgorithm, 
+                                    ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbFsyncFile(ctx->fd);
+    code = tsdbFsyncFile(ctx->fd, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     tsdbCloseFile(&ctx->fd);
@@ -157,8 +176,8 @@ _exit:
   tBlockDataDestroy(ctx->blockData);
   tMapDataClear(ctx->mDataBlk);
   taosArrayDestroy(ctx->aBlockIdx);
-  for (int32_t i = 0; i < ARRAY_SIZE(ctx->bufArr); ++i) {
-    tFree(ctx->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(ctx->buffers); ++i) {
+    tBufferDestroy(ctx->buffers + i);
   }
   return code;
 }
@@ -238,12 +257,16 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
     STFileObj *fobj;
     struct {
       int32_t szPage;
+      int32_t encryptAlgorithm;
+      char*   encryptKey;
       // writer
       STsdbFD     *fd;
       TSttBlkArray sttBlkArray[1];
       SSttFooter   footer[1];
     } ctx[1] = {{
         .szPage = tsdb->pVnode->config.tsdbPageSize,
+        .encryptAlgorithm = tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+        .encryptKey = tsdb->pVnode->config.tsdbCfg.encryptKey,
     }};
 
     STFile file = {
@@ -258,7 +281,7 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
     code = tsdbTFileObjInit(tsdb, &file, &fobj);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
-    code = tsdbOpenFile(fobj->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
+    code = tsdbOpenFile(fobj->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
     for (int32_t iSttBlk = 0; iSttBlk < taosArrayGetSize(aSttBlk); iSttBlk++) {
@@ -266,13 +289,14 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
       TSDB_CHECK_CODE(code, lino, _exit1);
     }
 
-    code = tsdbFileWriteSttBlk(ctx->fd, ctx->sttBlkArray, ctx->footer->sttBlkPtr, &fobj->f->size);
+    code = tsdbFileWriteSttBlk(ctx->fd, ctx->sttBlkArray, ctx->footer->sttBlkPtr, &fobj->f->size, ctx->encryptAlgorithm,
+                                ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
-    code = tsdbFileWriteSttFooter(ctx->fd, ctx->footer, &fobj->f->size);
+    code = tsdbFileWriteSttFooter(ctx->fd, ctx->footer, &fobj->f->size, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
-    code = tsdbFsyncFile(ctx->fd);
+    code = tsdbFsyncFile(ctx->fd, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
     tsdbCloseFile(&ctx->fd);
@@ -413,11 +437,14 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
   }
 
   char fname[TSDB_FILENAME_LEN] = {0};
-  code = tsdbOpenFile(fobj[0]->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CREATE, fd);
+  code = tsdbOpenFile(fobj[0]->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CREATE, fd, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
-  code = tsdbWriteFile(fd[0], 0, hdr, TSDB_FHDR_SIZE);
+  int32_t encryptAlgorithm = tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char* encryptKey = tsdb->pVnode->config.tsdbCfg.encryptKey;
+
+  code = tsdbWriteFile(fd[0], 0, hdr, TSDB_FHDR_SIZE, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
   fobj[0]->f->size += TSDB_FHDR_SIZE;
 
@@ -434,12 +461,14 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
 
   struct {
     // context
-    bool     toStt;
-    int8_t   cmprAlg;
-    int32_t  maxRow;
-    int64_t  minKey;
-    int64_t  maxKey;
-    uint8_t *bufArr[8];
+    bool    toStt;
+    int8_t  cmprAlg;
+    int32_t maxRow;
+    int64_t minKey;
+    int64_t maxKey;
+    SBuffer buffers[10];
+    int32_t  encryptAlgorithm;
+    char*    encryptKey;
     // reader
     SArray *aDelData;
     // writer
@@ -452,6 +481,8 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
   } ctx[1] = {{
       .maxRow = tsdb->pVnode->config.tsdbCfg.maxRows,
       .cmprAlg = tsdb->pVnode->config.tsdbCfg.compression,
+      .encryptAlgorithm = tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+      .encryptKey = tsdb->pVnode->config.tsdbCfg.encryptKey,
   }};
 
   tsdbFidKeyRange(fset->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &ctx->minKey, &ctx->maxKey);
@@ -488,7 +519,7 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
         }
         SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
         code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                      ctx->bufArr, &tombRange);
+                                      ctx->buffers, &tombRange, ctx->encryptAlgorithm, ctx->encryptKey);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -501,26 +532,30 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
     }
     SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
     code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                  ctx->bufArr, &tombRange);
+                                  ctx->buffers, &tombRange, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (ctx->fd != NULL) {
     if (ctx->toStt) {
-      code = tsdbFileWriteTombBlk(ctx->fd, ctx->tombBlkArray, ctx->sttFooter->tombBlkPtr, &ctx->fobj->f->size);
+      code = tsdbFileWriteTombBlk(ctx->fd, ctx->tombBlkArray, ctx->sttFooter->tombBlkPtr, &ctx->fobj->f->size, 
+                                  ctx->encryptAlgorithm, ctx->encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbFileWriteSttFooter(ctx->fd, ctx->sttFooter, &ctx->fobj->f->size);
+      code = tsdbFileWriteSttFooter(ctx->fd, ctx->sttFooter, &ctx->fobj->f->size, ctx->encryptAlgorithm, 
+                                    ctx->encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbFileWriteTombBlk(ctx->fd, ctx->tombBlkArray, ctx->tombFooter->tombBlkPtr, &ctx->fobj->f->size);
+      code = tsdbFileWriteTombBlk(ctx->fd, ctx->tombBlkArray, ctx->tombFooter->tombBlkPtr, &ctx->fobj->f->size, 
+                                  ctx->encryptAlgorithm, ctx->encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbFileWriteTombFooter(ctx->fd, ctx->tombFooter, &ctx->fobj->f->size);
+      code = tsdbFileWriteTombFooter(ctx->fd, ctx->tombFooter, &ctx->fobj->f->size, ctx->encryptAlgorithm, 
+                                      ctx->encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbFsyncFile(ctx->fd);
+    code = tsdbFsyncFile(ctx->fd, ctx->encryptAlgorithm, ctx->encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     tsdbCloseFile(&ctx->fd);
@@ -530,8 +565,8 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   }
-  for (int32_t i = 0; i < ARRAY_SIZE(ctx->bufArr); i++) {
-    tFree(ctx->bufArr[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
+    tBufferDestroy(ctx->buffers + i);
   }
   TARRAY2_DESTROY(ctx->tombBlkArray, NULL);
   tTombBlockDestroy(ctx->tombBlock);

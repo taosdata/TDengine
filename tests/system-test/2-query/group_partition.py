@@ -24,7 +24,7 @@ class TDTestCase:
         for i in range(self.tb_nums):
             tbname = f"{self.dbname}.sub_{self.stable}_{i}"
             ts = self.ts + i*10000
-            tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags ({ts} , {i} , {i}*10 ,{i}*1.0,{i}*1.0 , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )")
+            tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags ({ts} , {i} , %d ,%d , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0))
 
     def insert_db(self, tb_nums, row_nums):           
         for i in range(tb_nums):
@@ -91,14 +91,70 @@ class TDTestCase:
         tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
+    def test_groupby_sub_table(self):
+        for i in range(self.tb_nums):
+            tbname = f"{self.dbname}.sub_{self.stable}_{i}"
+            ts = self.ts + i*10000
+            tdSql.query(f"select t1, t2, t3,count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+            tdSql.query(f"select cast(t2 as binary(12)),count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i)
+
+            tdSql.query(f"select t2 + 1, count(*) from {tbname}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i + 1)
+
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} group by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} group by tbname, c1, t4")
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+            tdSql.query(f"select t1, t2, t3, count(*) from {tbname} partition by c1, tbname")
+            tdSql.checkData(0, 1, i)
+            tdSql.checkData(0, 2, i*10)
+
+        tdSql.query(f"select t1, t2, t3, count(*) from {self.dbname}.{self.stable} partition by c1, tbname order by tbname desc")
+        tdSql.checkRows(50)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 40)
+
 
     def test_multi_group_key(self, check_num, nonempty_tb_num):
         # multi tag/tbname
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
+        tdSql.query(f"select cast(t2 as binary(12)), count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
+        tdSql.checkRows(check_num)
+
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by t2, t3, tbname")
         tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by tbname order by tbname asc")
+        tdSql.checkRows(check_num)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 1, 20)
+        tdSql.checkData(3, 1, 30)
+
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by tbname order by tbname asc")
+        tdSql.checkRows(check_num)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(2, 1, 20)
+        tdSql.checkData(3, 1, 30)
 
         # multi tag + col
         tdSql.query(f"select t1, t2, c1, count(*) from {self.dbname}.{self.stable} partition by t1, t2, c1 ")
@@ -222,11 +278,13 @@ class TDTestCase:
 
         self.test_groupby('group', self.tb_nums, nonempty_tb_num)
         self.test_groupby('partition', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_sub_table()
         self.test_innerSelect(self.tb_nums)
         self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
         self.test_multi_agg(self.tb_nums, nonempty_tb_num)
         self.test_window(nonempty_tb_num)
         self.test_event_window(nonempty_tb_num)
+
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)

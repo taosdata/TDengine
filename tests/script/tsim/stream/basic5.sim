@@ -15,6 +15,8 @@ sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams3 trigger at_once ignore expired 0 ignore update 0 into streamt3 as select  _wstart, count(*) c1 from t1 state_window(a);
 
+sleep 1000
+
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,2,2,3,1.1);
 sql insert into t1 values(1648791215000,3,2,3,1.1);

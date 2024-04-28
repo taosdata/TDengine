@@ -1239,8 +1239,7 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['SAMPLE'])or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['HISTOGRAM'])  \
-                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) or (mathlist == ['UNIQUE'])  :
                 sql = "select  %s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
                 sql += "%s " % random.choice(self.t_join_where)
@@ -1250,6 +1249,15 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) or (mathlist == ['statecount','stateduration']) :
+                sql = "select  %s as asct1 " % math_fun_join_2
+                sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
+                sql += "%s " % random.choice(self.t_join_where)
+                sql += "and %s " % random.choice(self.t_u_where)
+                sql += "and %s " % random.choice(self.t_u_or_where)
+                sql += "%s " % random.choice(self.limit1_where)
+                tdLog.info(sql)
+                tdSql.error(sql)
 
         tdSql.query("select 1-10 as math_nest from stable_1 limit 1;")
         for i in range(self.fornum):
@@ -1441,8 +1449,8 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['HISTOGRAM']) \
-                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['SAMPLE']) or (mathlist == ['TAIL']) or (mathlist == ['HISTOGRAM']) \
+                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) :
                 sql = "select  count(asct1) from  ( select  "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
@@ -1455,6 +1463,20 @@ class TDTestCase:
                 tdLog.info(sql)
                 tdSql.query(sql)
                 self.explain_sql(sql)
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) \
+                or (mathlist == ['statecount','stateduration']) :
+                sql = "select  count(asct1) from  ( select  "
+                sql += "%s as asct1 " % math_fun_join_2
+                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
+                sql += "%s " % random.choice(self.t_join_where)
+                sql += " and %s " % random.choice(self.qt_u_or_where)
+                sql += "%s " % random.choice(self.partiton_where_j)
+                sql += "%s " % random.choice(self.slimit1_where)
+                sql += ") "
+                sql += "%s ;" % random.choice(self.limit_u_where)
+                tdLog.info(sql)
+                tdSql.error(sql)
+                                
 
         #taos -f sql
         # startTime_taosf = time.time()
@@ -3025,8 +3047,7 @@ class TDTestCase:
                 sql += "%s " % random.choice(self.limit1_where)
                 sql += ") ;"
                 tdLog.info(sql)
-                tdSql.query(sql)
-                self.explain_sql(sql)
+                tdSql.error(sql)
 
 
         tdSql.query("select 1-10 as time_nest from stable_1 limit 1;")
@@ -3351,8 +3372,7 @@ class TDTestCase:
                 sql += ") "
                 sql += "%s ;" % random.choice(self.limit_u_where)
                 tdLog.info(sql)
-                tdSql.query(sql)
-                self.explain_sql(sql)
+                tdSql.error(sql)
 
         #taos -f sql
         startTime_taos_f = time.time()
@@ -3796,9 +3816,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select  *  from  ( select  "
             sql += "%s " % random.choice(self.calc_select_in_not_support_ts_j)
-            sql += "from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.t_join_where)
-            sql += " and %s " % random.choice(self.qt_u_or_where)
+            sql += "from stable_1 t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "%s " % random.choice(self.limit1_where)
             sql += ") ;"
             tdLog.info(sql)
@@ -3924,8 +3942,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select  * from ( select "
             sql += "%s " % random.choice(self.calc_calculate_regular_j)
-            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts  "
             sql += "%s " % random.choice(self.partiton_where_j)
             sql += ") "
             sql += "%s " % random.choice([self.limit_where[2] , self.limit_where[3]] )
@@ -4044,9 +4061,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select   * from  ( select "
             sql += "%s as calc15_2 " % random.choice(self.calc_aggregate_regular_j)
-            sql += "from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.q_u_where)
-            sql += "%s " % random.choice(self.group_where_regular_j)
+            sql += "from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts "
             sql += "%s " % random.choice(self.limit_u_where)
             sql += ") "
             sql += "%s ;" % random.choice(self.limit_u_where)
@@ -4093,8 +4108,7 @@ class TDTestCase:
             sql += "%s as calc15_1, " % random.choice(self.calc_aggregate_groupbytbname_j)
             sql += "%s as calc15_2, " % random.choice(self.calc_aggregate_groupbytbname_j)
             sql += "%s " % random.choice(self.calc_aggregate_groupbytbname_j)
-            sql += " as calc15_3 from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += " as calc15_3 from stable_1 t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "%s " % random.choice(self.group_only_where_j)
             sql += "%s " % random.choice(self.having_support_j)
             sql += ") "
@@ -4234,8 +4248,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select   * from  ( select  "
             sql += "%s as calc16_1  " % random.choice(self.calc_calculate_groupbytbname_j)
-            sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "limit 2 ) "
             sql += "%s " % random.choice(self.limit1_where)
             tdLog.info(sql)
@@ -4547,8 +4560,7 @@ class TDTestCase:
             sql = "select   apercentile(cal18_1, %d)/1000 ,apercentile(cal18_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
             sql += "%s as cal18_1 ," % random.choice(self.calc_aggregate_all_j)
             sql += "%s as cal18_2 " % random.choice(self.calc_aggregate_all_j)
-            sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "%s " % random.choice(self.session_u_where)
             sql += "%s " % random.choice(self.limit_u_where)
             sql += ") "

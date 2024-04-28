@@ -15,7 +15,7 @@
 
 #include "tq.h"
 
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
+int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOfCols, int8_t precision) {
   int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
@@ -30,22 +30,22 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
   actualLen += sizeof(SRetrieveTableRspForTmq);
-  taosArrayPush(pRsp->blockDataLen, &actualLen);
-  taosArrayPush(pRsp->blockData, &buf);
+  taosArrayPush(((SMqDataRspCommon*)pRsp)->blockDataLen, &actualLen);
+  taosArrayPush(((SMqDataRspCommon*)pRsp)->blockData, &buf);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp) {
+static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, void* pRsp) {
   SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pTqReader->pSchemaWrapper);
   if (pSW == NULL) {
     return -1;
   }
-  taosArrayPush(pRsp->blockSchema, &pSW);
+  taosArrayPush(((SMqDataRspCommon*)pRsp)->blockSchema, &pSW);
   return 0;
 }
 
-static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, int32_t n) {
+static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, void* pRsp, int32_t n) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK);
 
@@ -57,7 +57,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
 
   for (int32_t i = 0; i < n; i++) {
     char* tbName = taosStrdup(mr.me.name);
-    taosArrayPush(pRsp->blockTbName, &tbName);
+    taosArrayPush(((SMqDataRspCommon*)pRsp)->blockTbName, &tbName);
   }
   metaReaderClear(&mr);
   return 0;
@@ -80,8 +80,6 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
 }
 
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest) {
-  const int32_t MAX_ROWS_TO_RETURN = 4096;
-
   int32_t vgId = TD_VID(pTq->pVnode);
   int32_t code = 0;
   int32_t totalRows = 0;
@@ -113,9 +111,8 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         STqOffsetVal offset = {0};
         qStreamExtractOffset(task, &offset);
         pHandle->block = createOneDataBlock(pDataBlock, true);
-        //        pHandle->block = createDataBlock();
-        //        copyDataBlock(pHandle->block, pDataBlock);
         pHandle->blockTime = offset.ts;
+        tOffsetDestroy(&offset);
         code = getDataBlock(task, pHandle, vgId, &pDataBlock);
         if (code != 0) {
           return code;
@@ -128,7 +125,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         return code;
       }
 
-      pRsp->blockNum++;
+      pRsp->common.blockNum++;
       if (pDataBlock == NULL) {
         blockDataDestroy(pHandle->block);
         pHandle->block = NULL;
@@ -139,6 +136,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         qStreamExtractOffset(task, &offset);
         pRsp->sleepTime = offset.ts - pHandle->blockTime;
         pHandle->blockTime = offset.ts;
+        tOffsetDestroy(&offset);
       }
       break;
     } else {
@@ -151,17 +149,17 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         return code;
       }
 
-      pRsp->blockNum++;
+      pRsp->common.blockNum++;
       totalRows += pDataBlock->info.rows;
-      if (totalRows >= MAX_ROWS_TO_RETURN) {
+      if (totalRows >= tmqRowSize) {
         break;
       }
     }
   }
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq task executed finished, total blocks:%d, totalRows:%d",
-          pHandle->consumerId, vgId, pRsp->blockNum, totalRows);
-  qStreamExtractOffset(task, &pRsp->rspOffset);
+          pHandle->consumerId, vgId, pRsp->common.blockNum, totalRows);
+  qStreamExtractOffset(task, &pRsp->common.rspOffset);
   return 0;
 }
 
@@ -188,7 +186,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
-      if (pRsp->withTbName) {
+      if (pRsp->common.withTbName) {
         if (pOffset->type == TMQ_OFFSET__LOG) {
           int64_t uid = pExec->pTqReader->lastBlkUid;
           if (tqAddTbNameToRsp(pTq, uid, pRsp, 1) < 0) {
@@ -196,26 +194,26 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
           }
         } else {
           char* tbName = taosStrdup(qExtractTbnameFromTask(task));
-          taosArrayPush(pRsp->blockTbName, &tbName);
+          taosArrayPush(pRsp->common.blockTbName, &tbName);
         }
       }
-      if (pRsp->withSchema) {
+      if (pRsp->common.withSchema) {
         if (pOffset->type == TMQ_OFFSET__LOG) {
           tqAddBlockSchemaToRsp(pExec, pRsp);
         } else {
           SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
-          taosArrayPush(pRsp->blockSchema, &pSW);
+          taosArrayPush(pRsp->common.blockSchema, &pSW);
         }
       }
 
       tqAddBlockDataToRsp(pDataBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pDataBlock->pDataBlock),
                           pTq->pVnode->config.tsdbCfg.precision);
-      pRsp->blockNum++;
+      pRsp->common.blockNum++;
       if (pOffset->type == TMQ_OFFSET__LOG) {
         continue;
       } else {
         rowCnt += pDataBlock->info.rows;
-        if (rowCnt <= 4096) continue;
+        if (rowCnt <= tmqRowSize) continue;
       }
     }
 
@@ -236,13 +234,13 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
       }
       tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
               pHandle->snapshotVer + 1);
-      qStreamExtractOffset(task, &pRsp->rspOffset);
+      qStreamExtractOffset(task, &pRsp->common.rspOffset);
       break;
     }
 
-    if (pRsp->blockNum > 0) {
+    if (pRsp->common.blockNum > 0) {
       tqDebug("tmqsnap task exec exited, get data");
-      qStreamExtractOffset(task, &pRsp->rspOffset);
+      qStreamExtractOffset(task, &pRsp->common.rspOffset);
       break;
     }
   }
@@ -270,7 +268,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
       if ((pSubmitTbDataRet->flags & sourceExcluded) != 0) {
         goto loop_table;
       }
-      if (pRsp->withTbName) {
+      if (pRsp->common.withTbName) {
         int64_t uid = pExec->pTqReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp, taosArrayGetSize(pBlocks)) < 0) {
           goto loop_table;
@@ -314,8 +312,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         *totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
-        taosArrayPush(pRsp->blockSchema, &pSW);
-        pRsp->blockNum++;
+        taosArrayPush(pRsp->common.blockSchema, &pSW);
+        pRsp->common.blockNum++;
       }
       continue;
     loop_table:
@@ -338,7 +336,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
       if ((pSubmitTbDataRet->flags & sourceExcluded) != 0) {
         goto loop_db;
       }
-      if (pRsp->withTbName) {
+      if (pRsp->common.withTbName) {
         int64_t uid = pExec->pTqReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp, taosArrayGetSize(pBlocks)) < 0) {
           goto loop_db;
@@ -382,8 +380,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         *totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
-        taosArrayPush(pRsp->blockSchema, &pSW);
-        pRsp->blockNum++;
+        taosArrayPush(pRsp->common.blockSchema, &pSW);
+        pRsp->common.blockNum++;
       }
       continue;
     loop_db:

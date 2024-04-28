@@ -31,6 +31,15 @@ enum {
   FLT_OPTION_NEED_UNIQE = 4,
 };
 
+
+typedef enum EConditionType {
+  COND_TYPE_PRIMARY_KEY = 1,
+  COND_TYPE_TAG_INDEX,
+  COND_TYPE_TAG,
+  COND_TYPE_NORMAL
+} EConditionType;
+
+
 #define FILTER_RESULT_ALL_QUALIFIED     0x1
 #define FILTER_RESULT_NONE_QUALIFIED    0x2
 #define FILTER_RESULT_PARTIAL_QUALIFIED 0x3
@@ -54,6 +63,8 @@ extern bool    filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pColsAgg, 
 /* condition split interface */
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                             SNode **pOtherCond);
+bool filterIsMultiTableColsCond(SNode *pCond);
+EConditionType filterClassifyCondition(SNode *pNode);
 
 #ifdef __cplusplus
 }
