@@ -45,6 +45,7 @@ groups:
             - latest
       - name: group.id
         display: Group ID
+        required: true
         description: |
           Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      
         hint:
@@ -55,12 +56,6 @@ groups:
           Client ID is a string used to identify the client, with a maximum length of 192.
         hint:
           type: str
-      - name: experimental.snapshot.enable
-        display: Enable Snapshot
-        description: |
-          Enable experimental snapshot feature to subscribe data from scratch.
-        hint:
-          type: bool
       - name: timeout
         display: Timeout
         hint:

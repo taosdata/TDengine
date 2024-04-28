@@ -43,16 +43,11 @@ groups:
           type: str
       - name: client.id
         display: 客户端 ID
+        required: true
         description: |
           客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。
         hint:
           type: str
-      - name: experimental.snapshot.enable
-        display: 启用快照
-        description: |
-          启用实验性的快照以支持订阅更早的数据。
-        hint: 
-          type: bool
       - name: timeout
         display: 超时
         hint:
