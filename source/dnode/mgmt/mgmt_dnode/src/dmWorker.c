@@ -61,9 +61,9 @@ static void *dmNotifyThreadFp(void *param) {
   // calculate approximate timeSeries per second
   int64_t  notifyTimeStamp[TIMESERIES_STASH_NUM];
   int64_t  notifyTimeSeries[TIMESERIES_STASH_NUM];
+  int64_t  approximateTimeSeries = 0;
   uint64_t nTotalNotify = 0;
-  int32_t  head = -1;
-  int32_t  tail = 0;
+  int32_t  head, tail = 0;
 
   bool       wait = true;
   int32_t    nDnode = 0;
@@ -81,6 +81,7 @@ static void *dmNotifyThreadFp(void *param) {
     int64_t current = taosGetTimestampMs();
     if (current - lastNotify > 1000) {
       nDnode = dmGetDnodeSize(pMgmt->pData);
+      if (nDnode < 1) nDnode = 1;
     }
     if (req.dnodeId == 0 || req.clusterId == 0) {
       req.dnodeId = pMgmt->pData->dnodeId;
@@ -88,9 +89,11 @@ static void *dmNotifyThreadFp(void *param) {
     }
 
     if (current - lastNotify < 10) {
-      if (remainTimeSeries > 1000000) {
+      int64_t nCmprTimeSeries = approximateTimeSeries / 100;
+      if (nCmprTimeSeries < 1e5) nCmprTimeSeries = 1e5;
+      if (remainTimeSeries > nCmprTimeSeries * 10) {
         taosMsleep(10);
-      } else if (remainTimeSeries > 500000) {
+      } else if (remainTimeSeries > nCmprTimeSeries * 5) {
         taosMsleep(5);
       } else {
         taosMsleep(2);
@@ -110,20 +113,23 @@ static void *dmNotifyThreadFp(void *param) {
     notifyTimeStamp[tail] = taosGetTimestampNs();
     ++nTotalNotify;
 
-    int64_t approximateTimeSeries = 0;
+    approximateTimeSeries = 0;
     if (nTotalNotify >= TIMESERIES_STASH_NUM) {
+      head = tail - TIMESERIES_STASH_NUM + 1;
+      if (head < 0) head += TIMESERIES_STASH_NUM;
       int64_t timeDiff = notifyTimeStamp[tail] - notifyTimeStamp[head];
       int64_t tsDiff = notifyTimeSeries[tail] - notifyTimeSeries[head];
       if (timeDiff > 0 && timeDiff < 1e9 && tsDiff > 0) {
         approximateTimeSeries = (double)tsDiff * 1e9 / timeDiff;
+        if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+          dmSendNotifyReq(pMgmt, &req);
+        }
       }
-    }
-    if (++head == TIMESERIES_STASH_NUM) head = 0;
-    if (++tail == TIMESERIES_STASH_NUM) tail = 0;
-
-    if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+    } else {
       dmSendNotifyReq(pMgmt, &req);
     }
+    if (++tail == TIMESERIES_STASH_NUM) tail = 0;
+
     tFreeSNotifyReq(&req);
     lastNotify = taosGetTimestampMs();
   _skip:
