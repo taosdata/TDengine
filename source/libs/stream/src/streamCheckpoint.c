@@ -26,6 +26,8 @@ typedef struct {
   SStreamTask* pTask;
 } SAsyncUploadArg;
 
+static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
+
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -376,21 +378,23 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   return code;
 }
 
-void streamTaskSetCheckpointFailedId(SStreamTask* pTask) {
+void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
   pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;
   stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr,
           pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
 }
 
-int32_t getChkpMeta(char* id, char* path, SArray* list) {
+static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
   char* file = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(file, "%s%s%s", path, TD_DIRSEP, "META_TMP");
-  int32_t code = downloadCheckpointByName(id, "META", file);
+
+  int32_t code = downloadCheckpointDataByName(id, "META", file);
   if (code != 0) {
     stDebug("chkp failed to download meta file:%s", file);
     taosMemoryFree(file);
     return code;
   }
+
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
   char      buf[128] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
@@ -427,7 +431,7 @@ int32_t uploadCheckpointData(void* param) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
   if (arg->type == DATA_UPLOAD_S3) {
-    if (code == 0 && (code = getChkpMeta(arg->taskId, path, toDelFiles)) != 0) {
+    if (code == 0 && (code = getCheckpointDataMeta(arg->taskId, path, toDelFiles)) != 0) {
       stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
     }
   }
@@ -546,7 +550,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&pTask->lock);
 
-    streamTaskSetCheckpointFailedId(pTask);
+    streamTaskSetFailedCheckpointId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, id, ckId);
   }
 
@@ -590,7 +594,7 @@ static int32_t uploadCheckpointToS3(char* id, char* path) {
   return 0;
 }
 
-static int32_t downloadCheckpointByNameS3(char* id, char* fname, char* dstName) {
+static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
   int32_t   code = 0;
   char* buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
   sprintf(buf, "%s/%s", id, fname);
@@ -625,16 +629,18 @@ int32_t streamTaskBackupCheckpoint(char* id, char* path) {
 }
 
 // fileName:  CURRENT
-int32_t downloadCheckpointByName(char* id, char* fname, char* dstName) {
+int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
   if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
     stError("uploadCheckpointByName parameters invalid");
     return -1;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
     return 0;
   } else if (tsS3StreamEnabled) {
     return downloadCheckpointByNameS3(id, fname, dstName);
   }
+
   return 0;
 }
 
@@ -643,11 +649,13 @@ int32_t downloadCheckpoint(char* id, char* path) {
     stError("downloadCheckpoint parameters invalid");
     return -1;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
     return downloadRsync(id, path);
   } else if (tsS3StreamEnabled) {
     return s3GetObjectsByPrefix(id, path);
   }
+
   return 0;
 }
 

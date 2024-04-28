@@ -1196,7 +1196,7 @@ static S3Status getObjectCallback(int bufferSize, const char *buffer, void *call
   return ((wrote < (size_t)bufferSize) ? S3StatusAbortedByCallback : S3StatusOK);
 }
 
-int32_t s3GetObjectToFile(const char *object_name, char *fileName) {
+int32_t s3GetObjectToFile(const char *object_name, const char *fileName) {
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
