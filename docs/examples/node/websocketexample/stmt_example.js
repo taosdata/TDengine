@@ -55,6 +55,6 @@ async function prepare() {
         if (connector) {
             await connector.close();
         }
-        taos.connectorDestroy();
+        taos.destroy();
     }
 })();

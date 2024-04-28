@@ -70,7 +70,7 @@ async function test() {
         if (wsSql) {
             await wsSql.close();
         }
-        taos.connectorDestroy();
+        taos.destroy();
     }
 }
 

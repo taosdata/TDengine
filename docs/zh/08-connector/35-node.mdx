@@ -28,11 +28,11 @@ Node.js Websocket 连接器，支持 Node.js 14以上版本。
 - SQL写入
 - SQL查询
 - 参数绑定
-- 订阅功能
-- Schemaless
+- 数据订阅
+- 无模式写入
 
 ## 处理异常
-在报错后，通过 try catch 可以获取到错误的信息和错误码。
+在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。
 
 错误说明：Node.js Websocket 连接器错误码在 100 到 110 之间，之外的错误为 TDengine 其他功能模块的报错。
 
@@ -41,16 +41,16 @@ Node.js Websocket 连接器，支持 Node.js 14以上版本。
 | Error Code | Description                                                  | Suggested Actions                                                                         |
 | ---------- | -------------------------------------------------------------| ----------------------------------------------------------------------------------------- |
 | 100     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                |
-| 101     | invalid url!                                                    | url 错误，请检查 url 是否填写正确。                                                |
-| 102     | received data, but no find callback                             | 接收到服务端数据但没有找到上层回调                                      |
+| 101     | invalid url                                                     | url 错误，请检查 url 是否填写正确。                                                |
+| 102     | Received server data but did not find a callback for processing | 接收到服务端数据但没有找到上层回调                                      |
 | 103     | invalid message type                                            | 接收到的消息类型无法识别，请检查服务端是否正常。               |
-| 104     | connection not created                                          | 连接没有创建，请检查连接是否正常。                           |
-| 105     | Websocket request timeout                                       | 请求超时                                          |
+| 104     | connection creation failed                                      | 连接创建失败，请检查网络是否正常。                           |
+| 105     | websocket request timeout                                       | 请求超时                                          |
 | 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
 | 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
-| 108     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                                                          |
-| 109     | parse fetch block data fail                                     | 获取到的查询数据，解析失败                    |
-| 110     | Websocket connector arrived limited                             | Websocket连接达到上限                                                   |
+| 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                                                          |
+| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败                    |
+| 110     | websocket connection has reached its maximum limit              | Websocket连接达到上限                                                   |
 
 ## TDengine DataType 和 Node.js DataType
 
@@ -66,7 +66,7 @@ Node.js Websocket 连接器，支持 Node.js 14以上版本。
 | INT UNSIGNED      | number      |
 | BIGINT UNSIGNED   | bigint      |
 | FLOAT             | number      |
-| DOUBLE            | bigint      |
+| DOUBLE            | number      |
 | BOOL              | number      | 
 | BINARY            | string      |
 | NCHAR             | string      |
@@ -102,12 +102,21 @@ npm install @tdengine/websocket
   node nodejsChecker.js
 ```
 
-
 - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 ## 建立连接
 
 安装并引用 `@tdengine/websocket` 包。
+
+**注意**：
+- 链接器使用结束后，需要调用 taos.destroy() 释放连接器资源
+```javascript
+const taos = require("@tdengine/websocket");
+
+//数据库操作......
+
+taos.destroy();
+```
 
 ```javascript
 WSConfig配置Websocket参数如下:

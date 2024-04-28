@@ -119,6 +119,16 @@ node nodejsChecker.js host=localhost
 
 Install and import the `@tdengine/websocket` package.
 
+**Note**：
+- After using the Node.js client library, it is necessary to call taos.destroy() Release connector resources
+```javascript
+const taos = require("@tdengine/websocket");
+
+//database operations......
+
+taos.destroy();
+```
+
 ```javascript
 WSConfig配置Websocket参数如下:
     GetToken(): string | undefined | null;
