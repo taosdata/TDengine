@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, filed2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time

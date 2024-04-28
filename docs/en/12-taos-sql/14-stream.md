@@ -11,7 +11,7 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, filed2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
