@@ -1,6 +1,7 @@
 use std::cmp;
 
 use chrono::{DateTime, Utc};
+use tokio_util::sync::CancellationToken;
 
 use crate::runners::oracle::appender::to_schema;
 use crate::runners::oracle::config::OracleConfig;
@@ -15,12 +16,15 @@ mod producer;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
-pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
+pub async fn migrate_history(
+    mut config: OracleConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     // mark the current time
     let now = Utc::now();
 
     // schema
-    let mut query = OracleQuery::try_new(config.connect.clone())?;
+    let mut query = OracleQuery::try_new(config.connect.clone(), config.task.time_zone.clone())?;
 
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
@@ -64,7 +68,8 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
         let tx_live = tx.clone();
         // from 'now' marked by the beginning of the task
         let mut real_start = now - config_live.task.delay;
-        tokio::spawn(async move {
+        // loop to produce task
+        let future = async move {
             loop {
                 let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
@@ -89,7 +94,11 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
                 // sleep 2 second
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             }
-        });
+        };
+        tokio::select! {
+            _ = future => {}
+            _ = cancel.cancelled() => {}
+        };
     }
 
     // produce task

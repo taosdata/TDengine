@@ -380,7 +380,7 @@ mod tests {
     async fn test_to_schema() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let col_map = query.select_for_schema("select * from TEST").unwrap();
         let schema = to_schema(col_map).unwrap();
@@ -391,7 +391,7 @@ mod tests {
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 
@@ -403,7 +403,7 @@ mod tests {
     async fn test_to_record_batches() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 

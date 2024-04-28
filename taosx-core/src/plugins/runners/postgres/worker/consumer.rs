@@ -24,7 +24,11 @@ impl Consumer {
 
     pub async fn consume(&mut self, receiver: Receiver<PostgresConfig>) -> anyhow::Result<()> {
         // connect to database
-        let mut query = PostgresQuery::try_new(self.config.connect.clone()).await?;
+        let mut query = PostgresQuery::try_new(
+            self.config.connect.clone(),
+            self.config.task.time_zone.clone(),
+        )
+        .await?;
 
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
@@ -81,8 +85,9 @@ impl Consumer {
         });
 
         // query database and send to writer
-        let mut batch_count: u64 = 1;
+        let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
+            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
@@ -90,12 +95,7 @@ impl Consumer {
             // set sub task id
             config.sub_task_id = self.config.sub_task_id.clone();
 
-            tracing::debug!(
-                "migrate postgres batch:{}, config:{:?}, sql:{:?}",
-                batch_count,
-                &config,
-                &sql
-            );
+            tracing::debug!("consume task, config:{:?}, sql:{:?}", &config, &sql);
 
             let mut stream = query.select_by_stream(&sql);
             let mut rows = Vec::new();
@@ -135,11 +135,20 @@ impl Consumer {
         }
         drop(tx);
 
-        tracing::debug!("migrate postgres query finished");
+        tracing::debug!(
+            "migrate postgres query finished, total batch: {}",
+            batch_count
+        );
         writer_handler.await??;
-        tracing::debug!("migrate postgres writer finished");
+        tracing::debug!(
+            "migrate postgres writer finished, total batch: {}",
+            batch_count
+        );
         ack.await??;
-        tracing::debug!("migrate postgres consumer finished");
+        tracing::debug!(
+            "migrate postgres consumer finished, total batch: {}",
+            batch_count
+        );
         Ok(())
     }
 }
@@ -164,7 +173,7 @@ mod tests {
         config.ipc_port = Some(6666);
 
         // query for schema
-        let mut query = PostgresQuery::try_new(config.connect.clone())
+        let mut query = PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone())
             .await
             .unwrap();
         let row = query

@@ -12,7 +12,7 @@ pub struct PostgresQuery {
 }
 
 impl PostgresQuery {
-    pub async fn try_new(config: ConnectConfig) -> anyhow::Result<Self> {
+    pub async fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
         let pool = Self::connect(
             &config.host,
             config.port,
@@ -24,6 +24,7 @@ impl PostgresQuery {
             &config.ssl_ca,
             &config.ssl_client_cert,
             &config.ssl_client_key,
+            time_zone,
         )
         .await
         .map_err(|err| {
@@ -43,6 +44,7 @@ impl PostgresQuery {
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
+        time_zone: String,
     ) -> anyhow::Result<Pool<Postgres>> {
         let mut options = PgConnectOptions::new()
             .host(host)
@@ -54,26 +56,36 @@ impl PostgresQuery {
         match ssl_mode.as_str() {
             "DISABLE" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Disable);
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             "ALLOW" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Allow);
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             "PREFER" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Prefer);
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             "REQUIRE" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Require);
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             "VERIFY_CA" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::VerifyCa);
                 if let Some(ca) = ssl_ca {
-                    options = options.ssl_root_cert(ca.as_str())
+                    options = options.ssl_root_cert(ca.as_str());
                 }
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             "VERIFY_FULL" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::VerifyFull);
@@ -86,7 +98,9 @@ impl PostgresQuery {
                 if let Some(key) = ssl_client_key {
                     options = options.ssl_client_key(key.as_str());
                 }
-                Ok(PgPool::connect_with(options).await?)
+                let pool = PgPool::connect_with(options).await?;
+                let _ = pool.execute(format!("SET timezone='{}';", time_zone).as_str()).await;
+                Ok(pool)
             }
             _ => Err(anyhow::anyhow!("unsupported ssl mode: {}", ssl_mode)),
         }
@@ -151,7 +165,9 @@ mod tests {
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
         dbg!(&config);
 
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
     }
 
@@ -160,7 +176,9 @@ mod tests {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from information_schema.tables")
@@ -181,7 +199,9 @@ mod tests {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from information_schema.tables")
@@ -195,7 +215,9 @@ mod tests {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let mut stream = query.select_by_stream("select * from information_schema.tables");
         while let Some(result) = stream.next().await {
@@ -215,7 +237,9 @@ mod tests {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .top_n("select * from information_schema.tables", 1)
@@ -235,7 +259,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=ALLOW
@@ -245,7 +271,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=PREFER
@@ -255,7 +283,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=REQUIRE
@@ -265,7 +295,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_CA
@@ -274,7 +306,9 @@ mod tests {
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_IDENTITY
@@ -282,7 +316,9 @@ mod tests {
             .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
     }
 

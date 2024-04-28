@@ -41,7 +41,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let result = MySqlQuery::try_new(c).await;
+            let result = MySqlQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     MYSQL_ID.to_string(),
@@ -83,7 +83,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mysql query
     let config = MySqlConfig::from_dsn(dsn)?;
-    let mut query = MySqlQuery::try_new(config.connect).await?;
+    let mut query = MySqlQuery::try_new(config.connect, config.task.time_zone.clone()).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
@@ -195,7 +195,7 @@ pub async fn mysql_to_taos(
     .await?;
 
     // create worker
-    let worker = tokio::spawn(migrate_history(config));
+    let worker = tokio::spawn(migrate_history(config, cancel.clone()));
 
     // execute worker
     let port_pool = port_pool.clone();
@@ -504,7 +504,9 @@ mod tests {
     async fn test_generate_json_value() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from t_full_columns")

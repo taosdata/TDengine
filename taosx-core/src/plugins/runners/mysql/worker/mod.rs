@@ -1,6 +1,7 @@
 use std::cmp;
 
 use chrono::{DateTime, Utc};
+use tokio_util::sync::CancellationToken;
 
 use crate::runners::mysql::appender::to_schema;
 use crate::runners::mysql::config::MySqlConfig;
@@ -15,12 +16,16 @@ mod producer;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
-pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
+pub async fn migrate_history(
+    mut config: MySqlConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     // mark the current time
     let now = Utc::now();
 
     // schema
-    let mut query = MySqlQuery::try_new(config.connect.clone()).await?;
+    let mut query =
+        MySqlQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
 
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
@@ -69,7 +74,8 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
         let tx_live = tx.clone();
         // from 'now' marked by the beginning of the task
         let mut real_start = now - config_live.task.delay;
-        tokio::spawn(async move {
+        // loop to produce task
+        let future = async move {
             loop {
                 let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
@@ -94,7 +100,11 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
                 // sleep 2 second
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             }
-        });
+        };
+        tokio::select! {
+            _ = future => {}
+            _ = cancel.cancelled() => {}
+        };
     }
 
     // produce task
