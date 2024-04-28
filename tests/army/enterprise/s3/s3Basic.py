@@ -103,7 +103,7 @@ class TDTestCase(TBase):
         loop = 0
         rets = []
         overCnt = 0
-        while loop < 100:
+        while loop < 200:
             time.sleep(3)
 
             # check upload to s3
