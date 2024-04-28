@@ -14,13 +14,13 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## 连接方式
 
-**Node.js websocket 连接器**， 通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。
+**Node.js Websocket 连接器**， 通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。
 
 连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
 ## 支持的平台
 
-Node.js websocket 连接器，支持 Node.js 14以上版本。
+Node.js Websocket 连接器，支持 Node.js 14以上版本。
 
 ## 支持的功能特性
 
@@ -34,7 +34,7 @@ Node.js websocket 连接器，支持 Node.js 14以上版本。
 ## 处理异常
 在报错后，通过 try catch 可以获取到错误的信息和错误码。
 
-错误说明：Node.js websocket 连接器错误码在 100 到 110 之间，之外的错误为 TDengine 其他功能模块的报错。
+错误说明：Node.js Websocket 连接器错误码在 100 到 110 之间，之外的错误为 TDengine 其他功能模块的报错。
 
 具体的连接器错误码请参考：
 
@@ -45,12 +45,12 @@ Node.js websocket 连接器，支持 Node.js 14以上版本。
 | 102     | received data, but no find callback                             | 接收到服务端数据但没有找到上层回调                                      |
 | 103     | invalid message type                                            | 接收到的消息类型无法识别，请检查服务端是否正常。               |
 | 104     | connection not created                                          | 连接没有创建，请检查连接是否正常。                           |
-| 105     | websocket request timeout                                       | 请求超时                                          |
+| 105     | Websocket request timeout                                       | 请求超时                                          |
 | 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
 | 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
 | 108     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                                                          |
 | 109     | parse fetch block data fail                                     | 获取到的查询数据，解析失败                    |
-| 110     | websocket connector arrived limited                             | websocket连接达到上限                                                   |
+| 110     | Websocket connector arrived limited                             | Websocket连接达到上限                                                   |
 
 ## TDengine DataType 和 Node.js DataType
 
@@ -92,7 +92,7 @@ npm install @tdengine/websocket
 
 验证方法：
 
-- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/Websocketexample/nodejsChecker.js)到本地。
 
 - 在命令行中执行以下命令。
 
@@ -126,7 +126,7 @@ WSConfig配置Websocket参数如下:
 ```
 
 ```javascript
-{{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
+{{#include docs/examples/node/Websocketexample/sql_example.js:createConnect}}
 ```
 
 ## 使用示例
@@ -134,14 +134,14 @@ WSConfig配置Websocket参数如下:
 ### 创建数据库和表
 
 ```javascript
-{{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
+{{#include docs/examples/node/Websocketexample/sql_example.js:create_db_and_table}}
 ```
 > **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 
 ### 插入数据
 
 ```javascript
-{{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
+{{#include docs/examples/node/Websocketexample/sql_example.js:insertData}}
 ```
 
 > NOW 为系统内部函数，默认为客户端所在计算机当前时间。
@@ -150,7 +150,7 @@ WSConfig配置Websocket参数如下:
 ### 查询数据
 
 ```javascript
-{{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
+{{#include docs/examples/node/Websocketexample/sql_example.js:queryData}}
 ```
 
 > 查询到的数据
@@ -174,7 +174,7 @@ wsRow:data:=> [
 <RequestId />
 
 ```javascript
-{{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
+{{#include docs/examples/node/Websocketexample/sql_example.js:sqlWithReqid}}
 ```
 
 ### 通过参数绑定写入数据
@@ -186,7 +186,7 @@ TDengine 的 NodeJs 连接器支持参数绑定风格的 Prepare API 方式写�
 
 示例代码：
 ```javascript
-{{#include docs/examples/node/websocketexample/stmt_example.js}}
+{{#include docs/examples/node/Websocketexample/stmt_example.js}}
 ```
 
 用于设定 TAG/VALUES 数据列的取值的方法总共有：
@@ -219,7 +219,7 @@ setTimestamp(params: any[]): void;
 TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
 
 ```javascript
-{{#include docs/examples/node/websocketexample/line_example.js}}
+{{#include docs/examples/node/Websocketexample/line_example.js}}
 ```
 
 ### 执行带有 reqId 的无模式写入
@@ -236,7 +236,7 @@ TDengine NodeJs 连接器支持订阅功能，应用 API 如下：
 
 #### 创建 Topic
 ```javascript
-{{#include docs/examples/node/websocketexample/tmq_example.js:create_topic}}
+{{#include docs/examples/node/Websocketexample/tmq_example.js:create_topic}}
 ```
 
 `subscribe` 方法的三个参数含义如下：
@@ -249,30 +249,30 @@ TDengine NodeJs 连接器支持订阅功能，应用 API 如下：
 #### 创建 Consumer
 
 ```javascript
-{{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
+{{#include docs/examples/node/Websocketexample/tmq_example.js:create_consumer}}
 ```
 > 参数说明
 - taos.TMQConstants.CONNECT_USER: 用户名。
 - taos.TMQConstants.CONNECT_PASS: 密码。
 - taos.TMQConstants.GROUP_ID: 所在的 group。
 - taos.TMQConstants.CLIENT_ID: client id。
-- taos.TMQConstants.WS_URL: taosAdapter的url地址。
+- taos.TMQConstants.WS_URL: taosAdapter 的url地址。
 - taos.TMQConstants.AUTO_OFFSET_RESET: 来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
 - taos.TMQConstants.ENABLE_AUTO_COMMIT: 是否允许自动提交。
 - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: 自动提交间隔。
 - taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: 数据传输超时参数，单位 ms，默认为 10000 ms。  
 
-其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)， 注意TDengine服务端自3.2.0.0版本开始消息订阅中的auto.offset.reset默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)， 注意 TDengine 服务端自3.2.0.0版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 #### 订阅消费数据
 ```javascript
-{{#include docs/examples/node/websocketexample/tmq_example.js:subscribe}}
+{{#include docs/examples/node/Websocketexample/tmq_example.js:subscribe}}
 ```
 
 #### 指定订阅 Offset
 
 ```javascript
-{{#include docs/examples/node/websocketexample/tmq_example.js:assignment}}
+{{#include docs/examples/node/Websocketexample/tmq_example.js:assignment}}
 ```
 
 #### 关闭订阅
@@ -290,29 +290,29 @@ taos.connectorDestroy();
 #### 完整示例
 
 ```javascript
-{{#include docs/examples/node/websocketexample/tmq_example.js}}
+{{#include docs/examples/node/Websocketexample/tmq_example.js}}
 ```
 
 ## 更多示例程序
 
 | 示例程序                                                                                                                                    | 示例程序描述                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | 基本的使用如如建立连接，执行 SQL 等操作。                       |
-| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)                         | 绑定参数插入的示例。               | |
-| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)                         | 行协议写入示例。               |
-| [telnet_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/telnet_line_example.js)           | OpenTSDB Telnet 行协议写入示例。                 |
-| [json_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/json_line_example.js)               | OpenTSDB JSON 行协议写入示例。                 |
-| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                           | 订阅的使用示例。                       |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/sql_example.js)                           | 基本的使用如如建立连接，执行 SQL 等操作。                       |
+| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/stmt_example.js)                         | 绑定参数插入的示例。               | |
+| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/line_example.js)                         | 行协议写入示例。               |
+| [telnet_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/telnet_line_example.js)           | OpenTSDB Telnet 行协议写入示例。                 |
+| [json_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/json_line_example.js)               | OpenTSDB JSON 行协议写入示例。                 |
+| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/Websocketexample/tmq_example.js)                           | 订阅的使用示例。                       |
 
 ## 使用限制
 
-- Node.js websocket 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，其他版本可能存在包兼容性的问题。
+- Node.js Websocket 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，其他版本可能存在包兼容性的问题。
 - 使用链接器结束后，需要调用 taos.connectorDestroy(); 释放连接器资源。
 
 
 ## 常见问题
 
-1. 使用 Node.js websocket 连接器需要启动 taosadapter。
+1. 使用 Node.js Websocket 连接器需要启动 taosadapter。
 
    ```bash
    sudo systemctl start taosadapter
