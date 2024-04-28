@@ -485,6 +485,7 @@ SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, in
 
 int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId, const char* id) {
   if (tSimpleHashGetSize(pSinkTableMap) > MAX_CACHE_TABLE_INFO_NUM) {
+    taosMemoryFreeClear(pTableSinkInfo);  // too many items, failed to cache it
     return TSDB_CODE_FAILED;
   }
 
@@ -583,7 +584,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
       if (IS_SET_NULL(pCol)) {
         if (pCol->flags & COL_IS_KEY) {
-          qError("ts:%" PRId64 " Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
+          qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
                  pCol->colId, pCol->type);
           break;
         }
@@ -593,7 +594,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
         if (colDataIsNull_s(pColData, j)) {
           if (pCol->flags & COL_IS_KEY) {
-            qError("ts:%" PRId64 "Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
+            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
                    ts, pCol->colId, pCol->type);
             break;
           }
@@ -624,8 +625,8 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
-      pTableData->aRowP = taosArrayDestroy(pTableData->aRowP);
       taosArrayDestroy(pVals);
+      tqError("s-task:%s build rows for submit failed, ts:%"PRId64, id, ts);
       return code;
     }
 

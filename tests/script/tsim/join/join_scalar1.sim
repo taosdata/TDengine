@@ -1030,7 +1030,7 @@ endi
 sql_error select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1) order by b.col1;
 sql_error select a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 having(count(a.ts) > 1) order by b.tbname;
 sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;
-sql select count(b.col1) from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by a.t1;
+sql select count(b.col1),a.t1,a.ts from sta a left window join sta b on a.t1 = b.t1 window_offset(-1s, 1s) where a.col1 < 3 or a.col1 > 4 order by 2,3;
 if $rows != 5 then
   return -1
 endi

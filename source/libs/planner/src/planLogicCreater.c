@@ -19,6 +19,9 @@
 #include "tglobal.h"
 #include "parser.h"
 
+// primary key column always the second column if exists
+#define PRIMARY_COLUMN_SLOT 1
+
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
   SLogicNode*   pCurrRoot;
@@ -304,7 +307,7 @@ static SNode* createFirstCol(SRealTableNode* pTable, const SSchema* pSchema) {
   return (SNode*)pCol;
 }
 
-static int32_t addPrimaryKeyCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addPrimaryTsCol(SRealTableNode* pTable, SNodeList** pCols) {
   bool   found = false;
   SNode* pCol = NULL;
   FOREACH(pCol, *pCols) {
@@ -327,10 +330,10 @@ static int32_t addSystableFirstCol(SRealTableNode* pTable, SNodeList** pCols) {
   return nodesListMakeStrictAppend(pCols, createFirstCol(pTable, pTable->pMeta->schema));
 }
 
-static int32_t addPkCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addPrimaryKeyCol(SRealTableNode* pTable, SNodeList** pCols) {
   bool   found = false;
   SNode* pCol = NULL;
-  SSchema* pSchema = &pTable->pMeta->schema[1];
+  SSchema* pSchema = &pTable->pMeta->schema[PRIMARY_COLUMN_SLOT];
   FOREACH(pCol, *pCols) {
     if (pSchema->colId == ((SColumnNode*)pCol)->colId) {
       found = true;
@@ -348,9 +351,9 @@ static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
   if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
     return addSystableFirstCol(pTable, pCols);
   }
-  int32_t code = addPrimaryKeyCol(pTable, pCols);
+  int32_t code = addPrimaryTsCol(pTable, pCols);
   if (code == TSDB_CODE_SUCCESS && hasPkInTable(pTable->pMeta)) {
-    code = addPkCol(pTable, pCols);
+    code = addPrimaryKeyCol(pTable, pCols);
   }
   return code;
 }
@@ -582,6 +585,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->hashJoinHint = getHashJoinOptHint(pSelect->pHint);
+  pJoin->batchScanHint = getBatchScanOptionFromHint(pSelect->pHint);
   pJoin->node.requireDataOrder = pJoin->hashJoinHint ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
@@ -1801,7 +1805,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
   STableMeta* pMeta = ((SRealTableNode*)pDelete->pFromTable)->pMeta;
   if (TSDB_CODE_SUCCESS == code && hasPkInTable(pMeta)) {
-    code = addPkCol((SRealTableNode*)pDelete->pFromTable, &pScan->pScanCols);
+    code = addPrimaryKeyCol((SRealTableNode*)pDelete->pFromTable, &pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {

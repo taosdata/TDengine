@@ -2751,16 +2751,20 @@ static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
   if (!ret) return ret;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
-      if (pNode->pParent && nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
-        SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode->pParent;
-        if (pWindow->winType == WINDOW_TYPE_INTERVAL) {
-          // if interval has slimit, we push down partition node to scan, and scan will set groupOrderScan to true
-          //   we want to skip groups of blocks after slimit satisfied
-          // if interval only has limit, we do not push down partition node to scan
-          //   we want to get grouped output from partition node and make use of limit
-          // if no slimit and no limit, we push down partition node and groupOrderScan is false, cause we do not need
-          //   group ordered output
-          if (!pWindow->node.pSlimit && pWindow->node.pLimit) ret = false;
+      if (pNode->pParent) {
+        if (nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+          SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode->pParent;
+          if (pWindow->winType == WINDOW_TYPE_INTERVAL) {
+            // if interval has slimit, we push down partition node to scan, and scan will set groupOrderScan to true
+            //   we want to skip groups of blocks after slimit satisfied
+            // if interval only has limit, we do not push down partition node to scan
+            //   we want to get grouped output from partition node and make use of limit
+            // if no slimit and no limit, we push down partition node and groupOrderScan is false, cause we do not need
+            //   group ordered output
+            if (!pWindow->node.pSlimit && pWindow->node.pLimit) ret = false;
+          }
+        } else if (nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+          ret = false;
         }
       }
     } break;
@@ -3962,21 +3966,25 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     cxt.funcType = FUNCTION_TYPE_CACHE_LAST;
+
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, pLastRowCols, true, cxt.pkBytes);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
+
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
-    if (pPKTsCol && pScan->node.pTargets->length == 1) {
+    if (pPKTsCol && ((pScan->node.pTargets->length == 1) || (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
       // when select last(ts),ts from ..., we add another ts to targets
       sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
       nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
     }
+
     if (pNonPKCol && cxt.pLastCols->length == 1 &&
         nodesEqualNode((SNode*)pNonPKCol, nodesListGetNode(cxt.pLastCols, 0))) {
       // when select last(c1), c1 from ..., we add c1 to targets
       sprintf(pNonPKCol->colName, "#sel_val.%p", pNonPKCol);
       nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pNonPKCol));
     }
+
     nodesClearList(cxt.pLastCols);
   }
   nodesClearList(cxt.pOtherCols);
@@ -5607,7 +5615,7 @@ static int32_t grpJoinOptPartByTags(SLogicNode* pNode) {
 
 static int32_t grpJoinOptRewriteGroupJoin(SOptimizeContext* pCxt, SLogicNode* pNode, SLogicSubplan* pLogicSubplan) {
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  int32_t code = (pJoin->allEqTags && !pJoin->hasSubQuery) ? grpJoinOptPartByTags(pNode) : grpJoinOptInsertPartitionNode(pNode);
+  int32_t code = (pJoin->allEqTags && !pJoin->hasSubQuery && !pJoin->batchScanHint) ? grpJoinOptPartByTags(pNode) : grpJoinOptInsertPartitionNode(pNode);
   if (TSDB_CODE_SUCCESS == code) {
     pJoin->grpJoin = true;
     pCxt->optimized = true;
@@ -6328,6 +6336,7 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
     if (code == TSDB_CODE_SUCCESS) {
       code = tsmaOptRewriteNodeList(pNewScan->pGroupTags, pTsmaOptCtx, pTsma, true, true);
     }
+    pTsmaOptCtx->pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
     if (pTsmaOptCtx->pScan->pTsmaTargetTbVgInfo && pTsmaOptCtx->pScan->pTsmaTargetTbVgInfo->size > 0) {
       for (int32_t i = 0; i < taosArrayGetSize(pTsmaOptCtx->pScan->pTsmas); ++i) {
         STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmaOptCtx->pScan->pTsmas, i);

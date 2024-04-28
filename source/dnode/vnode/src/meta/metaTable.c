@@ -887,6 +887,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
   bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
 
+  if (!sysTbl && ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0)) goto _err;
+
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
   me.version = ver;
@@ -2658,6 +2660,8 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
   int        nData = 0;
   SMetaEntry e = {0};
   SDecoder   dc = {0};
+
+  *ppColCmprObj = NULL;
 
   metaRLock(pMeta);
   rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);

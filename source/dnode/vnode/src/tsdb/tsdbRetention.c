@@ -528,7 +528,7 @@ static int32_t tsdbMigrateDataFileLCS3(SRTNer *rtner, const STFileObj *fobj, int
   if (fdFrom == NULL) code = terrno;
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbInfo("vgId: %d, open lcfile: %s size: %" PRId64, TD_VID(rtner->tsdb->pVnode), fname, lc_size);
+  tsdbInfo("vgId:%d, open lcfile: %s size: %" PRId64, TD_VID(rtner->tsdb->pVnode), fname, lc_size);
 
   snprintf(dot2 + 1, TSDB_FQDN_LEN - (dot2 + 1 - object_name), "%d.data", lcn);
   fdTo = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
@@ -553,10 +553,11 @@ _exit:
 }
 
 static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64_t size, int64_t chunksize) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  STFileOp op = {0};
-  int32_t  lcn = (size - 1) / chunksize + 1;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  STFileOp  op = {0};
+  int32_t   lcn = (size - 1) / chunksize + 1;
+  TdFilePtr fdFrom = NULL, fdTo = NULL;
 
   // remove old
   op = (STFileOp){
@@ -615,9 +616,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, int64
   }
 
   // copy last chunk
-  TdFilePtr fdFrom = NULL, fdTo = NULL;
-  int64_t   lc_offset = (int64_t)(lcn - 1) * chunksize;
-  int64_t   lc_size = size - lc_offset;
+  int64_t lc_offset = (int64_t)(lcn - 1) * chunksize;
+  int64_t lc_size = size - lc_offset;
 
   dot = strchr(object_name, '.');
   if (!dot) {
@@ -671,7 +671,7 @@ static int32_t tsdbDoS3MigrateOnFileSet(SRTNer *rtner, STFileSet *fset) {
   int64_t chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
   int32_t lcn = fobj->f->lcn;
 
-  if (lcn < 1 && taosCheckExistFile(fobj->fname)) {
+  if (/*lcn < 1 && */ taosCheckExistFile(fobj->fname)) {
     int32_t mtime = 0;
     int64_t size = 0;
     taosStatFile(fobj->fname, &size, &mtime, NULL);

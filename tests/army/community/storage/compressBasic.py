@@ -118,18 +118,10 @@ class TDTestCase(TBase):
         sql = f"describe {self.db}.{self.stb}"
         tdSql.query(sql)
 
-        '''
         # see AutoGen.types 
         defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
                        "simple8b","simple8b","delta-d","delta-d","bit-packing",
-                       "disabled","disabled","disabled","disabled","disabled"]
-        '''
-        
-        # pass-ci have error
-        defEncodes = [ "delta-i","delta-i","simple8b","simple8b","simple8b","simple8b","simple8b","simple8b",
-                       "simple8b","simple8b","delta-d","delta-d","bit-packing",
-                       "disabled","disabled","disabled","disabled","simple8b"]
-        
+                       "disabled","disabled","disabled","disabled"]        
 
         count = tdSql.getRows()
         for i in range(count):
@@ -140,6 +132,13 @@ class TDTestCase(TBase):
             tdSql.checkData(i, 4, defEncodes[i])
             tdSql.checkData(i, 5, self.defCompress)
             tdSql.checkData(i, 6, self.defLevel)
+
+        # geometry encode is disabled
+        sql = f"create table {self.db}.ta(ts timestamp, pos geometry(64)) "
+        tdSql.execute(sql)
+        sql = f"describe {self.db}.ta"
+        tdSql.query(sql)
+        tdSql.checkData(1, 4, "disabled")
 
         tdLog.info("check default encode compress and level successfully.")
 

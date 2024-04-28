@@ -166,7 +166,7 @@ typedef struct {
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
-  int32_t       redoActionPos;
+  int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;
   SArray*       undoActions;

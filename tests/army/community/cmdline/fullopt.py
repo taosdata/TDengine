@@ -49,7 +49,7 @@ class TDTestCase(TBase):
 
     def checkQueryOK(self, rets):
         if rets[-2][:9] != "Query OK,":
-            tdLog.exit(f"check taos -s return unecpect: {rets}")
+            tdLog.exit(f"check taos -s return unexpect: {rets}")
 
     def doTaos(self):
         tdLog.info(f"check taos command options...")
