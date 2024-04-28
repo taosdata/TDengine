@@ -1601,9 +1601,6 @@ int32_t grantCheckExpire(EGrantType grant) {
 }
 
 int64_t grantRemain(EGrantType grant) {
-#ifdef GRANTS_CFG
-  return INT64_MAX;
-#else
   switch (grant) {
     case TSDB_GRANT_TIMESERIES:
       return gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED ? INT64_MAX
@@ -1612,7 +1609,6 @@ int64_t grantRemain(EGrantType grant) {
       break;
   }
   return 0;
-#endif
 }
 
 int32_t grantCheck(EGrantType grant) {
