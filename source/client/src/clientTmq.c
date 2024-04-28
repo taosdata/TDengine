@@ -1352,13 +1352,13 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto FAIL;
   }
 
+  if (code != 0) {
+    goto END;
+  }
+
   if(pMsg->pData == NULL){
     tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d, since msg is NULL", tmq->consumerId, vgId);
     goto FAIL;
-  }
-
-  if (code != 0) {
-    goto END;
   }
 
   int32_t msgEpoch = ((SMqRspHead*)pMsg->pData)->epoch;
