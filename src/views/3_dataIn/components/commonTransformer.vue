@@ -1328,6 +1328,13 @@ export default {
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
     },
+    clearTargetTBWhenDelete() {
+      if (!this.sourceParent.sourceForm.targetDB ||
+        !this.stableLists.find((v) => v === this.sruleForm.s_name)
+      ) {
+        this.sruleForm.s_name = ""
+      } 
+    },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
       this.$set(
@@ -1423,7 +1430,7 @@ export default {
         return false;
       }
 
-      if (this.tableData && !this.tableData[0]?.["Expression"]) {
+      if (this.tableData && !this.tableData[0]?.["Expression"] && this.sruleForm.s_name) {
         this.$error(this.$t("datasource.transformer.tablenametip")); 
         this.isbreak = true;
         return false;
@@ -1821,6 +1828,10 @@ export default {
           `show  \`${this.$store.state.app.currentDBName}\`.stables `
         );
         this.$set(this, "stableLists", Array.from(result.data).flat(1));
+
+        if (this.sourceParent.isEditable) {
+          this.clearTargetTBWhenDelete();
+        }
       } catch (error) {
         console.log(error);
       }
@@ -1871,11 +1882,14 @@ export default {
           }
           return item;
         });
-        this.$set(
-          this.tableData[0],
-          "Expression",
-          echoData.model.name.toString()
-        );
+        if (this.tableData[0]) {
+          this.$set(
+            this.tableData[0],
+            "Expression",
+            echoData.model.name.toString()
+          );
+        }
+        this.clearTargetTBWhenDelete();
         this.caculateMappingResult();
       }
     },
