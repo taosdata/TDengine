@@ -1707,3 +1707,31 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
 
   return 0;
 }
+
+int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  streamMetaWLock(pMeta);
+  stDebug("vgId:%d add failed task:0x%x", pMeta->vgId, taskId);
+
+  STaskId       id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+
+  if (ppTask != NULL) {
+    STaskCheckInfo* pInfo = &(*ppTask)->taskCheckInfo;
+    int64_t         now = taosGetTimestampMs();
+    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, pInfo->startTs, now, false);
+
+    if (HAS_RELATED_FILLHISTORY_TASK(*ppTask)) {
+      STaskId hId = (*ppTask)->hTaskInfo.id;
+      streamMetaAddTaskLaunchResult(pMeta, hId.streamId, hId.taskId, pInfo->startTs, now, false);
+    }
+  } else {
+    stError("failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
+            streamId, taskId, pMeta->vgId);
+    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  streamMetaWUnLock(pMeta);
+  return code;
+}

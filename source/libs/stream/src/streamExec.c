@@ -541,7 +541,7 @@ static void setLastExecTs(SStreamTask* pTask, int64_t ts) { pTask->status.lastEx
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.
  */
-int32_t doStreamExecTask(SStreamTask* pTask) {
+static int32_t doStreamExecTask(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   // merge multiple input data if possible in the input queue.
