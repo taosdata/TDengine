@@ -5142,7 +5142,6 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
   NODES_DESTORY_NODE(pScan->node.pConditions);
   pScan->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
-  pScan->onlyMetaCtbIdx = true;
 
   SNodeList* pTags = nodesMakeList();
   int32_t    code = nodesCollectColumnsFromNode(pJoinNode->pTagEqCond, NULL, COLLECT_COL_TYPE_TAG, &pTags);
@@ -5176,6 +5175,8 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
   if (TSDB_CODE_SUCCESS == code) {
     code = stbJoinOptAddFuncToScanNode("_vgid", pScan);
   }
+
+  tagScanSetExecutionMode(pScan);
 
   if (code) {
     nodesDestroyList(pTags);
