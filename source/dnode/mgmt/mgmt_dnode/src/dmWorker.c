@@ -68,6 +68,7 @@ static void *dmNotifyThreadFp(void *param) {
   bool       wait = true;
   int32_t    nDnode = 0;
   int64_t    lastNotify = 0;
+  int64_t    lastFetchDnode = 0;
   SNotifyReq req = {0};
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -79,9 +80,10 @@ static void *dmNotifyThreadFp(void *param) {
       goto _skip;
     }
     int64_t current = taosGetTimestampMs();
-    if (current - lastNotify > 1000) {
+    if (current - lastFetchDnode > 1000) {
       nDnode = dmGetDnodeSize(pMgmt->pData);
       if (nDnode < 1) nDnode = 1;
+      lastFetchDnode = current;
     }
     if (req.dnodeId == 0 || req.clusterId == 0) {
       req.dnodeId = pMgmt->pData->dnodeId;
