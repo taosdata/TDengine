@@ -210,12 +210,12 @@ export default {
           })
           .catch((err) => {
             this.$emit("close");
-            // err.desc && Message.error(err.desc);
+            // err.desc && this.$error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
         console.log(error);
-        // Message.error(error.desc);
+        // this.$error(error.desc);
       }
     },
     cancel() {
@@ -276,11 +276,11 @@ export default {
               })
               .catch((err) => {
                 // if (err && (err.code == "9728" || err.code == "848")) {
-                //   Message.error(this.$t("users.createNewUseErrCause"));
+                //   this.$error(this.$t("users.createNewUseErrCause"));
                 //   return;
                 // }
-                // Message.error(this.$t("users.createNewUseErrTip"));
-                err && err.desc && Message.error(err.desc);
+                // this.$error(this.$t("users.createNewUseErrTip"));
+                err && err.desc && this.$error(err.desc);
                 this.$emit("close");
                 return Promise.reject(err);
               });

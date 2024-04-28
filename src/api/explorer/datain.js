@@ -155,7 +155,29 @@ export function downlaodAllNodes(data, agentid) {
     })
 }
 
-export function getParser(data) {
+export function checkParseData(data) {
+    let mutateRules = data.parser?.mutate;
+    if (!mutateRules) {
+        return;
+    }
+
+    // 检查 extract 规则
+    for (let i = 0; i < mutateRules.length; i++) {
+        if (mutateRules[i].extract) {
+            let extract = mutateRules[i].extract;
+            if ("" in extract) {
+                return "datasource.transformer.extractrule.nofield";
+            }
+            for (let key in extract) {
+                if ("" in extract[key]) {
+                    return "datasource.transformer.extractrule.norule";
+                }
+            }
+        }
+    }
+}
+
+export function getParser(data, messagebox) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/transform/sample/flat?tz=${getLocalTimezone()}`,
@@ -183,6 +205,13 @@ export function getHistorianMsgbody(datatype,data,agentid){
         baseURL: process.env.VUE_APP_X_API,
         url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
         method: 'get',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
     })
 }
 
@@ -237,5 +266,38 @@ export function getCsvEmptyTemplate(driver) {
         url: `/ds/in/point/file/template?driver=${driver}&lang=${language}`,
         method: 'get',
         responseType: 'blob',
+    })
+}
+
+// 获取表同步进度
+export function getTableProgress(id,params) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/table_progress?${params}`,
+        method: 'get',
+        transformResponse: [function (data) {
+        try {
+            return JSONbig.parse(data);
+        } catch (error) {
+            return data;
+        }
+        }]
+    })
+}
+
+//  获取 vgroup 消费进度
+export function getVgroupProgress(id) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/tasks/${id}/vgroup_progress`,
+        method: 'get',
+    })
+}
+// 校验 opc 点位合法性
+export function validOpcFile(dsn) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/is_valid?dsn=${encodeURIComponent(dsn)}`,
+        methods: 'get'
     })
 }

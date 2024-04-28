@@ -191,6 +191,8 @@ export default {
   minutes: '分',
   seconds: '秒',
   milliseconds: '毫秒',
+  microseconds: '微秒',
+  nanoseconds: '纳秒',
   statuses: {
     created: "已创建",
     queued: "排队中",
@@ -220,7 +222,12 @@ export default {
   systemUpdate: "系统更新",
   ignore: "忽略",
   update: "更新",
+  systemPrompt: "系统提示",
   updateContent: '发现新版本，点击"更新"获取,请在刷新前注意保存当前页面数据',
+  contact: '联系',
+  close: '关闭',
+  communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版。',
+  dontDisturbMe: '7天内不再提醒',
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -246,7 +253,7 @@ export default {
       resumePlaceholder: "请选择执行策略",
     },
     needAgentTip:
-      "如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。",
+      "如果数据源在私有网络，那么请配置 Agent 的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。",
     runAgent: "运行代理",
     downloadInstall: "下载/安装",
     connector: "连接器",
@@ -293,7 +300,30 @@ export default {
     metricsName: "指标名称",
     metricsDesc: '描述',
     metricsValue: "指标值",
+    replicationProgress: "同步进度",
+    tbReplicationProgress: "表同步进度",
+    tbName: "表名",
+    tbNameP: "源库名.表名",
+    timeRange: "时间区间",
+    query: "查询",
+    tbHeader: {
+      table: "超级表/普通表", 
+      source: "源最新时间",
+      sink: "目标最新时间", 
+      difference: "源与目标的时间差", 
+      sourceNum: "源数据",
+      sinkNum: "目标数据",
+      topic: "Topic",
+      vgroup: "VGroup",
+      offset: "Offset",
+      latest: "Latest",
+    },
+    vgroupReplicationProgress: "vgroup 消费进度",
+    updateTime: "更新时间：",
+    refresh: "刷新",
     check: "检查连通性",
+    communityCheckTip: "仅企业版可用，了解更多，请访问 TDengine ",
+    communityCheckTip1: "官网。",
     resume: "调度策略",
     resumeTip:
       "表示任务中断后的调度策略,有以下可选项：\n\n- *never*: 表示从不重新调度。\n- *once*: 表示仅在 taosX 服务异常中断后启动一次，任务状态为 running|cancelled 时允许启动。在服务运行过程中的异常，不重新调度。\n- *always*: 当 taosX 服务启动后，对于任务状态为 running|failed|cancelled|interrupted 的任务，总是重新启动。在 taosX 服务运行过程中，当任务出现错误时，总是重新执行。",
@@ -354,6 +384,7 @@ export default {
     signin: "登录",
     taosxtip: `请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username: "用户名",
+    usernamePlaceholder: "请输入数据库用户名，默认是root",
     password: "密码",
     loginTitle: `登录 Explorer`,
     login: "登陆",
@@ -596,6 +627,7 @@ export default {
     stableName: "超级表名称",
     columns: "列",
     columnNameTip: "列名",
+    clickColumnTip: "点击切换为标签",
     tagNameTip: "标签名",
     subTable: "子表",
     sub_table: "子表",
@@ -854,6 +886,29 @@ export default {
     nameError: "名称中不允许有特殊字符，长度为 4~32",
     demoData: "示例数据",
     demoDataText: "预先创建了一个包含一亿个数据点的数据库",
+    title: '注册使用',
+    phone: '手机号',
+    email: '邮箱',
+    verificationCode: '验证码',
+    getVerificationCode: '获取验证码',
+    regetVerificationCode: '重新获取验证码',
+    imageVerificationCode: '图形验证码',
+    signin: '提交',
+    phoneTips: "请输入手机号，只支持中国大陆手机号码",
+    emailTips: "请输入邮箱",
+    verificationCodeTips: "请输入验证码",
+    requirement: "首次使用，需使用手机号注册。注册过程必须保证 explorer 可连接互联网，否则无法注册成功。注册成功后，可内网使用，无需再连接互联网。后续登录，请使用数据库用户名密码登录。",
+    errors: {
+      "verificationCodeNone": "您还未获取验证码，请重新获取验证码",
+      "verificationCodeError": "验证码错误，请重新输入",
+      "captchaInputError": "图形验证码错误，请重新输入",
+      "verificationCodeInputError": "验证码错误，请重新输入",
+      "network": "explorer server 所在服务器无法访问互联网，请确认",
+    },
+    success: {
+      "verificationCodeSend": "验证码发送成功",
+      "registerSuccess": "注册成功，请使用数据库用户名密码登录",
+    }
   },
   cluster: {
     title: "正在准备 TDengine  服务，请稍候...",
@@ -1112,7 +1167,7 @@ export default {
       valuetip:'请输入常量',
       configuredcount:'已配置',
       unit:'条',
-      dataLimit: '示例数据上限：',
+      dataLimit: '示例数据行数上限：',
       msgbodytypes: {
         type1: "清空",
         type2: "从服务器检索",
@@ -1123,22 +1178,34 @@ export default {
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",
       parse: "1. 解析",
+      jsonPlaceholder: "请选择要提取的 json 属性，可选项来自于第一条示例数据，请确保其完整性。",
       jsontip: "请输入正确JSON格式",
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      extractdesc: `<strong>taosX 支持 JSON 或正则表达式解析消息体文本</strong>：<br/>
-      1. <strong>JSON</strong>: 用户使用多个 ; 分隔的字段名（如： name ）或  [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> 提取表达式（形如 "$.path=new_name"，如： $.field.sub=new_name ）从 JSON 对象中提取出多列。<br/>
-      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
-      filterdesc: `<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
-      - <strong>布尔类型</strong>： bool_value 可直接使用 BOOL 类型的变量名作为表达式。<br/>
-      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= 等操作。<br/>
-      - <strong>函数</strong>：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>
-      - <strong>多条件组合</strong>：支持 && 或 || 多条件组合过滤。 `,
-      subextractdesc: `<strong>taosX 支持 Split 或正则表达式解析列</strong>：<br/>
-      1. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
+      extractdesc: `<strong>taosX 目前支持 2 种规则解析原始消息体</strong>：<br/>
+      1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
+      2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
+      更详细解析规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
+      1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
+      2. <strong>字符串类型</strong>：支持函数 <em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em> 等，例如 c.starts_with("taos")，可判断字段<em>c</em>是否以<em>taos</em>为前缀。<br/>
+      3. <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
+      可使用 && 或 || 组合多个判断表达式，更详细过滤规则请访问<a href="/docs/enterprise/datain/transformation#filter">企业版文档<a>。`,
+      expressiondesc: `<strong>taosX 支持映射表达式，将解析、提取、拆分的字段映射到目标超级表中</strong>：<br/>
+      1. <strong>value</strong>：常量，例如 <em>1</em>、<em>"taos"</em>；<br/>
+      2. <strong>expr</strong>：数学计算表达式，例如将摄氏度转为华氏度数值，可使用表达式 <em>centigrade * 1.8 + 32</em>；<br/>
+      3. <strong>format</strong>：字符串格式化，使用占位符 <em>$\{\}</em> 来引用字段，例如 <em>$\{year\}-$\{month\}-$\{day\}</em> 可以格式为日期。<br/>
+      更详细映射规则请访问<a href="/docs/enterprise/datain/transformation#mapping">企业版文档<a>。`,
+      subextractdesc: `<strong>taosX 目前支持以下 2 种规则</strong>：<br/>
+      1. <strong>Split</strong>: 将一个字段分割为多个，需指定参数<strong>分隔符</strong>和<strong>拆分数量</strong>。例如字段<em>c</em>拆分为 2 个字段后，字段名为 <em>c_0</em>、<em>c_1</em>。<br/>
+      2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取 3 个字段 y、m 和 d。<br/>
+      更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
       uploadexe: "请上传csv文件并执行下一步操作",
+      extractrule: {
+        nofield: "未指定提取列名",
+        norule: "未指定解析规则",
+      },
       sp: "请选则目标超级表",
       septip: "请输入分隔符",
       sepntip: "请输入分隔符个数",
@@ -1148,11 +1215,10 @@ export default {
       previewmore:'预览结果',
       more:'更多',
       viewmore:'查看更多',
-      extract: "从列中提取或拆分",
-      filter: "2. 过滤",
-      superconfig: "3. 映射",
+      extract: "2. 从列中提取或拆分",
+      filter: "3. 过滤",
+      superconfig: "4. 映射",
       target: "目标超级表",
-      mapping: "3. 映射",
       createstb: "创建超级表",
       payload: "负载格式",
       upload: "上传样本数据",
@@ -1167,10 +1233,19 @@ export default {
       msgbody: "示例消息体",
       msgbodytip: "请直接输入 Payload 示例，也可点击右侧按钮从服务器获取 Payload 或者从文件上传 Payload。请注意 Payload 示例 默认只处理 5 行，您可以修改该配置但上限是 100 行。",
       searchSResult: "输入完后按enter键查询",
-      tablenametip: "请输入表名称",
-      mapcalculate: "请先计算mapping值",
+      tablenametip: "请输入子表名称",
+      mapcalculate: "请先计算 mapping 值",
       calculate: "预览",
+      emptyColumnName: "列名不能为空：",
+      duplicateColumnName: "列名不能重复：",
+      invalidColumnName: "列名只能包含英文字母、数字和下划线，不能以数字开头。此列不合法：",
       emptySampleValues: "请至少提供一条示例数据",
+      stableSelectOrCreateTip: "请选择或创建超级表",
+      databaseSelectTip: "请先在上面的基本信息面板中选择目标数据库",
+      defaultValuePlaceholder: "默认值",
+      dataRangeInputTip: "请输入{min}到{max}之间的整数",
+      defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
+      jsonExtractTip: 'JSON 提取表达式编辑器'
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",
@@ -1244,6 +1319,7 @@ export default {
     agentexpiretip: "过期时间必须大于当前时间",
     mqttparsertip: "确保 {datasource} parser的必输项目都已填写完毕",
     // mqtttitle:'MQTT Payload Parser',
+    transformerTitle: "Payload 转换",
     parserTip: "数据映射至少包含一个列和一个标签",
 
     addmqtttip: "字段，列，列类型不为空才能进行添加",
@@ -1364,7 +1440,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
       desc: "通过封装 SQL 为 REST 请求的 {0} 连接器来连接。",
       bottom1: "客户端连接完成。",
       bottom2: "想了解如何写入和查询数据，请参考链接",
-      bottom2_1: "数据写入",
+      bottom2_1: "写入数据",
       bottom2_2: "查询数据",
       bottomand: "和",
       bottom3: "想了解如何通过 REST API 写入和查询数据，请参考",
@@ -1372,7 +1448,12 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
       java: {
         step1: "增加依赖包",
         step2: "配置",
-        step3: "建立连接",
+        step3: "代码示例",
+        step3depdesc: '在 “pom.xml” 文件中添加 Spring Boot 和 TDengine Java connector 的依赖：',
+        step3confdesc: '在 “application.yml” 文件中添加以下配置：',
+        step3mybatisdesc1: '定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 TDengine 数据库的超级表和 Java 对象之间进行映射：',
+        step3mybatisdesc2: '在 “src/main/resources/mapper” 文件夹中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射：',
+        step3href: '使用 Spring 进行更多查询和插入 TDengine 实例的示例代码，请参考',
         step3desc:
           "下面的代码首先从环境变量获取 JDBC URL，然后创建标准的 JDBC Connection 对象。",
       },

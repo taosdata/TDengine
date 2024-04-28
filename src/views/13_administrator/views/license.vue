@@ -6,11 +6,11 @@
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
-        :disabled="loading"
+        :disabled="loading || $COMMUNITY"
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" style="font-size: 14px">{{
+      <el-button plain @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
         $t("taosuser.activationLicense")
       }}</el-button>
     </div>
@@ -67,10 +67,10 @@
         <el-table-column />
         <el-table-column
           :label="$t('topic.expire_time')"
-          prop="expireTime"
+          prop="expire"
         >
           <template slot-scope="scope">
-            <span>{{ expireTime(scope.row.expire) }}</span>
+            <span>{{ scope.row.expire == 'unlimited' ? 'unlimited' : expireTime(scope.row.expire) }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -109,7 +109,7 @@
         v-if="!version_no_later_than_3230"
       >
         <template slot-scope="scope">
-          <span>{{ expireTime(scope.row.expireTime) }}</span>
+          <span>{{ scope.row.expireTime == 'unlimited' ? 'unlimited' : expireTime(scope.row.expireTime) }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -140,6 +140,7 @@
         size="mini"
         :label-width="getlabelWidth"
         class="demo-ruleForm"
+        label-position="left"
       >
         <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
           <el-input v-model.trim="ruleForm.active_code"></el-input>
@@ -208,6 +209,12 @@ export default {
       advancedTableData: [],
       parsinginZone,
       version_no_later_than_3230: false,
+      version_greater_than_3300: false,
+      version_greater_than_3301: false,
+      condition: {
+        v_3230: ['mysql', 'postgres', 'oracle'],
+        v_3300: ['oracle']
+      }
     };
   },
   computed: {
@@ -228,8 +235,11 @@ export default {
     },
     getlabelWidth() {
       let lang = getBrowserLang();
-      if (lang === "zh") {
+      if (lang === "zh" && this.version_no_later_than_3230) {
         return "120px";
+      }
+      if (!this.version_no_later_than_3230) {
+        return "auto"
       }
       return "240px";
     },
@@ -247,9 +257,15 @@ export default {
   methods: {
     handlecActiveCodeShow() {
       let version = localStorage.getItem("agent_version");
-      let [a, b, c] = version.split(".");
+      let [a, b, c, d] = version.split(".");
       if (a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3)) {
         this.version_no_later_than_3230 = false;
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3)){
+          this.version_greater_than_3300 = true;
+        }
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b >= 3 && c >=0 ) || (a == 3 && b >= 3 && c >=0 && d > 0)){
+          this.version_greater_than_3301 = true;
+        }
       } else {
         this.version_no_later_than_3230 = true;
       }
@@ -310,16 +326,29 @@ export default {
               );
             });
  
-            this.tableData = array
+            let allData = array
               .filter((item) => item.limits.indexOf("{") == 0)
               .map((data) => {
                 return {
                   ...JSON.parse(data.limits),
-                  type: data.display_name,
+                  type: data.display_name || data.grant_name,
+                  grant: data.grant_name,
                   expire_time: data.expireTime,
                 };
               })
-              .filter(v => v.type != '');
+            // 3.3.0.0 之前不显示 mysql、postgres、oracle
+            this.tableData = allData
+            .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
+
+            // 3.3.0.0 之后增加 mysql、postgres
+            if (this.version_greater_than_3300) {
+              this.tableData = allData
+                .filter(v => !['oracle'].includes(v.grant));
+            } 
+            // 3.3.0.1 之后增加 oracle
+            if (this.version_greater_than_3301){
+              this.tableData = allData;
+            } 
             this.advancedTableData = array
               .filter((item) => item.limits.indexOf("{") == -1)
             console.log("this.tableData", this.tableData, this.advancedTableData);
@@ -342,18 +371,18 @@ export default {
             this.dialog = false;
             this.refresh();
           } else {
-            this.$message.error(res?.desc);
+            this.$error(res?.desc);
           }
         });
       } catch (error) {
-        this.$message.error(error);
+        this.$error(error);
       }
     },
     expireTime(data) {
       if (this.version_no_later_than_3230) {
         return parsinginZone(Number(data) * 24 * 60 * 60 * 1000, "YYYY-MM-DD");
       } else {
-        return parsinginZone(data, "YYYY-MM-DD");
+        return parsinginZone(data, "YYYY-MM-DD hh:mm:ss");
       }
     },
     formatLimits(data) {

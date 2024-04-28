@@ -27,7 +27,7 @@
           :limit="5"
         >
           <div class="flexCenter">
-            <el-button slot="trigger" size="small" type="primary">{{ $t("support.selectFile") }}</el-button>
+            <el-button slot="trigger" size="small" plain type="primary">{{ $t("support.selectFile") }}</el-button>
             <div slot="tip" v-html="$t('support.uploadTip')" style="line-height: 110%; margin-left: 10px; text-align: left"></div>
           </div>
         </el-upload>
@@ -183,7 +183,7 @@
         if (sum < this.fileLimitSize) {
           return true;
         }
-        this.$message.error(this.$t("support.fileSizeLarge"));
+        this.$error(this.$t("support.fileSizeLarge"));
         return false;
       },
 
@@ -193,7 +193,7 @@
           if (valid) {
             this.upload();
           } else {
-            this.$message.error(this.$t("formatError"));
+            this.$error(this.$t("formatError"));
             return false;
           }
         });

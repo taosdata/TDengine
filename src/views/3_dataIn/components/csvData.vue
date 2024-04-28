@@ -20,7 +20,7 @@
               :auto-upload="true"
               size="small"
             >
-              <el-button slot="trigger" size="small" type="primary">{{
+              <el-button slot="trigger" size="small" type="primary" plain>{{
                 $t("datasource.selectfile")
               }}</el-button>
             </el-upload>
@@ -184,7 +184,7 @@ export default {
       );
       this.csvColumns = result.file_header.column_names;
       if (result && !result.sample_values) {
-        Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        this.$error(this.$t('datasource.transformer.emptySampleValues'))
         return
       }
       this.sample_values = result.sample_values ?? [];
@@ -284,6 +284,8 @@ export default {
       this.fileList = [].concat(file);
       this.showfiletip = false;
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
+
+      this.getCsvColumnsData();
     },
     submitUpload() {
       let isbreak=true
@@ -351,17 +353,8 @@ export default {
               "csv",
               parseParam
             );
-            this.loading = false
-            if (result && result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.csvColumns = result.file_header.column_names;
-            if (result && !result.sample_values) {
-              Message.error(this.$t('datasource.transformer.emptySampleValues'))
-              return
-            }
-            this.sample_values = result.sample_values ?? [];
+          } else {
+            return;
           }
         } else {
           result = await getCSVColumns(
@@ -369,25 +362,49 @@ export default {
             "csv",
             parseParam
           );
-          this.loading = false
-          if (result && result.message) {
-            Message.error(result.message);
-            return;
-          }
-          this.csvColumns = result.file_header.column_names;
-          if (result && !result.sample_values) {
-            Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        }
+
+        this.loading = false
+        if (result && result.message) {
+          this.$error(result.message);
+          return;
+        }
+        
+        const columns = result.file_header.column_names;
+        const columnInObj = {};
+        const columnRegexPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+        for (let i = 0; i < columns.length; i++) {
+          if (columns[i] === "") {
+            this.$error(this.$t('datasource.transformer.emptyColumnName') + columns.join(", "));
             return
           }
-          this.sample_values = result.sample_values ?? [];
+          if (!columnRegexPattern.test(columns[i])) {
+            this.$error(this.$t('datasource.transformer.invalidColumnName') + columns[i]);
+            return
+          }
+          if (columnInObj[columns[i]]) {
+            this.$error(this.$t('datasource.transformer.duplicateColumnName') + columns[i]);
+            return
+          }
+          columnInObj[columns[i]] = true;
         }
+
+        if (result && !result.sample_values) {
+          this.$error(this.$t('datasource.transformer.emptySampleValues'));
+          return
+        }
+
+        this.csvColumns = result.file_header.column_names;
+        this.sample_values = result.sample_values ?? [];
+
+
         
         // 去掉自定义列
         // if (this.$refs.param.ruleForm.customcol) {
         //   let apiColumns = result.file_header.column_names;
         //   let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
         //   if (localcolumns.length != apiColumns.length) {
-        //     Message.error(this.$t("datasource.transformer.csvtip"));
+        //     this.$error(this.$t("datasource.transformer.csvtip"));
         //     return;
         //   }
         //   this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
@@ -402,7 +419,7 @@ export default {
         this.loading = false
       } catch (error) {
         this.loading = false
-        error && error.message && Message.error(error.message);
+        error && error.message && this.$error(error.message);
       }
     },
     //组合CSV的transfomrer页面需要的数据
@@ -496,7 +513,7 @@ export default {
         );
       } catch (error) {
         console.log("表不存在则创建");
-        // error&&error.desc&&Message.error(error.desc)
+        // error&&error.desc&&this.$error(error.desc)
       }
     },
     //获取 csv 解析需要的参数
@@ -578,7 +595,6 @@ export default {
   }
   .nextbtn {
     width: 100%;
-    margin-bottom: 20px;
   }
   .csv-config {
     margin-bottom: 20px;

@@ -16,7 +16,7 @@ use std::{
 };
 use taos::*;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{info, instrument, Level};
+use tracing::{error, info, instrument, Level};
 use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
@@ -32,6 +32,8 @@ use clap::Parser;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
+pub mod verification;
+
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
         LevelFilter::Off => None,
@@ -45,36 +47,41 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
+    // info!(env!("CUS_NAME"));
+
     #[cfg(target_os = "windows")]
-    let mut file_path: PathBuf = std::path::Path::new("C:\\")
-        .join(env!("CUS_NAME"))
-        .join("cfg")
-        .join("explorer.toml");
+    let path = format!("C:\\{}\\cfg", env!("CUS_NAME"));
+
     #[cfg(not(target_os = "windows"))]
-    let mut file_path = std::path::Path::new("/etc")
-        .join(env!("CUS_PROMPT"))
-        .join("explorer.toml");
+    let path = format!("/etc/{}", env!("CUS_PROMPT"));
+
+    let mut file_path = std::path::Path::new(&path).join("explorer.toml");
 
     if let Ok(config) = ConfigPath::try_parse() {
         if let Some(value) = config.config_file {
             file_path = value;
         }
     }
-    println!("Use configuration file path: {}", file_path.display());
     let mut args = if let Ok(mut file) = File::open(&file_path) {
         let mut content = String::new();
-        file.read_to_string(&mut content)?;
+        file.read_to_string(&mut content).context(format!(
+            "Failed to read configuration from {}",
+            file_path.display()
+        ))?;
         let mut args: Args = toml::from_str(&content).unwrap();
         args.update_from(std::env::args());
+        println!("Use configuration file path: {}", file_path.display());
         args
     } else {
+        let args = Args::parse();
         println!("No configuration file found, use default arguments.");
-        Args::parse()
+        args
     };
     let log_level = args
         .log_level
         .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
         .unwrap_or(LevelFilter::Info);
+    args.cfg_path = Some(path);
 
     let subscriber = tracing_subscriber::fmt()
         .with_level(true)
@@ -134,6 +141,16 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
+            .route("/api/-/captcha", web::get().to(generate_captcha_image))
+            .route(
+                "/api/-/verification-code",
+                web::get().to(send_verification_code),
+            )
+            .route(
+                "/api/-/verification-code",
+                web::post().to(check_verification_code),
+            )
+            .route("/api/-/isbinding", web::to(check_binding))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .service(web::redirect("/docs", "/docs/"))
             .service(
@@ -261,6 +278,50 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct R<T> {
+    pub code: u32,
+    pub data: Option<T>,
+    pub msg: Option<String>,
+}
+
+impl<T> R<T> {
+    fn success(data: T) -> Self {
+        Self {
+            code: 0,
+            data: Some(data),
+            msg: None,
+        }
+    }
+    fn fail(code: u32, msg: String) -> Self {
+        Self {
+            code,
+            data: None,
+            msg: Some(msg),
+        }
+    }
+}
+
+/**
+ * 检查当前 TDengine 是否已经绑定了手机号或邮箱。
+ */
+async fn check_binding(args: web::Data<Args>) -> impl Responder {
+    let binding_record_file =
+        PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
+    let server = args.profile.cluster.as_deref().unwrap();
+    let check_result = verification::check_phone_email_verified(&binding_record_file, server);
+    match check_result {
+        Ok(_) => HttpResponse::Ok().json(R::success(true)),
+        Err(err) => {
+            error!(
+                "check {} in file {:?}, Failed to check binding: {}",
+                server, binding_record_file, err
+            );
+            HttpResponse::Ok().json(R::success(false))
+        }
+    }
+}
+
 async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> impl Responder {
     if args.profile.x_api.is_none() {
         return HttpResponse::Ok().json(&args.profile);
@@ -281,6 +342,99 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
         }
     }
     HttpResponse::Ok().json(&profile)
+}
+
+#[derive(Debug, Deserialize)]
+struct VerificationReqBody {
+    phone_email: Option<String>,
+    verification_code: Option<String>,
+    captcha: Option<String>,
+    lang: Option<String>,
+}
+
+async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
+    let captcha_key = format!("captcha-{}", params.phone_email.as_ref().unwrap());
+    let img = verification::generate_captcha(captcha_key);
+
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(img.unwrap())
+}
+
+// phone_email=18600000000&captcha=1234
+async fn send_verification_code(
+    args: web::Data<Args>,
+    params: web::Query<VerificationReqBody>,
+) -> impl Responder {
+    if params.phone_email.is_none() || params.captcha.is_none() {
+        return HttpResponse::BadRequest().json(RestErrResponse {
+            code: Code::FAILED,
+            desc: "phone_email and captcha is required".to_string(),
+        });
+    }
+
+    let str_phone_email = params.phone_email.as_ref().unwrap();
+    let str_captcha = params.captcha.as_ref().unwrap();
+    if str_phone_email.is_empty() || str_captcha.is_empty() {
+        return HttpResponse::Ok().json(R::<()>::fail(400, "captchaInputError".to_string()));
+    }
+
+    let captcha_key = format!("captcha-{}", str_phone_email);
+    let captcha_check_result = verification::check_security_code(&captcha_key, str_captcha);
+    if captcha_check_result != "pass" {
+        return HttpResponse::Ok().json(R::<()>::fail(400, "captchaInputError".to_string()));
+    }
+
+    let cloud_open_api_send_verification_code = format!(
+        "{}/trial/verification-code",
+        args.cloud_open_api.as_ref().unwrap()
+    );
+
+    let result = verification::send_verification_code_with_cloud_open_api(
+        &cloud_open_api_send_verification_code,
+        str_phone_email,
+        params.lang.as_deref(),
+    )
+    .await;
+
+    match result {
+        Ok(200) => HttpResponse::Ok().json(R::success("")),
+        Ok(code) => HttpResponse::Ok().json(R::<Option<()>>::fail(
+            code,
+            "post cloud api error".to_string(),
+        )),
+        Err(err) =>{
+            log::error!("Failed to send verification code: {:?}", err);
+            HttpResponse::Ok().json(R::<Option<()>>::fail(501, err.to_string()))
+        } 
+    }
+}
+
+async fn check_verification_code(
+    args: web::Data<Args>,
+    body: web::Json<VerificationReqBody>,
+) -> impl Responder {
+    if body.phone_email.is_none() || body.verification_code.is_none() {
+        return HttpResponse::Ok()
+            .json(R::<()>::fail(400, "verificationCodeInputError".to_string()));
+    }
+
+    let str_phone_email = body.phone_email.as_ref().unwrap();
+    let str_verification_code = body.verification_code.as_ref().unwrap();
+    if str_phone_email.is_empty() || str_verification_code.is_empty() {
+        return HttpResponse::Ok()
+            .json(R::<()>::fail(400, "verificationCodeInputError".to_string()));
+    }
+
+    let result = verification::check_security_code(str_phone_email, str_verification_code);
+    if result == "pass" {
+        let binding_record_file =
+            PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
+        let server = args.profile.cluster.as_deref().unwrap();
+        verification::record_binding_phone_email(server, str_phone_email, &binding_record_file);
+    }
+
+    HttpResponse::Ok().json(R::success(result))
 }
 
 #[post("/rest/sql")]
@@ -629,6 +783,11 @@ struct Args {
     /// For environment variable wised log level.
     #[clap(env = "EXPLORER_LOG_LEVEL", hide = true)]
     log_level: Option<LevelFilter>,
+
+    cfg_path: Option<String>,
+
+    #[clap(long, global = true)]
+    cloud_open_api: Option<String>,
 
     #[clap(flatten)]
     #[serde(flatten)]

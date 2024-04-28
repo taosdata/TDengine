@@ -1,6 +1,6 @@
 [package]
 name = "taos-explorer"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2021"
 description = "TDengine Explorer UI"
 
@@ -13,7 +13,7 @@ actix-files = "0.6.2"
 actix-web = {version = "4.4.0", features = ["rustls"]}
 rustls = "0.20"
 rustls-pemfile = "2.0.0"
-reqwest = { version = "0.11.22", default_features = false, features = ["stream", "json", "rustls", "deflate"] }
+reqwest = { version = "0.11.22", default_features = false, features = ["stream", "json", "rustls", "deflate", "rustls-tls"] }
 anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
@@ -32,6 +32,10 @@ tracing = "0.1"
 tracing-actix-web = "0.7.2"
 tracing-subscriber = "0.3"
 utoipa = "4.1.0"
+sha1 = "0.10.6"
+rand = "0.8.4"
+lazy_static = "1.4.0"
+captcha = "0.0.9"
 
 taos = { version = "0.10.19", default-features = false, features = [
 	"ws-rustls",

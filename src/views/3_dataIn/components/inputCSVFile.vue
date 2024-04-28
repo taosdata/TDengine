@@ -128,7 +128,7 @@ export default {
                 loading.close();
                 this.requestIng = false;
               }).catch(err=>{
-                err&&Message.error(err.desc || err)
+                err&&this.$error(err.desc || err)
               });
           } else {
             return false;
@@ -150,7 +150,7 @@ export default {
         })
         .catch((err) => {
           this.tableList = [];
-          this.$message.error(err.desc);
+          this.$error(err.desc);
         })
         .finally(() => {
           this.requestIng = false;

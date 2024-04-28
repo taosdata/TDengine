@@ -144,7 +144,7 @@ export default {
               this.getAllDnodes();
             }
           }).catch(err=>{
-            err.desc && Message.error(err.desc);
+            err.desc && this.$error(err.desc);
           });
         } catch (error) {
           console.log(error, "删除");
@@ -171,7 +171,7 @@ export default {
           }
         });
       } catch (err) { 
-        err && err.desc & Message.error(err.desc);
+        err && err.desc & this.$error(err.desc);
 
         return Promise.reject(err);
       }

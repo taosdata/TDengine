@@ -96,7 +96,7 @@ export default {
         Message.success('Save Scuessfully')
       }else{
         if(this.grafanaUrl){
-          Message.error('Please enter the correct  url.')
+          this.$error('Please enter the correct  url.')
         }else{
           localStorage.removeItem('local_grafana')
         }

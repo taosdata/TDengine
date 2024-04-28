@@ -7,7 +7,7 @@
           @click="refresh"
           size="small"
           icon="el-icon-refresh"
-          :disabled="requestIng"
+          :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
         <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
@@ -231,6 +231,7 @@
                     size="mini"
                     @click="start(scope.row)"
                     icon="el-icon-qidong"
+                    :disabled="$COMMUNITY"
                   ></el-button>
                 </el-tooltip>
               </template>
@@ -250,6 +251,7 @@
                     size="mini"
                     @click="stop(scope.row)"
                     icon="el-icon-tingzhi"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -264,6 +266,7 @@
                     size="mini"
                     @click="refreshCurrentTask(scope.row)"
                     icon="el-icon-refresh"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -292,6 +295,7 @@
                 type="primay"
                 size="mini"
                 :disabled="
+                  $COMMUNITY ? $COMMUNITY :
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
@@ -327,6 +331,7 @@
                 size="mini"
                 @click="del(scope.row)"
                 icon="el-icon-delete"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
             <el-tooltip
@@ -339,6 +344,7 @@
                 size="mini"
                 @click="copyTask(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-copy-document"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
           </template>
@@ -381,6 +387,7 @@ import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
 import Metrics from "../components/metrics.vue";
 import { deepClone, parsinginZone } from "@/utils";
+import { dataInMockData } from "@/const";
 export default {
   name: "DataSource",
   components: { AddDialog, Agents },
@@ -521,7 +528,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(data.from_detail.id=='avevaHistorian'){
+        if(data.from_detail.id=='avevaHistorian' || data.from_detail.id=='mysql' || data.from_detail.id=='postgres'){
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
           this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
         }
@@ -625,7 +632,7 @@ export default {
         let id = localStorage.getItem("local_clusterID");
         let result = await getTask(id, "datain");
         if (result.desc || result.message) {
-          Message.error(result.desc || result.message);
+          this.$error(result.desc || result.message);
           return;
         }
         if (result) {
@@ -651,23 +658,20 @@ export default {
       try {
         let result = await getMetrics(data.id);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
-        let array = Object.entries(result).map((item) => ({
-          name: item[0],
-          value: item[1],
-        }));
-        if (Array.from(array).length == 0) {
+        
+        if (Object.keys(result).length === 0) {
           switch (status) {
             case "running":
-              Message.error(this.$t("datasource.metricTips.running"));
+              this.$error(this.$t("datasource.metricTips.running"));
               return;
             case "completed":
-              Message.error(this.$t("datasource.metricTips.completed"));
+              this.$error(this.$t("datasource.metricTips.completed"));
               return;
             case "stopped":
-              Message.error(this.$t("datasource.metricTips.stopped"));
+              this.$error(this.$t("datasource.metricTips.stopped"));
               return;
           }
         }
@@ -675,13 +679,14 @@ export default {
         this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
-            data: array,
+            data: result,
             metricsDesc,
-            taskId: data.id
+            taskId: data.id,
+            type: data.from_detail.id
           },
           config: {
             title: this.$t("dataIn.metrics"),
-            width: "800px",
+            width: "1100px",
           },
           listeners: {
             close: () => {
@@ -766,7 +771,7 @@ export default {
       try {
         let result = await refreshTask(data.taskid);
         if (result && (result.message || result.desc)) {
-          Message.error(result.message || result.desc);
+          this.$error(result.message || result.desc);
           return;
         }
         let activitList = await this.getCurrentActivities(data.taskid)
@@ -803,14 +808,16 @@ export default {
       this.$refs.agents.add();
     },
     async expandChange(row, expandedRows) { 
-      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-      let activitList = await this.getCurrentActivities(row.taskid)
-      this.topicList = this.topicList.map(item => {
-        if (item.id == row.taskid) {
-          item.taskActivities = deepClone(activitList) 
-        }
-        return item
-      })
+      if (!this.$COMMUNITY) {
+        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+        let activitList = await this.getCurrentActivities(row.taskid)
+        this.topicList = this.topicList.map(item => {
+          if (item.id == row.taskid) {
+            item.taskActivities = deepClone(activitList) 
+          }
+          return item
+        })
+      }
     },
     getLevelStyle(level) {
       let style = "";
@@ -892,13 +899,17 @@ export default {
   },
   mounted() {
     this.clearTransformerStore()
-    if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh().then(() => {
-        this.typeList = this.sourceList;
-      });
-      this.$nextTick(() => {
-        this.handleSetInterval()
-      })
+    if (this.$COMMUNITY) {
+      this.topicList = dataInMockData;
+    } else {
+      if (this.$parent.$parent.$parent.currentName == "datasource") {
+        this.refresh().then(() => {
+          this.typeList = this.sourceList;
+        });
+        this.$nextTick(() => {
+          this.handleSetInterval()
+        })
+      }
     }
   },
   beforeDestroy() {

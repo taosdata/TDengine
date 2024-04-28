@@ -16,6 +16,7 @@
       <uploadCsv
         v-model="value"
         :config="config"
+        :isOpcDataset="isOpc"
       >
       </uploadCsv>
 
@@ -300,14 +301,14 @@ export default {
       let type = this.sourceParent.sourceForm.type
       let via = this.sourceParent.sourceForm.agent
       const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
-      if (!/:\/\/\w+?/.test(url)) return this.$message.error(this.$t('dataIn.noDsn'));
+      if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       this.requestIng = true;
       let from = url + `&categories=${this.category}`;
       downloadAllPointFile(from, via)
         .then(res => {
           if(res && res.code) {
-            return this.$message.error(res.message)
+            return this.$error(res.message)
           }
           downloadFileBlob(res, this.allCategoryText + '.csv');
         })
@@ -333,7 +334,7 @@ export default {
       let type = this.sourceParent.sourceForm.type
       let via = this.sourceParent.sourceForm.agent
       const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
-      if (!/:\/\/\w+?/.test(url)) return this.$message.error(this.$t('dataIn.noDsn'));
+      if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       try {
         this.requestIng = true;
@@ -368,7 +369,7 @@ export default {
     async downloadFile() {
       const res = await downlaodOpcPointFile(this.ticket)
       if (res && res.code) {
-        return this.$message.error(res.message)
+        return this.$error(res.message)
       }
       downloadFileBlob(res, this.allCategoryText + '.csv');
       this.complete = false;
