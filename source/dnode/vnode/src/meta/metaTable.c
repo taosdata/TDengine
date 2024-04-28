@@ -698,8 +698,9 @@ static int32_t metaDropTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq 
     TSDB_CHECK_CODE(code = TSDB_CODE_VND_INVALID_TABLE_ACTION, lino, _exit);
   }
 
-  code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId);
-  TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  if ((code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId))) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  }
 
   schema->version++;
   memmove(schema->pSchema + i, schema->pSchema + i + 1, (schema->nCols - i - 1) * sizeof(SSchema));
@@ -746,8 +747,9 @@ static int32_t metaUpdateTableColumnBytes(SMeta *meta, SMetaEntry *entry, SVAlte
     TSDB_CHECK_CODE(code = TSDB_CODE_PAR_INVALID_ROW_LENGTH, lino, _exit);
   }
 
-  code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId);
-  TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  if ((code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId))) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  }
 
   schema->version++;
   schema->pSchema[i].bytes = request->colModBytes;
