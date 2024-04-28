@@ -142,7 +142,7 @@ impl PIPointModelConfig {
                 let pi_type = template["Type"].as_str().unwrap();
                 let uom = template["UOM"].as_str();
                 let super_table_name = Self::get_point_mode_stable_name(pi_type, uom);
-                let sub_table_name_pattern = "$point_name".to_string();
+                let sub_table_name_pattern = "${point_name}".to_string();
                 let tags = template["Tags"].as_object().unwrap();
                 let mut schema = vec![
                     // 三个固定列
@@ -333,7 +333,7 @@ impl PIElementModelConfig {
             .map(|template| {
                 let template_name = template["TemplateName"].as_str().unwrap();
                 let super_table_name = Self::template_name_to_super_table_name(template_name);
-                let sub_table_name_pattern = "$element_id".to_string();
+                let sub_table_name_pattern = "${element_name}_${element_id}".to_string();
                 let mut schema: Vec<SchemaRow> = Vec::new();
                 // 添加主键列
                 schema.push(SchemaRow {
@@ -792,10 +792,10 @@ impl SuperTableConfig {
         }
 
         let options = std::sync::OnceLock::<std::sync::Arc<TableOptions>>::new();
-        let sub_table_name = self.sub_table_name_pattern.replace('$', "");
-        let sub_table_name = format!("${{{}}}", sub_table_name);
+        // let sub_table_name = self.sub_table_name_pattern.replace('$', "");
+        // let sub_table_name = format!("${{{}}}", sub_table_name);
         Table {
-            name: sub_table_name,
+            name: self.sub_table_name_pattern.clone(),
             using: Some(self.super_table_name.clone()),
             tags: Some(tags),
             columns: Some(columns),
