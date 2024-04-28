@@ -168,7 +168,7 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql, queryTimes=30, show=False):
+    def execute(self, sql, queryTimes=10, show=False):
         self.sql = sql
         if show:
             tdLog.info(sql)
@@ -189,7 +189,7 @@ class TDSql:
                 pass
 
     # execute many sql
-    def executes(self, sqls, queryTimes=10, show=False):
+    def executes(self, sqls, queryTimes=30, show=False):
         for sql in sqls:
             self.execute(sql, queryTimes, show)
 
