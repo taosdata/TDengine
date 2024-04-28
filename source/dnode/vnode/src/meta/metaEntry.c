@@ -338,7 +338,7 @@ static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int64_t uid, const 
     *size = sizeof(STagIdxKey) + tagDataSize + sizeof(tb_uid_t);
   }
 
-  if ((*key = taosMemoryMalloc(*size)) == NULL) {
+  if ((*key = taosMemoryCalloc(1, *size)) == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
