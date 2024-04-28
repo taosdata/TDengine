@@ -230,12 +230,12 @@ export default {
         };
         let res = await addReplicationData(id, params);
         console.log(res);
+        this.requesting = false;
         if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
           this.$error(res.message);
           return;
         }
         Message.success(this.$t('createSucc'));
-        this.requesting = false;
         this.getReplication();
         this.dialog = false;
       } catch (err) {

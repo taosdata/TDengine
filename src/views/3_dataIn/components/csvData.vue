@@ -38,16 +38,23 @@
             :rules="fileRules"
             label-width="220px"
           >
-            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
-              <!-- <div class="upload-file"> -->
-              <!-- <span class="label required">{{
-                  $t("datasource.fileurl")
-                }}</span> -->
+            <el-form-item prop="fileurl">
+              <template slot="label">
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template slot="content">
+                    <DocsContent
+                      :content="$t('datasource.csvFileDesc')"
+                    />
+                  </template>
+                  <span>
+                    <span>{{ $t('datasource.fileurl') }}</span>
+                    <span style="margin-left: 4px">
+                      <i class="el-icon-info"></i>
+                    </span>
+                  </span>
+                </el-tooltip>
+              </template>
               <el-input size="small" v-model="fileForm.fileurl"></el-input>
-              <!-- </div> -->
-              <DocsContent
-                :content="$t('datasource.csvFileDesc')"
-              />
             </el-form-item>
           </el-form>
         </el-tab-pane>
