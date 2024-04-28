@@ -3002,15 +3002,25 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       continue;
     }
 
+    int32_t schemaExtSize = 0;
+    if (tbMeta->schemaExt != NULL) {
+      schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+
     metaSize = CTG_META_SIZE(stbMeta);
-    pTableMeta = taosMemoryRealloc(pTableMeta, metaSize);
+    pTableMeta = taosMemoryRealloc(pTableMeta, metaSize + schemaExtSize);
     if (NULL == pTableMeta) {
       ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     memcpy(&pTableMeta->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
-    pTableMeta->schemaExt = NULL;
+    if (tbMeta->schemaExt != NULL) {
+        pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+        memcpy(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
+    } else {
+      pTableMeta->schemaExt = NULL;
+    }
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);

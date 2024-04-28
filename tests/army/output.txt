@@ -1,0 +1,16 @@
+[04/28 14:59:23.619371] SUCC: created database (db)
+[04/28 14:59:23.716879] INFO: start creating 6 table(s) with 1 thread(s)
+[04/28 14:59:23.729593] SUCC: Spent 0.0130 seconds to create 6 table(s) with 1 thread(s), already exist 0 table(s), actual 6 table(s) pre created, 0 table(s) will be auto created
+[04/28 14:59:29.672889] SUCC: thread[1] progressive mode, completed total inserted rows: 200000, 34527.51 records/second
+[04/28 14:59:29.800217] SUCC: thread[0] progressive mode, completed total inserted rows: 200000, 33880.19 records/second
+[04/28 14:59:29.933898] SUCC: thread[2] progressive mode, completed total inserted rows: 200000, 33058.28 records/second
+[04/28 14:59:29.935222] SUCC: Spent 6.195506 (real 5.915186) seconds to insert rows: 600000 with 3 thread(s) into db 96844.39 (real 101433.83) records/second
+[04/28 14:59:29.935286] SUCC: insert delay, min: 96.7980ms, avg: 118.3037ms, p90: 129.9560ms, p95: 136.1850ms, p99: 149.2120ms, max: 155.4720ms
+[04/28 14:59:33.518323] SUCC: Database (db) get vgroups num is 3 from server.
+[04/28 14:59:33.738290] INFO: start creating 6 table(s) with 1 thread(s)
+[04/28 14:59:33.738295] SUCC: Spent 0.0000 seconds to create 6 table(s) with 1 thread(s), already exist 6 table(s), actual 0 table(s) pre created, 0 table(s) will be auto created
+[04/28 14:59:39.335084] SUCC: thread[2] progressive mode, completed total inserted rows: 100000, 18269.87 records/second
+[04/28 14:59:39.568931] SUCC: thread[1] progressive mode, completed total inserted rows: 100000, 17539.71 records/second
+[04/28 14:59:39.666251] SUCC: thread[0] progressive mode, completed total inserted rows: 100000, 17142.28 records/second
+[04/28 14:59:39.667339] SUCC: Spent 5.874890 (real 5.669457) seconds to insert rows: 300000 with 3 thread(s) into db 51064.79 (real 52915.12) records/second
+[04/28 14:59:39.667398] SUCC: insert delay, min: 57.4880ms, avg: 218.0561ms, p90: 302.9420ms, p95: 329.3580ms, p99: 364.7680ms, max: 364.7680ms

@@ -1539,7 +1539,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
-    if (useCompress(output->ctbMeta.tableType)) {
+    if (output->tbMeta->schemaExt != NULL) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
@@ -1551,7 +1551,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     memcpy((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (useCompress(output->ctbMeta.tableType)) {
+    if (output->tbMeta->schemaExt != NULL) {
       (*pOutput)->tbMeta->schemaExt = (SSchemaExt *)((char *)(*pOutput)->tbMeta + metaSize);
       memcpy((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
     } else {
