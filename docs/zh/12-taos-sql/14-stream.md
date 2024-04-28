@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
@@ -30,9 +30,9 @@ subquery: SELECT select_list
     [window_clause]
 ```
 
-支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用
+支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用。对于数据源表是复合主键的流，不支持状态窗口、事件窗口、计数窗口的计算。
 
-stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表
+stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表。
 
 TAGS 子句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
 ```sql

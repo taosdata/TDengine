@@ -57,6 +57,7 @@ INSERT INTO
    INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
    ```
 6. 对于向多个子表插入数据的情况，依然会有部分数据写入失败，部分数据写入成功的情况。这是因为多个子表可能分布在不同的 VNODE 上，客户端将 INSERT 语句完整解析后，将数据发往各个涉及的 VNODE 上，每个 VNODE 独立进行写入操作。如果某个 VNODE 因为某些原因（比如网络问题或磁盘故障）导致写入失败，并不会影响其他 VNODE 节点的写入。
+7. 主键列值必须指定且不能为 NULL。
 
 **正常语法说明**
 
