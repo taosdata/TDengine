@@ -121,13 +121,15 @@ static void *dmNotifyThreadFp(void *param) {
       if (head < 0) head += TIMESERIES_STASH_NUM;
       int64_t timeDiff = notifyTimeStamp[tail] - notifyTimeStamp[head];
       int64_t tsDiff = notifyTimeSeries[tail] - notifyTimeSeries[head];
-      if (timeDiff > 0 && timeDiff < 1e9 && tsDiff > 0) {
-        approximateTimeSeries = (double)tsDiff * 1e9 / timeDiff;
-        if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+      if (tsDiff > 0) {
+        if (timeDiff > 0 && timeDiff < 1e9) {
+          approximateTimeSeries = (double)tsDiff * 1e9 / timeDiff;
+          if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+            dmSendNotifyReq(pMgmt, &req);
+          }
+        } else {
           dmSendNotifyReq(pMgmt, &req);
         }
-      } else {
-        dmSendNotifyReq(pMgmt, &req);
       }
     } else {
       dmSendNotifyReq(pMgmt, &req);
