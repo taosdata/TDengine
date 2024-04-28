@@ -91,6 +91,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // generate sql
     let sql = config.task.generate_sql()?;
+    tracing::info!("get sample data, config: {:?}", &config);
     tracing::info!(
         "get sample data, sql: {}, limit: {}",
         sql,
