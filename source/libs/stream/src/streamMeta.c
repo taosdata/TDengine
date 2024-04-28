@@ -1399,7 +1399,7 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
 
     SStreamTaskState* pState = streamTaskGetStatus(pTask);
     if (pState->state == TASK_STATUS__CK) {
-      streamTaskSetCheckpointFailedId(pTask);
+      streamTaskSetFailedCheckpointId(pTask);
     } else {
       stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->name);
     }
@@ -1706,4 +1706,39 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
   }
 
   return 0;
+}
+
+int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t now = taosGetTimestampMs();
+  int64_t startTs = 0;
+  bool    hasFillhistoryTask = false;
+  STaskId hId = {0};
+
+  stDebug("vgId:%d add failed task:0x%x", pMeta->vgId, taskId);
+
+  streamMetaRLock(pMeta);
+
+  STaskId       id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+
+  if (ppTask != NULL) {
+    startTs = (*ppTask)->taskCheckInfo.startTs;
+    hasFillhistoryTask = HAS_RELATED_FILLHISTORY_TASK(*ppTask);
+    hId = (*ppTask)->hTaskInfo.id;
+
+    streamMetaRUnLock(pMeta);
+
+    // add the failed task info, along with the related fill-history task info into tasks list.
+    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, startTs, now, false);
+    if (hasFillhistoryTask) {
+      streamMetaAddTaskLaunchResult(pMeta, hId.streamId, hId.taskId, startTs, now, false);
+    }
+  } else {
+    stError("failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
+            streamId, taskId, pMeta->vgId);
+    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  return code;
 }
