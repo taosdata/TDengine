@@ -202,7 +202,6 @@ impl OPCConfig {
         let point_config_map = match opc_type {
             OpcType::OPCUA => {
                 let mut point_config_map = LinkedHashMap::new();
-
                 let ua_nodes =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
                         .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
@@ -263,7 +262,6 @@ impl OPCConfig {
             }
             _ => bail!("invalid opc type: {}", opc_type),
         };
-
         Ok(point_config_map)
     }
 }
