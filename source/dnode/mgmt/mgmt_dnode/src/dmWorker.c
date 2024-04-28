@@ -89,10 +89,11 @@ static void *dmNotifyThreadFp(void *param) {
     }
 
     if (current - lastNotify < 10) {
-      if (approximateTimeSeries < 1e5) approximateTimeSeries = 1e5;
-      if (remainTimeSeries > approximateTimeSeries * 10) {
+      int64_t nCmprTimeSeries = approximateTimeSeries / 100;
+      if (nCmprTimeSeries < 1e5) nCmprTimeSeries = 1e5;
+      if (remainTimeSeries > nCmprTimeSeries * 10) {
         taosMsleep(10);
-      } else if (remainTimeSeries > approximateTimeSeries * 5) {
+      } else if (remainTimeSeries > nCmprTimeSeries * 5) {
         taosMsleep(5);
       } else {
         taosMsleep(2);
