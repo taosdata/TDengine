@@ -392,60 +392,6 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
-static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
-        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
-    *(bool*)pContext = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool tagScanNodeListHasTbname(SNodeList* pCols) {
-  bool hasTbname = false;
-  nodesWalkExprs(pCols, tagScanNodeHasTbnameFunc, &hasTbname);
-  return hasTbname;
-}
-
-static bool tagScanNodeHasTbname(SNode* pKeys) {
-  bool hasTbname = false;
-  nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
-  return hasTbname;
-}
-
-static int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
-  pScan->onlyMetaCtbIdx = false;
-
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
-    pScan->onlyMetaCtbIdx = false;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
-    pScan->onlyMetaCtbIdx = false;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pScan->node.pConditions == NULL) {
-    pScan->onlyMetaCtbIdx = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pCond = nodesCloneNode(pScan->node.pConditions);
-  SNode* pTagCond = NULL;
-  SNode* pTagIndexCond = NULL;
-  filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
-  if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
-    pScan->onlyMetaCtbIdx = false;
-  } else {
-    pScan->onlyMetaCtbIdx = true;
-  }
-  nodesDestroyNode(pCond);
-  nodesDestroyNode(pTagIndexCond);
-  nodesDestroyNode(pTagCond);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
