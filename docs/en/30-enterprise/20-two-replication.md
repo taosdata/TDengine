@@ -6,7 +6,7 @@ sidebar_label: "Double Replicas"
 
 ## Introduction
 
-This section describes the double replicas feature, which is available from TDengine Enterprise 3.3.0.0. With this feature, you can create a database with 2 replicas instead of 3, but can still achieve high availability with lower hardware cost. The replica number is specified when creating a database. If one vnode of a vgroup is down over a period, the remaining vnode will take a special role "AssignedLeader" to continue to provide service. A key difference between replica 2 and replica 3 is the number of vnodes: 2 versus 3.
+This section describes the double replicas feature, which is available from TDengine Enterprise 3.3.0.0. With this feature, you can create a database with 2 replicas instead of 3, but can still achieve high availability with lower hardware cost. The replica number is specified when creating a database. If one vnode of a vgroup is down over a period, the remaining vnode will take a special role "AssignedLeader" to continue to provide service. There are only two vnodes in each vgroup of a database with 2 replicas: Leader vnode and Follower vnode.  If only the follower vnode is down, the vgroup can continue to server; However, if the leader vnode is down, whether the vgroup can continue to serve depends on the data synchronization state between the vnodes of the vgroup. 
 
 ## Create Database with 2 Replicas
 
