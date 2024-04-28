@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-import time
+
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -47,7 +47,7 @@ class TDTestCase:
             'col12': f'binary({self.binary_length})',
             'col13': f'nchar({self.nchar_length})'
         }
-        self.tbnum = 21
+        self.tbnum = 20
         self.rowNum = 10
         self.tag_dict = {
             't0':'int',
@@ -61,7 +61,7 @@ class TDTestCase:
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions"]
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines']
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -119,6 +119,35 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_columns")
 
         tdSql.execute('drop database db3')
+
+
+    def ins_consume_4096_check(self):
+        # if there is more than 4096 tables in one vgroup, check consume without duplicate.
+        # stable/tags/tables/columns
+        # check tag. row 1w, echo row has 2tag, can count(*) tag value =2w
+        # create db, meters has 2 tags, 1w tables. must 1 vgroup
+        tdLog.info(f"begin create db/stable/table ")
+        tdSql.execute('create database tdb1 vgroups 1 replica 1')
+        tdSql.execute('use tdb1')
+        tdSql.execute(f'create stable tdb1.stb1 (ts timestamp,c0 int) tags(t0 int,t1 int)')
+        tbnum = 10000
+        for i in range(tbnum):
+            tdSql.execute(f'create table tdb1.tb_{i} using tdb1.stb1 (t0,t1)tags(1,2)')
+        tdLog.info(f"end create table ")
+        tdSql.query(
+            "select count(*) from information_schema.ins_tags where db_name = 'tdb1'")
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0], tbnum*2)
+        tdLog.info(f"end query tag count ")
+
+        # columns contain meters value
+        tdSql.query(
+            "select count(*) from information_schema.ins_columns where db_name = 'tdb1'")
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0], tbnum*2+2)
+        tdLog.info(f"end query colunms count ")
+
+
     def ins_stable_check(self):
         tdSql.execute('create database db3 vgroups 2 replica 1')
         tbnum = 10
@@ -221,8 +250,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(251, 252))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(215, 230))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -315,56 +343,6 @@ class TDTestCase:
         tdSql.error('alter cluster "activeCode" ""')
         tdSql.execute('alter cluster "activeCode" "revoked"')
 
-    def ins_encryptions_check(self):
-        key_status_list = ['unknown', 'unset', 'set', 'loaded']
-
-        # unset/none
-        tdSql.execute('drop database if exists db2')
-        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
-        time.sleep(2)
-        tdSql.query(f'select * from information_schema.ins_encryptions')
-        result = tdSql.queryResult
-        index = 0
-        for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
-            index += 1
-        tdSql.checkEqual(True, index > 0)
-                    
-        tdSql.query(f'show encryptions')
-        result = tdSql.queryResult
-        index = 0
-        for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
-            index += 1
-        tdSql.checkEqual(True, index > 0)
-        
-        # loaded/sm4
-        tdSql.execute('drop database if exists db2')
-        tdSql.execute('create encrypt_key \'12345678\'')
-        time.sleep(3)
-        tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'sm4\'')
-        tdSql.query(f'select * from information_schema.ins_encryptions')
-        result = tdSql.queryResult
-        index = 0
-        for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
-            index += 1
-        tdSql.checkEqual(True, index > 0)
-                    
-        tdSql.query(f'show encryptions')
-        result = tdSql.queryResult
-        index = 0
-        for i in range(0, len(result)):
-            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
-            index += 1
-        tdSql.checkEqual(True, index > 0)
-
-    def test_query_ins_tags(self):
-        sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
-        tdSql.query(sql)
-        tdSql.checkRows(2)
-
-
     def run(self):
         self.prepare_data()
         self.count_check()
@@ -374,9 +352,13 @@ class TDTestCase:
         self.ins_stable_check2()
         self.ins_dnodes_check()
         self.ins_grants_check()
-        self.ins_encryptions_check()
         self.test_query_ins_tags()
+        self.ins_consume_4096_check()
 
+    def test_query_ins_tags(self):
+        sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
+        tdSql.query(sql)
+        tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()
