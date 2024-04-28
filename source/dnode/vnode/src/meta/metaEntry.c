@@ -1775,10 +1775,6 @@ int32_t metaHandleEntry(SMeta *meta, const SMetaEntry *entry) {
 
   metaWLock(meta);
 
-  /* table.db */
-  code = metaUpsertTableEntry(meta, entry);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   if (entry->type < 0) {
     // drop
     name = NULL;
@@ -1797,6 +1793,10 @@ int32_t metaHandleEntry(SMeta *meta, const SMetaEntry *entry) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
+
+  /* table.db */
+  code = metaUpsertTableEntry(meta, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   meta->changed = true;
 
