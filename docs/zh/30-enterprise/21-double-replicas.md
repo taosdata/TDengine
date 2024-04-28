@@ -6,7 +6,7 @@ sidebar_label: "双副本"
 
 ## 概述
 
-本节简要介绍双副本功能，该功能从 3.3.0.0 版本的 TDengine 企业版中开始提供。用户可以创建双副本的数据库，以降低硬件成本且具备一定的高可用能力。双副本数据库与三副本数据库的核心区别是每个 vgroup 中只有两个 vnode：Leader 和 Follower。 如果 Follower vnode 不可用，vgroup 仍然能够继续服务；如果 Leader vnode 不可用，则该 vgroup 能够继续提供服务取决于 Leader vnode 和 Follower vnode 之间的数据同步状态。
+本节简要介绍双副本功能，该功能从 3.3.0.0 版本的 TDengine 企业版中开始提供。相较于三副本数据库，双副本数据库可以在降低硬件成本同时保证一定的高可用能力。双副本数据库中每个 Vgroup 仅有两个成员。在其中一个 Vnode 故障时，Mnode 可根据数据同步状态状态，裁定另一 Vnode 是否可独自对外提供服务。
 
 ## 创建双副本数据库
 
@@ -32,8 +32,8 @@ select * from information_schema.ins_arbgroups;
 
 ```
 is_sync 有以下两种取值：
-- 0: 当 Vgroup 数据未达成同步时。在此状态下，如果 vgroup 中的 vnode leader 不可访问，另一个 vnode follower 无法被指定为 `AssignedLeader` role，因而该 vgroup 将无法提供服务。
-- 1: 当 Vgroup 数据达成同步时。只有在此状态下，如果  vgroup 中的 vnode leader 不可访问，另一个 vnode follower 才能被指定为 `AssignedLeader` role 从而该 vgroup 可以继续提供服务。
+- 0: Vgroup 数据未达成同步。在此状态下，如果 Vgroup 中的某一 Vnode 不可访问，另一个 Vnode 无法被指定为 `AssignedLeader` role，该 Vgroup 将无法提供服务。
+- 1: Vgroup 数据达成同步。在此状态下，如果 Vgroup 中的某一 Vnode 不可访问，另一个 Vnode 可以被指定为 `AssignedLeader` role，该 Vgroup 可以继续提供服务。
 
 assigned_dnode：
 - 标识被指定为 AssignedLeader 的 Vnode 的 DnodeId
@@ -53,5 +53,5 @@ DROP DATABASE db;
 ```
 
 ## 约束与限制
-1. 暂不支持对双副本数据库相关 Vgroup 进行 splite vgroup 或 redistribute vgroup 操作
+1. 暂不支持对双副本数据库相关 Vgroup 进行 SPLITE VGROUP 或 REDISTRIBUTE VGROUP 操作
 2. 单副本数据库可变更为双副本数据库，但不支持从双副本变更为其它副本数，也不支持从三副本变更为双副本

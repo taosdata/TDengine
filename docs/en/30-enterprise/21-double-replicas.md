@@ -6,7 +6,7 @@ sidebar_label: "Double Replicas"
 
 ## Introduction
 
-This section describes the double replicas feature, which is available from TDengine Enterprise 3.3.0.0. With this feature, you can create a database with 2 replicas instead of 3, but can still achieve high availability with lower hardware cost. The replica number is specified when creating a database. If one vnode of a vgroup is down over a period, the remaining vnode will take a special role "AssignedLeader" to continue to provide service. There are only two vnodes in each vgroup of a database with 2 replicas: Leader vnode and Follower vnode.  If only the follower vnode is down, the vgroup can continue to server; However, if the leader vnode is down, whether the vgroup can continue to serve depends on the data synchronization state between the vnodes of the vgroup. 
+This section describes the double replicas feature, which is available from TDengine Enterprise 3.3.0.0. Compared with triple-replicas database, double-replicas database can achieve high availability with lower hardware cost. Each Vgroup in a double-replicas database has only two Vnodes. When one Vnode fails, the Mnode can determine whether the other Vnode can provide services independently based on the data synchronization status.
 
 ## Create Database with 2 Replicas
 
@@ -18,7 +18,7 @@ CREATE DATABASE <db_name> REPLICA 2;
 
 ## View Vgroup Details
 
-The state of the vgroups of a database with 2 replicas can be viewed as follow:
+The state of the Vgroups of a database with 2 replicas can be viewed as follow:
 
 ```sql
 show arbgroups;
@@ -34,8 +34,8 @@ select * from information_schema.ins_arbgroups;
 
 **Description**
 is_sync has the following two values:
-- 0: the data is not synchronized between the two vnodes in the vgroup. If the data is not synchorinzed and the vnode leader is down, the vgroup will fail to serve.
-- 1: the data is already synchronized between the two vnode in the vgroup. Only when the data is in synchronized state, when the vnode leader is down, the remaining follower vnode can be designated to `AssignedLeader` role.
+- 0: the data is not synchronized between the two Vnodes in the Vgroup. In this state, if one of the Vnodes in the Vgroup is inaccessible and the other Vnode cannot be assigned the `AssignedLeader` role, the Vgroup will not be available for service.
+- 1: the data is already synchronized between the two Vnodes in the Vgroup. In this state, if one of the Vnodes in the Vgroup is inaccessible, the other Vnode can be designated as the `AssignedLeader` role, and the Vgroup can continue to provide services.
 
 Only Vnodes in the synchronized Vgroup can be designated as `AssignedLeader` role.
 
@@ -47,7 +47,7 @@ assigned_token：
 - Identifies the Token of the Vnode in `AssignedLeader` role
 - If AssignedLeader is not specified, this column is NULL
 
-## Drop Database 
+## Drop Database
 
 You can drop a database with 2 replicas using the SQL commmand as below:
 ```sql
