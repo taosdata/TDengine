@@ -160,6 +160,9 @@ pub(super) async fn create_task(
     task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let task = task.into_inner();
     tracing::info!(task.name, "create task with name");
 

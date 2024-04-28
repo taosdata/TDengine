@@ -13,7 +13,6 @@ use std::{
     time::Duration,
 };
 
-use crate::runners::opc::config::model::TableConfig;
 use anyhow::{bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
@@ -36,6 +35,7 @@ use taos::{
     taos_query::{common::Describe, Manager},
     Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
+
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
     prelude::*,
@@ -47,7 +47,20 @@ use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
+use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
+use crate::utils::breakpoints::breakpoints_set;
+use crate::utils::trace::create_data_trace_id;
+use crate::utils::trace::create_stream_trace_id;
+use crate::utils::trace::get_data_trace_id_str;
+use crate::utils::trace::set_data_trace_id_for_current_span;
+use crate::utils::trace::RequestID;
+
+use crate::ConnectorLicense;
+use crate::Parser;
+use crate::Transferred;
+
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
@@ -56,16 +69,6 @@ use crate::{
 use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
 use crate::{
     plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
-};
-use crate::{
-    utils::{
-        breakpoints::breakpoints_set,
-        trace::{
-            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str,
-            set_data_trace_id_for_current_span, RequestID,
-        },
-    },
-    ConnectorLicense, Parser, Transferred,
 };
 
 use super::super::AGENT_COMPRESSION;
@@ -177,7 +180,7 @@ async fn ipc_tcp_forward(
                 let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
-                    info!("Send batch {}", data_trace_id_str);
+                    debug!("Send batch {}", data_trace_id_str);
                 });
                 v.map(|message| {
                     message.with_app_metadata(
@@ -1079,17 +1082,20 @@ fn get_transform_exprssion_by_id(
 
 #[cfg(test)]
 mod handle_transform_tests {
-    use crate::runners::opc::config::csv::CsvParser;
-    use crate::sink::handle_transform;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use arrow::array::{Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow_schema::DataType;
     use arrow_schema::Field;
     use arrow_schema::Schema;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use taos::Dsn;
+
     use taosx_ipc::stream::point::RecordMessage;
+
+    use crate::runners::opc::config::csv::CsvParser;
+    use crate::sink::handle_transform;
 
     #[tokio::test]
     async fn test_handle_transform() {
