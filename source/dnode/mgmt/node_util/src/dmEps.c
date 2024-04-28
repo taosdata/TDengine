@@ -254,7 +254,7 @@ _OVER:
 
 int32_t dmGetDnodeSize(SDnodeData *pData) {
   int32_t size = 0;
-  taosThreadRwlockWrlock(&pData->lock);
+  taosThreadRwlockRdlock(&pData->lock);
   size = taosArrayGetSize(pData->dnodeEps);
   taosThreadRwlockUnlock(&pData->lock);
   return size;
