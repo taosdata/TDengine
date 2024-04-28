@@ -163,23 +163,24 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
-
   taosThreadMutexLock(&pInfo->checkInfoLock);
+
   int32_t code = streamTaskStartCheckDownstream(pInfo, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
     return TSDB_CODE_FAILED;
   }
 
+  /*SStreamTask* p = */ streamMetaAcquireOneTask(pTask);  // add task ref here
   streamTaskInitTaskCheckInfo(pInfo, &pTask->outputInfo, taosGetTimestampMs());
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
   stDebug("s-task:%s start check rsp monit, ref:%d ", pTask->id.idStr, ref);
 
   if (pInfo->checkRspTmr == NULL) {
-    pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer);
+    pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_CHECK_INTERVAL, pTask, streamTimer);
   } else {
-    taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
+    taosTmrReset(rspMonitorFn, CHECK_RSP_CHECK_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
   }
 
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
@@ -329,7 +330,7 @@ int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id) {
   }
 
   stDebug("s-task:%s set the in-check-procedure flag", id);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char* id) {
@@ -338,7 +339,7 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
   }
 
   if (!pInfo->inCheckProcess) {
-    stWarn("s-task:%s already not in-check-procedure", id);
+//    stWarn("s-task:%s already not in-check-procedure", id);
   }
 
   int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
@@ -363,7 +364,6 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
 
 int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, int32_t vgId, const char* id) {
   SDownstreamStatusInfo info = {.taskId = taskId, .status = -1, .vgId = vgId, .reqId = reqId, .rspTs = 0};
-
   taosThreadMutexLock(&pInfo->checkInfoLock);
 
   SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
@@ -519,6 +519,7 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
 
 void rspMonitorFn(void* param, void* tmrId) {
   SStreamTask*      pTask = param;
+  SStreamMeta*      pMeta = pTask->pMeta;
   SStreamTaskState* pStat = streamTaskGetStatus(pTask);
   STaskCheckInfo*   pInfo = &pTask->taskCheckInfo;
   int32_t           vgId = pTask->pMeta->vgId;
@@ -546,6 +547,8 @@ void rspMonitorFn(void* param, void* tmrId) {
       STaskId* pHId = &pTask->hTaskInfo.id;
       streamMetaAddTaskLaunchResult(pTask->pMeta, pHId->streamId, pHId->taskId, pInfo->startTs, now, false);
     }
+
+    streamMetaReleaseTask(pMeta, pTask);
     return;
   }
 
@@ -554,6 +557,7 @@ void rspMonitorFn(void* param, void* tmrId) {
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
 
     streamTaskCompleteCheckRsp(pInfo, true, id);
+    streamMetaReleaseTask(pMeta, pTask);
     return;
   }
 
@@ -565,6 +569,7 @@ void rspMonitorFn(void* param, void* tmrId) {
 
     streamTaskCompleteCheckRsp(pInfo, false, id);
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    streamMetaReleaseTask(pMeta, pTask);
     return;
   }
 
@@ -591,6 +596,7 @@ void rspMonitorFn(void* param, void* tmrId) {
 
     streamTaskCompleteCheckRsp(pInfo, false, id);
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    streamMetaReleaseTask(pMeta, pTask);
 
     taosArrayDestroy(pNotReadyList);
     taosArrayDestroy(pTimeoutList);
@@ -609,11 +615,13 @@ void rspMonitorFn(void* param, void* tmrId) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
     // add the not-ready tasks into the final task status result buf, along with related fill-history task if exists.
-    streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pInfo->startTs, now, false);
+    streamMetaAddTaskLaunchResult(pMeta, pTask->id.streamId, pTask->id.taskId, pInfo->startTs, now, false);
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pHId = &pTask->hTaskInfo.id;
-      streamMetaAddTaskLaunchResult(pTask->pMeta, pHId->streamId, pHId->taskId, pInfo->startTs, now, false);
+      streamMetaAddTaskLaunchResult(pMeta, pHId->streamId, pHId->taskId, pInfo->startTs, now, false);
     }
+
+    streamMetaReleaseTask(pMeta, pTask);
 
     taosArrayDestroy(pNotReadyList);
     taosArrayDestroy(pTimeoutList);
@@ -628,7 +636,7 @@ void rspMonitorFn(void* param, void* tmrId) {
     handleTimeoutDownstreamTasks(pTask, pTimeoutList);
   }
 
-  taosTmrReset(rspMonitorFn, CHECK_RSP_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
+  taosTmrReset(rspMonitorFn, CHECK_RSP_CHECK_INTERVAL, pTask, streamTimer, &pInfo->checkRspTmr);
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
   stDebug("s-task:%s continue checking rsp in 300ms, total:%d, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d",

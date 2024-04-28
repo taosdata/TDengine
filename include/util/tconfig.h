@@ -106,12 +106,15 @@ int32_t      cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
 int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
-SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
-int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
+SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
+int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
+
 SConfigIter *cfgCreateIter(SConfig *pConf);
 SConfigItem *cfgNextIter(SConfigIter *pIter);
 void         cfgDestroyIter(SConfigIter *pIter);
+void         cfgLock(SConfig *pCfg);
+void         cfgUnLock(SConfig *pCfg);
 
 // clang-format off
 int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope);

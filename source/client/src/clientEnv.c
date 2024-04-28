@@ -838,7 +838,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     return -1;
   }
 
-  int code = cfgSetItem(pCfg, name, str, CFG_STYPE_TAOS_OPTIONS);
+  int code = cfgSetItem(pCfg, name, str, CFG_STYPE_TAOS_OPTIONS, true);
   if (code != 0) {
     tscError("failed to set cfg:%s to %s since %s", name, str, terrstr());
   } else {
