@@ -92,7 +92,7 @@ npm install @tdengine/websocket
 
 验证方法：
 
-- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
 
 - 在命令行中执行以下命令。
 
@@ -286,7 +286,7 @@ consumer.unsubscribe();
 // 关闭消费
 consumer.close()
 // 释放连接器资源
-taos.connectorDestroy();
+taos.destroy();
 ```
 
 详情请参考：[数据订阅](../../develop/tmq)

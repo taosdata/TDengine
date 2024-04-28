@@ -33,14 +33,14 @@ async function prepare() {
         let tagParams = stmt.newStmtParam();
         tagParams.setVarchar([tags[0]]);
         tagParams.setInt([tags[1]]);
-        await stmt.setBinaryTags(tagParams);
+        await stmt.setTags(tagParams);
 
         let bindParams = stmt.newStmtParam();
         bindParams.setTimestamp(values[0]);
         bindParams.setFloat(values[1]);
         bindParams.setInt(values[2]);
         bindParams.setFloat(values[3]);
-        await stmt.binaryBind(bindParams);
+        await stmt.bind(bindParams);
         await stmt.batch();
         await stmt.exec();
         console.log(stmt.getLastAffected());

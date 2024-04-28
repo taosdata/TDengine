@@ -26,7 +26,6 @@ async function createConnect() {
 async function test() {
     let wsSql = null;
     let wsRows = null;
-    // specifies the time for which data is retained.
     let ttl = 0;
     try {
         wsSql = await createConnect()
