@@ -191,11 +191,11 @@ Left/Right ASOF Join are supported between super tables, normal tables, child ta
 
   |    **Operator**   |       **Meaning for Left ASOF Join**       |
   | :-------------: | ------------------------ |
-  | >    | Match rows in the right table whose primary key timestamp is less than and the most closed to the left table's primary key timestamp      |
-  | >=    | Match rows in the right table whose primary key timestamp is less than or equal to and the most closed to the left table's primary key timestamp  |
+  | &gt;    | Match rows in the right table whose primary key timestamp is less than and the most closed to the left table's primary key timestamp      |
+  | &gt;=    | Match rows in the right table whose primary key timestamp is less than or equal to and the most closed to the left table's primary key timestamp  |
   | =    | Match rows in the right table whose primary key timestamp is equal to the left table's primary key timestamp  |
-  | <    | Match rows in the right table whose the primary key timestamp is greater than and the most closed to the left table's primary key timestamp  |
-  | <=    | Match rows in the right table whose primary key timestamp is greater than or equal to and the most closed to the left table's primary key timestamp  |
+  | &lt;    | Match rows in the right table whose the primary key timestamp is greater than and the most closed to the left table's primary key timestamp  |
+  | &lt;=    | Match rows in the right table whose primary key timestamp is greater than or equal to and the most closed to the left table's primary key timestamp  |
 
   For Right ASOF Join, the above operators have the opposite meaning.
 

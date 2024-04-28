@@ -260,7 +260,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
                     bool tsc);
 void    taosCleanupCfg();
 
-int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
+int32_t taosCfgDynamicOptions(SConfig *pCfg, const char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 

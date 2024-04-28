@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define CHECK_RSP_INTERVAL             300
+#define CHECK_RSP_CHECK_INTERVAL       300
 #define LAUNCH_HTASK_INTERVAL          100
 #define WAIT_FOR_MINIMAL_INTERVAL      100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK  40
@@ -69,6 +69,7 @@ typedef struct {
   int64_t chkpId;
   char*   dbPrefixPath;
 } SStreamTaskSnap;
+
 struct STokenBucket {
   int32_t numCapacity;         // total capacity, available token per second
   int32_t numOfToken;          // total available tokens
@@ -148,18 +149,19 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 void streamMetaRemoveDB(void* arg, char* key);
 
-typedef enum UPLOAD_TYPE {
-  UPLOAD_DISABLE = -1,
-  UPLOAD_S3 = 0,
-  UPLOAD_RSYNC = 1,
-} UPLOAD_TYPE;
+typedef enum ECHECKPOINT_BACKUP_TYPE {
+  DATA_UPLOAD_DISABLE = -1,
+  DATA_UPLOAD_S3 = 0,
+  DATA_UPLOAD_RSYNC = 1,
+} ECHECKPOINT_BACKUP_TYPE;
 
-UPLOAD_TYPE getUploadType();
-int         uploadCheckpoint(char* id, char* path);
-int         downloadCheckpoint(char* id, char* path);
-int         deleteCheckpoint(char* id);
-int         deleteCheckpointFile(char* id, char* name);
-int         downloadCheckpointByName(char* id, char* fname, char* dstName);
+ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
+
+int32_t streamTaskBackupCheckpoint(char* id, char* path);
+int32_t downloadCheckpoint(char* id, char* path);
+int32_t deleteCheckpoint(char* id);
+int32_t deleteCheckpointFile(char* id, char* name);
+int32_t downloadCheckpointByName(char* id, char* fname, char* dstName);
 
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);

@@ -926,7 +926,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
+  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD, true)) {
     return terrno;
   }
 
@@ -967,46 +967,11 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
-  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
-  int32_t numOfRows = 0;
-  blockDataEnsureCapacity(pBlock, numOfCfg);
-
-  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
-    SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
-    // GRANT_CFG_SKIP;
-
-    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, name, false);
-
-    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-    int32_t valueLen = 0;
-    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
-    varDataSetLen(value, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, value, false);
-
-    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
-    varDataSetLen(scope, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, scope, false);
-
-    numOfRows++;
-  }
-
-  pBlock->info.rows = numOfRows;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildLocalVariablesResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setLocalVariablesResultIntoDataBlock(pBlock);
+    code = dumpConfToDataBlock(pBlock, 0);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);

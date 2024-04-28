@@ -194,4 +194,12 @@ if $rows != 144 then
   return -1
 endi
 
+sql select a.ts, b.ts from tba1 a join sta b on a.ts = b.ts and a.t1 = b.t1;
+if $rows != 4 then
+  return -1
+endi
 
+sql select a.ts, b.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1;
+if $rows != 8 then
+  return -1
+endi
