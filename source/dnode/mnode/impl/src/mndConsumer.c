@@ -561,7 +561,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
-    // all subscribed topics should re-balance.
+    // all subscribed topics should rebalance.
     taosArrayDestroy(pConsumerNew->rebNewTopics);
     pConsumerNew->rebNewTopics = pTopicList;
     subscribe.topicNames = NULL;
@@ -892,7 +892,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     int32_t status = pOldConsumer->status;
     updateConsumerStatus(pOldConsumer);
 
-    // the re-balance is triggered when the new consumer is launched.
+    // the rebalance is triggered when the new consumer is launched.
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
 
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
