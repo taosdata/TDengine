@@ -690,7 +690,9 @@ mod tests {
     async fn test_to_schema() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from t_metric where 1 = 0")
@@ -712,7 +714,9 @@ mod tests {
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query.select_all("select * from t_metric").await.unwrap();
 
@@ -724,7 +728,9 @@ mod tests {
     async fn test_to_record_batches() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from t_full_columns")

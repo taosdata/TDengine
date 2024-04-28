@@ -1,7 +1,8 @@
 use std::cmp::min;
 
-use chrono::{Days, Utc};
+use chrono::{Days, FixedOffset, Utc};
 use flume::Sender;
+use std::str::FromStr;
 
 use crate::runners::mysql::config::MySqlConfig;
 
@@ -22,6 +23,7 @@ impl Producer {
             Some(end) => end,
             None => Utc::now(),
         };
+        let time_zone = FixedOffset::from_str(&self.config.task.time_zone.to_string())?;
         let interval = self.config.task.interval;
         tracing::debug!(
             "produce tasks, start: {}, end: {}, interval: {}",
@@ -32,36 +34,42 @@ impl Producer {
 
         // split the task into multiple windows
         let mut window_start = start.clone();
-        while window_start < end {
+
+        // with time zone
+        let mut window_start_with_tz = window_start.with_timezone(&time_zone);
+        let end_with_tz = end.with_timezone(&time_zone);
+
+        while window_start_with_tz < end_with_tz {
             // calculate the end of the window
-            let mut window_end = min(window_start + interval, end);
+            let mut window_end_with_tz = min(window_start_with_tz + interval, end_with_tz);
 
             // when the window across days, we need to adjust the end to the start of the next day
-            if window_start.date_naive() != window_end.date_naive() {
-                window_end = window_start
+            if window_end_with_tz.date() > window_start_with_tz.date() {
+                window_end_with_tz = window_start_with_tz
                     .date_naive()
                     .checked_add_days(Days::new(1))
                     .unwrap()
                     .and_hms_opt(0, 0, 0)
                     .unwrap()
-                    .and_utc();
+                    .and_local_timezone(time_zone)
+                    .unwrap();
             }
 
             // create a new task
             let mut config = self.config.clone();
-            config.task.start = window_start;
-            config.task.end = Some(window_end);
+            config.task.start = window_start_with_tz.with_timezone(&Utc);
+            config.task.end = Some(window_end_with_tz.with_timezone(&Utc));
             let _ = tx.send_async(config).await;
             tracing::debug!(
-                "produce task, window_start: {}, window_end: {}, end: {}, next: {}",
-                window_start,
-                window_end,
-                end,
-                window_start < end
+                "produce task, window_start_with_tz: {}, window_end_with_tz: {}, end_with_tz: {}, next: {}",
+                window_start_with_tz,
+                window_end_with_tz,
+                end_with_tz,
+                window_start_with_tz < end_with_tz
             );
 
             // move the window
-            window_start = window_end;
+            window_start_with_tz = window_end_with_tz;
         }
         Ok(())
     }

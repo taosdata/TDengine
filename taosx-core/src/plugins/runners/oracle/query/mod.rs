@@ -12,13 +12,14 @@ pub struct OracleQuery {
 }
 
 impl OracleQuery {
-    pub fn try_new(config: ConnectConfig) -> anyhow::Result<Self> {
+    pub fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
         let pool = Self::connect(
             &config.host,
             config.port,
             &config.subject,
             &config.username,
             &config.password,
+            time_zone,
         )
         .map_err(|err| {
             anyhow::anyhow!("failed to connect to oracle, cause: {}", err.to_string())
@@ -32,9 +33,11 @@ impl OracleQuery {
         subject: &String,
         username: &String,
         password: &String,
+        time_zone: String,
     ) -> anyhow::Result<Pool> {
         let addr = format!("//{}:{}/{}", host, port, subject);
         let pool_builder = PoolBuilder::new(username, password, addr);
+        // TODO timezone
         Ok(pool_builder.build()?)
     }
 
@@ -167,7 +170,7 @@ mod tests {
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
         dbg!(&config);
 
-        let query = OracleQuery::try_new(config).unwrap();
+        let query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
         assert!(query.pool.get().is_ok());
     }
 
@@ -175,7 +178,7 @@ mod tests {
     fn test_select_for_schema() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let col_map = query.select_for_schema("select * from TEST").unwrap();
         dbg!(col_map);
@@ -185,7 +188,7 @@ mod tests {
     fn test_select_all() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
         dbg!(col_map);
@@ -196,7 +199,7 @@ mod tests {
     fn test_select_all_and_to_record_batches() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let batches = query
             .select_all_and_to_record_batches("select * from TEST", 2)
@@ -208,7 +211,7 @@ mod tests {
     fn test_top_n() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.top_n("select * from TEST", 1).unwrap();
         dbg!(col_map);
