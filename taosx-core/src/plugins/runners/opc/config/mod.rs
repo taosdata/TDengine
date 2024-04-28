@@ -29,14 +29,14 @@ pub struct OPCConfig {
     pub connect: ConnectConfig,
     pub report: ReportConfig,
     pub points: Option<PointsConfig>,
-    pub collect: CollectConfig,
+    pub collect: Option<CollectConfig>,
 
     #[serde(skip)]
     model_config: Option<OpcModelConfig>,
 }
 
 impl OPCConfig {
-    /// 从 dsn 中解析参数 select_all_points
+    /// 从 dsn 中解析参数 select_all_points 参数
     /// 1. dsn 没有参数，返回 None
     /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
     /// 3. dsn 有参数，不合法，Error, return Error()
@@ -80,11 +80,22 @@ impl OPCConfig {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
                 taos.exec(drop_sql).await.map_err(|err| {
-                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                    anyhow::anyhow!(
+                        "failed to drop table: {}, cause: {}",
+                        child_table_name,
+                        err.to_string()
+                    )
                 })?;
             }
 
-            Some(parser.get_model_config())
+            let mut model_config = parser.get_model_config();
+            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
+                if table_config.enabled == Some(0i8) {
+                    model_config.point_config_map.remove(point_id);
+                }
+            }
+
+            Some(model_config)
         } else {
             // 如果没有 csv_config_file 参数，那么, 从 dsn 中解析 point_config_map 和 table_config_map
             let point_config_map = Self::build_point_config_map(dsn)?;
@@ -117,7 +128,7 @@ impl OPCConfig {
             connect,
             report,
             points: None,
-            collect: CollectConfig::from_dsn(dsn, id).await?,
+            collect: Some(CollectConfig::from_dsn(dsn, id).await?),
             model_config,
         })
     }
@@ -140,8 +151,8 @@ impl OPCConfig {
             opc_type: OpcType::from_dsn(&dsn)?,
             debug: Self::parse_debug(&dsn)?,
             connect: ConnectConfig::from_dsn(&dsn)?,
-            points: PointsConfig::from_dsn(&dsn),
-            collect: CollectConfig::new_empty(),
+            points: Some(PointsConfig::from_dsn(&dsn)?),
+            collect: None,
             report: ReportConfig::from_dsn(&dsn, 0)?,
             model_config: None,
         })
@@ -151,13 +162,13 @@ impl OPCConfig {
         self.model_config.as_ref()
     }
 
-    pub fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
+    pub async fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(OPCConfig {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::new_empty(),
+            collect: None,
             report: ReportConfig::from_dsn(dsn, 0)?,
             model_config: None,
         })
@@ -209,6 +220,7 @@ impl OPCConfig {
                     point_config_map.insert(
                         tag,
                         PointConfig {
+                            row_index: i + 1,
                             code,
                             stable: None,
                             tag_values: None,
@@ -238,6 +250,7 @@ impl OPCConfig {
                     point_config_map.insert(
                         tag,
                         PointConfig {
+                            row_index: i + 1,
                             code,
                             stable: None,
                             tag_values: None,
@@ -261,334 +274,6 @@ pub enum AuthMethod {
     Certificate,
 }
 
-/*
-/// return opc table config, node_config, tables_to_drop
-// #[async_backtrace::framed]
-pub async fn generate_config_from_csv(
-    opc_type: &str,
-    csv_config_file: &str,
-) -> anyhow::Result<(OpcModelConfig, Vec<String>, Vec<String>)> {
-    let files_or_strings = csv_config_file
-        .split(",")
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string());
-
-    let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
-    let mut tag_config = Vec::new();
-    let mut column_config = Vec::new();
-    let mut node_config_old = Vec::new();
-    let mut tables_to_drop = Vec::new();
-    let mut current_tag_names = Vec::new();
-    let mut stable_prefix = None;
-
-    for mut file in files_or_strings {
-        tracing::info!(
-            "current log: {}",
-            std::env::current_dir().unwrap().to_str().unwrap()
-        );
-
-        let mut rdr;
-        if !file.starts_with("@") {
-            // TODO use mime instead
-            let decoded = general_purpose::STANDARD.decode(&file)?;
-            let mut temp_file = tempfile::NamedTempFile::new()?;
-            let res = String::from_utf8(decoded)?;
-            write!(temp_file, "{}", res)?;
-            file = format!("@{}", temp_file.path().to_str().unwrap());
-            rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
-            temp_file.into_temp_path();
-        } else {
-            rdr = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
-        }
-        // the header is comment, skip it
-        let mut records = rdr.records();
-        let header = records.next().await;
-
-        if header.is_none() {
-            tracing::warn!("file {file} should have 3 lines at least");
-            bail!("Config file {file} should not be empty");
-        }
-        let header = header.unwrap()?;
-        // header parse
-        let mut column_names = Vec::new();
-
-        for column_name in header.iter() {
-            column_names.push(column_name.to_string());
-            if column_name.starts_with("tag::") {
-                // is tag config tag::type::name e.g. tag::varchar(123)::unit
-                let split_tag = column_name.split("::").collect_vec();
-                if split_tag.len() != 3 {
-                    bail!(
-                        "file {file} column {column_name} config error, pattern is tag::type::name"
-                    );
-                }
-                let column_type =
-                    IpcDataType::from_str(split_tag.get(1).unwrap()).map_err(|err| {
-                        anyhow::Error::msg(format!("{err} should be a valid Data Type"))
-                    })?;
-                let tag_name = split_tag.get(2).unwrap().to_string();
-                check_duplicated(&current_tag_names, None, &tag_name)?;
-                current_tag_names.push(tag_name.clone());
-                tag_config.push(TagConfig {
-                    name: tag_name,
-                    r#type: column_type,
-                });
-            }
-        }
-
-        let mut line = 3;
-        let mut column_config_init = false;
-        while let Some(record) = records.next().await {
-            match record {
-                Ok(record) => {
-                    let mut record_map = LinkedHashMap::new();
-                    let mut tag_values_map = HashMap::new();
-                    // tags
-                    for (index, column_name) in column_names.iter().enumerate() {
-                        let data = record.get(index).unwrap();
-                        if column_name.starts_with("tag::") {
-                            tag_values_map.insert(
-                                column_name
-                                    .split("::")
-                                    .collect_vec()
-                                    .get(2)
-                                    .unwrap()
-                                    .to_string(),
-                                data.to_string(),
-                            );
-                        } else {
-                            record_map.insert(column_name.to_string(), data.to_string());
-                        }
-                    }
-
-                    // point_id or tag_name
-                    let point_id = record_map
-                        .get("point_id")
-                        .or(record_map.get("tag_name"))
-                        .ok_or(anyhow::anyhow!("point_id or tag_name not found"))?
-                        .clone();
-
-                    let tb_name = record_map.get_mut("tbname").unwrap();
-                    if tb_name.contains("{") {
-                        // replace {tag_name} or {TagName} in tbname
-                        *tb_name = generate_tbname_from_pattern(opc_type, tb_name, &point_id);
-                    }
-
-                    // stable
-                    let stable = if let Some(stable_name) = record_map.get("stable") {
-                        let val_type = record_map.get("type").unwrap();
-
-                        let stable = if !val_type.is_empty() {
-                            stable_name.to_string().replace("{type}", &val_type)
-                        } else {
-                            stable_name.to_string()
-                        };
-
-                        Some(stable)
-                    } else {
-                        None
-                    };
-
-                    if stable.is_none() && stable_prefix.is_none() {
-                        stable_prefix = Some(String::from("opc"));
-                    }
-
-                    // enabled
-                    let code = record_map.get("tbname").unwrap();
-                    let enabled_column = record_map.get("enabled");
-                    if enabled_column.is_some() {
-                        let enabled = enabled_column.unwrap();
-                        if enabled == "0" {
-                            // warn: should delete subtable (stable_code)
-                            tables_to_drop.push(format!("{code}"));
-                            continue;
-                        }
-                    }
-
-                    // type
-                    let column_type = if let Some(ty) = record_map.get("type") {
-                        if ty.is_empty() {
-                            None
-                        } else {
-                            Some(
-                                IpcDataType::from_str(ty)
-                                    .map_err(|err| anyhow::Error::msg(err.clone()))?,
-                            )
-                        }
-                    } else {
-                        None
-                    };
-
-                    // value_col
-                    let mut current_columns: Vec<String> = Vec::new();
-                    if !column_config_init {
-                        let value_column_name = record_map
-                            .get("value_col")
-                            .and_then(|v| if v.is_empty() { None } else { Some(v) })
-                            .unwrap_or(&"val".to_string())
-                            .clone();
-                        check_duplicated(
-                            &current_tag_names,
-                            Some(&current_columns),
-                            &value_column_name,
-                        )
-                        .with_context(|| format!("Config error with {value_column_name}"))?;
-                        current_columns.push(value_column_name.clone());
-                        column_config.push(ColumnConfig {
-                            name: "value".to_string(),
-                            r#type: None,
-                            alias: Some(value_column_name.clone()),
-                            transform: None,
-                            is_primary_key: false,
-                        });
-                        let quality_col_name = record_map
-                            .get("quality_col")
-                            .unwrap_or(&"quality".to_string())
-                            .clone();
-                        check_duplicated(
-                            &current_tag_names,
-                            Some(&current_columns),
-                            &quality_col_name,
-                        )?;
-                        current_columns.push(quality_col_name.clone());
-                        column_config.push(ColumnConfig {
-                            name: "quality".to_string(),
-                            r#type: Some(Ty::Int),
-                            alias: Some(quality_col_name.clone()),
-                            transform: None,
-                            is_primary_key: false,
-                        });
-
-                        let mut has_primary_key = false;
-                        record_map.iter().for_each(|(col_name, col_data)| {
-                            match col_name.as_str() {
-                                "received_ts_col" | "received_time_col" => {
-                                    current_columns.push(col_data.clone());
-
-                                    has_primary_key = !has_primary_key;
-                                    let col_config = ColumnConfig {
-                                        name: "received_ts".to_string(),
-                                        r#type: Some(Ty::Timestamp),
-                                        alias: Some(col_data.clone()),
-                                        transform: None,
-                                        is_primary_key: has_primary_key,
-                                    };
-                                    column_config.push(col_config);
-                                }
-                                "ts_col" => {
-                                    current_columns.push(col_data.clone());
-
-                                    has_primary_key = !has_primary_key;
-                                    let col_config = ColumnConfig {
-                                        name: "original_ts".to_string(),
-                                        r#type: Some(Ty::Timestamp),
-                                        alias: Some(col_data.clone()),
-                                        transform: None,
-                                        is_primary_key: has_primary_key,
-                                    };
-                                    column_config.push(col_config);
-                                }
-                                _ => {}
-                            };
-                        });
-
-                        let rts_col_num = column_config
-                            .iter()
-                            .filter(|col| col.name == "received_ts")
-                            .count();
-                        let ts_col_num = column_config
-                            .iter()
-                            .filter(|col| col.name == "original_ts")
-                            .count();
-                        if rts_col_num > 1 {
-                            bail!("received_ts column exists more than once in csv file");
-                        }
-                        if ts_col_num > 1 {
-                            bail!("original_ts column exists more than once in csv file");
-                        }
-
-                        if rts_col_num == 0 && ts_col_num == 0 {
-                            let col_config = ColumnConfig {
-                                name: "original_ts".to_string(),
-                                r#type: Some(Ty::Timestamp),
-                                alias: Some("ts".to_string()),
-                                transform: None,
-                                is_primary_key: true,
-                            };
-                            column_config.push(col_config);
-                        }
-
-                        column_config_init = true;
-                    }
-
-                    let tag_values = if tag_values_map.len() == 0 {
-                        None
-                    } else {
-                        Some(tag_values_map)
-                    };
-
-                    let point_id = record_map
-                        .get("point_id")
-                        .or(record_map.get("tag_name"))
-                        .ok_or(anyhow::anyhow!("point_id or tag_name not found"))?
-                        .clone();
-
-                    id_code_map.insert(
-                        point_id.clone(),
-                        PointConfig {
-                            code: code.clone(),
-                            stable,
-                            tag_values,
-                            value_type: column_type,
-                        },
-                    );
-                    node_config_old.push(format!("{}::{}", point_id, code));
-                }
-                Err(_e) => {
-                    tracing::warn!("line {} have different with other previous lines ", line)
-                }
-            }
-            line += 1;
-        }
-    }
-
-    let tag_configs = if tag_config.len() == 0 {
-        None
-    } else {
-        Some(tag_config)
-    };
-
-    return Ok((
-        OpcModelConfig {
-            point_config_map: id_code_map,
-            table_config: TableConfig {
-                enabled: None,
-                stable_prefix,
-                column_configs: column_config,
-                tag_configs,
-            },
-            table_config_map: HashMap::new(),
-        },
-        node_config_old,
-        tables_to_drop,
-    ));
-}
-
-fn check_duplicated(
-    current_tags: &Vec<String>,
-    current_columns: Option<&Vec<String>>,
-    column_name: &String,
-) -> anyhow::Result<()> {
-    if current_tags.contains(column_name) {
-        bail!("duplicated tag: {column_name}")
-    }
-    if current_columns.is_some() && current_columns.unwrap().contains(column_name) {
-        bail!("duplicated column: {column_name}")
-    }
-    Ok(())
-}
-*/
 pub fn get_string_vec_from_param_or_file_for_opc(
     dsn: &mut Dsn,
     key: &str,

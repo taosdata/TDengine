@@ -49,11 +49,14 @@ mod tests {
 
         let record = builder.build_field("c", &batch, None);
 
-        assert!(record.is_err());
-        assert_eq!(
-            record.unwrap_err().to_string(),
-            "format error, cause: failed to format, cause: invalid result"
-        );
+        assert!(record.is_ok());
+
+        // FIXME: format with null is supported now.
+        // assert!(record.is_err());
+        // assert_eq!(
+        //     record.unwrap_err().to_string(),
+        //     "format error, cause: failed to format, cause: invalid result"
+        // );
     }
 
     #[test]
@@ -104,8 +107,8 @@ mod tests {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap();
-        assert_eq!(arr.value(0), "");
-        assert_eq!(arr.value(1), "");
-        assert_eq!(arr.value(2), "");
+        assert_eq!(arr.value(0), "1-");
+        assert_eq!(arr.value(1), "2-");
+        assert_eq!(arr.value(2), "3-");
     }
 }

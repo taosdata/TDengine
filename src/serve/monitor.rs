@@ -4,6 +4,7 @@ use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::AgentFilter;
 use super::TaskControllerRef;
 use clap::Parser;
+use dashmap::DashMap;
 use gethostname::gethostname;
 use lazy_static::lazy_static;
 use metrics::gauge;
@@ -14,6 +15,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use taos::taos_query::tmq::Assignment;
 use taosx_core::core_metrics::{self, CommonMetrics, TaskMetrics};
 use taosx_core::legacy_metric::LegacyToTaosMetrics;
 use taosx_core::sink::ipc_metric::IpcMetrics;
@@ -183,7 +185,7 @@ impl Monitor {
                         continue;
                     }
                     let body = stable2json(stables);
-                    tracing::debug!("data send to taoskeeper: {}", &body);
+                    tracing::trace!("data send to taoskeeper: {}", &body);
                     exporter.push_taoskeeper(body).await;
                 }
             });
@@ -258,7 +260,10 @@ async fn add_task_metrics_tables(
                     tables.push(metrics.into_table(taosx_id))
                 }
                 core_metrics::CoreMetrics::TMQ(metrics) => {
-                    tables.push(metrics.into_table(taosx_id))
+                    tables.push(metrics.into_table(taosx_id));
+                    if !metrics.progress.is_empty() {
+                        add_task_progress_tables(&metrics.progress, taosx_id, task_id, tables);
+                    }
                 }
                 core_metrics::CoreMetrics::IPC(metrics) => {
                     tables.push(metrics.into_table(taosx_id))
@@ -268,6 +273,55 @@ async fn add_task_metrics_tables(
                 tracing::debug!("metrics for task {} is not initialized", task_id);
                 continue;
             }
+        }
+    }
+}
+
+/// 将 TMQ task 的 progress 转换成 Table
+fn add_task_progress_tables(
+    progress: &DashMap<String, DashMap<i32, Assignment>>,
+    taosx_id: &str,
+    task_id: i64,
+    tables: &mut Vec<Table>,
+) {
+    for entry in progress.iter() {
+        let topic = entry.key().clone();
+        let topic_progress = entry.value();
+        for entry in topic_progress.iter() {
+            let assignment = entry.value();
+            let table_key = TableKey {
+                stable: "taosx_task_progress".to_string(),
+                tags: vec![
+                    Tag {
+                        name: "taosx_id".to_string(),
+                        value: taosx_id.to_string(),
+                    },
+                    Tag {
+                        name: "task_id".to_string(),
+                        value: task_id.to_string(),
+                    },
+                    Tag {
+                        name: "topic".to_string(),
+                        value: topic.clone(),
+                    },
+                    Tag {
+                        name: "vgroup".to_string(),
+                        value: assignment.vgroup_id().to_string(),
+                    },
+                ],
+            };
+            let metrics = vec![
+                Metric {
+                    name: "offset".to_string(),
+                    value: assignment.current_offset() as f64,
+                },
+                Metric {
+                    name: "latest".to_string(),
+                    value: assignment.end() as f64,
+                },
+            ];
+            let table = Table { table_key, metrics };
+            tables.push(table);
         }
     }
 }

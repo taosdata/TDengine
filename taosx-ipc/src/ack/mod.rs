@@ -42,7 +42,7 @@ impl LushAck {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AckType {
     None,
     Code,
@@ -135,7 +135,7 @@ impl<R: Read> Iterator for AckReader<R> {
                         .map(|arr| arr.value(0))
                         .map(|b| std::str::from_utf8(b).unwrap().to_string());
                     let context = r
-                        .column_by_name("message")
+                        .column_by_name("context")
                         .unwrap()
                         .as_any()
                         .downcast_ref::<BinaryArray>()
@@ -324,5 +324,188 @@ impl AckWriterBuilder {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::datatypes::Fields;
+
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn ack_type() {
+        assert_eq!(AckType::None.as_str(), "none");
+        assert_eq!(AckType::Code.as_str(), "code");
+        assert_eq!(AckType::Lush.as_str(), "lush");
+        assert_eq!(AckType::None, "none".parse().unwrap());
+        assert_eq!(AckType::Code, "code".parse().unwrap());
+        assert_eq!(AckType::Lush, "lush".parse().unwrap());
+
+        assert!("unknown".parse::<AckType>().is_err());
+    }
+
+    #[test]
+    fn test_with_schema() {
+        let fields = Fields::from(vec![
+            Field::new("code", DataType::Int32, false),
+            Field::new("message", DataType::Binary, true),
+            Field::new("context", DataType::Binary, true),
+        ]);
+        let schema = Schema::new(fields.clone());
+        let builder = AckWriterBuilder::from_schema(&schema);
+        assert_eq!(builder.ack, AckType::Lush);
+
+        let schema = Schema::new(fields.clone()).with_metadata(
+            vec![("ack", "code")]
+                .iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect(),
+        );
+        let builder = AckWriterBuilder::from_schema(&schema);
+        assert_eq!(builder.ack, AckType::Code);
+
+        let schema = Schema::new(fields.clone()).with_metadata(
+            vec![("ack", "lush")]
+                .iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect(),
+        );
+        let builder = AckWriterBuilder::from_schema(&schema);
+        assert_eq!(builder.ack, AckType::Lush);
+
+        let schema = Schema::new(fields.clone()).with_metadata(
+            vec![("ack", "none")]
+                .iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect(),
+        );
+        let builder = AckWriterBuilder::from_schema(&schema);
+        assert_eq!(builder.ack, AckType::None);
+
+        let schema = Schema::new(fields.clone()).with_metadata(
+            vec![("ack", "unknown")]
+                .iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect(),
+        );
+        let builder = AckWriterBuilder::from_schema(&schema);
+        assert_eq!(builder.ack, AckType::Lush);
+    }
+
+    #[test]
+    fn test_ack_reader() {
+        let mut buf = Cursor::new(vec![]);
+        let mut writer = AckWriterBuilder::new(AckType::Lush)
+            .with_meta("version", "1.0")
+            .with_meta("custom", "meta")
+            .open(&mut buf);
+        writer.write_ok().unwrap();
+        writer
+            .ack(LushAck {
+                code: 1,
+                message: Some("hello".to_string()),
+                context: Some("world".to_string()),
+            })
+            .unwrap();
+        drop(writer);
+        let buf = buf.into_inner();
+        let mut buf = Cursor::new(buf);
+        let mut reader = AckReaderBuilder::new(AckType::Lush)
+            .with_meta("ack", "lush")
+            .open(&mut buf);
+        let schema = reader.schema().unwrap();
+        assert_eq!(schema.metadata().get("ack"), Some(&"lush".to_string()));
+
+        let _ = AckReaderBuilder::from_schema(schema);
+        assert_eq!(reader.ack(), AckType::Lush);
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 0);
+        assert!(ack.success());
+        assert_eq!(ack.message(), Some(""));
+        assert_eq!(ack.context(), Some(""));
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 1);
+        assert!(!ack.success());
+        assert_eq!(ack.message(), Some("hello"));
+        assert_eq!(ack.context(), Some("world"));
+    }
+    #[test]
+    fn test_ack_code() {
+        let mut buf = Cursor::new(vec![]);
+        let mut writer = AckWriterBuilder::new(AckType::Code)
+            .with_meta("version", "1.0")
+            .with_meta("custom", "meta")
+            .open(&mut buf);
+        writer.write_ok().unwrap();
+        writer
+            .ack(dbg!(LushAck {
+                code: 1,
+                message: Some("hello".to_string()),
+                context: Some("world".to_string()),
+            }))
+            .unwrap();
+        drop(writer);
+        let buf = buf.into_inner();
+        let mut buf = Cursor::new(buf);
+        let mut reader = AckReaderBuilder::new(AckType::Code)
+            .with_meta("ack", "lush")
+            .open(&mut buf);
+        assert_eq!(reader.ack(), AckType::Code);
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 0);
+        assert!(ack.success());
+        assert_eq!(ack.message(), None);
+        assert_eq!(ack.context(), None);
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 1);
+        assert!(!ack.success());
+        assert_eq!(ack.message(), None);
+        assert_eq!(ack.context(), None);
+    }
+
+    #[test]
+    fn test_ack_none() {
+        let mut buf = Cursor::new(vec![]);
+        let mut writer = AckWriterBuilder::new(AckType::None)
+            .with_meta("version", "1.0")
+            .with_meta("custom", "meta")
+            .open(&mut buf);
+        writer.write_ok().unwrap();
+        writer
+            .ack(LushAck {
+                code: 1,
+                message: Some("hello".to_string()),
+                context: Some("world".to_string()),
+            })
+            .unwrap();
+        drop(writer);
+        let buf = buf.into_inner();
+        let mut buf = Cursor::new(buf);
+        let mut reader = AckReaderBuilder::new(AckType::None)
+            .with_meta("ack", "lush")
+            .open(&mut buf);
+        assert_eq!(reader.ack(), AckType::None);
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 0);
+        assert!(ack.success());
+        assert_eq!(ack.message(), None);
+        assert_eq!(ack.context(), None);
+        let ack = reader.next().unwrap();
+        assert_eq!(ack.code, 0);
+        assert!(ack.success());
+        assert_eq!(ack.message(), None);
+        assert_eq!(ack.context(), None);
+    }
+
+    #[test]
+    fn test_ack_write_error() {
+        let mut buf = Cursor::new([0u8; 0]);
+        let mut writer = AckWriterBuilder::new(AckType::Code)
+            .with_meta("version", "1.0")
+            .with_meta("custom", "meta")
+            .open(&mut buf);
+        assert!(writer.write_ok().is_err());
     }
 }

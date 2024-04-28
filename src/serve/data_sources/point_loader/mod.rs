@@ -155,6 +155,7 @@ pub async fn download_all_point_csv_file(
 enum TaskStatus {
     Running,
     Complete((TempPath, usize)),
+    Error(String),
 }
 
 // Define a static shared hashmap， task_id -> task_status
@@ -181,7 +182,8 @@ pub async fn arrange_point_file_download_task(
 
     tokio::spawn(async move {
         tracing::debug!("start async download task: {}", &task_id);
-        let (data, point_count) = get_all_points(
+
+        match get_all_points(
             params.from,
             params.via,
             params.categories,
@@ -189,20 +191,32 @@ pub async fn arrange_point_file_download_task(
             params.lang,
         )
         .await
-        .unwrap_or_default();
-
-        let mut config_file = tempfile::NamedTempFile::new().unwrap();
-        tracing::debug!(
-            "temp file path: {}",
-            &config_file.path().to_str().unwrap_or("")
-        );
-        write!(config_file, "{}", &data).unwrap();
         {
-            let mut map = SHARED_MAP.write().await;
-            map.insert(
-                task_id,
-                TaskStatus::Complete((config_file.into_temp_path(), point_count)),
-            );
+            Ok((data, point_count)) => {
+                let mut config_file = tempfile::NamedTempFile::new().unwrap();
+                tracing::debug!(
+                    "temp file path: {}",
+                    &config_file.path().to_str().unwrap_or("")
+                );
+                write!(config_file, "{}", &data).unwrap();
+                {
+                    let mut map = SHARED_MAP.write().await;
+                    map.insert(
+                        task_id,
+                        TaskStatus::Complete((config_file.into_temp_path(), point_count)),
+                    );
+                }
+            }
+            Err(err) => {
+                let mut map = SHARED_MAP.write().await;
+                let err_msg = err.to_string();
+                let err_msg = if let Some(idx) = err_msg.find("\n") {
+                    err_msg[..idx].to_string()
+                } else {
+                    err_msg
+                };
+                map.insert(task_id, TaskStatus::Error(err_msg));
+            }
         }
     });
 
@@ -216,6 +230,7 @@ pub async fn check_task_complete(ticket: String) -> anyhow::Result<bool> {
         .map(|status| match status {
             TaskStatus::Running => Ok(false),
             TaskStatus::Complete(_) => Ok(true),
+            TaskStatus::Error(_) => Ok(true),
         })
         .unwrap_or(Err(anyhow!("task not found")))
 }
@@ -228,6 +243,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
             .map(|status| match status {
                 TaskStatus::Running => Err(anyhow!("task is running")),
                 TaskStatus::Complete((file_path, _)) => Ok(NamedFile::open(file_path)?),
+                TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
             })
             .unwrap_or(Err(anyhow!("task not found")))
     } else {
@@ -236,6 +252,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
             .map(|status| match status {
                 TaskStatus::Running => Err(anyhow!("task is running")),
                 TaskStatus::Complete((file_path, _)) => Ok(NamedFile::open(file_path)?),
+                TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
             })
             .unwrap_or(Err(anyhow!("task not found")))
     }
@@ -273,6 +290,7 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                     .with_total(*point_count)
                     .with_list(data))
             }
+            TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
         })
         .unwrap_or(Err(anyhow!("task not found")))
 }
@@ -395,14 +413,30 @@ async fn get_all_points(
     }
 }
 
-fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
-    let header = match lang {
-        "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    };
+fn get_opcua_csv_header(_lang: &str, demo: bool) -> String {
+    // let header = match lang {
+    //     "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+    //     _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
+    // };
 
-    let mut header = header.to_string();
-    header.push_str("0,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
+    let columns = vec![
+        "No.",
+        "point_id",
+        "enabled",
+        "stable",
+        "tbname",
+        "value_col",
+        "value_transform",
+        "type",
+        "quality_col",
+        "ts_col",
+        "received_ts_col",
+        "ts_transform",
+        "received_ts_transform",
+        "tag::VARCHAR(200)::name",
+    ];
+    let mut header = columns.iter().join(",");
+    header.push_str("\n");
 
     if demo {
         header.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,double,quality,ts,rts,,,temperature\n");
@@ -413,14 +447,30 @@ fn get_opcua_csv_header(lang: &str, demo: bool) -> String {
     header
 }
 
-fn get_opcda_csv_header(lang: &str, demo: bool) -> String {
-    let header = match lang {
-        "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    };
+fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
+    // let header = match lang {
+    //     "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+    //     _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
+    // };
 
-    let mut header = header.to_string();
-    header.push_str("0,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
+    let columns = vec![
+        "No.",
+        "tag_name",
+        "enabled",
+        "stable",
+        "tbname",
+        "value_col",
+        "value_transform",
+        "type",
+        "quality_col",
+        "ts_col",
+        "received_ts_col",
+        "ts_transform",
+        "received_ts_transform",
+        "tag::VARCHAR(200)::name",
+    ];
+    let mut header = columns.iter().join(",");
+    header.push_str("\n");
 
     if demo {
         header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");

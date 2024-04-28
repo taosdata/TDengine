@@ -9,6 +9,7 @@ import (
 	"collector/config"
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,15 +20,12 @@ import (
 func TestConnect(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var onmessage client.OnMessage = func(message []*common.NodeValue) {
-		t.Log(message)
-	}
 	connConf := config.DaConnectConfig{
 		Server: "Graybox.Simulator.1",
 		Nodes:  []string{"localhost"},
 	}
 
-	c, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	c, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	err = c.Connect()
 	assert.NoError(t, err)
@@ -37,7 +35,7 @@ func TestConnect(t *testing.T) {
 		Server: "Graybox.Simulator.2",
 		Nodes:  []string{"localhost"},
 	}
-	c2, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	c2, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	err = c2.Connect()
 	assert.Error(t, err)
@@ -46,14 +44,11 @@ func TestConnect(t *testing.T) {
 func TestDAClient_GetAllPoints(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var onmessage client.OnMessage = func(message []*common.NodeValue) {
-		t.Log(message)
-	}
 	connConf := config.DaConnectConfig{
 		Server: "Graybox.Simulator.1",
 		Nodes:  []string{"localhost"},
 	}
-	c, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	c, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	err = c.Connect()
 	assert.NoError(t, err)
@@ -67,14 +62,11 @@ func TestDAClient_GetAllPoints(t *testing.T) {
 func TestDAClient_GetAllPoints1(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var onmessage client.OnMessage = func(message []*common.NodeValue) {
-		t.Log(message)
-	}
 	connConf := config.DaConnectConfig{
 		Server: "Graybox.Simulator.1",
 		Nodes:  []string{"localhost"},
 	}
-	c, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	c, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	// not connect error
 	_, err = c.GetAllPoints(config.PointsConfig{})
@@ -743,14 +735,11 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 func TestDAClient_GetAllPointsAccessPath(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var onmessage client.OnMessage = func(message []*common.NodeValue) {
-		t.Log(message)
-	}
 	connConf := config.DaConnectConfig{
 		Server: "Graybox.Simulator.1",
 		Nodes:  []string{"localhost"},
 	}
-	c, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	c, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	err = c.Connect()
 	assert.NoError(t, err)
@@ -848,64 +837,76 @@ func TestDAClient_Collect(t *testing.T) {
 			},
 		},
 	}
-	notConnectClient, err := NewDAClient(ctx, connConf, collectConf, 0, logrus.New().WithField("test", "test"), onmessage)
+	notConnectClient, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	defer notConnectClient.Close()
-	noOnMessageClient, err := NewDAClient(ctx, connConf, collectConfWithTag, 0, logrus.New().WithField("test", "test"), nil)
+	noOnMessageClient, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	defer noOnMessageClient.Close()
 	err = noOnMessageClient.Connect()
 	assert.NoError(t, err)
-	noTagConnectClient, err := NewDAClient(ctx, connConf, collectConf, 0, logrus.New().WithField("test", "test"), onmessage)
+	noTagConnectClient, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	defer noTagConnectClient.Close()
 	err = noTagConnectClient.Connect()
 	assert.NoError(t, err)
-	normalConnectClient, err := NewDAClient(ctx, connConf, collectConfWithTag, 0, logrus.New().WithField("test", "test"), onmessage)
+	normalConnectClient, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	defer normalConnectClient.Close()
 	err = normalConnectClient.Connect()
 	assert.NoError(t, err)
-	normalConnectClient2, err := NewDAClient(ctx, connConf, collectConfWithTag, 0, logrus.New().WithField("test", "test"), onmessage)
+	normalConnectClient2, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
 	err = normalConnectClient2.Connect()
 	assert.NoError(t, err)
 	tests := []struct {
-		name    string
-		c       *DAClient
-		wantErr assert.ErrorAssertionFunc
-		wait    time.Duration
+		name      string
+		c         *DAClient
+		conf      config.CollectConfig
+		onMessage client.OnMessage
+		wantErr   assert.ErrorAssertionFunc
+		wait      time.Duration
 	}{
 		{
-			name:    "not connect",
-			c:       notConnectClient,
-			wantErr: assert.Error,
+			name:      "not connect",
+			c:         notConnectClient,
+			conf:      collectConf,
+			onMessage: onmessage,
+			wantErr:   assert.Error,
 		},
 		{
-			name:    "no tag",
-			c:       noTagConnectClient,
-			wantErr: assert.Error,
+			name:      "no tag",
+			c:         noTagConnectClient,
+			conf:      collectConf,
+			onMessage: onmessage,
+			wantErr:   assert.Error,
 		},
 		{
-			name:    "no onmessage",
-			c:       noOnMessageClient,
-			wantErr: assert.Error,
+			name:      "no onmessage",
+			c:         noOnMessageClient,
+			conf:      collectConfWithTag,
+			onMessage: nil,
+			wantErr:   assert.Error,
 		},
 		{
-			name:    "normal",
-			c:       normalConnectClient,
-			wantErr: assert.NoError,
-			wait:    2 * time.Second,
+			name:      "normal",
+			c:         normalConnectClient,
+			conf:      collectConfWithTag,
+			onMessage: onmessage,
+			wantErr:   assert.NoError,
+			wait:      2 * time.Second,
 		},
 		{
-			name:    "normal2",
-			c:       normalConnectClient2,
-			wantErr: assert.NoError,
-			wait:    2 * time.Second,
+			name:      "normal2",
+			c:         normalConnectClient2,
+			conf:      collectConfWithTag,
+			onMessage: onmessage,
+			wantErr:   assert.NoError,
+			wait:      2 * time.Second,
 		},
 	}
 	for _, test := range tests {
-		err = test.c.Collect()
+		err = test.c.Collect(test.conf, test.onMessage)
 		if !test.wantErr(t, err) {
 			return
 		}
@@ -914,5 +915,186 @@ func TestDAClient_Collect(t *testing.T) {
 			assert.Equal(t, true, gotMessage)
 		}
 		gotMessage = false
+	}
+}
+
+func TestChangeCollectConfig(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.DaConnectConfig{
+		Server: "Graybox.Simulator.1",
+		Nodes:  []string{"localhost"},
+	}
+	collectConfig := config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+				{
+					Tag: "numeric.saw.int32",
+				},
+				{
+					Tag: "numeric.saw.int64",
+				},
+			},
+		},
+	}
+	expectNodes := map[string]bool{
+		"numeric.saw.int16": true,
+		"numeric.saw.int32": true,
+		"numeric.saw.int64": true,
+	}
+	lock := sync.Mutex{}
+	expectGotNodes := map[string]struct{}{
+		"numeric.saw.int16": {},
+		"numeric.saw.int32": {},
+		"numeric.saw.int64": {},
+	}
+	var onMessage = func(message []*common.NodeValue) {
+		for _, m := range message {
+			t.Log(m.IDStr)
+			lock.Lock()
+			if !expectNodes[m.IDStr] {
+				t.Fatal("unexpected node", m.IDStr)
+			}
+			delete(expectGotNodes, m.IDStr)
+			lock.Unlock()
+		}
+	}
+	client, err := NewDAClient(ctx, connectConfig, 1, logrus.New().WithField("test", "test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	err = client.Collect(collectConfig, onMessage)
+	assert.NoError(t, err)
+	t.Log("expect 16 32 64")
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig := config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+				{
+					Tag: "numeric.saw.int32",
+				},
+			},
+		},
+	}
+	client.ChangeCollectConfig(newCollectConfig)
+	t.Log("expect 16 32")
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"numeric.saw.int16": {},
+		"numeric.saw.int32": {},
+	}
+	expectNodes["numeric.saw.int64"] = false
+	lock.Unlock()
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+			},
+		},
+	}
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"numeric.saw.int16": {},
+	}
+	lock.Unlock()
+	client.ChangeCollectConfig(newCollectConfig)
+	t.Log("expect 16")
+	expectNodes["numeric.saw.int32"] = false
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+				{
+					Tag: "numeric.saw.int64",
+				},
+			},
+		},
+	}
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"numeric.saw.int16": {},
+		"numeric.saw.int64": {},
+	}
+	expectNodes["numeric.saw.int64"] = true
+	lock.Unlock()
+	client.ChangeCollectConfig(newCollectConfig)
+	t.Log("expect 16 64")
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+				{
+					Tag: "numeric.saw.int32",
+				},
+				{
+					Tag: "numeric.saw.int64",
+				},
+			},
+		},
+	}
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"numeric.saw.int16": {},
+		"numeric.saw.int32": {},
+		"numeric.saw.int64": {},
+	}
+	expectNodes["numeric.saw.int16"] = true
+	expectNodes["numeric.saw.int32"] = true
+	lock.Unlock()
+	client.ChangeCollectConfig(newCollectConfig)
+	t.Log("expect 16 32 64")
+	time.Sleep(time.Second * 3)
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
 	}
 }

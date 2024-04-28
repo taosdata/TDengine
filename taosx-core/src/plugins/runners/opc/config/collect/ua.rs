@@ -30,9 +30,8 @@ impl UaCollectConfig {
             .params
             .get("collect_mode")
             .map(|v| {
-                v.parse::<CollectMode>().map_err(|err| {
-                    anyhow::anyhow!("parse collect_mode failed, cause: {}", err.to_string())
-                })
+                v.parse::<CollectMode>()
+                    .map_err(|_err| anyhow::anyhow!("invalid collect_mode: {}", v))
             })
             .transpose()?
             .unwrap_or(CollectMode::OBSERVE))
@@ -91,8 +90,7 @@ mod tests {
         assert_eq!(nodes[1].id, "ns=3;i=1007");
 
         let dsn =
-            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opc_point_config_simple.csv")
-                .unwrap();
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/ua_collect_config.csv").unwrap();
         let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
         assert_eq!(nodes.len(), 29);
         assert_eq!("ns=3;i=1008", nodes[0].id);

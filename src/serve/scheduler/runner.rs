@@ -12,6 +12,12 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio_cron_scheduler::JobScheduler;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, instrument, warn, Instrument};
+use uuid::Uuid;
+
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::{
     core_metrics::{
@@ -24,11 +30,6 @@ use taosx_core::{
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
-use tokio::sync::{oneshot, Mutex, RwLock};
-use tokio_cron_scheduler::JobScheduler;
-use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, warn, Instrument};
-use uuid::Uuid;
 
 use crate::serve::controller::{
     agent::Activity,
@@ -59,8 +60,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
 
     let token = tokio_util::sync::CancellationToken::new();
     let cloned_token = token.clone();
-    let offsets = Arc::new(DashMap::new());
-
     match from.driver.as_str() {
         "opcua" | "opcda" | "pi" | "pibackfill" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
@@ -130,7 +129,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
             // port_pool: ONCE,
             with_agent: None,
             breakpoints,
-            offsets,
             transferred: None,
             span: span.clone(),
             task_id: Some(id.to_string()),

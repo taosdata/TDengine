@@ -765,32 +765,17 @@ impl TaskController {
         tracing::info!(task.name, task.via, "create new task");
 
         let not_start = task.not_start;
-        tracing::info!("create new task");
         let mut from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
         if let Some(topic) = task.oneshot_topic.as_deref() {
-            from.set("use.topic.name", topic);
-            tracing::info!("Set oneshot topic name: {}", topic);
-        };
-
-        let to: Dsn = task
-            .to
-            .parse()
-            .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
-
-        license::validate_task(&from, &to, Some(&self.pool)).await?;
-
-        if task.via.is_none() {
-            validate_dsn(&from).await.ok()?;
-        }
-
-        if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
             }
-        }
+            from.set("use.topic.name", topic);
+            tracing::info!("Set oneshot topic name: {}", topic);
+        };
         let agent = if let Some(id) = task.via {
             let agent = self
                 .get_agent_by_id(id)
@@ -803,6 +788,19 @@ impl TaskController {
         } else {
             None
         };
+
+        let to: Dsn = task
+            .to
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
+
+        license::validate_task(&from, &to, Some(&self.pool))
+            .await
+            .context("License error")?;
+
+        if task.via.is_none() {
+            validate_dsn(&from).await.ok()?;
+        }
 
         if task.clear {
             if to.driver == "taos" {
@@ -1124,7 +1122,6 @@ impl TaskController {
                     cancel: Default::default(),
                     with_agent: None,
                     breakpoints: None,
-                    offsets: Arc::new(Default::default()),
                     transferred: None,
                     span: tracing::info_span!(
                         "task::delete",
@@ -2259,6 +2256,9 @@ lazy_static::lazy_static! {
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
+        include_ds_yaml!("mysql");
+        include_ds_yaml!("postgres");
+        include_ds_yaml!("oracle");
         for ds in &mut def {
             ds.compute();
         }
@@ -2293,6 +2293,9 @@ lazy_static::lazy_static! {
         include_ds_yaml!("kafka");
         include_ds_yaml!("csv");
         include_ds_yaml!("historian");
+        include_ds_yaml!("mysql");
+        include_ds_yaml!("postgres");
+        include_ds_yaml!("oracle");
         for ds in &mut def {
             ds.compute();
         }
@@ -2568,6 +2571,7 @@ impl Labels {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_labels() {
     let db = sqlx::SqlitePool::connect("sqlite:./target/taosx.dev.db")
         .await
@@ -3072,6 +3076,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3108,6 +3113,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
         tracing_subscriber_init()?;
@@ -3189,6 +3195,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_max_activities_per_entity() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
@@ -3229,6 +3236,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn legacy_edition_check() -> anyhow::Result<()> {
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;

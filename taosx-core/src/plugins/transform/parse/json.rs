@@ -118,25 +118,41 @@ impl Parse for Json {
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
 
-        let json_data: Vec<_> = (0..string.len())
-            .filter_map(|index| {
-                if string.is_null(index) {
-                    None
-                } else {
-                    let value = string.value(index);
-                    let value: serde_json::Value = serde_json::from_str(&value).ok()?;
-
-                    if value.is_array() && self.flatten {
-                        let values = value.as_array().unwrap();
-                        Some(values.clone())
-                    } else {
-                        Some(vec![value])
+        let mut json_data = Vec::with_capacity(num_rows);
+        for i in 0..num_rows {
+            if !string.is_null(i) {
+                let s = string.value(i);
+                let value = serde_json::from_str::<serde_json::Value>(&s).map_err(|source| {
+                    super::ParseError::JsonDeserializeError(s.to_string(), source)
+                })?;
+                match value {
+                    JsonValue::Null => (),
+                    JsonValue::Object(object) => {
+                        json_data.push(Ok(JsonValue::Object(object)));
+                    }
+                    JsonValue::Array(array) => {
+                        if !self.flatten {
+                            return Err(super::ParseError::UnsupportedJsonValue(JsonValue::Array(
+                                array,
+                            )));
+                        } else {
+                            for value in array {
+                                if value.is_null() {
+                                    continue;
+                                } else if value.is_object() {
+                                    json_data.push(Ok(value));
+                                } else {
+                                    return Err(super::ParseError::UnsupportedJsonValue(value));
+                                }
+                            }
+                        }
+                    }
+                    v => {
+                        return Err(super::ParseError::UnsupportedJsonValue(v));
                     }
                 }
-            })
-            .flatten()
-            .map(Ok)
-            .collect();
+            }
+        }
         if json_data.len() == 0 {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
@@ -740,7 +756,7 @@ mod tests {
     fn json_nested_array_index_without_type() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1", "$.nested.d1[0]=d1"],
+                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1::i32", "$.nested.d1[0]=d1"],
                 "flatten": true
             }"#,
         )
@@ -770,14 +786,14 @@ mod tests {
             .into_iter()
             .collect_vec();
         assert_eq!(strings, vec![Some("a1"), Some("a1"), Some("a2")]);
-        let floats = records
+        let ints = records
             .column(1)
             .as_any()
-            .downcast_ref::<Float32Array>()
+            .downcast_ref::<Int32Array>()
             .unwrap()
             .into_iter()
             .collect_vec();
-        assert_eq!(floats, vec![Some(2.0f32), None, None]);
+        assert_eq!(ints, vec![Some(2), None, None]);
         let booleans = records
             .column(2)
             .as_any()
@@ -868,7 +884,6 @@ mod tests {
 
     #[test]
     fn json_de_err() {
-        pretty_env_logger::init();
         let extract: Json = serde_json::from_str(
             r#"{
                 "json": ["a1=a::nchar(100)", "b1::f32"],
@@ -886,12 +901,13 @@ mod tests {
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+        let v = extract.parse_array(&field, &array);
+        assert!(v.is_err());
 
-        dbg!(&records);
-        dbg!(&indices);
-        assert_eq!(records.num_columns(), 2);
-        assert_eq!(records.num_rows(), 1);
-        assert_eq!(indices, Some(vec![1]));
+        // dbg!(&records);
+        // dbg!(&indices);
+        // assert_eq!(records.num_columns(), 2);
+        // assert_eq!(records.num_rows(), 1);
+        // assert_eq!(indices, Some(vec![1]));
     }
 }

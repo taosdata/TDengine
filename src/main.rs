@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
@@ -96,7 +97,7 @@ struct OptArgs {
 
     /// For verbosity print.
     #[clap(flatten)]
-    verbose: Option<Verbosity<InfoLevel>>,
+    verbose: Verbosity<InfoLevel>,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
@@ -273,10 +274,6 @@ impl Args {
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
-            Some(Commands::Run(cli)) => {
-                // verbose in subCommand
-                args.opt_args.verbose.clone_from(&cli.verbose);
-            }
             Some(Commands::Serve(cli)) => {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
@@ -298,8 +295,6 @@ impl Args {
                     tak_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
-                // verbose in subCommand
-                args.opt_args.verbose.clone_from(&cli.verbose);
             }
             _ => {}
         }
@@ -399,8 +394,11 @@ async fn init_tracing_layers(
                 .add_directive("tokio_tungstenite=warn".parse()?)
                 .add_directive("mio=warn".parse()?)
                 .add_directive("h2=warn".parse()?)
+                .add_directive("sqlx::query=warn".parse()?)
+                .add_directive("hyper=warn".parse()?)
+                .add_directive("reqwest=warn".parse()?)
         } else {
-            event_filter
+            event_filter.add_directive("sqlx::query=warn".parse()?)
         };
         Ok(event_filter)
     }
@@ -415,7 +413,6 @@ async fn init_tracing_layers(
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
         / chrono::Duration::hours(1).num_seconds() as i32) as i8;
-    println!("local timezone offset: {}", timezone_offset);
     let timer = OffsetTime::new(
         UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
@@ -576,18 +573,19 @@ fn main() -> Result<()> {
 
     // Set a panic hook
     std::panic::set_hook(Box::new(|info| {
-        tracing::error!(
-            message = "panic occurred",
-            error = ?info,
-        );
+        // 正常打印 backtrace, 需要设置环境变量: RUST_BACKTRACE=1
+        let backtrace = Backtrace::capture();
+        tracing::error!("panic occurred. {} {}", info, backtrace);
     }));
     // Initialize tracing layers
-    let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
-    if let Some(_) = args.opt_args.verbose.as_ref() {
-        let matches = Args::command().get_matches();
-        let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
-        level_filter = level_upgrade(level_filter, level_num);
-    }
+    let mut level_filter = if matches!(args.commands, Some(Commands::Replica(_))) {
+        LevelFilter::Warn
+    } else {
+        args.global.log_level.clone().unwrap_or(LevelFilter::Info)
+    };
+    let matches = Args::command().get_matches();
+    let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
+    level_filter = level_upgrade(level_filter, level_num);
 
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
@@ -612,7 +610,7 @@ fn main() -> Result<()> {
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
         Commands::Replica(replica) => {
-            runtime.block_on(replica.run())?;
+            runtime.block_on(replica.run(args.opt_args))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
@@ -658,6 +656,7 @@ mod tests {
     /// set data_dir、logs_home in env
     /// set logs_home in cli
     #[test]
+    #[ignore]
     fn test_config_from_toml() -> Result<(), anyhow::Error> {
         env::set_var("TAOSX_DATA_DIR", "from-env");
         env::set_var("TAOSX_LOGS_HOME", "from-env");

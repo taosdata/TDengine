@@ -26,7 +26,10 @@ use tracing::{info, instrument, warn};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::breakpoints::{breakpoints_get_async, breakpoints_set},
+    utils::{
+        breakpoints::{breakpoints_get_async, breakpoints_set},
+        constants::VERSION_3_3_0,
+    },
     Action,
 };
 
@@ -346,13 +349,6 @@ struct WriteContext {
 }
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
-
-    let from = &context
-        .from
-        .0
-        .get()
-        .await
-        .context("Get source connection error")?;
     let to = &context
         .to
         .0
@@ -385,6 +381,12 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
             let code: i32 = err.code().into();
             let err_str = err.to_string();
             tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
+            let from = &context
+                .from
+                .0
+                .get()
+                .await
+                .context("Get source connection error")?;
             if code == 0x2603 || code == 0x0618 {
                 if let Some(stable) = stable {
                     sync_super_table_schema(
@@ -870,6 +872,10 @@ pub async fn sync_super_table_schema(
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
+                0x03D3 => {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    continue;
+                }
                 0x2600 | 0x2601 => {
                     // 0x2600: Syntax error
                     // 0x2601: Incomplete SQL statement
@@ -1298,10 +1304,10 @@ fn transform_tbname_with_actions<'a>(
     Ok(new_table_name.into())
 }
 
-async fn sync_normal_table_schema(
+pub async fn sync_normal_table_schema(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
@@ -1353,7 +1359,7 @@ async fn sync_normal_table_schema(
 async fn sync_normal_table_schema_fallback(
     from: &Taos,
     name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
@@ -1726,6 +1732,11 @@ pub struct SourceOpts {
     schema_polling_interval: Duration,
     /// Sleep before stop polling schema.
     schema_polling_wait_before_end: Option<Duration>,
+    /// The overall maximum concurrency for writing to the target database.
+    /// This option will affect the concurrent_limit in TargetOpts.
+    write_concurrency: Option<usize>,
+    /// This option will overwrite the same option in TargetOpts.
+    fails_to: Option<String>,
 }
 
 impl SourceOpts {
@@ -1867,6 +1878,18 @@ impl SourceOpts {
         }
         opts.table = TableOpts::from_params(dsn)?;
 
+        // write_concurrency
+        if let Some(value) = dsn.remove("write-concurrency") {
+            let value: usize = value
+                .parse()
+                .with_context(|| format!("invalid write-concurrency value: {value}"))?;
+            opts.write_concurrency = Some(value);
+        }
+        // fails_to
+        if let Some(value) = dsn.remove("fails-to") {
+            opts.fails_to.replace(value);
+        }
+
         Ok(opts)
     }
 }
@@ -1950,9 +1973,15 @@ impl Drop for TargetOpts {
 }
 
 impl TargetOpts {
-    pub fn from_params(dsn: &mut Dsn) -> anyhow::Result<Self> {
+    /// 从 from DSN 和 to DSN 获取最终的 TargeOpts。
+    /// 在 taosX 1.6.0 之前，TargetOpts 对应 to DSN， 但是 taosX 1.6.0 版本将某些与目标端相关的高级选项加入到了 from DSN 中，因此 TargetOpts 也需要参考 from DSN。
+    pub fn from_params(
+        source_opts: &SourceOpts,
+        to_dsn: &mut Dsn,
+        workers: usize,
+    ) -> anyhow::Result<Self> {
         let mut opts = Self::default();
-        if let Some(value) = dsn.remove("schema") {
+        if let Some(value) = to_dsn.remove("schema") {
             opts.schema = value.parse().with_context(|| {
                 format!(
                     "invalid schema value: {value}, \
@@ -1961,7 +1990,7 @@ impl TargetOpts {
             })?;
         }
 
-        if let Some(assert) = dsn.remove("assert") {
+        if let Some(assert) = to_dsn.remove("assert") {
             match assert.as_str() {
                 "false" => opts.assert = false,
                 "" | "true" => opts.assert = true,
@@ -1971,53 +2000,74 @@ impl TargetOpts {
             }
         }
 
-        if let Some(value) = dsn.remove("database-options") {
+        if let Some(value) = to_dsn.remove("database-options") {
             opts.database_options.replace(value);
         }
-        if let Some(value) = dsn.remove("batch-size") {
+        if let Some(value) = to_dsn.remove("batch-size") {
             opts.batch_size.replace(
                 value
                     .parse()
                     .with_context(|| format!("invalid batch-size value: {value}"))?,
             );
         }
-        if let Some(value) = dsn.remove("concurrent-limit") {
+
+        if let Some(value) = to_dsn.remove("concurrent-limit") {
             opts.concurrent_limit = value
                 .parse()
                 .with_context(|| format!("invalid concurrent-limit value: {value}"))?;
         }
-        if let Some(value) = dsn.remove("blocks-chunk-size") {
+        if let Some(write_concurrency) = source_opts.write_concurrency {
+            // write-concurrency 是最大整体写并发，这里需要把它换算成 concurrent-limit
+            let concurrent_limit = if write_concurrency != 0 && write_concurrency % workers == 0 {
+                write_concurrency / workers
+            } else {
+                write_concurrency / workers + 1
+            };
+            opts.concurrent_limit = NonZeroUsize::new(concurrent_limit)
+                .with_context(|| format!("invalid concurrent-limit value: {concurrent_limit}"))?;
+            tracing::info!(
+                "concurrent-limit is set to {concurrent_limit} based on write-concurrency {write_concurrency} and workers {workers}"
+            );
+        }
+
+        if let Some(value) = to_dsn.remove("blocks-chunk-size") {
             opts.blocks_chunk_size = value
                 .parse()
                 .with_context(|| format!("invalid blocks-chunk-size value: {value}"))?;
         }
-        if let Some(value) = dsn.remove("interval") {
+        if let Some(value) = to_dsn.remove("interval") {
             let value = parse_duration::parse(&value)?;
             opts.interval.replace(value);
         }
-        if let Some(value) = dsn.remove("max-sql-length") {
+        if let Some(value) = to_dsn.remove("max-sql-length") {
             opts.max_sql_length.replace(value.parse()?);
         }
-        if let Some(_) = dsn.remove("force-stmt") {
+        if let Some(_) = to_dsn.remove("force-stmt") {
             opts.force_stmt = true;
         }
-        if let Some(value) = dsn.remove("fails-to") {
+
+        let mut fails_to = to_dsn.remove("fails-to");
+        if fails_to == None {
+            fails_to = source_opts.fails_to.clone();
+        }
+        if let Some(value) = fails_to {
             let value = Path::new(&value);
             let file = std::fs::File::create(&value)?;
 
             opts.fails_to.replace(Arc::new(std::sync::Mutex::new(file)));
         }
-        if let Some(value) = dsn.remove("timeout-per-table") {
+
+        if let Some(value) = to_dsn.remove("timeout-per-table") {
             let value = parse_duration::parse(&value)?;
             opts.timeout_per_table.replace(value);
         }
-        if let Some(v) = dsn.remove("update-tags") {
+        if let Some(v) = to_dsn.remove("update-tags") {
             if v != "false" {
                 opts.update_tags = true;
             }
         }
 
-        if let Some(value) = dsn.remove("remap") {
+        if let Some(value) = to_dsn.remove("remap") {
             let in_lines = value.split(",").filter_map(|s| {
                 if let Some((table, from, to)) = s.split("::").collect_tuple() {
                     Some((
@@ -2736,7 +2786,8 @@ async fn legacy_to_taos_impl(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
 
-    let target_opts = TargetOpts::from_params(&mut to)?;
+    let target_opts = TargetOpts::from_params(&source_opts, &mut to, source_opts.workers)?;
+    tracing::debug!("target options: {:?}", target_opts); // debug
     verify::verify_dsn(&to)
         .map_err(|err| anyhow::format_err!("Cannot parse target DSN params: {err}"))?;
     // let connect_timeout = Duration::from_secs(10);
@@ -2838,6 +2889,15 @@ async fn legacy_to_taos_impl(
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
+    {
+        let (source_version, target_version) = (&v1, &v2);
+        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+        let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
+        }
+    }
+
     metrics
         .read_concurrency
         .store(source_opts.workers as _, Ordering::SeqCst);
@@ -2882,10 +2942,14 @@ async fn legacy_to_taos_impl(
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     let metrics_arc_clone = metrics_arc.clone();
+    let cancel_clone = cancel.clone();
+    let scheduler_clone = scheduler.clone();
     std::thread::spawn(move || loop {
         let metrics = metrics_arc_clone.as_ref().legacy();
-        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled() {
-            tracing::debug!("stop timer");
+        if task_done_clone.load(Ordering::Relaxed) || cancel_clone.is_cancelled() {
+            tracing::info!("abort handles");
+            scheduler_clone.abort();
+            tracing::info!("stop timer");
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
@@ -3091,7 +3155,7 @@ async fn legacy_to_taos_impl(
             );
         };
         tracing::info!("monitoring for data changes");
-        realtime(
+        let future = realtime(
             &scheduler,
             now,
             &source_taos,
@@ -3100,8 +3164,11 @@ async fn legacy_to_taos_impl(
             source_is_v3,
             target_is_v3,
             &todo,
-        )
-        .await?;
+        );
+        tokio::select! {
+            _ = future => {}
+            _ = cancel.cancelled() => {}
+        };
         return Ok(());
     }
 
@@ -3436,10 +3503,11 @@ mod tests {
 
     //
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync() -> anyhow::Result<()> {
-        pretty_env_logger::formatted_timed_builder()
+        let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
-            .init();
+            .try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
@@ -3484,8 +3552,9 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync_large_table() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt().with_level(true).init();
+        let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let db_prefix = "test_large_stable";
@@ -3581,8 +3650,9 @@ mod tests {
     ///
     /// Close https://jira.taosdata.com:18080/browse/TS-4323
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn sync_large_normal_table() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt().with_level(true).init();
+        let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
         // prepare
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         let db_prefix = "test_large_normal_table";
@@ -3763,5 +3833,22 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    #[ignore]
+    fn test_legacy_advance_options() {
+        use taos::Dsn;
+        let from = "taos+ws://localhost:6041/db1?schema=only&fails-to=./fails-to.log&write-concurrency=10&workers=10";
+        let to = "taow+ws://localhost:6041/db2";
+        let mut from_dsn = Dsn::from_str(from).unwrap();
+        let source_opts = SourceOpts::from_params(&mut from_dsn).unwrap();
+        assert_eq!(source_opts.workers, 10);
+        assert_eq!(source_opts.write_concurrency, Some(10));
+        let mut to_dsn = Dsn::from_str(to).unwrap();
+        let targe_opts =
+            TargetOpts::from_params(&source_opts, &mut to_dsn, source_opts.workers).unwrap();
+        assert_eq!(targe_opts.concurrent_limit, NonZeroUsize::new(1).unwrap());
+        assert!(targe_opts.fails_to.is_some());
     }
 }

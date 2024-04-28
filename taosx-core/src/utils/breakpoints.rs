@@ -107,11 +107,16 @@ mod tests {
         // set env
         std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
         let path = breakpoints_db_dir(task_id);
-        assert_eq!("/tmp/data/1/breakpoints", format!("{:?}", path));
+        assert_eq!(
+            "/tmp/data/tasks/1/breakpoints",
+            format!("{:}", path.display())
+        );
     }
 
     #[test]
     fn test_breakpoints_remove() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
         let task_id = "1";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -127,6 +132,8 @@ mod tests {
 
     #[test]
     fn test_breakpoints_clear() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
         let task_id = "2";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -146,6 +153,8 @@ mod tests {
 
     #[test]
     fn test_breakpoints_full_routine() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
         let res_not_exist = breakpoints_get("20", "t0001").unwrap();
         assert_eq!(res_not_exist, None);
 
@@ -160,6 +169,8 @@ mod tests {
 
     #[test]
     fn test_breakpoints_get_all() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
         let task_id = "1";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -183,6 +194,8 @@ mod tests {
 
     #[test]
     fn test_breakpoints_set_multi_thread() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
         use std::thread;
         let mut handles = vec![];
         let n = 10;

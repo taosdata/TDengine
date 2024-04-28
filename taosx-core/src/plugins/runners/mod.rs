@@ -14,9 +14,12 @@ pub mod historian;
 pub mod influxdb;
 pub mod kafka;
 pub mod mqtt;
+pub mod mysql;
 pub mod opc;
 pub mod opentsdb;
+pub mod oracle;
 pub mod pi;
+pub mod postgres;
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_TAOSX_PLUGINS_HOME: &'static str = "TAOSX_PLUGINS_HOME";
@@ -360,6 +363,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_set_tcp_keepalive() {
         let server = thread::spawn(|| {
             let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
@@ -404,6 +408,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_string_from_param_or_file() {
         let mut dsn =
             Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();

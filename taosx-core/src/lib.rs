@@ -7,10 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use chrono::NaiveDate;
-use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::taos_query::tmq::Assignment;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -21,14 +19,18 @@ pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
-pub use tmq_to_td::{tmq_offsets, tmq_to_td};
+pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
+use utils::license::is_cloud;
 use utils::port_pool::PortPool;
 
 // use crate::plugins::transform::*;
 use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
+use crate::runners::mysql::mysql_to_taos;
+use crate::runners::oracle::oracle_to_taos;
+use crate::runners::postgres::postgres_to_taos;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
@@ -200,7 +202,6 @@ pub struct TaskOpts {
     pub cancel: CancellationToken,
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
-    pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
     pub breakpoints: Option<String>,
     pub transferred: Option<Arc<Transferred>>,
     pub span: tracing::Span,
@@ -215,10 +216,6 @@ impl Drop for TaskOpts {
         }
     }
 }
-
-pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
-pub const METRICS_TIME_COST: &str = "metrics.time_cost";
-pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
 
 impl TaskOpts {
     pub fn cancel(&self) {
@@ -239,7 +236,6 @@ impl TaskOpts {
             with_agent,
             // port_pool,
             breakpoints,
-            offsets,
             transferred,
             span,
             task_id,
@@ -255,12 +251,13 @@ impl TaskOpts {
                 (_, "tmq" | "taos") => {
                     let mut to = to.clone();
                     to.subject.take();
-                    let builder = TaosBuilder::from_dsn(to)?;
+                    let builder = TaosBuilder::from_dsn(&to)?;
                     let _ = builder.build().await.context("Target connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
+                    if !is_cloud(&to)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check target edition")?
                     {
                         anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
@@ -268,12 +265,13 @@ impl TaskOpts {
                 ("tmq" | "taos", _) => {
                     let mut from = from.clone();
                     from.subject.take();
-                    let builder = TaosBuilder::from_dsn(from)?;
+                    let builder = TaosBuilder::from_dsn(&from)?;
                     let _ = builder.build().await.context("Source connection error")?;
-                    if !builder
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check source edition")?
+                    if !is_cloud(&from)
+                        && !builder
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check source edition")?
                     {
                         anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
@@ -292,7 +290,6 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         cancel.clone(),
-                        offsets.clone(),
                         task_id.clone(),
                     )
                     .in_current_span()
@@ -305,7 +302,6 @@ impl TaskOpts {
                         *jobs,
                         *force,
                         cancel.clone(),
-                        offsets.clone(),
                         task_id.clone(),
                     )
                     .await?;
@@ -320,11 +316,10 @@ impl TaskOpts {
                 ("taos", "taos") => {
                     tokio::select! {
                         _ = cancel.cancelled() => {
-                            tracing::info!("csv transfer cancelled");
+                            tracing::info!("legacy task was cancelled");
                             return Ok(())
                         }
                         rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone(), task_id.clone())
-                        // .in_current_span()
                         .instrument(tracing::info_span!("legacy_to_taos")) => {
                             rs?;
                         }
@@ -504,6 +499,57 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                (runners::mysql::MYSQL_ID, "taos") => {
+                    mysql_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::postgres::POSTGRES_ID, "taos") => {
+                    postgres_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::oracle::ORACLE_ID, "taos") => {
+                    oracle_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
         }
@@ -561,10 +607,16 @@ mod tests {
         dbg!(format!("test start: {}", chrono::Local::now()));
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = TaosBuilder::from_dsn(to)?;
-        let _ = builder
+        let now = chrono::Local::now();
+        let res = builder
             .build()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }
@@ -575,10 +627,16 @@ mod tests {
         let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
         let builder = taos::TaosBuilder::from_dsn(to)?;
         let pool = builder.pool()?;
-        let _ = pool
+        let now = chrono::Local::now();
+        let res = pool
             .get()
             .await
-            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+            .context(format!("Target connection error: {now}"));
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.to_string(), format!("Target connection error: {now}"));
+        }
         dbg!(format!("test end: {}", chrono::Local::now()));
         Ok(())
     }

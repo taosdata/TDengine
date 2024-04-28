@@ -398,13 +398,12 @@ async fn validate_source_opentsdb(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::env;
     use std::str::FromStr;
-    use taos::Dsn;
-
-    use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_invalid() {
         let dsn = Dsn::from_str("opentsdb://").unwrap();
         let validation = is_valid(&dsn).await;

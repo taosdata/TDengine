@@ -36,9 +36,10 @@ type DAClient struct {
 
 	logger *logrus.Entry
 
-	interval time.Duration
-	once     sync.Once
-	dumper   *log.DataDump
+	interval   time.Duration
+	once       sync.Once
+	dumper     *log.DataDump
+	changeChan chan *changeData
 }
 
 type TagInfo struct {
@@ -46,42 +47,13 @@ type TagInfo struct {
 	valueType types.ValueType
 }
 
-func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, collectConfig config.CollectConfig, index int, logger *logrus.Entry, onMessage client.OnMessage) (*DAClient, error) {
-	interval := collectConfig.Interval
-	if interval <= 0 {
-		interval = 10
-	}
-	tags := make([]string, 0, len(collectConfig.Da.Tags))
-	for _, tag := range collectConfig.Da.Tags {
-		tags = append(tags, tag.Tag)
-	}
+func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, index int, logger *logrus.Entry) (*DAClient, error) {
 	opcLogger := logger.WithField("opcType", "da").WithField("id", index)
-	var dataDumper *log.DataDump
-	var err error
-	if collectConfig.Dump.Enable {
-		opcLogger.Info("dump is enabled")
-		dataDumper, err = log.NewDataDump(collectConfig.Dump.Path, collectConfig.Dump.Keep, false)
-		if err != nil {
-			opcLogger.WithError(err).Error("new data dump error")
-			return nil, err
-		}
-	}
 	c := &DAClient{
-		ctx:       ctx,
-		server:    connectConfig.Server,
-		nodes:     connectConfig.Nodes,
-		tags:      tags,
-		logger:    opcLogger,
-		onmessage: onMessage,
-		interval:  time.Duration(interval) * time.Second,
-		tagInfo:   make(map[string]*TagInfo, len(tags)),
-		dumper:    dataDumper,
-	}
-
-	for _, tag := range tags {
-		parts := strings.Split(tag, ".")
-		lastPart := parts[len(parts)-1]
-		c.tagInfo[tag] = &TagInfo{name: lastPart}
+		ctx:    ctx,
+		server: connectConfig.Server,
+		nodes:  connectConfig.Nodes,
+		logger: opcLogger,
 	}
 	return c, nil
 }
@@ -98,13 +70,43 @@ func (c *DAClient) Connect() error {
 	return nil
 }
 
-func (c *DAClient) Collect() error {
+func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.OnMessage) error {
 	c.logger.Info("opcda start to collect")
 
 	if c.conn == nil {
 		c.logger.Error("opcda collect error: connection is nil")
 		return errors.New("opcda collect error: connection is nil")
 	}
+	interval := collectConfig.Interval
+	if interval <= 0 {
+		interval = 10
+	}
+	tags := make([]string, 0, len(collectConfig.Da.Tags))
+	for _, tag := range collectConfig.Da.Tags {
+		tags = append(tags, tag.Tag)
+	}
+	var dataDumper *log.DataDump
+	var err error
+	if collectConfig.Dump.Enable {
+		c.logger.Info("dump is enabled")
+		dataDumper, err = log.NewDataDump(collectConfig.Dump.Path, collectConfig.Dump.Keep, false)
+		if err != nil {
+			c.logger.WithError(err).Error("new data dump error")
+			return err
+		}
+	}
+	c.tags = tags
+	c.onmessage = onMessage
+	c.interval = time.Duration(interval) * time.Second
+	c.dumper = dataDumper
+	c.changeChan = make(chan *changeData)
+	c.tagInfo = make(map[string]*TagInfo, len(tags))
+	for _, tag := range tags {
+		parts := strings.Split(tag, ".")
+		lastPart := parts[len(parts)-1]
+		c.tagInfo[tag] = &TagInfo{name: lastPart}
+	}
+
 	if c.onmessage == nil {
 		c.logger.Error("opcda collect error: onmessage is nil")
 		return errors.New("opcda collect error: onmessage is nil")
@@ -143,6 +145,17 @@ func (c *DAClient) Collect() error {
 				c.logger.Info("opcda collect exit with close signal")
 				close(c.finishChan)
 				return
+			case data := <-c.changeChan:
+				for _, tag := range data.remove {
+					c.conn.Remove(tag)
+				}
+				for _, tag := range data.add {
+					err := c.conn.Add(tag)
+					if err != nil {
+						c.logger.WithError(err).WithField("tag", tag).Error("opcda add tag error")
+					}
+				}
+				c.tags = data.newTags
 			}
 		}
 	}()
@@ -176,7 +189,7 @@ func (c *DAClient) read() {
 			info.valueType = vt
 		}
 		v := &common.NodeValue{
-			Identifier: tag,
+			IDStr:      tag,
 			Name:       info.name,
 			Timestamp:  item.Timestamp,
 			StartTime:  startRead,
@@ -289,4 +302,39 @@ func (c *DAClient) browse(tree *opc.Tree, pointRegex *regexp.Regexp, pointLimit 
 		}
 	}
 	return
+}
+
+type changeData struct {
+	add     []string
+	remove  []string
+	newTags []string
+}
+
+func (c *DAClient) ChangeCollectConfig(conf config.CollectConfig) {
+	// compare tags
+	oldTagsMap := make(map[string]struct{}, len(c.tags))
+	for _, tag := range c.tags {
+		oldTagsMap[tag] = struct{}{}
+	}
+	addTags := make([]string, 0)
+	removeTags := make([]string, 0)
+	newTags := make([]string, len(conf.Da.Tags))
+	for i := 0; i < len(conf.Da.Tags); i++ {
+		newTags[i] = conf.Da.Tags[i].Tag
+		tag := conf.Da.Tags[i].Tag
+		_, ok := oldTagsMap[tag]
+		if !ok {
+			addTags = append(addTags, tag)
+		} else {
+			delete(oldTagsMap, tag)
+		}
+	}
+	for tag := range oldTagsMap {
+		removeTags = append(removeTags, tag)
+	}
+	c.changeChan <- &changeData{
+		add:     addTags,
+		remove:  removeTags,
+		newTags: newTags,
+	}
 }

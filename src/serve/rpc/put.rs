@@ -116,7 +116,7 @@ impl PutStream {
             anyhow::bail!("Invalid IPC stream");
         };
 
-        debug!(schema = ?schema, "parsing put stream schema");
+        tracing::trace!(schema = ?schema, "parsing put stream schema");
         let tx_cloned = Arc::downgrade(&tx);
         let taos = pool.get().await?;
         let from_dsn: Dsn = task.from.parse()?;
@@ -267,7 +267,7 @@ impl PutStream {
                         num.columns = record.num_columns(),
                         "Writing batch {trace_id_str}"
                     );
-                    tracing::debug!(columns = ?record.columns());
+                    tracing::trace!(columns = ?record.columns());
                     anyhow::Ok((
                         record,
                         trace_id,

@@ -16,7 +16,6 @@ use tracing::{instrument, Span};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
-use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::OPCConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
@@ -493,31 +492,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     auth_certificate.map(|f| f.close());
     auth_private_key.map(|f| f.close());
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    // tracing::debug!("parse opc dataset successfully, have {} points", res.len());
-    // let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
-    //     match lang.as_str() {
-    //         "zh" => ("编码".to_string(), "点位编码".to_string()),
-    //         _ => ("Code".to_string(), "Point Code".to_string()),
-    //     }
-    // } else {
-    //     ("Code".to_string(), "Point Code".to_string())
-    // };
-    // let options = vec![OptionSet {
-    //     name: "code".to_string(),
-    //     display: option_set_code_display,
-    //     description: Some(option_set_code_desc),
-    //     required: true,
-    // }];
-    // let format = Some("{id}::{code}".to_string());
-    // let res = res
-    //     .into_iter()
-    //     .map(|mut set| {
-    //         set.category = Some(req.categories[0].clone());
-    //         set.options = Some(options.clone());
-    //         set.format = format.clone();
-    //         set
-    //     })
-    //     .collect_vec();
     Ok(res)
 }
 
@@ -536,11 +510,15 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let auth_certificate = get_temp_file(&mut dsn, "auth_certificate");
     let auth_private_key = get_temp_file(&mut dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_for_validate(&dsn);
+    let config = OPCConfig::from_dsn_for_validate(&dsn).await;
     let r = match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
-            format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
+            format!(
+                "invalid opc dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
         ),
         Ok(c) => {
             let res = validate_opc(c).await;
@@ -608,9 +586,8 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-
     use super::*;
+    use std::env;
 
     #[test]
     fn test_tbname_pattern() {

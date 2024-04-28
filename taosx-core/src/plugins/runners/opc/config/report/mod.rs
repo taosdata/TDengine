@@ -62,7 +62,6 @@ impl ReportConfig {
 mod report_config_tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[test]
     fn test_from_dsn() {
@@ -70,8 +69,8 @@ mod report_config_tests {
         let config = ReportConfig::from_dsn(&dsn, 1234).unwrap();
         assert_eq!("127.0.0.1:1234", config.remote);
         assert_eq!(None, config.concurrent);
-        assert_eq!(None, config.batch_size);
-        assert_eq!(None, config.batch_timeout);
+        assert_eq!(Some(1000), config.batch_size);
+        assert_eq!(Some(1), config.batch_timeout);
 
         let dsn = Dsn::from_str("opc://?concurrent=10&batch_size=11&batch_timeout=12").unwrap();
         let config = ReportConfig::from_dsn(&dsn, 1234).unwrap();

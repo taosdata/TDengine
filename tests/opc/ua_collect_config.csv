@@ -1,4 +1,3 @@
-信息点编码,OPC点地址,数据类型,超级表,tscol,信息点属性名称,信息点单位
 tbname,point_id,type,stable,ts_col,tag::int::name,tag::varchar(128)::unit
 int32_1008,ns=3;i=1008,int,stb_int,ts,100,unit1
 int32_1009,ns=3;i=1009,int,stb_int,ts,100,unit2
@@ -28,4 +27,4 @@ int32_1032,ns=3;i=1032,double,stb_3,ts,100,unit25
 int32_1033,ns=3;i=1033,double,stb_3,ts,100,unit26
 int32_1034,ns=3;i=1034,double,stb_3,ts,100,unit27
 int32_1035,ns=3;i=1035,double,stb_3,ts,100,unit28
-int32_1035,ns=3;i=1035,double,stb_3,ts,100,unit29
+int32_1036,ns=3;i=1036,double,stb_3,ts,100,unit29

@@ -10,6 +10,7 @@ use super::{ValueBuilder, ValueBuilderError};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CastValueBuilder {
     cast: String,
+    default: Option<String>,
 }
 
 impl ValueBuilder for CastValueBuilder {
@@ -19,14 +20,25 @@ impl ValueBuilder for CastValueBuilder {
         schema
             .index_of(&self.cast)
             .map(|index| Ok(record.column(index).clone()))
-            .unwrap_or_else(|_| Ok(Arc::new(StringArray::new_null(record.num_rows())) as ArrayRef))
+            .unwrap_or_else(|_| {
+                if let Some(default) = &self.default {
+                    Ok(
+                        Arc::new(StringArray::from(vec![default.as_str(); record.num_rows()]))
+                            as ArrayRef,
+                    )
+                } else {
+                    Ok(Arc::new(StringArray::new_null(record.num_rows())) as ArrayRef)
+                }
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{Array, Int32Array, StringArray, TimestampNanosecondArray},
+        array::{
+            Array, BooleanArray, Float32Array, Int32Array, StringArray, TimestampNanosecondArray,
+        },
         datatypes::DataType,
     };
     use std::sync::Arc;
@@ -50,22 +62,98 @@ mod tests {
     }
 
     #[test]
-    fn test_field_not_found() {
-        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "f2"}"#).unwrap();
+    fn test_field_default() {
         let batch = init_record_batch();
 
+        // default string
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "undefined", "default": "abc"}"#).unwrap();
         let (field, value) = builder.build_field("n1", &batch, None).unwrap();
-
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
-        assert_eq!(value.len(), 3);
         assert_eq!(
             value
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .unwrap()
                 .value(0),
-            ""
+            "abc"
+        );
+
+        // default int/bigint/...
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "undefined", "default": "10"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("n2", &batch, Some(IpcDataType::Int32))
+            .unwrap();
+        assert_eq!(field.name(), "n2");
+        assert_eq!(*field.data_type(), DataType::Int32);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(0),
+            10
+        );
+
+        // default float/double
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "undefined", "default": "10.18"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("n3", &batch, Some(IpcDataType::Float32))
+            .unwrap();
+        assert_eq!(field.name(), "n3");
+        assert_eq!(*field.data_type(), DataType::Float32);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .unwrap()
+                .value(0),
+            0.1018e2
+        );
+
+        // default bool
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "undefined", "default": "true"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("n4", &batch, Some(IpcDataType::Bool))
+            .unwrap();
+        assert_eq!(field.name(), "n4");
+        assert_eq!(*field.data_type(), DataType::Boolean);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(0),
+            true
+        );
+
+        // default timestamp
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "undefined", "default": "2024-01-01 08:00:00"}"#)
+                .unwrap();
+        let (field, value) = builder
+            .build_field(
+                "n5",
+                &batch,
+                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+            )
+            .unwrap();
+        assert_eq!(field.name(), "n5");
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
+        );
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .unwrap()
+                .value(0),
+            1704096000000000000
         );
     }
 

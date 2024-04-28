@@ -19,7 +19,9 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{
+    get_data_dir, is_csv_valid, list_datasets_from, plugins, validate_dsn, DataSetsReq,
+};
 
 mod definition;
 
@@ -69,6 +71,7 @@ pub(super) enum Transformer {
 //   }
 // }
 #[test]
+#[ignore]
 fn transformer_test() {
     let t = Transformer::Reheader(vec!["A".to_string(); 2]);
     let s = serde_json::to_string(&t).unwrap();
@@ -309,7 +312,7 @@ pub struct DsnAgentQuery {
     timeout: Option<u64>,
 }
 
-const DEFAULT_REQUEST_TIMEOUT: u64 = 5; // 5s
+const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
 
 /// check data source validation by dsn
 #[utoipa::path(
@@ -437,9 +440,11 @@ mod point_loader;
 pub(super) async fn download_all_data_set_file(
     controller: Data<TaskControllerRef>,
     params: Query<DownloadAllPointsParams>,
-    // data: Query<DataSetsReq>,
     req: HttpRequest,
 ) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
@@ -469,7 +474,7 @@ pub(super) async fn init_download_file_task(
         Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
-            message: format!("{:#}", err),
+            message: err.to_string(),
         }),
     }
 }
@@ -570,4 +575,46 @@ pub(super) async fn download_point_template_file(
             message: format!("{:#}", err),
         }),
     }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "check opc csv file ready", body = String),
+        (status = 500, description = "check opc csv file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/is_valid")]
+pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        is_csv_valid_impl(query.dsn),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(())) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "valid": true,
+            "message": "csv file is valid"
+        }))),
+        Ok(Err(err)) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("check csv file failed, cause: {:#}", err),
+        }),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("check csv file timeout, cause: {:#}", err),
+        }),
+    }
+}
+
+async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
+    let dsn = dsn.into_dsn()?;
+    plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
 }

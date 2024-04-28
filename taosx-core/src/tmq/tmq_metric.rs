@@ -1,10 +1,13 @@
 use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use chrono::Utc;
+use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::fmt::Display;
 use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering::SeqCst;
+use taos::taos_query::tmq::Assignment;
 use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -35,6 +38,17 @@ pub struct TmqMetrics {
     pub write_raw_fails: AtomicU64,
     #[serde(default)]
     pub success_blocks: AtomicU64,
+    // Topic Name -> Vgroup ID -> Assignment
+    #[serde(skip)]
+    pub progress: DashMap<String, DashMap<i32, Assignment>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TopicProgress {
+    pub topic: String,
+    pub vgroup: i32,
+    pub offset: i64,
+    pub latest: i64,
 }
 
 impl Default for TmqMetrics {
@@ -53,6 +67,7 @@ impl Default for TmqMetrics {
             messages_of_data: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
+            progress: DashMap::new(),
         }
     }
 }
@@ -73,6 +88,7 @@ impl TmqMetrics {
             messages_of_data: AtomicU64::new(0),
             write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
+            progress: DashMap::new(),
         }
     }
 
@@ -104,6 +120,39 @@ impl TmqMetrics {
     pub fn add_suc_blocks(&self, n: u64) {
         self.total_success_blocks.fetch_add(n, SeqCst);
         self.success_blocks.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn update_progress(&self, assignments: Vec<(String, Vec<Assignment>)>) {
+        for (topic, assignments) in assignments {
+            let topic_progress = self.progress.entry(topic).or_insert_with(DashMap::new);
+            for assignment in assignments {
+                topic_progress.insert(assignment.vgroup_id(), assignment);
+            }
+        }
+    }
+
+    pub fn get_progress_string(&self) -> String {
+        let ts = chrono::Utc::now().timestamp_millis();
+        let mut data = Vec::<TopicProgress>::new();
+        for entry in self.progress.iter() {
+            let topic = entry.key().clone();
+            let topic_progress = entry.value();
+            for entry in topic_progress {
+                let assignment = entry.value();
+                data.push(TopicProgress {
+                    topic: topic.clone(),
+                    vgroup: assignment.vgroup_id(),
+                    offset: assignment.current_offset(),
+                    latest: assignment.end(),
+                });
+            }
+        }
+        let json_value = json!({
+            "update_time": ts,
+            "data": data,
+        });
+        serde_json::to_string(&json_value).unwrap()
     }
 }
 
@@ -177,5 +226,18 @@ impl Display for TmqMetrics {
             cost
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_progress_string() {
+        let tmq_metrics = TmqMetrics::default();
+        tmq_metrics.update_progress(vec![("topic1".to_string(), vec![Assignment::default()])]);
+        let progress = tmq_metrics.get_progress_string();
+        println!("{}", progress);
     }
 }

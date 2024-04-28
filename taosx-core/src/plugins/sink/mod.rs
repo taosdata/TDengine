@@ -35,34 +35,32 @@ use taos::{
     taos_query::{common::Describe, Manager},
     Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
-use tokio::sync::{Mutex, Notify, OnceCell};
-use tokio_util::sync::CancellationToken;
-use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::debug;
-use tracing::error;
-use tracing::info;
-use tracing::instrument;
-use tracing::Instrument;
-use tracing::Span;
 
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
+use tokio::sync::{Mutex, Notify, OnceCell};
+use tokio_util::sync::CancellationToken;
+use tonic::{codec::CompressionEncoding, transport::Channel};
+use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
 use crate::utils::breakpoints::breakpoints_set;
 use crate::utils::trace::create_data_trace_id;
 use crate::utils::trace::create_stream_trace_id;
 use crate::utils::trace::get_data_trace_id_str;
 use crate::utils::trace::set_data_trace_id_for_current_span;
 use crate::utils::trace::RequestID;
+
 use crate::ConnectorLicense;
 use crate::Parser;
 use crate::Transferred;
+
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
@@ -173,7 +171,7 @@ async fn ipc_tcp_forward(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
             )
             .build(data_stream.map_err(|err| {
-                tracing::warn!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
                 FlightError::from(err)
             }))
             .enumerate()
@@ -828,6 +826,7 @@ fn to_record_transform_map(
 ) -> HashMap<String, RecordTransform> {
     config_map
         .iter()
+        .filter(|(_, ts_config)| ts_config.transform.is_some())
         .map(|(point_id, ts_config)| {
             let transform = RecordTransform {
                 column_name: ts_config.alias.clone(),
@@ -1148,8 +1147,8 @@ mod handle_transform_tests {
             .unwrap(),
         );
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@tests/opc/opcua-template-utf8-bom.csv")
-            .unwrap();
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
 
         let transformed_msg = handle_transform(&message, &model_config).unwrap();
@@ -1198,25 +1197,25 @@ fn stable_name(
     prefix: &Option<String>,
     raw_type: &IpcDataType,
 ) -> Option<String> {
-    if stable_name.is_some() {
-        return Some(stable_name.clone().unwrap());
+    if let Some(stable_name) = stable_name {
+        if stable_name.contains("{type}") {
+            let stable = match raw_type {
+                IpcDataType::VarChar(_len) => stable_name.replace("{type}", "varchar"),
+                IpcDataType::NChar(_len) => stable_name.replace("{type}", "nchar"),
+                _ => stable_name.replace("{type}", &raw_type.sql_repr().replace(" ", "_")),
+            };
+            return Some(stable);
+        } else {
+            return Some(stable_name.clone());
+        }
     }
 
-    if prefix.is_some() {
-        let prefix = prefix.clone().unwrap();
-
+    if let Some(prefix) = prefix {
         let stable_name = match raw_type {
-            IpcDataType::VarChar(_len) => {
-                format!("{}_varchar", prefix)
-            }
-            IpcDataType::NChar(_len) => {
-                format!("{}_nchar", prefix)
-            }
-            _ => {
-                format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_"))
-            }
+            IpcDataType::VarChar(_len) => format!("{}_varchar", prefix),
+            IpcDataType::NChar(_len) => format!("{}_nchar", prefix),
+            _ => format!("{}_{}", prefix, raw_type.sql_repr().replace(" ", "_")),
         };
-
         return Some(stable_name);
     }
 
@@ -1370,12 +1369,12 @@ async fn consume_point_record(
                 .unwrap();
 
             // point_config
-            let code = point_config_map.get(&point_id);
-            if code.is_none() {
+            let point_config = point_config_map.get(&point_id);
+            if point_config.is_none() {
                 tracing::warn!("cannot get point_config with point_id: {}", point_id);
                 continue;
             }
-            let point_config = code.unwrap();
+            let point_config = point_config.unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);

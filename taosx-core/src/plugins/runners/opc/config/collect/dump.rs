@@ -78,7 +78,6 @@ impl DumpConfig {
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[test]
     fn test_from_dsn() {
@@ -104,7 +103,7 @@ mod tests {
         {
             let dsn = Dsn::from_str("opc://?enable=true").unwrap();
             let config = DumpConfig::from_dsn(&dsn, Some(1)).unwrap().unwrap();
-            assert_eq!(config.path.unwrap(), "/var/lib/taos/taosx/1/rawdata");
+            assert_eq!(config.path.unwrap(), "/var/lib/taos/taosx/tasks/1/rawdata");
         }
         let dsn = Dsn::from_str("opc://?enable=true&path=abc").unwrap();
         let config = DumpConfig::from_dsn(&dsn, None);

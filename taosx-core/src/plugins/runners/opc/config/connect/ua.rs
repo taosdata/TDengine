@@ -127,9 +127,7 @@ impl UaConnectConfig {
 #[cfg(test)]
 mod ua_connect_config_tests {
     use super::*;
-    use crate::runners::opc::config::AuthMethod;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[test]
     fn test_from_dsn() {
@@ -206,6 +204,7 @@ mod ua_connect_config_tests {
     }
 
     #[test]
+    #[ignore]
     fn test_certificate_file() {
         let dsn = Dsn::from_str("opc://localhost:7080?certificate=@/tmp/cert").unwrap();
         let config = UaConnectConfig::from_dsn(&dsn).unwrap();

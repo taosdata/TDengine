@@ -418,12 +418,12 @@ def build_and_install_taosx(mode):
     print("buildAndInstallTaosX start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --release')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=release&cargo make deploy-taosx')
     else:
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=dev&cargo make deploy-taosx')
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
-    taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
+    taosx_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_output_name())
     try:
         shutil.copy2(taosx_path, taosx_install_path)
     except FileNotFoundError as e:
@@ -438,13 +438,13 @@ def build_and_install_taosx_agent(mode):
     print("buildAndInstallTaosX Agent start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --release --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=release&cargo make deploy-taosx-agent')
     else:
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=dev&cargo make deploy-taosx-agent')
 
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
-    taosx_agent_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_agent_output_name())
+    taosx_agent_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_agent_output_name())
     try:
         shutil.copy2(taosx_agent_path, taosx_install_path)
     except FileNotFoundError as e:
@@ -508,7 +508,7 @@ def init_explorer_code(explorer_path):
     else:
         os.chdir(os.path.join(taosx_dir, ".."))
         os.system('git clone git@github.com:taosdata/explorer.git')
-    
+
     if release_info.TdengineVersion is not None and release_info.TdengineVersion != "":
         os.chdir(explorer_path)
         os.system(f'git checkout ver-{release_info.TdengineVersion}')
@@ -523,9 +523,13 @@ def build_taos_explorer(explorer_path, mode):
         os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&yarn build:bin')
     else:
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} yarn build:bin')
+    os.chdir(taosx_dir)
+    binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer.exe")
+    deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer.exe")
+    os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
 
 def copy_taos_explorer_on_windows(explorer_path):
-    explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
+    explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer.exe")
     explorer_srv_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.exe")
     explorer_srv_xml_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.xml")
     explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")

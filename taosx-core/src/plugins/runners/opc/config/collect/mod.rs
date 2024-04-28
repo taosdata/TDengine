@@ -40,16 +40,6 @@ pub struct CollectConfig {
 }
 
 impl CollectConfig {
-    pub fn new_empty() -> Self {
-        Self {
-            interval: None,
-            limit: None,
-            ua: None,
-            da: None,
-            dump: None,
-        }
-    }
-
     pub async fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let collect_config = match opc_type {
@@ -84,7 +74,7 @@ impl CollectConfig {
             .get("interval")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse interval failed, cause: {}", err.to_string())
+                    anyhow::anyhow!("invalid interval: {}, cause: {}", v, err.to_string())
                 })
             })
             .transpose()?)
@@ -96,7 +86,7 @@ impl CollectConfig {
             .get("limit")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse limit failed, cause: {}", err.to_string())
+                    anyhow::anyhow!("invalid limit: {}, cause: {}", v, err.to_string())
                 })
             })
             .transpose()?)
@@ -121,8 +111,27 @@ mod tests {
         let interval = CollectConfig::parse_interval(&dsn);
         assert!(interval.is_err());
         assert_eq!(
-            "parse interval failed, cause:",
+            "invalid interval: abc, cause: invalid digit found in string",
             interval.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_limit() {
+        let dsn = Dsn::from_str("opc://").unwrap();
+        let limit = CollectConfig::parse_limit(&dsn).unwrap();
+        assert_eq!(None, limit);
+
+        let dsn = Dsn::from_str("opc://?limit=123").unwrap();
+        let limit = CollectConfig::parse_limit(&dsn).unwrap();
+        assert_eq!(123, limit.unwrap());
+
+        let dsn = Dsn::from_str("opc://?limit=abc").unwrap();
+        let limit = CollectConfig::parse_limit(&dsn);
+        assert!(limit.is_err());
+        assert_eq!(
+            "invalid limit: abc, cause: invalid digit found in string",
+            limit.unwrap_err().to_string()
         );
     }
 }

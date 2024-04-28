@@ -72,3 +72,24 @@ groups:
           - `never`: means waiting for valid message without timeout.
           - A duration string like `5s`, `1m` etc.
         placeholder: 5s
+      - name: experimental.snapshot.enable
+        display: TSDB Data
+        description: |
+          - If enabled, the data that has been persisted in time series data storage files will be replicated too; otherwise, only the data still in WAL (write ahead log) will be replicated.
+        hint:
+          type: bool
+        value: true
+      - name: with.meta.drop
+        display: Table Deletions
+        description: |
+          If enabled, the table deletion operations on the source side will be replayed on the sink side.
+        hint:
+          type: bool
+        value: true
+      - name: with.meta.delete
+        display: Data Deletions
+        description: |
+          If enabled, the data deletion operations on the source side will be replayed on the sink side.
+        hint:
+          type: bool
+        value: true

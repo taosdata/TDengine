@@ -63,3 +63,24 @@ groups:
           - `never`: 表示无超时时间，持续进行订阅。
           - 指定超时时间：`5s`, `1m` 等。
         placeholder: 5s
+      - name: experimental.snapshot.enable
+        display: 同步已落盘数据
+        description: |
+          如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
+        hint:
+          type: bool
+        value: true
+      - name: with.meta.drop
+        display: 同步删表操作
+        description: |
+          如启用则会同步删表操作到目标数据库。
+        hint:
+          type: bool
+        value: true
+      - name: with.meta.delete
+        display: 同步删数据操作
+        description: |
+          如启用则会同步删数据操作到目标数据库。
+        hint:
+          type: bool
+        value: true

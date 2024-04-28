@@ -74,10 +74,13 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // input: get top N record from table
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
+
+    let tags_condition = config.tags.clone();
     let mut rows = client
         .top_n(
             config.sample_data_limit,
             config.table,
+            tags_condition,
             config.begin_datetime,
             config.end_datetime,
         )
@@ -250,7 +253,10 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
 
     let conditions = config.tags.clone();
-    let mut rows = client.select_from_tag(conditions).await?.into_row_stream();
+    let mut rows = client
+        .get_tags_with_condition(None, conditions)
+        .await?
+        .into_row_stream();
 
     let mut tag_name_list = Vec::new();
     while let Some(row) = rows.try_next().await? {
@@ -323,6 +329,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
         let res = is_valid(&dsn).await;

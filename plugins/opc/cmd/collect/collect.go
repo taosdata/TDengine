@@ -8,7 +8,9 @@ import (
 	"collector/config"
 	"collector/log"
 	"collector/reporter"
+	"collector/watcher"
 	"context"
+	"crypto/md5"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -42,6 +44,7 @@ func collect() {
 		logger.Panic("parse config file error.", "error", err)
 		return
 	}
+	lastMD5 := getMD5(configPath)
 	err = conf.ValidateCollect()
 	if err != nil {
 		logger.WithError(err).Panic("validate config file error.")
@@ -50,8 +53,26 @@ func collect() {
 		log.SetLevel("debug")
 		enablePprof()
 	}
-
 	var opcClient client.OPCClient
+	wc, err := watcher.NewWatcher(log.GetLogger("watcher"), func(file string) {
+		if opcClient != nil {
+			newMD5 := getMD5(configPath)
+			if lastMD5 == newMD5 {
+				return
+			}
+			lastMD5 = newMD5
+			c, err := config.ParseConfig(configPath)
+			if err != nil {
+				logger.WithError(err).Error("parse config file error.")
+				return
+			}
+			opcClient.ChangeCollectConfig(c.Collect)
+		}
+	}, configPath)
+	if err != nil {
+		logger.WithError(err).Panic("new watcher error")
+	}
+	defer wc.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// create report manager
@@ -59,9 +80,9 @@ func collect() {
 	defer manager.Close()
 	switch conf.OpcType {
 	case config.OpcTypeUA:
-		opcClient, err = opcua.NewUAClient(ctx, conf.Connect.Ua, conf.Collect, 0, logger, handleMessage(manager))
+		opcClient, err = opcua.NewUAClient(ctx, conf.Connect.Ua, 0, logger)
 	case config.OpcTypeDA:
-		opcClient, err = opcda.NewDAClient(ctx, conf.Connect.Da, conf.Collect, 0, logger, handleMessage(manager))
+		opcClient, err = opcda.NewDAClient(ctx, conf.Connect.Da, 0, logger)
 	default:
 		logger.Panic("not support opc type", "type", conf.OpcType)
 	}
@@ -74,7 +95,7 @@ func collect() {
 	if err != nil {
 		logger.WithError(err).Panic("connect error")
 	}
-	err = opcClient.Collect()
+	err = opcClient.Collect(conf.Collect, handleMessage(manager))
 	if err != nil {
 		logger.WithError(err).Panic("collect error")
 	}
@@ -94,9 +115,9 @@ func handleMessage(manager *reporter.Manager) client.OnMessage {
 			if v == nil {
 				continue
 			}
-			r, err := manager.GetReporter(v.Identifier, v.ValueType)
+			r, err := manager.GetReporter(v.IDStr, v.ValueType)
 			if err != nil {
-				logger.WithField("identifier", v.Identifier).WithError(err).Error("get reporter error")
+				logger.WithField("identifier", v.IDStr).WithError(err).Error("get reporter error")
 				continue
 			}
 			m[r] = append(m[r], v)
@@ -122,6 +143,11 @@ func enablePprof() {
 	logger.Infof("pprof server listening on %s", addr.String())
 	server.Close()
 	go server.Serve(ln)
+}
+
+func getMD5(fileName string) [16]byte {
+	tmp, _ := os.ReadFile(fileName)
+	return md5.Sum(tmp)
 }
 
 func init() {

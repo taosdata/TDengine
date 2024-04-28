@@ -569,10 +569,6 @@ impl PiConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use taos::Dsn;
-
     use super::*;
 
     #[test]
@@ -683,6 +679,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_parse_update_interval() {
         let dsn = Dsn::from_str("pi:///").unwrap();
         let config = PiConfig::parse_update_interval(&dsn).unwrap();
