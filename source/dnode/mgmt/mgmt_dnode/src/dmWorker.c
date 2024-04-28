@@ -126,6 +126,8 @@ static void *dmNotifyThreadFp(void *param) {
         if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
           dmSendNotifyReq(pMgmt, &req);
         }
+      } else {
+        dmSendNotifyReq(pMgmt, &req);
       }
     } else {
       dmSendNotifyReq(pMgmt, &req);
