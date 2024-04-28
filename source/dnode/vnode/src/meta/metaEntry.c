@@ -204,9 +204,11 @@ int32_t metaEntryClone(const SMetaEntry *from, SMetaEntry **entry) {
     (*entry)->ctbEntry.btime = from->ctbEntry.btime;
     (*entry)->ctbEntry.ttlDays = from->ctbEntry.ttlDays;
     (*entry)->ctbEntry.commentLen = from->ctbEntry.commentLen;
-    (*entry)->ctbEntry.comment = taosMemoryMalloc(from->ctbEntry.commentLen);
-    if ((*entry)->ctbEntry.comment == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    if (from->ctbEntry.commentLen > 0) {
+      (*entry)->ctbEntry.comment = taosMemoryMalloc(from->ctbEntry.commentLen);
+      if ((*entry)->ctbEntry.comment == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
     }
     memcpy((*entry)->ctbEntry.comment, from->ctbEntry.comment, from->ctbEntry.commentLen);
     (*entry)->ctbEntry.suid = from->ctbEntry.suid;
@@ -216,9 +218,11 @@ int32_t metaEntryClone(const SMetaEntry *from, SMetaEntry **entry) {
     (*entry)->ntbEntry.btime = from->ntbEntry.btime;
     (*entry)->ntbEntry.ttlDays = from->ntbEntry.ttlDays;
     (*entry)->ntbEntry.commentLen = from->ntbEntry.commentLen;
-    (*entry)->ntbEntry.comment = taosMemoryMalloc(from->ntbEntry.commentLen);
-    if ((*entry)->ntbEntry.comment == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    if (from->ntbEntry.commentLen > 0) {
+      (*entry)->ntbEntry.comment = taosMemoryMalloc(from->ntbEntry.commentLen);
+      if ((*entry)->ntbEntry.comment == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
     }
     memcpy((*entry)->ntbEntry.comment, from->ntbEntry.comment, from->ntbEntry.commentLen);
     (*entry)->ntbEntry.ncid = from->ntbEntry.ncid;
