@@ -173,9 +173,10 @@ mod tests {
         config.ipc_port = Some(6666);
 
         // query for schema
-        let mut query = PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone())
-            .await
-            .unwrap();
+        let mut query =
+            PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone())
+                .await
+                .unwrap();
         let row = query
             .select_one_for_schema("select * from information_schema.tables")
             .await
