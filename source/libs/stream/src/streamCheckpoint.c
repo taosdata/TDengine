@@ -453,7 +453,6 @@ int32_t uploadCheckpointData(void* param) {
   taosRemoveDir(path);
   taosMemoryFree(path);
   taosMemoryFree(arg->taskId);
-  taosMemoryFree(arg->taskStr);
   taosMemoryFree(arg);
   return code;
 }
