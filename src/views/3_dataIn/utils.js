@@ -1073,9 +1073,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
-  // if(definition.id=='csv'){
-  //   dsn+=`&headers=c0,c1`
-  // }
+  if (definition.id == 'pi') {
+    dsn += '&mode=' + getActiveTabKey(data);
+  }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {

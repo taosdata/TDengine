@@ -434,8 +434,8 @@ export default {
         handleDownload(defaultFileInfo);
         this.fullscreenLoading = false;
 
-        if (filter_params.transform_config_file && filter_params.use_default_config) {
-          // 判断当前如果使用默认配置，并且已经有配置文件情况下, 则询问是否覆盖
+        if (filter_params.transform_config_file) {
+          // 已经有配置文件情况下, 则询问是否覆盖
           this.$confirm(this.$t('datasource.pi.confirmOverwriteConfigFile'), this.$t('tips'), {
             confirmButtonText: this.$t('yes'),
             cancelButtonText: this.$t('no'),
@@ -443,7 +443,7 @@ export default {
           }).then(() => {
             this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
           });
-        } else if (!filter_params.transform_config_file && filter_params.use_default_config) {
+        } else {
           // 如果当前使用默认配置，但是没有配置文件，则直接更新
           this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
         }

@@ -3689,14 +3689,6 @@ export function getDataSources(lang) {
                 "name": "single-column",
               },
               "params": [{
-                "name": "use_default_config",
-                "display": "使用默认配置",
-                "value": "true",
-                "hint": {
-                  "type": "bool"
-                },
-                "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
-              }, {
                 "name": "filter_value",
                 "display": "数据集过滤",
                 "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
@@ -3715,7 +3707,6 @@ export function getDataSources(lang) {
                 "name": "transform_config_file",
                 "display": "点位配置文件",
                 "required": true,
-                "disabled": "use_default_config",
                 "hint": {
                   "type": "file"
                 },
@@ -3731,14 +3722,6 @@ export function getDataSources(lang) {
                 "selectable": false
               },
               "params": [{
-                "name": "use_default_config",
-                "display": "使用默认配置",
-                "value": "true",
-                "hint": {
-                  "type": "bool"
-                },
-                "description": "开启默认配置将使用下面的过滤条件自动获取配置文件启动数据同步任务<br>关闭默认配置后，则需要上传自定义的配置文件",
-              }, {
                 "name": "filter_value",
                 "display": "数据集过滤",
                 "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
@@ -3757,7 +3740,6 @@ export function getDataSources(lang) {
                 "name": "transform_config_file",
                 "display": "点位配置文件",
                 "required": true,
-                "disabled": "use_default_config",
                 "hint": {
                   "type": "file"
                 },
