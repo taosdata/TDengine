@@ -36,104 +36,33 @@ datasets:
     - category: csv_config_file
       display: Upload CSV
       description: |
-        You can either download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.
+        OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:
         
-        The rules for configuring OPC DA data points through a CSV file are as follows:
+        (1) tag_name: required, the id of the data point on the OPC DA server;
         
-        1.File Encoding
+        (2) stable: required. TDengine super table corresponding to data points;
         
-        Please upload a CSV file encoded in UTF-8 or UTF-8 with BOM.
+        (3) tbname: required. TDengine subtable corresponding to the data point;
         
-        2.Header Rules
+        (4) enable: optional. The default value is '1', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;
         
-        The first line of the CSV file is the Header. Please configure the Header according to the following rules:
+        (5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;
         
-        (1) tag_name: The id of the data point on the OPC DA server, required;
+        (6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.
         
-        (2) stable: The super table for the data point in TDengine, required;
+        (7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;
         
-        (3) tbname: The sub-table for the data point in TDengine, required;
+        (8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;
         
-        (4) enable: Whether to collect data for this point, optional. If the enable column is not configured, a uniform default value of 1 will be used as the value of enable;
+        (9) ts_col/received_ts_col: required. TDengine timestamp primary key definition: If only ts_col exists, the original timestamp is used as the primary key. If only received_ts_col exists, the collection timestamp is used as the primary key. If both columns exist, the first timestamp column is used as the primary key.
         
-        (5) value_col: The column name of the data point's collected value in TDengine, optional. If the value_col is not configured, a uniform default value of val will be used as the value of value_col;
+        (10) ts_transform: optional, the original timestamp transform function, refer to the description of the transform numerical calculation expression expr;
         
-        (6) value_transform: The transform function executed in taosX for the data point's collected value, optional. If value_transform is not configured, transform will not be applied uniformly;
+        (11) received_ts_transform: optional, collect data timestamp transform function, refer to the description of Transform numerical calculation expression expr;
         
-        (7) type: The data type of the data point's collected value, optional. If the type column is not configured, the original type of the collected value will be used as the data type in TDengine;
+        (12) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.
         
-        (8) quality_col: The column name of the data point's collected value quality in TDengine, optional. If quality_col is not configured, the quality column will not be added in TDengine;
-        
-        (9) ts_col: The original timestamp of the data point corresponding to the timestamp column in TDengine, optional. If both ts_col and received_ts_col are present, ts_col will be as the timestamp column in TDengine; If only ts_col is present, it will be used as the timestamp column in TDengine;
-        
-        (10) received_ts_col: The timestamp column in TDengine corresponding to the time when the data point's collected value was received, optional. If both received_ts_col and ts_col are present, received_ts_col will be used as the timestamp column in TDengine; If only received_ts_col is present, it will be used as the timestamp column in TDengine;
-        
-        (11) If ts_col and received_ts_col are both not present, the data point's original timestamp will be used as the timestamp column in TDengine, and the column name will be the default value `ts`;
-        
-        (12) ts_transform: The transform function executed in taosX for the data point's timestamp, optional. If ts_transform is not configured, there will be no transform applied uniformly for the data point's original timestamp;
-        
-        (13) received_ts_transform: The transform function executed in taosX for the data point's received timestamp. If the received_ts_transform column is not configured, there will be no transform applied uniformly for the data point's received timestamp;
-        
-        (14) tag::VARCHAR(200)::name: Tag column corresponding to the data point in the TDengine. `tag` is reserved keyword, indicating that the column is a tag column. `VARCHAR(200)` indicates the type of the tag in TDengine. `name` is the actual name of the tag.
-        
-        (15) The tag columns are optional. If more than one tag column is configured in the CSV, the configured tag columns is used.
-        
-        (16) If no tag column is configured and stable exists in TDengine, use the tag of stable in TDengine.
-        
-        (17) If no tag column is configured and the stable does not exist in the TDengine, the following two tag columns are automatically added by default: `tag::VARCHAR(256)::point_id` and `tag::VARCHAR(256)::point_name`
-        
-        (18) The CSV Header cannot contain duplicate columns.
-        
-        (19) In the CSV Header, you can configure multiple columns such as `tag::VARCHAR(200)::name`, which correspond to multiple tags in the TDengine, but the Tag names must be unique.
-        
-        (20) In the CSV Header, the column order does not affect the CSV file verification rule.
-        
-        (21) The CSV Header contains columns that are not in the preceding table, such as serial number. These columns are automatically ignored.
-        
-        3.Row rules
-        
-        The second row of the CSV file starts with a data row. Each row corresponds to the configuration information of a data point. Configure the Row according to the following rules.
-        
-        In a Row, the relationship with the Header column is as follows:
-        
-        (1) tag_name: string like: `root.parent.temperature`;
-        
-        (2) stable: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{type}` exists and the type value is not empty, `{type}` is replaced with the value of type. If `{type}` exists and the type value is empty, `{type}` is replaced with the original type of the collected value.
-        
-        (3) tbname: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{tag_name}` exists, `{tag_name}` is replaced with the tag_name value in tag_name column;
-        
-        (4) enable: 0 or 1, 0 means does not collect the data point and deletes the sub-table corresponding to the data point in the TDengine before the OPC DataIn task starts. 1 means collect the data point and do not delete the sub-table before the OPC DataIn task starts.
-        
-        (5) value_col: a column name that complies with the TDengine naming convention
-        
-        (6) value_transform: a calculation expression that conforms to the Rhai engine, for example: (val + 10) / 1000 * 2.0, log(val) + 10, etc.;
-        
-        (7) type: Supports the following types: b/bool, i8/tinyint, i16/smallint, i32/int, i64/bigint, u8/tinyint unsigned, u16/smallint unsigned, u32/int unsigned, u64/bigint unsigned, f32/float, f64/double, timestamp/timestamp(ms), timestamp(us), timestamp(ns), json
-        
-        (8) quality_col: a column name that complies with the TDengine naming convention
-        
-        (9) ts_col: a column name that complies with the TDengine naming convention
-        
-        (10) received_ts_col: a column name that complies with the TDengine naming convention
-        
-        (11) ts_transform and received_ts_transform: Support +, -, *, /, % operators, such as ts / 1000 * 1000, set the last 3 positions of a ms timestamp to 0; ts + 8 * 3600 * 1000, adding 8 hours to a timestamp with ms accuracy; ts-8 * 3600 * 1000, an ms precision timestamp, minus 8 hours;
-        
-        (12) tag::VARCHAR(200)::name: tag in TDengine. If the tag type is VARCHAR, the value can be Chinese.
-        
-        At the same time, multiple rows also need to meet:
-        
-        (13) tag_name is unique throughout the DataIn task, that is, in an OPC DataIn task, a data point can only be written to one sub-table of the TDengine. If you need to write a data point to multiple sub-tables, you need to create multiple OPC DataIn tasks;
-        
-        (14) If tag_name is different but tbname is the same, value_col must be different. This configuration can write data from multiple points of different data types to different columns in the same sub-table. This method corresponds to the application scenario of OPC data entering TDengine Wide table.
-        
-        4.Other rules
-        
-        (1) If the number of columns in Header and Row is inconsistent, the verification fails, and the required row number is displayed.
-        
-        (2) Header Contains the first line and cannot be empty.
-        
-        (3) Row indicates more than one row.
-
+        For more rules, please refer to the <a target="_blank" href="/docs-en/enterprise/datain/opcda">enterprise version document</a>.
       target:
         name: csv_config_file
         description: |
