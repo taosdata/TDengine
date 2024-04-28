@@ -116,14 +116,14 @@ namespace TDPIConnector.TDEngine
             return taosxCommonClient.GetFirstPIValue(database, pointName);
         }
         public virtual Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTableName, string tdColumnType,
-            List<KeyValuePair<string, string>> tags)
+            List<KeyValuePair<string, string>> tags, bool useAFDatabase)
         {
             lock (taosxClientsLock)
             {
                 if (!taosxClients.ContainsKey(superTableName))
                 {
                     var taosxClient = new TDEngineTaosxClient(hostname, port, database, superTableName,
-                        tdColumnType, tags, maxWaitLength);
+                        tdColumnType, tags, maxWaitLength, useAFDatabase);
                     taosxClients.Add(superTableName, taosxClient);
                     taosxClient.Connect();
                     log.Info($"create PIPoint superTable {superTableName}:{tdColumnType}");
@@ -223,8 +223,7 @@ namespace TDPIConnector.TDEngine
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
-                string tdEngineTableName = element.Name;
-                taosxClient.AddAFElementTableTag(tdEngineTableName, tags);
+                taosxClient.AddAFElementTableTag(element.Id, tags);
             }
             taosxClient.InitTables();
             return Task.CompletedTask;
@@ -249,6 +248,10 @@ namespace TDPIConnector.TDEngine
                     }
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, piPoint.Location));
+                if (taosxClient.useAFDatabase) {
+                    tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementsPathForPoint, piPoint.ElementPath));
+                }
+
                 if (taosxClient != null)
                 {
                     taosxClient.AddPointTableTag(tdEngineTableUniKey, tags);

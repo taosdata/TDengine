@@ -23,7 +23,7 @@ namespace TDPIConnector.Core
             public int AFDataPipesInstances { get; set; } = 10;
             public string IPCStream { get; set; }
             public string SQLAPI { get; set; }
-            public string AFTreeTagName { get; set; } = "location";
+            public string AFTreeTagName { get; set; } = "path";
             public int HttpMaxRetryTimes { get; set; } = 3;
             public string TDDataBase { get; set; } = "pi";
             public List<string> TemplateForPIPoint { get; set; } = new List<string>();

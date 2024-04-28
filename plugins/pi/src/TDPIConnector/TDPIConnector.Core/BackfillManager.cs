@@ -117,7 +117,7 @@ namespace TDPIConnector.Core
             }
 
             //create tables if needed
-            var piPoints = await tablesCreator.CreatePIPointTables(tdDatabaseName, afDatabaseName, dropTables);
+            var piPoints = await tablesCreator.GetPIPointTables(tdDatabaseName);
 
             if (piPoints == null || piPoints.Count == 0)
             {

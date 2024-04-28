@@ -7,6 +7,7 @@ using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.TDEngine.Models;
+using System.Diagnostics;
 
 namespace TDPIConnector.Core
 {
@@ -15,6 +16,8 @@ namespace TDPIConnector.Core
         private readonly PISystemManager piSystemManager;
         private readonly PIServerManager piServerManager;
         private readonly TDEngineProxy tdEngineProxy;
+        HashSet<int> pointSet;
+        Dictionary<int, string> pointElementPath = new Dictionary<int, string>();
 
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         public TablesCreator(PISystemManager piSystemManager, PIServerManager piServerManager, TDEngineProxy tdEngineProxy)
@@ -76,6 +79,38 @@ namespace TDPIConnector.Core
             var piPoints = await CreatePIPointTablesByPoints(tdDatabaseName, points, dropTableFirst);
             return piPoints;
         }
+        public void GetElementsPathForPoint() {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+            var allElements = piSystemManager.GetAllElements(AppSettings.tomlConfig.AFDatabaseName);
+            int elementCount = allElements.Count();
+            log.Info($"GetElementsPathForPoint start, checking {elementCount} elements for {pointSet.Count} points.");
+            int checking = 0;
+            foreach (var e in allElements) {
+                checking++;
+                string elePath = $"{e.GetPath()}\\{e.Name}";
+                foreach (var attr in e.Attributes) {
+                    if (attr.PIPoint != null) {
+                        int pointID = attr.PIPoint.PointId;
+                        if (!pointSet.Contains(pointID)) continue;
+                        if (pointElementPath.ContainsKey(pointID))
+                        {
+                            pointElementPath[pointID] += $"|{elePath}";
+                        }
+                        else {
+                            pointElementPath.Add(pointID, elePath);
+                        }
+                    }
+                }
+                if (checking % 1000 == 0)
+                {
+                    log.Info($"GetElementsPathForPoint, checking checking {checking}th elements.");
+                }
+            }
+            stopwatch.Stop();
+            TimeSpan elapsed = stopwatch.Elapsed;
+            log.Info($"GetElementsPathForPoint, checkout {elementCount} elements for {pointSet.Count} points, cost time:{elapsed.TotalSeconds} seconds.");
+        }
         public async Task<List<TDTable>> CreatePIPointTablesByPoints(string tdDatabaseName, List<PIPointWrapper> points, bool dropTableFirst = false)
         {
             var piPoints = new List<TDTable>();
@@ -89,6 +124,10 @@ namespace TDPIConnector.Core
             {
                 log.Info($"Found {points.Count()} PI Points.");
             }
+            if (piSystemManager != null) {
+                pointSet = new HashSet<int>(points.Select(p => p.PointId).Distinct());
+                GetElementsPathForPoint();
+            }
 
             foreach (var point in points)
             {
@@ -97,6 +136,7 @@ namespace TDPIConnector.Core
                 var tagVals = GetPiPointTags(point);
                 var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tagVals);
                 table.Location = point.GetPath();
+                table.ElementPath = pointElementPath.ContainsKey(point.PointId) ? pointElementPath[point.PointId] : "";
                 piPoints.Add(table);
                 log.Info($"Add new table {table.STableName} {table.Name}");
             }
@@ -115,7 +155,7 @@ namespace TDPIConnector.Core
             foreach (string STableName in STableNames)
             {
                 var piPoint = piPoints.Where(p => p.STableName == STableName).First();
-                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType, tags.ToList());
+                await tdEngineProxy.CreateSuperTableForPIPoint(tdDatabaseName, piPoint.STableName, piPoint.ColumnType, tags.ToList(), piSystemManager != null);
             }
 
             await tdEngineProxy.CreateTablesForPIPoints(tdDatabaseName, piPoints);
@@ -167,10 +207,10 @@ namespace TDPIConnector.Core
                 {
                     TDTable table = ElemenetTableConverter.Convert(element, superTableName, templateAttributeColumns);
                     log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                    if (!elementsCollection.ContainsKey(table.Name))
+                    if (!elementsCollection.ContainsKey(table.Id))
                     {
                         tables.Add(table);
-                        elementsCollection.Add(table.Name, element);
+                        elementsCollection.Add(table.Id, element);
                     }
                 };
                 await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);

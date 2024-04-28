@@ -67,7 +67,7 @@ namespace TDPIConnector.Core.Conversions
                     column.TagValue = tags[column.Name];
                 }
             }
-            var table = new TDTable(GetTDTableNameForElement(element), element.ID.ToString(), sTableName)
+            var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
             {
                 Columns = elementColumns,
                 Location = location

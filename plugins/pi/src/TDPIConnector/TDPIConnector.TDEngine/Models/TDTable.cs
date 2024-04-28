@@ -32,6 +32,7 @@ namespace TDPIConnector.TDEngine.Models
         public string Name { get; set; }
         public string Id { get; set; }
         public string Location { get; set; }
+        public string ElementPath { get; set; }
         public int PointId { get; set; }
         public IEnumerable<TDColumn> Columns { get; set; }
 

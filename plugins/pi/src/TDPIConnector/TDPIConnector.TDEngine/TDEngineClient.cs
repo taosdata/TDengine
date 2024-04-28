@@ -176,7 +176,7 @@ namespace TDPIConnector.TDEngine
             return tdValues.FirstOrDefault();
         }
         public override async Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTable, string tdColumnType,
-            List<KeyValuePair<string, string>> tags)
+            List<KeyValuePair<string, string>> tags, bool useAFDatabase)
         {
             string sqlCommand = $"CREATE STABLE IF NOT EXISTS {superTable.ToTDEngineNamingPattern()} (ts TIMESTAMP, val {tdColumnType}, quality INT) TAGS (pointId INT);";
             return await MakeHttpRequest(sqlCommand, database);
