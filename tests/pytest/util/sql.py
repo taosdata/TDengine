@@ -51,6 +51,8 @@ class TDSql:
 
     def init(self, cursor, log=True):
         self.cursor = cursor
+        self.sql = None
+        
         print(f"sqllog is :{log}")
         if (log):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
