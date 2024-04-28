@@ -85,9 +85,10 @@ void doExecScanhistoryInFuture(void* param, void* tmrId) {
 
   SStreamTaskState* p = streamTaskGetStatus(pTask);
   if (p->state == TASK_STATUS__DROPPING || p->state == TASK_STATUS__STOP) {
-    streamMetaReleaseTask(pTask->pMeta, pTask);
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s not start scan-history again, ref:%d", pTask->id.idStr, p->name, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
 

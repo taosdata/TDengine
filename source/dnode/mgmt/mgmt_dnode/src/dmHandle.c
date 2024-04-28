@@ -219,7 +219,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
   SConfig *pCfg = taosGetCfg();
-  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD);
+  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
   taosCfgDynamicOptions(pCfg, cfgReq.config, true);
   return 0;
 }
@@ -254,7 +254,6 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
 
-  SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode &&
