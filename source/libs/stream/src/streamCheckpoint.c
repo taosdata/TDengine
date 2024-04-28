@@ -24,7 +24,6 @@ typedef struct {
   int64_t                 chkpId;
 
   SStreamTask* pTask;
-  char*        taskStr;
 } SAsyncUploadArg;
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
@@ -422,7 +421,7 @@ int32_t uploadCheckpointData(void* param) {
   char*            path = NULL;
   int32_t          code = 0;
   SArray*          toDelFiles = taosArrayInit(4, sizeof(void*));
-  char*            taskStr = arg->taskStr != NULL ? arg->taskStr : "NULL";
+  char*            taskStr = arg->taskId ? arg->taskId : "NULL";
 
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
@@ -442,7 +441,7 @@ int32_t uploadCheckpointData(void* param) {
     for (int i = 0; i < taosArrayGetSize(toDelFiles); i++) {
       char* p = taosArrayGetP(toDelFiles, i);
       code = deleteCheckpointFile(arg->taskId, p);
-      stDebug("s-task:%s try to del file: %s", arg->taskStr != NULL ? arg->taskStr : "NULL", p);
+      stDebug("s-task:%s try to del file: %s", taskStr, p);
       if (code != 0) {
         break;
       }
@@ -475,12 +474,6 @@ int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   arg->taskId = taosStrdup(taskId);
   arg->chkpId = chkpId;
   arg->pTask = pTask;
-  if (arg->pTask->id.idStr != NULL) {
-    arg->taskStr = taosStrdup(arg->pTask->id.idStr);
-    return 0;
-  } else {
-    arg->taskStr = NULL;
-  }
 
   return streamMetaAsyncExec(pTask->pMeta, uploadCheckpointData, arg, NULL);
 }
