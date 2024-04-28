@@ -414,7 +414,7 @@ export default {
         }
       } else {
         // 校验邮箱
-        if (!(this.checkPhone(this.registerValidateForm.phone_email) || this.checkEmail(this.registerValidateForm.phone_email))) {
+        if (!this.checkEmail(this.registerValidateForm.phone_email)) {
           this.$error(this.$t('register.emailTips'));
           return;
         }
