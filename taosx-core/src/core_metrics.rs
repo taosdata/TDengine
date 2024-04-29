@@ -12,12 +12,12 @@ use crate::tmq::tmq_metric::TmqMetrics;
 use crate::utils::metrics_db::MetricsStore;
 use lazy_static::lazy_static;
 use metrics::atomics::AtomicU64;
+use scc::HashMap;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::cell::Cell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::atomic::Ordering::SeqCst;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use taos::Dsn;
 use tokio::sync::oneshot;
@@ -187,33 +187,32 @@ pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
 
 lazy_static! {
     /// Global metrics map to store all metrics data. The key is task_id.
-    pub static ref GLOBAL_METRICS: Mutex<HashMap<i64, Arc<CoreMetrics>>> =
-        Mutex::new(HashMap::new());
+    pub static ref GLOBAL_METRICS: HashMap<i64, Arc<CoreMetrics>> =
+        HashMap::new();
 }
 
 /// Try to get metrics from global metrics map.
-pub fn get_metrics(task_id: i64) -> Option<Arc<CoreMetrics>> {
-    let metrics = GLOBAL_METRICS.lock().unwrap();
-    metrics.get(&task_id).cloned()
+pub async fn get_metrics(task_id: i64) -> Option<Arc<CoreMetrics>> {
+    GLOBAL_METRICS.read_async(&task_id, |_, v| v.clone()).await
 }
 
 /// Get metrics of a task after it's metrics has been initialized,
 /// so that it's metrics must exist in the global map.
 #[inline]
-pub fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
+pub async fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
     let task_id = match task_id {
         Some(id) => id.parse::<i64>().unwrap(),
         _ => -1,
     };
-    get_metrics(task_id).expect("metrics not found")
+    get_metrics(task_id).await.expect("metrics not found")
 }
 
-pub fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
+pub async fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
     let task_id = match task_id {
         Some(id) => id,
         _ => -1,
     };
-    get_metrics(task_id).expect("metrics not found")
+    get_metrics(task_id).await.expect("metrics not found")
 }
 
 /// Try to load metrics from persistence.
@@ -301,15 +300,14 @@ pub fn compute_avg_speed(
 
 /// Get metrics from global metrics map first, if not exist, try to load metrics from persistence.
 /// If both failed, return None.
-pub fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>> {
-    if let Some(metrics) = get_metrics(task_id) {
+pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>> {
+    if let Some(metrics) = get_metrics(task_id).await {
         Some(metrics)
     } else {
         tracing::info!("load metrics for task {}", task_id);
         if let Some(metrics) = load_metrics::<T>(task_id.to_string().as_str()) {
             let metrics = Arc::new(metrics.into());
-            let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
-            global_metrics.insert(task_id, metrics.clone());
+            let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
             Some(metrics)
         } else {
             tracing::warn!("no metrics found for task {}", task_id);
@@ -318,9 +316,8 @@ pub fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>>
     }
 }
 
-pub fn clear_metrics(task_id: i64) {
-    let mut metrics = GLOBAL_METRICS.lock().unwrap();
-    let _ = metrics.remove(&task_id);
+pub async fn clear_metrics(task_id: i64) {
+    let _ = GLOBAL_METRICS.remove_async(&task_id).await;
     let store = MetricsStore::new(task_id.to_string().as_str());
     match store.clear() {
         Ok(_) => {
@@ -332,7 +329,7 @@ pub fn clear_metrics(task_id: i64) {
     }
 }
 
-pub fn init_task_metrics(
+pub async fn init_task_metrics(
     from: Dsn,
     to: Dsn,
     task_id: i64,
@@ -341,7 +338,7 @@ pub fn init_task_metrics(
     let datasrouce_id = from.driver.as_str();
     match (datasrouce_id, to.driver.as_str()) {
         ("taos", "taos") => {
-            let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
+            let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.legacy().reset();
@@ -352,15 +349,12 @@ pub fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
                     stable, task_id, task_name,
                 )));
-                GLOBAL_METRICS
-                    .lock()
-                    .unwrap()
-                    .insert(task_id, metrics.clone());
+                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }
         ("tmq", "taos" | "local") => {
-            let metrics = try_get_metrics::<TmqMetrics>(task_id);
+            let metrics = try_get_metrics::<TmqMetrics>(task_id).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.tmq().reset();
@@ -371,10 +365,7 @@ pub fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
                     stable, task_id, task_name,
                 )));
-                GLOBAL_METRICS
-                    .lock()
-                    .unwrap()
-                    .insert(task_id, metrics.clone());
+                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }
@@ -395,7 +386,7 @@ pub fn init_task_metrics(
             | runners::oracle::ORACLE_ID,
             "taos",
         ) => {
-            let metrics = try_get_metrics::<IpcMetrics>(task_id);
+            let metrics = try_get_metrics::<IpcMetrics>(task_id).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.ipc().reset();
@@ -406,10 +397,7 @@ pub fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(
                     stable, task_id, task_name,
                 )));
-                GLOBAL_METRICS
-                    .lock()
-                    .unwrap()
-                    .insert(task_id, metrics.clone());
+                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }
@@ -476,8 +464,8 @@ unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
 #[instrument(skip_all, fields(task.id = task_id))]
-pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
-    let metrics_arc = get_metrics(task_id).unwrap();
+pub async fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
+    let metrics_arc = get_metrics(task_id).await.unwrap();
     tokio::spawn(
         async move {
             tracing::info!("start");
@@ -511,8 +499,8 @@ pub fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<
     );
 }
 
-pub fn save_task_metrics_finally(task_id: i64) {
-    let metrics = get_metrics(task_id);
+pub async fn save_task_metrics_finally(task_id: i64) {
+    let metrics = get_metrics(task_id).await;
     match metrics {
         Some(metrics) => match save_metrics(metrics) {
             Ok(_) => {
@@ -543,20 +531,19 @@ mod tests {
     const TEST_STABLE: &'static str = "test_stable";
 
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
-    #[test]
-    fn test_global_metrics() {
-        let mut metrics = GLOBAL_METRICS.lock().unwrap();
-
+    #[tokio::test]
+    async fn test_global_metrics() {
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
-        metrics.insert(1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics)));
-        drop(metrics);
+        GLOBAL_METRICS
+            .insert(1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics)))
+            .unwrap();
 
-        let t1 = std::thread::spawn(|| {
+        let t1 = tokio::spawn(async move {
             println!("thread 1");
-            let metrics = get_metrics(1).unwrap();
+            let metrics = get_metrics(1).await.unwrap();
             let legacy_to_taos_metrics = metrics.legacy();
             // let legacy_to_taos_metrics = metrics.as_ref().legacy();
             println!("thread 1 get metrics");
@@ -566,9 +553,9 @@ mod tests {
             println!("thread 1 end")
         });
 
-        let t2 = std::thread::spawn(|| {
+        let t2 = tokio::spawn(async move {
             println!("thread 2");
-            let metrics = get_metrics(1).unwrap();
+            let metrics = get_metrics(1).await.unwrap();
             println!("thread 2 get metrics");
             let legacy_to_taos_metrics = metrics.legacy();
             println!(
@@ -583,9 +570,9 @@ mod tests {
             println!("thread 2 end");
         });
 
-        t2.join().unwrap();
-        t1.join().unwrap();
-        let metrics = get_metrics(1).unwrap();
+        t2.await.unwrap();
+        t1.await.unwrap();
+        let metrics = get_metrics(1).await.unwrap();
         let legacy_to_taos_metrics = metrics.legacy();
         println!(
             "workers: {}",
@@ -625,8 +612,8 @@ mod tests {
     }
 
     /// This test case is to verify that the metrics can be saved to persistence and cleared.
-    #[test]
-    fn test_save_and_clear_metrics() {
+    #[tokio::test]
+    async fn test_save_and_clear_metrics() {
         let task_dir = get_data_dir().join("tasks").join("1024");
         std::fs::create_dir_all(&task_dir).unwrap();
         let db = MetricsStore::new("1024");
@@ -637,13 +624,12 @@ mod tests {
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
         let metrics = Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics));
         {
-            let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
-            global_metrics.insert(1024, metrics.clone());
+            GLOBAL_METRICS.insert(1024, metrics.clone()).unwrap();
         }
         metrics.as_ref().legacy().save().unwrap();
         assert!(db.path.exists());
-        clear_metrics(1024);
-        let metrics = get_metrics(1024);
+        clear_metrics(1024).await;
+        let metrics = get_metrics(1024).await;
         assert!(metrics.is_none());
         assert!(!db.path.exists());
     }

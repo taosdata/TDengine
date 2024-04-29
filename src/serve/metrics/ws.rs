@@ -136,7 +136,7 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
     let task = task.unwrap();
     let mut metrics_opt: Option<Arc<CoreMetrics>> = None;
     while metrics_opt.is_none() {
-        metrics_opt = try_get_metrics_from_task_detail(&task);
+        metrics_opt = try_get_metrics_from_task_detail(&task).await;
         sleep(SEND_METRICS_INTERVAL).await;
     }
     let metrics = metrics_opt.unwrap();

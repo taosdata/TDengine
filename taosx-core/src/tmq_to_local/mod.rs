@@ -415,7 +415,7 @@ pub async fn tmq_to_local(
     from.params = from_params;
     to.params = to_params;
 
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(config.topics.len() as _, SeqCst);
 

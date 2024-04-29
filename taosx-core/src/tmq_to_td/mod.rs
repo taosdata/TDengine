@@ -609,7 +609,7 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 

@@ -1135,10 +1135,13 @@ impl TaskController {
 
                 // breakpoints_clear
                 let task_id = id.to_string();
-                taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
+                tokio::task::spawn_blocking(move || {
+                    taosx_core::utils::breakpoints::breakpoints_clear(&task_id)
+                })
+                .await??;
 
                 // metrics_clear
-                clear_metrics(id);
+                clear_metrics(id).await;
 
                 tracing::info!("successfully deleted task by id {id}");
                 anyhow::Ok(())
