@@ -6,7 +6,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
     {
         public static string PointValColomn()
         {
-            return $"val";
+            return $"value";
         }
         public static string PointStatusColomn()
         {

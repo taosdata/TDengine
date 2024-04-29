@@ -128,10 +128,10 @@ namespace TDPIConnector.Core
         {
             public string ID;
             public string Name;
+            public string Path;
             public List<ScanAttribute> Attributes;
             public List<ScanAttribute> StaticAttributes;
         }
-
     }
 
     public class PIInfoScanner
@@ -370,10 +370,12 @@ namespace TDPIConnector.Core
                         ScanSingleElement temp = new ScanSingleElement();
                         temp.ID = element.ID.ToString();
                         temp.Name = element.Name;
+                        temp.Path = element.GetPath();
                         temp.Attributes = GetElementAtrributes(element);
                         if (temp.Attributes.Count == 0) continue;
                         temp.StaticAttributes = GetElementAtrributesForTag(element);
                         elmentInfo.SingleElements.Add(temp);
+                        continue;
                     }
                     ScanElement e = new ScanElement();
                     e.ID = element.ID.ToString();
