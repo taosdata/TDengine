@@ -858,7 +858,7 @@ static SFileDataBlockInfo* getCurrentBlockInfo(SDataBlockIter* pBlockIter) {
   return pBlockInfo;
 }
 
-static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int order) {
+static int doBinarySearchKey(const TSKEY* keyList, int num, int pos, TSKEY key, int order) {
   // start end position
   int s, e;
   s = pos;
@@ -906,6 +906,23 @@ static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int or
   }
 }
 
+// handle the repeat ts cases.
+static int32_t findFirstPos(const int64_t* pTsList, int32_t num, int32_t startPos, bool asc) {
+  int32_t i = startPos;
+  int64_t startTs = pTsList[startPos];
+  if (asc) {
+    while (i < num && (pTsList[i] == startTs)) {
+      i++;
+    }
+    return i - 1;
+  } else {
+    while (i >= 0 && (pTsList[i] == startTs)) {
+      i--;
+    }
+    return i + 1;
+  }
+}
+
 static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SBrinRecord* pRecord, int32_t pos) {
   // NOTE: reverse the order to find the end position in data block
   int32_t endPos = -1;
@@ -918,6 +935,7 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
   } else {
     int64_t key = asc ? pReader->info.window.ekey : pReader->info.window.skey;
     endPos = doBinarySearchKey(pBlockData->aTSKEY, pRecord->numRow, pos, key, pReader->info.order);
+    endPos = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, endPos, asc);
   }
 
   if ((pReader->info.verRange.maxVer >= pRecord->minVer && pReader->info.verRange.maxVer < pRecord->maxVer) ||
@@ -1100,12 +1118,11 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
   SSDataBlock*        pResBlock = pReader->resBlockInfo.pResBlock;
   int32_t             numOfOutputCols = pSupInfo->numOfCols;
   int32_t             code = TSDB_CODE_SUCCESS;
+  int64_t             st = taosGetTimestampUs();
+  bool                asc = ASCENDING_TRAVERSE(pReader->info.order);
+  int32_t             step = asc ? 1 : -1;
 
-  SColVal cv = {0};
-  int64_t st = taosGetTimestampUs();
-  bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
-  int32_t step = asc ? 1 : -1;
-
+  SColVal     cv = {0};
   SBrinRecord tmp;
   blockInfoToRecord(&tmp, pBlockInfo, pSupInfo);
   SBrinRecord* pRecord = &tmp;
@@ -1119,7 +1136,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
   }
 
   // row index of dump info remain the initial position, let's find the appropriate start position.
-  if ((pDumpInfo->rowIndex == 0 && asc) || (pDumpInfo->rowIndex == pRecord->numRow - 1 && (!asc))) {
+  if (((pDumpInfo->rowIndex == 0) && asc) || ((pDumpInfo->rowIndex == (pRecord->numRow - 1)) && (!asc))) {
     if (asc && pReader->info.window.skey <= pRecord->firstKey.key.ts &&
         pReader->info.verRange.minVer <= pRecord->minVer) {
       // pDumpInfo->rowIndex = 0;
@@ -1141,6 +1158,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
         return TSDB_CODE_INVALID_PARA;
       }
 
+      pDumpInfo->rowIndex = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, pDumpInfo->rowIndex, (!asc));
       ASSERT(pReader->info.verRange.minVer <= pRecord->maxVer && pReader->info.verRange.maxVer >= pRecord->minVer);
 
       // find the appropriate start position that satisfies the version requirement.

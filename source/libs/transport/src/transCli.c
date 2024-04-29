@@ -204,7 +204,7 @@ static void cliHandleExcept(SCliConn* conn);
 static void cliReleaseUnfinishedMsg(SCliConn* conn);
 static void cliHandleFastFail(SCliConn* pConn, int status);
 
-static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd);
+static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd, int32_t code);
 // handle req from app
 static void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd);
 static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd);
@@ -617,7 +617,7 @@ void* destroyConnPool(SCliThrd* pThrd) {
       transDQCancel(pThrd->waitConnQueue, pMsg->ctx->task);
       pMsg->ctx->task = NULL;
 
-      doNotifyApp(pMsg, pThrd);
+      doNotifyApp(pMsg, pThrd, TSDB_CODE_RPC_MAX_SESSIONS);
     }
     taosMemoryFree(msglist);
 
@@ -692,13 +692,20 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
     SMsgList* list = plist->list;
     if ((list)->numOfConn >= pTransInst->connLimitNum) {
       STraceId* trace = &(*pMsg)->msg.info.traceId;
+      if (pTransInst->noDelayFp != NULL && pTransInst->noDelayFp((*pMsg)->msg.msgType)) {
+        tDebug("%s msg %s not to send, reason: %s", pTransInst->label, TMSG_INFO((*pMsg)->msg.msgType),
+               tstrerror(TSDB_CODE_RPC_NETWORK_BUSY));
+        doNotifyApp(*pMsg, pThrd, TSDB_CODE_RPC_NETWORK_BUSY);
+        *pMsg = NULL;
+        return NULL;
+      }
+
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
       arg->param1 = *pMsg;
       arg->param2 = pThrd;
+
       (*pMsg)->ctx->task = transDQSched(pThrd->waitConnQueue, doFreeTimeoutMsg, arg, pTransInst->timeToGetConn);
-
       tGTrace("%s msg %s delay to send, wait for avaiable connect", pTransInst->label, TMSG_INFO((*pMsg)->msg.msgType));
-
       QUEUE_PUSH(&(list)->msgQ, &(*pMsg)->q);
       *pMsg = NULL;
     } else {
@@ -1394,14 +1401,14 @@ void cliConnCb(uv_connect_t* req, int status) {
   }
 }
 
-static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd) {
+static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd, int32_t code) {
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
 
   STransMsg transMsg = {0};
   transMsg.contLen = 0;
   transMsg.pCont = NULL;
-  transMsg.code = TSDB_CODE_RPC_MAX_SESSIONS;
+  transMsg.code = code;
   transMsg.msgType = pMsg->msg.msgType + 1;
   transMsg.info.ahandle = pMsg->ctx->ahandle;
   transMsg.info.traceId = pMsg->msg.info.traceId;
@@ -1578,11 +1585,11 @@ static void doFreeTimeoutMsg(void* param) {
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
   STrans*   pTransInst = pThrd->pTransInst;
-
+  int32_t   code = TSDB_CODE_RPC_MAX_SESSIONS;
   QUEUE_REMOVE(&pMsg->q);
   STraceId* trace = &pMsg->msg.info.traceId;
   tGTrace("%s msg %s cannot get available conn after timeout", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
-  doNotifyApp(pMsg, pThrd);
+  doNotifyApp(pMsg, pThrd, code);
   taosMemoryFree(arg);
 }
 void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {

@@ -78,6 +78,7 @@ typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
+typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
@@ -117,6 +118,8 @@ typedef struct SRpcInit {
   RpcDfp dfp;
   // fail fast fp
   RpcFFfp ffp;
+
+  RpcNoDelayfp noDelayFp;
 
   int32_t connLimitNum;
   int32_t connLimitLock;

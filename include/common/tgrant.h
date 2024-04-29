@@ -60,6 +60,7 @@ typedef enum {
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
 int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
+int64_t grantRemain(EGrantType grant);
 int32_t grantCheck(EGrantType grant);
 int32_t grantCheckExpire(EGrantType grant);
 char   *tGetMachineId();

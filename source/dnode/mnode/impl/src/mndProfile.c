@@ -22,10 +22,10 @@
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
+#include "mndSma.h"
 #include "mndStb.h"
 #include "mndUser.h"
 #include "mndView.h"
-#include "mndSma.h"
 #include "tglobal.h"
 #include "tversion.h"
 
@@ -56,6 +56,13 @@ typedef struct {
   SAppClusterSummary summary;
   int64_t            lastAccessTimeMs;
 } SAppObj;
+
+typedef struct {
+  int32_t totalDnodes;
+  int32_t onlineDnodes;
+  SEpSet  epSet;
+  SArray *pQnodeList;
+} SConnPreparedObj;
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
                                int32_t pid, const char *app, int64_t startTime);
@@ -460,7 +467,7 @@ static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
 }
 
 static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHbReq *pHbReq,
-                                        SClientHbBatchRsp *pBatchRsp) {
+                                        SClientHbBatchRsp *pBatchRsp, SConnPreparedObj *pObj) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
   SRpcConnInfo  connInfo = pMsg->info.conn;
@@ -503,11 +510,11 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     }
 
     rspBasic->connId = pConn->id;
-    rspBasic->totalDnodes = mndGetDnodeSize(pMnode);
-    mndGetOnlineDnodeNum(pMnode, &rspBasic->onlineDnodes);
-    mndGetMnodeEpSet(pMnode, &rspBasic->epSet);
-
-    mndCreateQnodeList(pMnode, &rspBasic->pQnodeList, -1);
+    rspBasic->connId = pConn->id;
+    rspBasic->totalDnodes = pObj->totalDnodes;
+    rspBasic->onlineDnodes = pObj->onlineDnodes;
+    rspBasic->epSet = pObj->epSet;
+    rspBasic->pQnodeList = taosArrayDup(pObj->pQnodeList, NULL);
 
     mndReleaseConn(pMnode, pConn, true);
 
@@ -608,7 +615,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
 #endif
       case HEARTBEAT_KEY_TSMA: {
-        void *  rspMsg = NULL;
+        void   *rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -641,6 +648,12 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
     return -1;
   }
 
+  SConnPreparedObj obj = {0};
+  obj.totalDnodes = mndGetDnodeSize(pMnode);
+  mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes);
+  mndGetMnodeEpSet(pMnode, &obj.epSet);
+  mndCreateQnodeList(pMnode, &obj.pQnodeList, -1);
+
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
@@ -649,7 +662,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   for (int i = 0; i < sz; i++) {
     SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
     if (pHbReq->connKey.connType == CONN_TYPE__QUERY) {
-      mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp);
+      mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp, &obj);
     } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
@@ -667,6 +680,8 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   tFreeClientHbBatchRsp(&batchRsp);
   pReq->info.rspLen = tlen;
   pReq->info.rsp = buf;
+
+  taosArrayDestroy(obj.pQnodeList);
 
   return 0;
 }
