@@ -4576,6 +4576,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
   pTableScanInfo->pResBlock = blockDataDestroy(pTableScanInfo->pResBlock);
+  // remove it from the task->result list
   pTableScanInfo->pReaderBlock = blockDataDestroy(pTableScanInfo->pReaderBlock);
   taosArrayDestroy(pTableScanInfo->pSortInfo);
 
