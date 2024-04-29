@@ -797,10 +797,15 @@ async fn consume_lush_record_with_transform(
                 // 合并 RecordBatch
                 let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
                 // tracing::debug!(?concated_record, "concated_record"); // debug
+
+                // 类型转换
+                let parsed_message = lush_parser.transform_record_batch(&concated_record)?;
+
+                // 按超级表名分组
                 let sub_super_mapping: &HashMap<String, String> =
                     &lush_model_config.sub_super_mapping;
                 let grouped_batches: LinkedHashMap<String, RecordBatch> = group_by_super_table_name(
-                    &concated_record,
+                    &parsed_message,
                     table_name_col_name,
                     sub_super_mapping,
                 );
@@ -819,9 +824,8 @@ async fn consume_lush_record_with_transform(
                         super_table,
                         serde_json::to_string(&parser).unwrap()
                     ); // debug
-                    let parsed_message = lush_parser.transform_record_batch(&record_batch)?;
                     let message: transform::Message =
-                        parser.parse_message_from_records(&parsed_message).with_context(|| {
+                        parser.parse_message_from_records(&record_batch).with_context(|| {
                             format!(
                                 "lush_parser parse message from records failed, super_table: {}, parser: {}",
                                 super_table, serde_json::to_string(&lush_parser).unwrap()

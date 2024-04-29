@@ -774,7 +774,8 @@ impl SuperTableConfig {
     fn get_filter(&self) -> Option<Filter> {
         match &self.filter {
             Some(filter) => {
-                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter.clone()));
+                let filter_expr = filter.replace('$', "");
+                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter_expr));
                 Some(Filter::new(vec![filter_impl]))
             }
             None => None,
