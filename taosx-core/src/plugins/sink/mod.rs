@@ -42,9 +42,8 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
-use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, Instrument, Span};
+use tracing::{debug, error, info, instrument, Instrument};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::runners::opc::config::model::TableConfig;
@@ -58,17 +57,14 @@ use crate::utils::trace::set_data_trace_id_for_current_span;
 use crate::utils::trace::RequestID;
 
 use crate::ConnectorLicense;
-use crate::Parser;
-use crate::Transferred;
 
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
+    plugins::runners::opc::config::model::ColumnConfig,
     runners::opc::config::OPCConfig,
+    sink::flat::flat_write_with_sql,
+    utils::trace::get_stream_id_u64,
     utils::{get_main_version_from_server_version, get_server_version},
-};
-use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
-use crate::{
-    plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
 };
 
 use super::super::AGENT_COMPRESSION;
@@ -3031,7 +3027,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
-    let metrics_arc = get_metrics_arc_from_i64(task_id);
+    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
     let metrics = metrics_arc.ipc();
     if let Some(sql) = metadata.init_sql_string() {
         let init = metadata.init().unwrap();

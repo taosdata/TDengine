@@ -2768,7 +2768,7 @@ async fn legacy_to_taos_impl(
             .unwrap_or(20)
     };
 
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.as_ref().legacy();
     let file_mutex = Arc::new(tokio::sync::Mutex::new(()));
 

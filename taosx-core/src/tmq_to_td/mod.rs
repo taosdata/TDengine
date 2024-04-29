@@ -609,7 +609,7 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
@@ -935,13 +935,17 @@ pub async fn get_table_progress(
                 format!(
                     "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
                 ),
-                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"
+                ),
             )
         }
     } else {
         if let Some(end) = end {
             (
-                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"
+                ),
                 format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
             )
         } else {

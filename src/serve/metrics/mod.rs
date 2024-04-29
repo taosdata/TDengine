@@ -63,7 +63,7 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
+pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
     let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
     if parse_dsn_result.is_err() {
         tracing::error!(
@@ -76,8 +76,8 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
     let dsn = parse_dsn_result.unwrap();
     let task_id = task.task.id;
     match dsn.driver.as_str() {
-        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
-        "tmq" => try_get_metrics::<TmqMetrics>(task_id),
+        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id).await,
+        "tmq" => try_get_metrics::<TmqMetrics>(task_id).await,
         "opc"
         | "opcua"
         | "opcda"
@@ -91,7 +91,7 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
         | "csv"
         | runners::mysql::MYSQL_ID
         | runners::postgres::POSTGRES_ID
-        | runners::oracle::ORACLE_ID => try_get_metrics::<IpcMetrics>(task_id),
+        | runners::oracle::ORACLE_ID => try_get_metrics::<IpcMetrics>(task_id).await,
         _ => None,
     }
 }
