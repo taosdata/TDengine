@@ -101,7 +101,6 @@ else
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
-      ${script_dir}/quick_deploy.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
@@ -259,7 +258,7 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" install_temp.sh    
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" install_temp.sh
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" install_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
   sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" install_temp.sh
@@ -276,6 +275,11 @@ fi
 chmod a+x ${install_dir}/install.sh
 
 if [[ $dbName == "taos" ]]; then  
+  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  chmod a+x ${install_dir}/start-all.sh
+  chmod a+x ${install_dir}/stop-all.sh
   # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
@@ -354,12 +358,6 @@ if [ "$verMode" == "cluster" ]; then
 
         git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
-
-        cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
-        cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
-        cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
-        chmod a+x ${install_dir}/start-all.sh
-        chmod a+x ${install_dir}/stop-all.sh
 
         # copy taosx
         if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
