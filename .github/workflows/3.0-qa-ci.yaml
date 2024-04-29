@@ -192,7 +192,7 @@ jobs:
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
 
   deploy_for_mqtt:
-    runs-on: [self-hosted, linux, x64, qa]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust, build_go, build_java]
     steps:
       - name: Deploy taosx
@@ -251,7 +251,7 @@ jobs:
           pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
   
   deploy_for_others:
-    runs-on: [self-hosted, linux, x64, qa]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [test_mqtt]
     steps:
       - name: Deploy taosx
@@ -289,7 +289,7 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile 
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=200 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
 
       - name: Stop taosx-agent & taosx
@@ -298,17 +298,17 @@ jobs:
           pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
     
-      - name: Sleep for 60 seconds
-        uses: jakejarvis/wait-action@master
-        with:
-          time: '60s'
+      # - name: Sleep for 60 seconds
+      #   uses: jakejarvis/wait-action@master
+      #   with:
+      #     time: '60s'
       
-      - name: Force stop taosx-agent & taosx
-        if: always()
-        shell: bash {0}
-        run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
+      # - name: Force stop taosx-agent & taosx
+      #   if: always()
+      #   shell: bash {0}
+      #   run: |
+      #     pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+      #     pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; exit 1; else echo "tasox is safe"; fi
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -399,4 +399,12 @@ jobs:
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
           https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
+      
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        shell: bash {0}
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
+  
 
