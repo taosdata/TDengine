@@ -97,10 +97,6 @@ int32_t tqInitialize(STQ* pTq) {
   if (tqMetaTransform(pTq) < 0) {
     return -1;
   }
-  pTq->pOffsetStore = tqOffsetOpen(pTq);
-  if (pTq->pOffsetStore == NULL) {
-    return -1;
-  }
 
   if (tqMetaRestoreCheckInfo(pTq) < 0) {
     return -1;
