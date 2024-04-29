@@ -1,6 +1,5 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use cargo_metadata::MetadataCommand;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
