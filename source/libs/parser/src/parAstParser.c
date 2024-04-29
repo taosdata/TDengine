@@ -405,6 +405,13 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
   int32_t code =
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    if (NULL == pSelect->pSubtable) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
   }
