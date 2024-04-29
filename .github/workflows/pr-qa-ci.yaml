@@ -45,6 +45,7 @@ jobs:
               # cargo test --target-dir ./target/debug/taosx-build/
               cargo llvm-cov nextest --workspace --ignore-run-fail
               cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
+              ls $ARTIFACT_BASE_DIR/$DIR_PATH/
           fi
       - name: Build agent
         run: |
