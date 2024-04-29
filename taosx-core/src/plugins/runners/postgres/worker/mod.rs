@@ -71,7 +71,7 @@ pub async fn migrate_history(
         // from 'now' marked by the beginning of the task
         let mut real_start = now - config_live.task.delay;
         // loop to produce task
-        let future = async move {
+        let future_produce = async move {
             loop {
                 let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
@@ -103,12 +103,15 @@ pub async fn migrate_history(
         let _ = producer.produce(tx).await?;
 
         // consumer join
-        for consumer in consumers {
-            consumer.await??;
-        }
+        let future_consume = async move {
+            for consumer in consumers {
+                consumer.await;
+            }
+        };
 
         tokio::select! {
-            _ = future => {}
+            _ = future_produce => {}
+            _ = future_consume => {}
             _ = cancel.cancelled() => {}
         };
     } else {
