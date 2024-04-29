@@ -92,30 +92,33 @@
         style="width: 100%"
       ></TimezoneDatePicker>
 
-      <el-input v-if="config.type == 'compose'" :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
-        <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
-          <el-option v-for="item in getOptions()"
-            :key="item.value"
-            v-bind="item"
-            :title="item.description"
-            :disabled="item.disabled"
-          ></el-option>
-        </el-select>
-        <el-button v-if="config.action" 
-          slot="append" 
+      <div v-if="config.type == 'compose'">
+        <el-input  :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
+            <el-option v-for="item in getOptions()"
+              :key="item.value"
+              v-bind="item"
+              :title="item.description"
+              :disabled="item.disabled"
+            ></el-option>
+          </el-select>
+        </el-input>
+        <el-button v-if="config.action"
           v-loading.fullscreen.lock="fullscreenLoading"
           plain
+          style="margin-top: 10px;"
           type="primary" 
           @click="submitAction"
           :icon="`el-icon-${config.action}`">
           {{ config.action_text }}
         </el-button>
-      </el-input>
+      </div>
 
       <UploadCsv
         v-if="config.type == 'file'"
         v-model="data[field]"
         :config="config"
+        :btnText="config.btnText"
         :disabled="disabled()"
       >
       </UploadCsv>

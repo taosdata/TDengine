@@ -3701,11 +3701,12 @@ export function getDataSources(lang) {
                   ]
                 },
                 "action": "download",
-                "action_text": "生成默认配置",
+                "action_text": "下载默认配置",
                 "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
               }, {
                 "name": "transform_config_file",
                 "display": "点位配置文件",
+                "btnText": "上传配置文件",
                 "required": true,
                 "hint": {
                   "type": "file"
@@ -3734,12 +3735,13 @@ export function getDataSources(lang) {
                   ]
                 },
                 "action": "download",
-                "action_text": "生成默认配置",
+                "action_text": "下载默认配置",
                 "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
               }, {
                 "name": "transform_config_file",
-                "display": "点位配置文件",
+                "display": "模型配置文件",
                 "required": true,
+                "btnText": "上传配置文件",
                 "hint": {
                   "type": "file"
                 },

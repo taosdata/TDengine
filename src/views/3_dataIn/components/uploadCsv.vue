@@ -5,10 +5,11 @@
       slot="trigger"
       size="mini"
       plain
+      icon="el-icon-upload2"
       :disabled="disabled"
       type="primary"
       @click="handleBeforeUpload"
-      >{{ $t('support.selectFile') }}</el-button
+      >{{ btnText || $t('support.selectFile') }}</el-button
     >
     <el-upload
       class="upload-csv"
@@ -29,10 +30,11 @@
         slot="trigger"
         size="small"
         plain
+        icon="el-icon-upload2"
         :disabled="disabled"
         type="primary"
         ref="uploadButton"
-        >{{ $t('support.selectFile') }}</el-button
+        >{{ btnText || $t('support.selectFile') }}</el-button
       >
     </el-upload>
   </div>
@@ -57,6 +59,10 @@ export default {
     disabled: {
       type: Boolean,
       default: false
+    },
+    btnText: {
+      type: String,
+      default: ''
     }
   },
   inject: ['sourceParent'],
