@@ -209,8 +209,8 @@ int32_t metaEntryClone(const SMetaEntry *from, SMetaEntry **entry) {
       if ((*entry)->ctbEntry.comment == NULL) {
         TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
       }
+      memcpy((*entry)->ctbEntry.comment, from->ctbEntry.comment, from->ctbEntry.commentLen);
     }
-    memcpy((*entry)->ctbEntry.comment, from->ctbEntry.comment, from->ctbEntry.commentLen);
     (*entry)->ctbEntry.suid = from->ctbEntry.suid;
     code = tTagClone((const STag *)from->ctbEntry.pTags, (STag **)&(*entry)->ctbEntry.pTags);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -223,8 +223,8 @@ int32_t metaEntryClone(const SMetaEntry *from, SMetaEntry **entry) {
       if ((*entry)->ntbEntry.comment == NULL) {
         TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
       }
+      memcpy((*entry)->ntbEntry.comment, from->ntbEntry.comment, from->ntbEntry.commentLen);
     }
-    memcpy((*entry)->ntbEntry.comment, from->ntbEntry.comment, from->ntbEntry.commentLen);
     (*entry)->ntbEntry.ncid = from->ntbEntry.ncid;
     code = tSchemaWrapperClone(&from->ntbEntry.schemaRow, &(*entry)->ntbEntry.schemaRow);
     TSDB_CHECK_CODE(code, lino, _exit);
