@@ -43,30 +43,30 @@ groups:
         required: true
         hint:
           type: str
-  - name: Enable SSL
-    display_order: 2
-    description: Use self-signed certificate file and private key.
-    collapsible: true
-    connection_option: true
-    params:
-      - name: ca
-        display: CA
-        description: CA file.
-        required: true
-        hint:
-          type: file
-      - name: cert
-        display: Client certificate file
-        description: Client certificate file.
-        required: true
-        hint:
-          type: file
-      - name: cert_key
-        display: Client key file
-        description: Client key file.
-        required: true
-        hint:
-          type: file
+  # - name: Enable SSL
+  #   display_order: 2
+  #   description: Use self-signed certificate file and private key.
+  #   collapsible: true
+  #   connection_option: true
+  #   params:
+  #     - name: ca
+  #       display: CA
+  #       description: CA file.
+  #       required: true
+  #       hint:
+  #         type: file
+  #     - name: cert
+  #       display: Client certificate file
+  #       description: Client certificate file.
+  #       required: true
+  #       hint:
+  #         type: file
+  #     - name: cert_key
+  #       display: Client key file
+  #       description: Client key file.
+  #       required: true
+  #       hint:
+  #         type: file
   - name: Collect
     display_order: 3
     description: Configurations for collecting data.
