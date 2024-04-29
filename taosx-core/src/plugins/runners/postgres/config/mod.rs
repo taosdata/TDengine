@@ -232,41 +232,46 @@ impl TaskConfig {
 
         if sql.contains("${start}") && sql.contains("${end}") {
             let query_start = format!(
-                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
-                start_tz.format("%Y-%m-%d %H:%M:%S")
+                "'{}{}'",
+                start_tz.format("%Y-%m-%d %H:%M:%S"),
+                &self.time_zone
             );
             let query_end = format!(
-                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
-                end_tz.format("%Y-%m-%d %H:%M:%S")
+                "'{}{}'",
+                end_tz.format("%Y-%m-%d %H:%M:%S"),
+                &self.time_zone
             );
             sql = sql
                 .replace("${start}", &query_start)
                 .replace("${end}", &query_end);
         } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
             let query_start = format!(
-                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
-                start_tz.format("%Y-%m-%d %H:%M:%S")
+                "'{}{}'",
+                start_tz.format("%Y-%m-%d %H:%M:%S"),
+                &self.time_zone
             );
             let query_end = format!(
-                "TO_TIMESTAMP('{}','YYYY-MM-DD HH24:MI:SS')",
-                end_tz.format("%Y-%m-%d %H:%M:%S")
+                "'{}{}'",
+                end_tz.format("%Y-%m-%d %H:%M:%S"),
+                &self.time_zone
             );
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);
         } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
-            let query_start = format!("TO_DATE('{}','YYYY-MM-DD')", start_tz.format("%Y-%m-%d"));
-            let query_end = format!("TO_DATE('{}','YYYY-MM-DD')", end_tz.format("%Y-%m-%d"));
+            let query_start = format!("'{}'", start_tz.format("%Y-%m-%d"));
+            let query_end = format!("'{}'", end_tz.format("%Y-%m-%d"));
             sql = sql
                 .replace("${start_date}", &query_start)
                 .replace("${end_date}", &query_end);
         } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
-            let query_start = format!("'{}'", start_tz.format("%H:%M:%S"));
-            let mut query_end = format!("'{}'", end_tz.format("%H:%M:%S"));
+            let query_start = format!("'{}{}'", start_tz.format("%H:%M:%S"), &self.time_zone);
+            let mut query_end = format!("{}", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "'00:00:00'" || end_tz.date_naive() > start_tz.date_naive() {
-                query_end = String::from("'24:00:00'");
+            if query_end == "00:00:00" || end_tz.date_naive() > start_tz.date_naive() {
+                query_end = String::from("24:00:00");
             }
+            query_end = format!("'{}{}'", query_end, &self.time_zone);
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
