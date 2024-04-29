@@ -1,3 +1,4 @@
+from os import system
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -249,7 +250,17 @@ class TDTestCase:
         self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         self.count_query_ctb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         tdSql.execute('drop database db')
+
+    def test_count_with_sma_data(self):
+        sql_file = './2-query/count_test.sql'
+
+        os.system(f'taos -f {sql_file}')
+        tdSql.query('select count(c_1) from d2.t2 where c_1 < 10', queryTimes=1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.execute('drop database d2')
+
     def run(self):
+        self.test_count_with_sma_data()
         self.check_stb()
         self.check_ntb()
     def stop(self):
