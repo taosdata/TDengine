@@ -101,6 +101,7 @@ else
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
+      ${script_dir}/quick_deploy.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
