@@ -299,7 +299,7 @@
           <span>{{ $t("datasource.transformer.superconfig") }}</span>
         </div>
         <div class="table-content">
-          <div class="table-title">
+          <div class="table-title"  style="margin-bottom: 16px">
             <div class="title">
               <span style="color: #4259ce">
                 {{ $t("datasource.transformer.targetSt") }}
