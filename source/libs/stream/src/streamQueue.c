@@ -17,7 +17,6 @@
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
 #define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
-#define WAIT_FOR_DURATION                         10
 
 // todo refactor:
 // read data from input queue

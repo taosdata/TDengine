@@ -250,6 +250,15 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Value Range   | 600s - 86400s, 10 minutes to 1 hour                                                                                                          |
 | Default value | 600s                                                                                                                                         |
 
+### tsmaDataDeleteMark
+
+| Attribute     | Description                        |
+| -------- | --------------------------- |
+| Applicable | Client only                |
+| Meaning     | The duration for which the intermediate results of TSMA calculations are saved, in milliseconds |
+| Value Range | >= 3600000, greater than or equal to 1 hour                       |
+| Default value   | 86400000, 1d                           |
+
 
 ## Locale Parameters
 
@@ -776,8 +785,8 @@ The charset that takes effect is UTF-8.
 | --------- | ----------------------------- |
 | Applicable | Server Only                  |
 | Meaning   | Max num of TSMAs              |
-| Value Range | 0-12                        |
-| Default Value | 8                         |
+| Value Range | 0-3                        |
+| Default Value | 3                         |
 
 ## 3.0 Parameters
 

@@ -60,7 +60,7 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 4;
+int32_t tsNumOfTaskQueueThreads = 10;
 int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
@@ -308,8 +308,9 @@ int32_t tsS3UploadDelaySec = 60;
 
 bool tsExperimental = true;
 
-int32_t tsMaxTsmaNum = 8;
+int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
+int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24; // in ms, default to 1d
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -552,12 +553,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
   if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
 
-  tsNumOfTaskQueueThreads = tsNumOfCores / 2;
-  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  tsNumOfTaskQueueThreads = tsNumOfCores;
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 10);
 
-  if (tsNumOfTaskQueueThreads >= 50) {
-    tsNumOfTaskQueueThreads = 50;
-  }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
@@ -570,6 +568,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "maxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
       0)
+    return -1;
+  if (cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX, CFG_SCOPE_CLIENT,
+                  CFG_DYN_CLIENT) != 0)
     return -1;
   return 0;
 }
@@ -751,7 +752,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 3, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1081,13 +1082,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   SEp          firstEp = {0};
   taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
   snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, true);
 
   SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
   SEp          secondEp = {0};
   taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? defaultFirstEp : pSecondpItem->str, &secondEp);
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype, true);
 
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
@@ -1144,14 +1145,16 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMultiResultFunctionStarReturnTags = cfgGetItem(pCfg, "multiResultFunctionStarReturnTags")->bval;
   tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
+  tsmaDataDeleteMark = cfgGetItem(pCfg, "tsmaDataDeleteMark")->i32;
   return 0;
 }
 
 static void taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+
   osSetTimezone(pItem->str);
   uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
-  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, true);
 
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
@@ -1515,15 +1518,20 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     return 0;
   }
 
+  cfgLock(pCfg);
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
     taosSetAllDebugFlag(pCfg, pItem->i32);
+    cfgUnLock(pCfg);
     return 0;
   }
 
@@ -1580,17 +1588,21 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     }
   }
 
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-// todo fix race condition caused by update of config, pItem->str may be removed
 static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
+
+  cfgLock(pCfg);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if ((pItem == NULL) || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
@@ -1630,7 +1642,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("firstEp", name) == 0) {
@@ -1645,7 +1658,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       }
@@ -1692,7 +1706,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp secondEp = {0};
         taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? tsFirst : pItem->str, &secondEp);
         snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype);
+        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, false);
         uInfo("%s set to %s", name, tsSecond);
         matched = true;
       } else if (strcasecmp("smlChildTableName", name) == 0) {
@@ -1723,11 +1737,13 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("slowLogScope", name) == 0) {
         if (taosSetSlowLogScope(pItem->str)) {
+          cfgUnLock(pCfg);
           return -1;
         }
         uInfo("%s set to %s", name, pItem->str);
@@ -1739,7 +1755,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       if (strcasecmp("timezone", name) == 0) {
         osSetTimezone(pItem->str);
         uInfo("%s set from %s to %s", name, tsTimezoneStr, pItem->str);
-        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+
+        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, false);
         matched = true;
       } else if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
@@ -1747,6 +1764,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
         if (taosMulMkDir(tsTempDir) != 0) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
+          cfgUnLock(pCfg);
           return -1;
         }
         matched = true;
@@ -1794,7 +1812,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"useAdapter", &tsUseAdapter},
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
-                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay}};
+                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1802,6 +1821,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   }
 
 _out:
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
@@ -1878,7 +1898,9 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosArrayClear(noNeedToSetVars);  // reset array
 
   uInfo("all debug flag are set to %d", flag);
-  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) {
+    terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  }
 }
 
 int8_t taosGranted(int8_t type) {

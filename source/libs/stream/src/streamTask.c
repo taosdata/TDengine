@@ -21,8 +21,6 @@
 #include "ttimer.h"
 #include "wal.h"
 
-#define CHECK_NOT_RSP_DURATION 10*1000 // 10 sec
-
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
 static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
@@ -261,8 +259,8 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &taskId)) return -1;
   pTask->streamTaskId.taskId = taskId;
 
-  if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
-  if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
+  if (tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.minVer)) return -1;
+  if (tDecodeU64(pDecoder, (uint64_t*)&pTask->dataRange.range.maxVer)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.ekey)) return -1;
 
@@ -442,7 +440,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
   }
 
-  streamTaskCleanCheckInfo(&pTask->taskCheckInfo);
+  streamTaskCleanupCheckInfo(&pTask->taskCheckInfo);
 
   if (pTask->pState) {
     stDebug("s-task:0x%x start to free task state", taskId);
@@ -470,7 +468,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  pTask->outputInfo.pDownstreamUpdateList = taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
+  pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -571,8 +569,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   // 2MiB per second for sink task
   // 50 times sink operator per second
   streamTaskInitTokenBucket(pOutputInfo->pTokenBucket, 35, 35, tsSinkDataRate, pTask->id.idStr);
-  pOutputInfo->pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
-  if (pOutputInfo->pDownstreamUpdateList == NULL) {
+  pOutputInfo->pNodeEpsetUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
+  if (pOutputInfo->pNodeEpsetUpdateList == NULL) {
     stError("s-task:%s failed to prepare downstreamUpdateList, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }

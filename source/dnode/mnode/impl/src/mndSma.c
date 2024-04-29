@@ -1455,10 +1455,11 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->targetStbUid = 0;
   pCxt->pCreateStreamReq->fillNullCols = NULL;
   pCxt->pCreateStreamReq->igUpdate = 0;
+  pCxt->pCreateStreamReq->deleteMark = pCxt->pCreateSmaReq->deleteMark;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
-  pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
+  pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
+  pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
 
   // construct tags
   pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
@@ -1494,7 +1495,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  pCxt->pDropStreamReq->sql = strdup(pCxt->pDropSmaReq->name);
+  pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
 
@@ -2340,11 +2341,6 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0) {
-    mError("failed to get table tsma %s since %s fetching with tsma name %d", tsmaReq.name, terrstr(),
-           tsmaReq.fetchingWithTsmaName);
-  }
-
   tFreeTableTSMAInfoRsp(&rsp);
   return code;
 }

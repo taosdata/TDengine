@@ -1026,6 +1026,7 @@ function installProduct() {
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
+
     echo
     echo "${productName} is installed successfully!"
     echo
