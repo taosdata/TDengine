@@ -166,7 +166,21 @@ namespace TDPIConnector.Core
         }
         internal async Task<Dictionary<string, AFElementWrapper>> GetElementsInfoByIds(string tdDatabaseName, string afDatabaseName, List<String> ids)
         {
-            IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementsByIds(afDatabaseName, ids);
+            IEnumerable<AFElementWrapper> elements = null;
+            List<List<string>> chunks = new List<List<string>>();
+            int chunkSize = 2000;
+            for (int i = 0; i < ids.Count; i += chunkSize)
+            {
+                List<string> chunk = ids.Skip(i).Take(chunkSize).ToList();
+                chunks.Add(chunk);
+            }
+            foreach (var chunk in chunks) {
+                if (elements == null) {
+                    elements = piSystemManager.GetElementsByIds(afDatabaseName, chunk);
+                } else {
+                    elements = elements.Concat(piSystemManager.GetElementsByIds(afDatabaseName, chunk));
+                }
+            }
             log.Info($"Found {elements.Count()} elements.");
 
             Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
@@ -212,9 +226,12 @@ namespace TDPIConnector.Core
                         tables.Add(table);
                         elementsCollection.Add(table.Id, element);
                     }
+                    if (tables.Count() > 500) {
+                        await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
+                        tables.Clear();
+                    }
                 };
                 await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
-
             }
             return elementsCollection;
         }
