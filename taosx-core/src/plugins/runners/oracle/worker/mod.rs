@@ -25,6 +25,10 @@ pub async fn migrate_history(
 
     // schema
     let mut query = OracleQuery::try_new(config.connect.clone(), config.task.time_zone.clone())?;
+    let sql = config.task.generate_sql()?;
+    let col_map = query.select_for_schema(&sql)?;
+    let schema = to_schema(col_map)?;
+    tracing::debug!("schema: {:?}", schema);
 
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
@@ -33,14 +37,6 @@ pub async fn migrate_history(
         tracing::info!("migrate oracle from breakpoint: {}", config.task.start);
     }
     tracing::info!("migrate oracle start, config: {:?}", config);
-
-    // generate sql
-    let sql = config.task.generate_sql()?;
-    tracing::info!("migrate oracle start, sql: {}", sql);
-
-    let col_map = query.select_for_schema(&sql)?;
-    let schema = to_schema(col_map)?;
-    tracing::debug!("schema: {:?}", schema);
 
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
