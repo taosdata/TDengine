@@ -376,10 +376,10 @@ int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char
   return code;
 }
 int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  UPLOAD_TYPE type = getUploadType();
-  if (type == UPLOAD_S3) {
+  ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+  if (type == DATA_UPLOAD_S3) {
     return rebuildFromRemoteChkp_s3(key, chkpPath, chkpId, defaultPath);
-  } else if (type == UPLOAD_RSYNC) {
+  } else if (type == DATA_UPLOAD_RSYNC) {
     return rebuildFromRemoteChkp_rsync(key, chkpPath, chkpId, defaultPath);
   }
   return -1;
@@ -1150,6 +1150,23 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
 /*
    0
 */
+
+void* taskAcquireDb(int64_t refId) {
+  // acquire
+  void* p = taosAcquireRef(taskDbWrapperId, refId);
+  return p;
+}
+void taskReleaseDb(int64_t refId) {
+  // release
+  taosReleaseRef(taskDbWrapperId, refId);
+}
+
+int64_t taskGetDBRef(void* arg) {
+  if (arg == NULL) return -1;
+  STaskDbWrapper* pDb = arg;
+  return pDb->refId;
+}
+
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
@@ -2110,12 +2127,12 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
-  STaskDbWrapper* pDb = arg;
-  UPLOAD_TYPE     utype = type;
+  STaskDbWrapper*         pDb = arg;
+  ECHECKPOINT_BACKUP_TYPE utype = type;
 
-  if (utype == UPLOAD_RSYNC) {
+  if (utype == DATA_UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
-  } else if (utype == UPLOAD_S3) {
+  } else if (utype == DATA_UPLOAD_S3) {
     return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
   }
   return -1;
@@ -2179,6 +2196,7 @@ int32_t copyDataAt(RocksdbCfInst* pSrc, STaskDbWrapper* pDst, int8_t i) {
   }
 
 _EXIT:
+  rocksdb_writebatch_destroy(wb);
   rocksdb_iter_destroy(pIter);
   rocksdb_readoptions_destroy(pRdOpt);
   taosMemoryFree(err);

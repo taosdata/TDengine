@@ -1866,6 +1866,29 @@ int sml_td29691_Test() {
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
   taos_free_result(pRes);
+
+  //check column tag name duplication when update
+  const char *sql7[] = {
+      "vbin,t1=1,t2=2,f1=ewe f2=b\"hello\" 1632299372003",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql7, sizeof(sql7) / sizeof(sql7[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  taos_free_result(pRes);
+
+  //check column tag name duplication when update
+  const char *sql6[] = {
+      "vbin,t1=1 t2=2,f1=1,f2=b\"hello\" 1632299372004",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql6, sizeof(sql6) / sizeof(sql6[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;

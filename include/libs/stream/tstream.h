@@ -56,6 +56,7 @@ extern "C" {
 #define STREAM_EXEC_T_RESTART_ALL_TASKS (-4)
 #define STREAM_EXEC_T_STOP_ALL_TASKS    (-5)
 #define STREAM_EXEC_T_RESUME_TASK       (-6)
+#define STREAM_EXEC_T_ADD_FAILED_TASK   (-7)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -424,7 +425,7 @@ typedef struct STaskOutputInfo {
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
-  SArray*       pDownstreamUpdateList;
+  SArray*       pNodeEpsetUpdateList;
 } STaskOutputInfo;
 
 typedef struct SUpstreamInfo {
@@ -435,6 +436,7 @@ typedef struct SUpstreamInfo {
 typedef struct SDownstreamStatusInfo {
   int64_t reqId;
   int32_t taskId;
+  int32_t vgId;
   int64_t rspTs;
   int32_t status;
 } SDownstreamStatusInfo;
@@ -442,9 +444,12 @@ typedef struct SDownstreamStatusInfo {
 typedef struct STaskCheckInfo {
   SArray*       pList;
   int64_t       startTs;
+  int64_t       timeoutStartTs;
   int32_t       notReadyTasks;
   int32_t       inCheckProcess;
   int32_t       stopCheckProcess;
+  int32_t       notReadyRetryCount;
+  int32_t       timeoutRetryCount;
   tmr_h         checkRspTmr;
   TdThreadMutex checkInfoLock;
 } STaskCheckInfo;
@@ -544,7 +549,7 @@ typedef struct SStreamMeta {
   SArray*  chkpSaved;
   SArray*  chkpInUse;
   SRWLatch chkpDirLock;
-  void*    qHandle;
+  void*    qHandle;           // todo remove it
   void*    bkdChkptMgt;
 } SStreamMeta;
 
@@ -845,12 +850,9 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-int32_t streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, const char* id);
-int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
-                                  int32_t* pNotReady, const char* id);
-void    streamTaskCleanCheckInfo(STaskCheckInfo* pInfo);
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
+void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
@@ -885,6 +887,7 @@ bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
 int32_t      streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
                                            int64_t endTs, bool ready);
 int32_t      streamMetaResetTaskStatus(SStreamMeta* pMeta);
+int32_t      streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 
 void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
