@@ -124,9 +124,10 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 <TabItem label="Windows 安装" value="windows">
 
 **注意**
+- 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+- 从 TDengine 3.0.1.7 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
 
-1. 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
-2. 从 TDengine 3.0.1.7 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
+按照以下步骤安装：
 
 1. 从列表中下载获得 exe 安装程序；
    <PkgListV3 type={3}/>
