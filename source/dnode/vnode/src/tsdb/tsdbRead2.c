@@ -907,21 +907,19 @@ static int doBinarySearchKey(const TSKEY* keyList, int num, int pos, TSKEY key, 
 }
 
 // handle the repeat ts cases.
-static int32_t doSearchStartPos(SBlockData* pBlock, int32_t num, int32_t pos, TSKEY key, int32_t order) {
-  int32_t startPos = doBinarySearchKey(pBlock->aTSKEY, num, pos, key, order);
-
+static int32_t findFirstPos(const int64_t* pTsList, int32_t num, int32_t startPos, bool asc) {
   int32_t i = startPos;
-  int64_t startTs = pBlock->aTSKEY[startPos];
-  if (ASCENDING_TRAVERSE(order)) {
-    while (i >= 0 && (pBlock->aTSKEY[i] == startTs)) {
-        i--;
-    }
-    return i + 1;
-  } else {
-    while (i < pBlock->nRow && (pBlock->aTSKEY[i] == startTs)) {
+  int64_t startTs = pTsList[startPos];
+  if (asc) {
+    while (i < num && (pTsList[i] == startTs)) {
       i++;
     }
     return i - 1;
+  } else {
+    while (i >= 0 && (pTsList[i] == startTs)) {
+      i--;
+    }
+    return i + 1;
   }
 }
 
@@ -936,7 +934,8 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
     endPos = 0;
   } else {
     int64_t key = asc ? pReader->info.window.ekey : pReader->info.window.skey;
-    endPos = doSearchStartPos(pBlockData, pRecord->numRow, pos, key, pReader->info.order);
+    endPos = doBinarySearchKey(pBlockData->aTSKEY, pRecord->numRow, pos, key, pReader->info.order);
+    endPos = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, endPos, asc);
   }
 
   if ((pReader->info.verRange.maxVer >= pRecord->minVer && pReader->info.verRange.maxVer < pRecord->maxVer) ||
@@ -1148,7 +1147,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
       int32_t pos = asc ? pRecord->numRow - 1 : 0;
       int32_t order = asc ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
       int64_t key = asc ? pReader->info.window.skey : pReader->info.window.ekey;
-      pDumpInfo->rowIndex = doSearchStartPos(pBlockData, pRecord->numRow, pos, key, order);
+      pDumpInfo->rowIndex = doBinarySearchKey(pBlockData->aTSKEY, pRecord->numRow, pos, key, order);
 
       if (pDumpInfo->rowIndex < 0) {
         tsdbError(
@@ -1159,6 +1158,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
         return TSDB_CODE_INVALID_PARA;
       }
 
+      pDumpInfo->rowIndex = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, pDumpInfo->rowIndex, (!asc));
       ASSERT(pReader->info.verRange.minVer <= pRecord->maxVer && pReader->info.verRange.maxVer >= pRecord->minVer);
 
       // find the appropriate start position that satisfies the version requirement.
