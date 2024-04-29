@@ -193,7 +193,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
     taosThreadMutexLock(&pTask->lock);
     ETaskStatus status = streamTaskGetStatus(pTask)->state;
     if (status == TASK_STATUS__CK) {
-      streamTaskSetCheckpointFailedId(pTask);
+      streamTaskSetFailedCheckpointId(pTask);
     }
     taosThreadMutexUnlock(&pTask->lock);
   }
@@ -203,7 +203,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
     taosThreadMutexLock(&pTask->lock);
     ETaskStatus status = streamTaskGetStatus(pTask)->state;
     if (status == TASK_STATUS__CK) {
-      streamTaskSetCheckpointFailedId(pTask);
+      streamTaskSetFailedCheckpointId(pTask);
     }
     taosThreadMutexUnlock(&pTask->lock);
 
