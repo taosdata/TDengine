@@ -50,8 +50,9 @@ typedef enum {
   TSDB_GRANT_TABLE,
 } EGrantType;
 
-int32_t grantCheck(EGrantType grant);
-int32_t grantAlterActiveCode(int32_t did, const char* old, const char* new, char* out, int8_t type);
+int32_t  grantCheck(EGrantType grant);
+uint64_t grantRemain(EGrantType grant);
+int32_t  grantAlterActiveCode(int32_t did, const char* old, const char* new, char* out, int8_t type);
 
 #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
