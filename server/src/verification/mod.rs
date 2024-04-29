@@ -161,12 +161,9 @@ async fn post_json_data(
         .as_millis();
 
     let string_to_sign = format!("{}&nonce={}&ts={}", params_to_sign, nonce, ts);
-
     let sign = sign_string(&string_to_sign);
 
     log::debug!("post url: {}, request body:{}", url, json_body);
-    log::debug!("string_to_sign: {}", string_to_sign);
-    log::debug!("signed: {}", sign);
 
     // 连接超时时间为30秒，请求超时时间为60秒
     let http_client = reqwest::Client::builder()
@@ -234,9 +231,10 @@ pub async fn report_verification_status_to_cloud(
     let mut url = get_url_prefix(url_config, lang);
     url.push_str("/trial/verification-result");
 
+    let explorer_version = get_explore_version();
     let string_to_sign = format!(
         "code={}&email={}&explorerVersion={}&phone={}&taosdVersion={}",
-        code, email, lang, phone, taosd_version
+        code, email, explorer_version, phone, taosd_version
     );
     log::debug!("string_to_sign: {}", string_to_sign);
 
@@ -245,7 +243,7 @@ pub async fn report_verification_status_to_cloud(
         email: email.to_string(),
         code: code.to_string(),
         taosd_version: taosd_version.to_string(),
-        explorer_version: get_explore_version(),
+        explorer_version,
     };
     let json_body = serde_json::to_string(&body)?;
     log::debug!("json_body: {}", json_body);
