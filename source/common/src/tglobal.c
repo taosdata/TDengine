@@ -60,7 +60,7 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 4;
+int32_t tsNumOfTaskQueueThreads = 10;
 int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
@@ -552,12 +552,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
   if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
 
-  tsNumOfTaskQueueThreads = tsNumOfCores / 2;
-  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  tsNumOfTaskQueueThreads = tsNumOfCores;
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 10);
 
-  if (tsNumOfTaskQueueThreads >= 50) {
-    tsNumOfTaskQueueThreads = 50;
-  }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;

@@ -2340,11 +2340,6 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0) {
-    mError("failed to get table tsma %s since %s fetching with tsma name %d", tsmaReq.name, terrstr(),
-           tsmaReq.fetchingWithTsmaName);
-  }
-
   tFreeTableTSMAInfoRsp(&rsp);
   return code;
 }
