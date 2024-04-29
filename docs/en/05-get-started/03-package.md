@@ -123,7 +123,10 @@ This installation method is supported only for Debian and Ubuntu.
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+**Note**
+
+1. TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+2. Since TDengine 3.0.1.7, we wonly provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
 
 1. Download the Windows installation package.
    <PkgListV3 type={3}/>
