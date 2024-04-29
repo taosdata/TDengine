@@ -25,6 +25,7 @@ typedef struct {
 
   SStreamTask* pTask;
   int64_t      dbRefId;
+  void*        pMeta;
 } SAsyncUploadArg;
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
@@ -437,7 +438,7 @@ int32_t uploadCheckpointData(void* param) {
     return -1;
   }
 
-  if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
+  if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, ((SStreamMeta*)arg->pMeta)->bkdChkptMgt, arg->chkpId,
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", taskStr, arg->chkpId);
   }
@@ -489,6 +490,7 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t chkpId, cha
   arg->chkpId = chkpId;
   arg->pTask = pTask;
   arg->dbRefId = taskGetDBRef(pTask->pBackend);
+  arg->pMeta = pTask->pMeta;
 
   return streamMetaAsyncExec(pTask->pMeta, uploadCheckpointData, arg, NULL);
 }
