@@ -14,7 +14,7 @@ options:
   endpoint:
     display: MQTT 地址
     required: true
-    pattern: "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$"
+    pattern: "^[0-9A-Za-z.\\-_]+:(?:[0-9]{1,5})$"
     pattern_msg: "输入格式有误，请按照格式 `host:port`，port 范围为 1-65535。"
     description: |
       MQTT 服务器地址。如: “127.0.0.1:1883”

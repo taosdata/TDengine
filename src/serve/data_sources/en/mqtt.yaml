@@ -20,7 +20,7 @@ options:
       MQTT server endpoint. e.g: 127.0.0.1:1883
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:1883
-    pattern: "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$"
+    pattern: "^[0-9A-Za-z.\\-_]+:(?:[0-9]{1,5})$"
     pattern_msg: "Input format error, please refer to: `host:port`, port range is 1-65535."
 
 authentication:
