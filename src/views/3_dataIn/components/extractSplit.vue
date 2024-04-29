@@ -623,6 +623,7 @@ export default {
   //   border-radius:6px;
   //   animation:heart 5s linear infinite;
   // }
+  margin-bottom: 12px;
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
