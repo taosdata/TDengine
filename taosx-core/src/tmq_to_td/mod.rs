@@ -935,13 +935,17 @@ pub async fn get_table_progress(
                 format!(
                     "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
                 ),
-                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"
+                ),
             )
         }
     } else {
         if let Some(end) = end {
             (
-                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"
+                ),
                 format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
             )
         } else {
