@@ -26,19 +26,7 @@ pub async fn migrate_history(
     // schema
     let mut query =
         PostgresQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
-
-    // get break point
-    let breakpoint = get_breakpoint(config.task_id);
-    if breakpoint.is_some() {
-        config.task.start = breakpoint.unwrap();
-        tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
-    }
-    tracing::info!("migrate postgres start, config: {:?}", config);
-
-    // generate sql
     let sql = config.task.generate_sql()?;
-    tracing::info!("migrate postgres start, sql: {}", sql);
-
     let row = query.select_one_for_schema(&sql).await?;
     let schema = match row {
         Some(row) => to_schema(row).await?,
@@ -47,6 +35,14 @@ pub async fn migrate_history(
         }
     };
     tracing::debug!("schema: {:?}", schema);
+
+    // get break point
+    let breakpoint = get_breakpoint(config.task_id);
+    if breakpoint.is_some() {
+        config.task.start = breakpoint.unwrap();
+        tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
+    }
+    tracing::info!("migrate postgres start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
