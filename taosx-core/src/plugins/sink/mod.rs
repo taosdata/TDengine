@@ -836,6 +836,9 @@ async fn consume_lush_record_with_transform(
                         crate::plugins::transform::Message::Tables(_) => todo!(),
                         crate::plugins::transform::Message::ChildTables(_) => todo!(),
                         crate::plugins::transform::Message::Records(message) => {
+                            if message.is_empty() {
+                                continue;
+                            }
                             *count += flat_write_with_sql(
                                 pool,
                                 taos,

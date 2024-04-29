@@ -76,6 +76,7 @@ use crate::{
     },
 };
 use anyhow::anyhow;
+use arrow::compute::kernels::filter;
 use linked_hash_map::LinkedHashMap;
 use std::fmt::{self, Display};
 use std::iter::{Peekable, SkipWhile};
@@ -775,7 +776,8 @@ impl SuperTableConfig {
         match &self.filter {
             Some(filter) => {
                 let filter_expr = filter.replace('$', "");
-                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter_expr));
+                let filter_expr = filter_expr.trim();
+                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter_expr.to_string()));
                 Some(Filter::new(vec![filter_impl]))
             }
             None => None,
