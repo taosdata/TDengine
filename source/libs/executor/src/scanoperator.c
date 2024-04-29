@@ -711,6 +711,7 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
   pInfo->tableStartIndex = TARRAY_ELEM_IDX(pInfo->base.pTableListInfo->pTableList, *pKeyInfo);
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
   pInfo->pResBlock->info.blankFill = false;
+  taosMemoryFreeClear(pInfo->pResBlock->pBlockAgg);
 
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
