@@ -103,8 +103,8 @@ struct ResponseCloudOpenApi {
 // 如果配置了url，则使用配置的url，否则根据语言选择默认的url
 fn get_url_prefix(url_config: Option<String>, lang: &str) -> String {
     url_config.unwrap_or_else(|| match lang {
-        "zh_CN" => "https://cloud.taosdata.com".to_string(),
-        _ => "https://cloud.tdengine.com".to_string(),
+        "zh_CN" => "https://cloud.taosdata.com/openapi".to_string(),
+        _ => "https://cloud.tdengine.com/openapi".to_string(),
     })
 }
 
