@@ -1,6 +1,6 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
-#define NLY_PI_TEST
+#define NONLY_PI_TEST
 
 using Newtonsoft.Json;
 using System;
@@ -175,7 +175,8 @@ namespace TDPIConnector.TDEngine
             TDValues tdValues = resp.ToTDValues();
             return tdValues.FirstOrDefault();
         }
-        public override async Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTable, string tdColumnType)
+        public override async Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTable, string tdColumnType,
+            List<KeyValuePair<string, string>> tags, bool useAFDatabase)
         {
             string sqlCommand = $"CREATE STABLE IF NOT EXISTS {superTable.ToTDEngineNamingPattern()} (ts TIMESTAMP, val {tdColumnType}, quality INT) TAGS (pointId INT);";
             return await MakeHttpRequest(sqlCommand, database);
@@ -286,40 +287,7 @@ namespace TDPIConnector.TDEngine
                 await MakeHttpRequest(sb.ToString(), database);
             }
         }
-        //public override async Task<TDEngineResponse> CreateTableForAFElement(string database, TDTable table, TDSTable sTable)
-        //{
-        //    Dictionary<string, string> tags = new Dictionary<string, string>();
-        //    foreach (TDColumn column in table.Columns)
-        //    {
-        //        if (!string.IsNullOrEmpty(column.ConfigurationItem))
-        //        {
-        //            tags.Add($"{column.Name}_val", column.ConfigurationItem);
-        //        }
-
-        //        if (!string.IsNullOrEmpty(column.Uom))
-        //        {
-        //            tags.Add($"{column.Name}_uom", column.Uom);
-        //        }
-        //    }
-
-
-        //    StringBuilder sb = new StringBuilder((int)(1000000));
-        //    sb.Append($"CREATE TABLE IF NOT EXISTS ");
-        //    sb.Append(GetFullTableName(table.Name).ToTDEngineNamingPattern());
-        //    sb.Append($" USING {sTable.Name} (element_id");
-        //    foreach (KeyValuePair<string, string> tag in tags)
-        //    {
-        //        sb.Append($", {tag.Key}");
-        //    }
-        //    sb.Append($") TAGS ('{table.Id}'");
-        //    foreach (KeyValuePair<string, string> tag in tags)
-        //    {
-        //        sb.Append($", '{tag.Value}'");
-        //    }
-        //    sb.Append(");");
-        //    string sqlCommand = sb.ToString();
-        //    return await MakeHttpRequest(sqlCommand, database);
-        //}
+      
         public override async Task<TDEngineResponse> DropTableForPIPoint(string database, string pointName)
         {
             string tdEngineTableName = GetFullTableName(pointName).ToTDEngineNamingPattern();
@@ -332,210 +300,7 @@ namespace TDPIConnector.TDEngine
             string sqlCommand = $"DROP TABLE IF EXISTS {tdEngineTableName};";
             return await MakeHttpRequest(sqlCommand, database);
         }
-        //public async Task InsertValuesForPIInSeries(string database, string table, List<TDValue> values)
-        //{
-        //    List<TDValue> currentValueRequest = new List<TDValue>();
-        //    int j = 0;
-        //    do
-        //    {
-        //        currentValueRequest.Add(values[j]);
-        //        if ((j != 0 && j % 500 == 0) || (j == values.Count() - 1))
-        //        {
-
-        //            string sqlCommand = GenerateSqlCommandForInsertInPI(table, values);
-        //            var resp = await MakeHttpRequest(sqlCommand, database);
-        //            currentValueRequest.Clear();
-        //        }
-        //        j++;
-        //    } while (j < values.Count());
-        //}
-
-        public override void InsertBackfillValuesForPI(string database, string superTable, string table, List<TDValue> values)
-        {
-            List<string> sqlCommands = new List<string>();
-            List<TDValue> currentValueRequest = new List<TDValue>();
-            List<List<TDValue>> valuesBatch = new List<List<TDValue>>();
-            int j = 0;
-            do
-            {
-                currentValueRequest.Add(values[j]);
-                if ((j != 0 && j % 1000 == 0) || (j == values.Count() - 1))
-                {
-                    valuesBatch.Add(new List<TDValue>(currentValueRequest));
-                    currentValueRequest.Clear();
-                }
-                j++;
-            } while (j < values.Count());
-
-            Parallel.ForEach(valuesBatch, (valuesList) =>
-            {
-                string sqlCommand = this.GenerateSqlCommandForInsertInPI(table, valuesList);
-                sqlCommands.Add(sqlCommand);
-            });
-
-
-            List<Task> currentListOfTasks = new List<Task>();
-            for (int i = 0; i < sqlCommands.Count; i++)
-            {
-                Task task = MakeHttpRequest(sqlCommands[i], database);
-                currentListOfTasks.Add(task);
-
-                if (currentListOfTasks.Count >= 30)
-                {
-                    Task.WaitAll(currentListOfTasks.ToArray());
-                    currentListOfTasks.Clear();
-                }
-            }
-            Task.WaitAll(currentListOfTasks.ToArray());
-        }
-        private string GenerateSqlCommandForInsertInPI(string pointName, List<TDValue> values)
-        {
-            string tdEngineTableName = GetFullTableName(pointName).ToTDEngineNamingPattern();
-
-            StringBuilder sb = new StringBuilder((int)(1000000));
-            sb.Append($"INSERT INTO {tdEngineTableName} VALUES ");
-            foreach (TDValue value in values)
-            {
-                if (value.Quality == 0)
-                {
-                    sb.Append($"('{value.TimestampString}', {value.ValueString}, 0) ");
-                }
-                else
-                {
-                    sb.Append($"('{value.TimestampString}', NULL, {value.Quality}) ");
-                }
-            }
-
-            return sb.ToString();
-        }
-        public override async Task<TDEngineResponse> InsertValuesForPIPoints(string database, Dictionary<string, Dictionary<string, List<TDValue>>> tables)
-        {
-            await Task.Delay(0);
-            List<Task> tasks = new List<Task>();
-            string sqlCommand;
-            if (tables.Count == 0) return null;
-
-            //build value string for each tables
-            List<StringBuilder> tableList = new List<StringBuilder>();
-            int insertCount = 0;
-
-            foreach (var table in tables)
-            {
-                string tdEngineTableName = GetFullTableName(table.Key).ToTDEngineNamingPattern();
-                StringBuilder sb = new StringBuilder();
-                foreach (var row in table.Value)
-                {
-                    sb.Append($" {tdEngineTableName} VALUES ");
-
-                    //add timestamp
-                    sb.Append($"('{row.Key}'");
-                    //add values
-                    foreach (var value in row.Value)
-                    {
-                        if (value.Quality == 0)
-                            sb.Append($", {value.ValueString}, 0");
-                        else//todo: 0 is status, needs to be fixed
-                            sb.Append($", NULL, {value.Quality}");
-                        insertCount++;
-                    }
-                    sb.Append(") ");
-
-                    if (insertCount >= 5000)
-                    {
-                        tableList.Add(sb);
-                        sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
-                        Task t = MakeHttpRequest(sqlCommand, database);
-                        tasks.Add(t);
-                        tableList = new List<StringBuilder>();
-                        sb = new StringBuilder();
-                        insertCount = 0;
-                    }
-                }
-                tableList.Add(sb);
-            }
-
-            if (insertCount > 0)
-            {
-                sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
-                Task tf = MakeHttpRequest(sqlCommand, database);
-                tasks.Add(tf);
-            }
-            Task.WaitAll(tasks.ToArray());
-            return null;
-        }
-        public override async Task<TDEngineResponse> InsertValuesForAFElements(string database, Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, List<string> columnNames)
-        {
-            await Task.Delay(0);
-            List<Task> tasks = new List<Task>();
-            string sqlCommand;
-            if (stables.Count == 0) return null;
-
-            //build column list
-            Dictionary<string, string> columns = new Dictionary<string, string>();
-
-            foreach (string column in columnNames)
-            {
-                string columnName = column.ToTDEngineNamingPattern();
-                columns.Add(column, $", {columnName}_val, {columnName}_status");
-            }
-
-            //build value string for each tables
-            List<StringBuilder> tableList = new List<StringBuilder>();
-            int insertCount = 0;
-
-            foreach (var tables in stables)
-            {
-                foreach (var table in tables.Value)
-                {
-                    string tdEngineTableName = GetFullTableName(table.Key).ToTDEngineNamingPattern();
-                    StringBuilder sb = new StringBuilder();
-                    foreach (var row in table.Value)
-                    {
-                        sb.Append($" {tdEngineTableName} (ts ");
-                        foreach (var value in row.Value)
-                        {
-                            sb.Append(columns[value.Name]);
-                        }
-                        sb.Append(") VALUES ");
-
-                        //add timestamp
-                        sb.Append($"('{row.Key}'");
-                        //add values
-                        foreach (var value in row.Value)
-                        {
-                            if (value.Quality == 0)
-                                sb.Append($", {value.ValueString}, 0");
-                            else//todo: 0 is status, needs to be fixed
-                                sb.Append($", NULL, {value.Quality}");
-                            insertCount++;
-                        }
-                        sb.Append(") ");
-
-                        if (insertCount >= 5000)
-                        {
-                            tableList.Add(sb);
-                            sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
-                            Task t = MakeHttpRequest(sqlCommand, database);
-                            tasks.Add(t);
-                            tableList = new List<StringBuilder>();
-                            sb = new StringBuilder();
-                            insertCount = 0;
-                        }
-                    }
-                    tableList.Add(sb);
-                }
-            }
-
-            if (insertCount > 0)
-            {
-                sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
-                Task tf = MakeHttpRequest(sqlCommand, database);
-                tasks.Add(tf);
-            }
-            Task.WaitAll(tasks.ToArray());
-            return null;
-        }
-
+ 
         public override void Dispose()
         {
             this.httpClient.Dispose();
@@ -645,21 +410,12 @@ namespace TDPIConnector.TDEngine
             }
             return requestMessage;
         }
-        private string CreateSqlCommandForInsertingAFValues(List<StringBuilder> tableList)
-        {
-            StringBuilder sqlCommand = new StringBuilder($"INSERT INTO ");
-            foreach (var item in tableList)
-            {
-                sqlCommand.Append(item);
-            }
-            sqlCommand.Append(";");
-            return sqlCommand.ToString();
-        }
-        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+
+        public override async Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
         {
             try
             {
-                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{tbName} " +
                     $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
                 return await MakeHttpRequest(sqlCommand);
             }
@@ -685,14 +441,14 @@ namespace TDPIConnector.TDEngine
             }
         }
 
-        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string elementName, string startTime, string endTime)
+        public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string tbName, string startTime, string endTime)
         {
 #if ONLY_PI_TEST
             return null;
 #endif
             try
             {
-                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{tbName} " +
                     $"WHERE ts >= \'{startTime}\' AND ts <= \'{endTime}\';";
                 return await MakeHttpRequest(sqlCommand);
             }

@@ -3,6 +3,7 @@ using log4net.Config;
 using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
+using TDPIConnector.Core.ScanPiInfo;
 using System.Threading;
 using System.Reflection;
 using System.Linq;
@@ -86,6 +87,9 @@ namespace TDPIConnector.Service
             }
             PrintVersion(true);
             WorkMode workMode = WorkMode.Observer;
+            ScanMode printMode = ScanMode.ScanNone;
+            FilterMode fileterMode = FilterMode.FilterNone;
+
 
             string tomlConfigFile = "";
             string pointFilter = "*";
@@ -103,8 +107,29 @@ namespace TDPIConnector.Service
                         case "print":
                         case "p":
                             workMode = WorkMode.PrintPIInfo;
+                            printMode = ScanMode.ScanPIInfo;
                             pointFilter = args[i + 1];
                             i += 2;
+                            break;
+                        case "pp":
+                            workMode = WorkMode.PrintPIInfo;
+                            printMode = ScanMode.ScanPoint;
+                            pointFilter = args[i + 1];
+                            i += 2;
+                            break;
+                        case "px":
+                            workMode = WorkMode.PrintPIInfo;
+                            printMode = ScanMode.ScanPx;
+                            pointFilter = args[i + 1];
+                            fileterMode = PIInfoScanner.GetFilterMode(args[i + 2]);
+                            i += 3;
+                            break;
+                        case "pt":
+                            workMode = WorkMode.PrintPIInfo;
+                            printMode = ScanMode.ScanPt;
+                            pointFilter = args[i + 1];
+                            fileterMode = PIInfoScanner.GetFilterMode(args[i + 2]);
+                            i += 3;
                             break;
                         case "check":
                         case "c":
@@ -134,7 +159,7 @@ namespace TDPIConnector.Service
             var servicesToRun = new ServiceBase[] { service };
 
             if (workMode == WorkMode.PrintPIInfo) {
-                service.PrintPIInfo(pointFilter);
+                service.PrintPIInfo(printMode, pointFilter, fileterMode);
                 return;
             } else if (workMode == WorkMode.CheckConfig) {
                 service.CheckConfig();

@@ -74,7 +74,7 @@ namespace TDPIConnector.Core
             Stopwatch stopwatch = new Stopwatch();
             int count = 0;
             DateTime pointStartTime = startTime;
-            string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
+            string supetableName = PIInfoScanner.GeneratePointSuperTableName(point);
             while (pointStartTime != DateTime.MaxValue)
             {
                 stopwatch.Reset();
@@ -124,6 +124,23 @@ namespace TDPIConnector.Core
                 }
             }
             return firstValueTimestamps;
+        }
+        public async Task<Dictionary<string, DateTime>> GetTDPointsLastRecordedValue(string tdDatabaseName, List<string> elements)
+        {
+            Dictionary<string, DateTime> lastValueTimestamps = new Dictionary<string, DateTime>();
+            foreach (var element in elements)
+            {
+                var lastTDValue = await tdEngineProxy.GetLastPIValue(tdDatabaseName, element);
+                if (lastTDValue == null)
+                {
+                    lastValueTimestamps.Add(element, DateTime.MaxValue);
+                }
+                else
+                {
+                    lastValueTimestamps.Add(element, lastTDValue.Timestamp);
+                }
+            }
+            return lastValueTimestamps;
         }
 
         public async Task<Dictionary<string, DateTime>> GetTDPointsFirstRecordedValueFromPIPoints(string tdDatabaseName, List<TDTable> points)
@@ -182,8 +199,12 @@ namespace TDPIConnector.Core
                             log.Info($"element tag {element.Name}: {attribute.Name}:{valuestring}");
                             continue;
                         }
-
-                        var superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
+                        string superTableName;
+                        if (!attribute.Element.hasTemplate()) {
+                            superTableName = TableNameConvert.GetSingleElementSuperTableName(element);
+                        } else {
+                            superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
+                        }
                         ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
                         var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
                         stables.Add(superTableName, tables);
@@ -214,7 +235,7 @@ namespace TDPIConnector.Core
             tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
             columnNames = new List<string>();
 
-            var elementName = attribute.Element.Name;
+            var elementTableKey = attribute.Element.ID.ToString();
             if (!columnNames.Contains(attribute.Name))
             {
                 columnNames.Add(attribute.Name);
@@ -228,9 +249,9 @@ namespace TDPIConnector.Core
                 tdValue.Name = attribute.Name;
 
 
-                if (tables.ContainsKey(elementName))
+                if (tables.ContainsKey(elementTableKey))
                 {
-                    var table = tables[elementName];
+                    var table = tables[elementTableKey];
                     if (table.ContainsKey(timestamp))
                     {
                         table[timestamp].Add(tdValue);
@@ -242,7 +263,7 @@ namespace TDPIConnector.Core
                 }
                 else
                 {
-                    tables.Add(elementName, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tables.Add(elementTableKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                 }
             }
         }

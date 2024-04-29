@@ -9,7 +9,10 @@ namespace TDPIConnector.TDEngine
 
     public class TDEngineStaticConfig
     {
-        public string AFTreeTagName { get; set; } = "location";
+        public string AFTreeTagName { get; set; } = "path";
+        public string PointPath { get; set; } = "path";
+
+        public string ElementsPathForPoint { get; set; } = "element_paths";
         public string PITablesPrefix { get; set; }
         public string TDDataBase { get; set; }
         public int MaxWaitLen { get; set; } = 1000;

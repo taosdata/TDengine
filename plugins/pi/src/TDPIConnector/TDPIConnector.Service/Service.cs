@@ -1,6 +1,7 @@
 ﻿using log4net;
 using System.ServiceProcess;
 using TDPIConnector.Core;
+using TDPIConnector.Core.ScanPiInfo;
 
 namespace TDPIConnector.Service
 {
@@ -39,9 +40,9 @@ namespace TDPIConnector.Service
         {
             OnStart(null);
         }
-        public void PrintPIInfo(string pointFilter) {
+        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
             log.Info("Start Print PI Info");
-            appService.PrintPIInfo(pointFilter);
+            appService.PrintPIInfo(scanMode, filter, filterMode);
         }
         public void CheckConfig()
         {

@@ -70,5 +70,8 @@ namespace TDPIConnector.PI
             }
             return false;
         }
+        public bool hasTemplate() {
+            return Template.AFSDKObject != null;
+        }
     }
 }

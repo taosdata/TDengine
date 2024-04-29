@@ -117,7 +117,7 @@ namespace TDPIConnector.Core
             }
 
             //create tables if needed
-            var piPoints = await tablesCreator.CreatePIPointTables(tdDatabaseName, afDatabaseName, dropTables);
+            var piPoints = await tablesCreator.GetPIPointTables(tdDatabaseName);
 
             if (piPoints == null || piPoints.Count == 0)
             {
@@ -193,7 +193,7 @@ namespace TDPIConnector.Core
                     {
                         await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
                     }
-
+                 
                     elementLookup.Add(table.Name, element);
                 }
                 await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
@@ -232,8 +232,77 @@ namespace TDPIConnector.Core
                 backfill.BackfillElements(tdDatabaseName, elementLookup.Values.ToList(), startTime, endTime);
             }
         }
+        public async Task BackfillAFElementFromTool(string tdDatabaseName, string afDatabaseName, List<string> elementNames, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
+        {
+            IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, elementNames);
 
-        public Backfill GetBackfill() {
+            //get all AF Elements based on templates
+            Dictionary<string, AFElementWrapper> elementLookup = new Dictionary<string, AFElementWrapper>();
+            foreach (string elementName in elementNames)
+            {
+                var wrappers = piSystemManager.GetElementByName(afDatabaseName, elementName);
+                List<TDTable> tables = new List<TDTable>();
+                foreach (AFElementWrapper element in wrappers)
+                {
+                    if (element.hasTemplate()) continue;
+                    var superTable = ElemenetSTableConverter.Convert(element);
+                    if (!superTable.HasValidColumn()) continue;
+                    var resp2 = await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+
+                    var attributeColumns = AttributeColumnConverter.Convert(element.Attributes);
+
+                    var table = ElemenetTableConverter.Convert(element, superTable.Name, attributeColumns);
+                    if (elementLookup.ContainsKey(table.Name))
+                    {
+                        log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
+                        continue;
+                    }
+                    tables.Add(table);
+                    if (dropTables)
+                    {
+                        await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
+                    }
+
+                    elementLookup.Add(table.Name, element);
+                    await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
+                }              
+            }
+
+            //backfill elements
+            if (fromLastRecorded || toFirstRecorded)
+            {
+                Dictionary<string, DateTime> elementsTimestamps = new Dictionary<string, DateTime>();
+                var tableNameList = elementLookup.Keys.ToList();
+                if (fromLastRecorded)
+                    elementsTimestamps = await backfill.GetTDPointsLastRecordedValue(tdDatabaseName, tableNameList);
+                else if (toFirstRecorded)
+                    elementsTimestamps = await backfill.GetTDPointsFirstRecordedValue(tdDatabaseName, tableNameList);
+
+                //backfill points if needed
+                if (elementsTimestamps.Count > 0)
+                {
+                    foreach (var elementTimestamp in elementsTimestamps)
+                    {
+                        var element = elementLookup[elementTimestamp.Key];
+                        if (fromLastRecorded)
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                elementTimestamp.Value >= startTime ? elementTimestamp.Value.AddMilliseconds(1) : startTime,
+                                endTime);
+
+                        else if (toFirstRecorded)
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                startTime,
+                                elementTimestamp.Value <= endTime ? elementTimestamp.Value.AddMilliseconds(-1) : endTime);
+                    }
+                }
+            }
+            else
+            {
+                backfill.BackfillElements(tdDatabaseName, elementLookup.Values.ToList(), startTime, endTime);
+            }
+        }
+        public Backfill GetBackfill()
+        {
             return backfill;
         }
     }

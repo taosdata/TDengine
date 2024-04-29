@@ -1,4 +1,5 @@
 ﻿using System;
+using TDPIConnector.Core.ScanPiInfo;
 
 namespace TDBackfill
 {
@@ -25,7 +26,10 @@ namespace TDBackfill
         public DateTime Start { get; internal set; }
         public DateTime End { get; internal set; }
         public string tomlFile { get; internal set; }
+
         public WorkMode workMode = WorkMode.Backfill;
+        public ScanMode printMode = ScanMode.ScanNone;
+        public FilterMode fileterMode = FilterMode.FilterNone;
         public string filter = "";
     }
 }

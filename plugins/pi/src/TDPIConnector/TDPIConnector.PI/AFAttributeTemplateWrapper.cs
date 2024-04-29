@@ -68,6 +68,13 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Abbreviation : string.Empty;
             }
         }
+        public string UomName
+        {
+            get
+            {
+                return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Name : string.Empty;
+            }
+        }
 
         public string ConfigurationItem
         {
@@ -118,6 +125,16 @@ namespace TDPIConnector.PI
         public override int GetHashCode()
         {
             return this.AFSDKObject.GetHashCode();
+        }
+        public bool IsTDengineTag()
+        {
+            // || DataReference == "Formula"
+            if (DataReference == "Table Lookup" || DataReference == "String Builder"
+                || DataReference == "URI Builder")
+            {
+                return true;
+            }
+            return string.IsNullOrEmpty(DataReference);
         }
     }
 }

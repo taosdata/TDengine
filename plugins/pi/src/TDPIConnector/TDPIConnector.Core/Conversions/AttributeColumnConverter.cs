@@ -37,11 +37,11 @@ namespace TDPIConnector.Core.Conversions
             if (null == tdColumnType) return null;
             return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.DataReference);
         }
-        private static TDColumn ConvertElementAttribute(AFAttributeWrapper attributeTemplate)
+        private static TDColumn ConvertElementAttribute(AFAttributeWrapper attribute)
         {
-            string tdColumnType = AttributeTypeConverter.Convert(attributeTemplate.DataReference, attributeTemplate.Type);
+            string tdColumnType = AttributeTypeConverter.Convert(attribute.DataReference, attribute.Type);
             if (null == tdColumnType) return null;
-            return new TDColumn(attributeTemplate.Name, tdColumnType, attributeTemplate.Uom, attributeTemplate.ConfigurationItem);
+            return new TDColumn(attribute.Name, tdColumnType, attribute.Uom, attribute.DataReference);
         }
     }
 }
