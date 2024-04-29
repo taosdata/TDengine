@@ -15,7 +15,7 @@ The source code for the Node.js client library is hosted on [GitHub](https://git
 
 ## Connection types
 
-**Node.js websocket connector** which is implemented through taosAdapter. 
+Node.js websocket connector which is implemented through taosAdapter. 
 
 For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
 
@@ -36,23 +36,23 @@ Node.js client library supports Node.js 14 or higher.
 
 After an error is reported, the error message and error code can be obtained through try catch.
 
-Error Description: The Node.js client library error code is between 100 and 110, and code of other TDengine function modules.
+Error Description: The Node.js client library error code is between 100 and 110, while the other error codes are for the TDengine function module.
 
-For Node.js client library error codes, please refer to.
+For Node.js client library error codes, please refer to:
 
 | Error Code | Description                                                  | Suggested Actions                                                                                  |
 | ---------- | -------------------------------------------------------------| -------------------------------------------------------------------------------------------------- |
 | 100     | invalid variables                                               | The parameter is invalid. Check the interface specification and adjust the parameter type and size.|
 | 101     | invalid url                                                     | URL error, please check if the url is correct.                                                |
-| 102     | received data, but no find callback                             | Client waiting timeout, please check network and taos adapter status.                                     |
+| 102     | received server data but did not find a callback for processing | Client waiting timeout, please check network and TaosAdapter status.                                     |
 | 103     | invalid message type                                            | Please check if the client version and server version match.               |
-| 104     | connection not created                                          | Connection creation failed. Please check the network and taos adapter status.                           |
-| 105     | websocket request timeout                                       | Increase the execution time by adding the messageWaitTimeout parameter, or check the connection to the taos adapter.|
+| 104     | connection creation failed                                      | Connection creation failed. Please check the network and TaosAdapter status.                           |
+| 105     | websocket request timeout                                       | Increase the execution time by adding the messageWaitTimeout parameter, or check the connection to the TaosAdapter.|
 | 106     | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                 |
 | 107     | unknown sql type in tdengine                                    | Check the data type supported by TDengine.                                  |
-| 108     | connection already closed                                       | The connection has been closed, check the connection status, or recreate the connection to execute the relevant instructions.      |
-| 109     | parse fetch block data fail                                     | Please check if the client version and server version match.                     |
-| 110     | websocket connector arrived limited                             | Please check if the connection has been closed after use                                                 |
+| 108     | connection has been closed                                      | The connection has been closed, check the connection status, or recreate the connection to execute the relevant instructions.      |
+| 109     | fetch block data parse fail                                     | Please check if the client version and server version match.                     |
+| 110     | websocket connection has reached its maximum limit              | Please check if the connection has been closed after use                                                 |
 
 ## TDengine DataType vs. Node.js DataType
 
@@ -96,14 +96,14 @@ After installing the TDengine client, use the `nodejsChecker.js` program to veri
 
 Verification in details:
 
-- Create an installation test folder such as `~/tdengine-test`. Download the [nodejsChecker.js source code](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) to your local machine.
+- Create an installation test folder such as `~/tdengine-test`. Download the [nodejsChecker.js](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) to your local machine.
 
 - Execute the following command from the command-line.
 
 ```bash
-npm init -y
-npm install @tdengine/websocket
-node nodejsChecker.js host=localhost
+  npm init -y
+  npm install @tdengine/websocket
+  node nodejsChecker.js host=localhost
 ```
 
 - After executing the above steps, the command-line will output the result of `nodejsChecker.js` connecting to the TDengine instance and performing a simple insert and query.
@@ -112,8 +112,8 @@ node nodejsChecker.js host=localhost
 
 Install and import the `@tdengine/websocket` package.
 
-**Note**：
-- After using the Node.js client library, it is necessary to call taos.destroy() Release connector resources
+**Note**: After using the Node.js client library, it is necessary to call taos.destroy() Release connector resources.
+
 ```javascript
 const taos = require("@tdengine/websocket");
 
@@ -123,19 +123,19 @@ taos.destroy();
 ```
 
 ```javascript
-WSConfig配置Websocket参数如下:
-    GetToken(): string | undefined | null;
-    SetToken(token: string): void;
-    GetUser(): string | undefined | null;
-    SetUser(user: string): void;
-    GetPwd(): string | undefined | null;
-    SetPwd(pws: string): void;
-    GetDb(): string | undefined | null;
-    SetDb(db: string): void;
-    GetUrl(): string;
-    SetUrl(url: string): void;
-    SetTimeOut(ms: number): void;
-    GetTimeOut(): number | undefined | null;
+WSConfig configures the Websocket parameters as follows:
+    getToken(): string | undefined | null;
+    setToken(token: string): void;
+    getUser(): string | undefined | null;
+    setUser(user: string): void;
+    getPwd(): string | undefined | null;
+    setPwd(pws: string): void;
+    getDb(): string | undefined | null;
+    setDb(db: string): void;
+    getUrl(): string;
+    setUrl(url: string): void;
+    setTimeOut(ms: number): void;
+    getTimeOut(): number | undefined | null;
 ```
 
 ```javascript
@@ -150,7 +150,7 @@ WSConfig配置Websocket参数如下:
 {{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
 ```
 
-> **Note**: If you do not use `USE power` to specify the database, all subsequent operations on the table need to add the database name as a prefix, such as power.meters.
+**Note**: If you do not use `USE power` to specify the database, all subsequent operations on the table need to add the database name as a prefix, such as power.meters.
 
 ### Insert data
 
@@ -195,8 +195,7 @@ wsRow:data:=> [
 
 The Node.js client library provides a parameter binding api for inserting data. Similar to most databases, TDengine currently only supports the question mark `?` to indicate the parameters to be bound.
 
-**Note:**
-- Do not use `db.?` in prepareStatement when specify the database with the table name, should directly use `?`, then specify the database in setTableName, for example: `prepareStatement.setTableName("db.t1")`.
+**Note**: Do not use `db.?` in prepareStatement when specify the database with the table name, should directly use `?`, then specify the database in setTableName, for example: `prepareStatement.setTableName("db.t1")`.
 
 Sample Code:
 
@@ -263,14 +262,14 @@ The TDengine Node.js client library supports subscription functionality with the
 {{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
 ```
 
-> Parameter Description
+**Parameter Description**
 
 - taos.TMQConstants.CONNECT_USER: username.
 - taos.TMQConstants.CONNECT_PASS: password.
 - taos.TMQConstants.GROUP_ID: Specifies the group that the consumer is in.
 - taos.TMQConstants.CLIENT_ID: client id.
 - taos.TMQConstants.WS_URL: The URL address of TaosAdapter.
-- taos.TMQConstants.AUTO_OFFSET_RESET: To determine whether the consumption location is based on the latest or earliest data.
+- taos.TMQConstants.AUTO_OFFSET_RESET: When offset does not exist, where to start consumption, the optional value is earliest or latest, the default is latest.
 - taos.TMQConstants.ENABLE_AUTO_COMMIT: Specifies whether to commit automatically.
 - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: Automatic submission interval, the default value is 5000 ms.
 - taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type. 
@@ -322,14 +321,14 @@ For more information, see [Data Subscription](../../develop/tmq).
 ## Usage limitations
 
 - Node.js client library (`@tdengine/websocket`) supports Node.js 14 or higher.
-- After using the connect, you need to call taos.connectorDestroy(); Release connector resources.
+- After using the connect, you need to call taos.destroy(); Release connector resources.
 
 ## Frequently Asked Questions
 
-1. Using Node.js client library requires starting taosadapter.
+1. Using Node.js client library requires starting TaosAdapter.
 
    ```bash
-   sudo systemctl start taosadapter
+   sudo systemctl start TaosAdapter
    ```
 
 2. "Unable to establish connection" or "Unable to resolve FQDN" 

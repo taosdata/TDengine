@@ -32,10 +32,10 @@ async function prepare() {
     await wsSql.exec(createDB);
     await wsSql.exec(createStable);
 
-    // ANCHOR: create_topic 
-    let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} as SELECT * FROM ${db}.${stable}`;
-    await wsSql.exec(createTopic);
-    // ANCHOR_END: create_topic 
+// ANCHOR: create_topic 
+let createTopic = `CREATE TOPIC IF NOT EXISTS ${topics[0]} AS SELECT * FROM ${db}.${stable}`;
+await wsSql.exec(createTopic);
+// ANCHOR_END: create_topic 
 
     for (let i = 0; i < 10; i++) {
         await wsSql.exec(`INSERT INTO d1001 USING ${stable} (location, groupId) TAGS ("California.SanFrancisco", 3) VALUES (NOW, ${10 + i}, ${200 + i}, ${0.32 + i})`);
