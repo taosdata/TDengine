@@ -1074,7 +1074,7 @@ export function getDsnData(data, definition) {
     dsn += queryArr.join('&');
   }
   if (definition.id == 'pi') {
-    dsn += '&mode=' + getActiveTabKey(data);
+    dsn += '&model=' + getActiveTabKey(data);
   }
   return dsn;
 }
