@@ -213,16 +213,6 @@ groups:
     display_order: 1
     description: 数据采集相关配置项。
     params:
-      - name: interval
-        display: 采集间隔
-        description: |-
-          数据点位采集间隔，单位为：秒。
-        hint:
-          type: integer
-          min: 1
-          max: 60
-        value: 10
-
       - name: collect_mode
         display: 采集模式
         description: |-
@@ -234,6 +224,16 @@ groups:
             - observe
             - subscribe
         value: subscribe
+
+      - name: interval
+        display: 采集间隔
+        description: |-
+          数据点位采集间隔，单位为：秒。
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        value: 10
 
       - name: request_timeout
         display: 采集超时

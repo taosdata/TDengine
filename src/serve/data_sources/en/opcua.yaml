@@ -216,16 +216,6 @@ groups:
     display_order: 1
     description: Configurations for collecting data from OPC UA server.
     params:
-      - name: interval
-        display: Collect interval
-        description: |-
-          Collect data interval in second
-        value: 10
-        hint:
-          type: integer
-          min: 1
-          max: 60
-
       - name: collect_mode
         display: Collect Mode
         description: |-
@@ -237,7 +227,15 @@ groups:
           choices:
             - observe
             - subscribe
-
+      - name: interval
+        display: Collect interval
+        description: |-
+          Collect data interval in second
+        value: 10
+        hint:
+          type: integer
+          min: 1
+          max: 60
       - name: request_timeout
         display: Request Timeout
         description: Timeout for a request to endpoint in seconds
