@@ -35,6 +35,10 @@ gcc version - 9.3.1 or above;
 
 ## Installation
 
+**Note**
+
+Since TDengine 3.0.6.0, we don't provide standalone taosTools pacakge for downloading. However, all the tools included in the taosTools pacakge can be found in TDengine-server pacakge.
+
 <Tabs>
 <TabItem label=".deb" value="debinst">
 

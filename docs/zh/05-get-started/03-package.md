@@ -32,6 +32,10 @@ gcc 版本  - 9.3.1或以上;
 
 ## 安装
 
+**注意**
+
+从TDengine 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine-server 安装包中，如果需要请直接下载 TDengine -server 安装包。
+
 <Tabs>
 <TabItem label="Deb 安装" value="debinst">
 
