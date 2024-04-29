@@ -193,15 +193,16 @@ async fn post_json_data(
 }
 
 fn get_explore_version() -> String {
-    let mut version = "unknown".to_string();
-    let metadata = MetadataCommand::new().exec().unwrap();
-    for package in metadata.packages {
-        if package.name == "taos-explorer" {
-            version = package.version.to_string();
-            break;
-        }
-    }
-    version
+    // let mut version = "unknown".to_string();
+    // let metadata = MetadataCommand::new().exec().unwrap();
+    // for package in metadata.packages {
+    //     if package.name == "taos-explorer" {
+    //         version = package.version.to_string();
+    //         break;
+    //     }
+    // }
+    // version
+    "1.6.0".to_string()
 }
 
 #[derive(Serialize, Debug)]
