@@ -76,7 +76,7 @@ groups:
         description: >
           用于分段查询的时间间隔。
         required: false
-        placeholder: 1h
+        placeholder: 1d
         hint:
           type: duration
       - name: delay
@@ -84,7 +84,7 @@ groups:
         description: >
           用于同步未来时刻数据的等待时长。
         required: false
-        placeholder: 0s
+        placeholder: 10s
         hint:
           type: duration
 
