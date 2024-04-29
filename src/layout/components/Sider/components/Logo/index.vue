@@ -1,7 +1,7 @@
 <template>
   <div class="sidebar_logo_container">
-    <router-link :to="title?'/explorer':'/landing'">
-      <span v-if="title" :class="opened ? 'oem' : 'oem-none'">{{ title }}</span>
+    <router-link :to="isOem?'/explorer':'/landing'">
+      <span v-if="isOem" :class="opened ? 'oem' : 'oem-none'">{{ title }}</span>
       <template v-else>
         <img
           v-if="opened"
@@ -22,6 +22,7 @@ export default {
   data() {
     return {
       title: process.env.VUE_APP_CUS_NAME,
+      isOem: process.env.VUE_APP_CUS_NAME && process.env.VUE_APP_CUS_NAME !== "TDengine",
     };
   },
 };
