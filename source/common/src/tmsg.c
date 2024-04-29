@@ -1119,16 +1119,15 @@ int32_t tDeserializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
   int32_t nVgroup = 0;
   if (tDecodeI32(&decoder, &nVgroup) < 0) goto _exit;
   if (nVgroup > 0) {
-    pReq->pVloads = taosArrayInit(nVgroup, sizeof(SVnodeLoadLite));
+    pReq->pVloads = taosArrayInit_s(sizeof(SVnodeLoadLite), nVgroup);
     if (!pReq->pVloads) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
     for (int32_t i = 0; i < nVgroup; ++i) {
-      SVnodeLoadLite vload;
-      if (tDecodeI32(&decoder, &(vload.vgId)) < 0) goto _exit;
-      if (tDecodeI64(&decoder, &(vload.nTimeSeries)) < 0) goto _exit;
-      taosArrayPush(pReq->pVloads, &vload);
+      SVnodeLoadLite *vload = TARRAY_GET_ELEM(pReq->pVloads, i);
+      if (tDecodeI32(&decoder, &(vload->vgId)) < 0) goto _exit;
+      if (tDecodeI64(&decoder, &(vload->nTimeSeries)) < 0) goto _exit;
     }
   }
 

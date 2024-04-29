@@ -252,6 +252,14 @@ _OVER:
   return code;
 }
 
+int32_t dmGetDnodeSize(SDnodeData *pData) {
+  int32_t size = 0;
+  taosThreadRwlockRdlock(&pData->lock);
+  size = taosArrayGetSize(pData->dnodeEps);
+  taosThreadRwlockUnlock(&pData->lock);
+  return size;
+}
+
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
   taosThreadRwlockWrlock(&pData->lock);
   dDebug("new dnode list get from mnode, dnodeVer:%" PRId64, pData->dnodeVer);
