@@ -1150,6 +1150,23 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
 /*
    0
 */
+
+void* taskAcquireDb(int64_t refId) {
+  // acquire
+  void* p = taosAcquireRef(taskDbWrapperId, refId);
+  return p;
+}
+void taskReleaseDb(int64_t refId) {
+  // release
+  taosReleaseRef(taskDbWrapperId, refId);
+}
+
+int64_t taskGetDBRef(void* arg) {
+  if (arg == NULL) return -1;
+  STaskDbWrapper* pDb = arg;
+  return pDb->refId;
+}
+
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
@@ -2110,8 +2127,8 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
-  STaskDbWrapper* pDb = arg;
-  ECHECKPOINT_BACKUP_TYPE     utype = type;
+  STaskDbWrapper*         pDb = arg;
+  ECHECKPOINT_BACKUP_TYPE utype = type;
 
   if (utype == DATA_UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);

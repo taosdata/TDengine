@@ -24,6 +24,7 @@ typedef struct {
   int64_t                 chkpId;
 
   SStreamTask* pTask;
+  int64_t      dbRefId;
 } SAsyncUploadArg;
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
@@ -428,6 +429,14 @@ int32_t uploadCheckpointData(void* param) {
   SArray*          toDelFiles = taosArrayInit(4, sizeof(void*));
   char*            taskStr = arg->taskId ? arg->taskId : "NULL";
 
+  void* pBackend = taskAcquireDb(arg->dbRefId);
+  if (pBackend == NULL) {
+    stError("s-task:%s failed to acquire db", taskStr);
+    taosMemoryFree(arg->taskId);
+    taosMemoryFree(arg);
+    return -1;
+  }
+
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", taskStr, arg->chkpId);
@@ -442,6 +451,8 @@ int32_t uploadCheckpointData(void* param) {
     stError("s-task:%s failed to upload checkpoint:%" PRId64, taskStr, arg->chkpId);
   }
 
+  taskReleaseDb(arg->dbRefId);
+
   if (code == 0) {
     for (int i = 0; i < taosArrayGetSize(toDelFiles); i++) {
       char* p = taosArrayGetP(toDelFiles, i);
@@ -454,11 +465,11 @@ int32_t uploadCheckpointData(void* param) {
   }
 
   taosArrayDestroyP(toDelFiles, taosMemoryFree);
-
   taosRemoveDir(path);
   taosMemoryFree(path);
   taosMemoryFree(arg->taskId);
   taosMemoryFree(arg);
+
   return code;
 }
 
@@ -472,11 +483,17 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t chkpId, cha
     return 0;
   }
 
+  // void* p = taskAcquireDb(pTask->pBackend);
+  // if (p == NULL) {
+  //   return 0;
+  // }
+
   SAsyncUploadArg* arg = taosMemoryCalloc(1, sizeof(SAsyncUploadArg));
   arg->type = type;
   arg->taskId = taosStrdup(taskId);
   arg->chkpId = chkpId;
   arg->pTask = pTask;
+  arg->dbRefId = taskGetDBRef(pTask->pBackend);
 
   return streamMetaAsyncExec(pTask->pMeta, uploadCheckpointData, arg, NULL);
 }
