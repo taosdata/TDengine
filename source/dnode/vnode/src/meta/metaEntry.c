@@ -145,11 +145,11 @@ static int32_t tSchemaWrapperCloneDestroy(SSchemaWrapper *schema) {
 }
 
 static int32_t tTagClone(const STag *from, STag **to) {
-  *to = taosMemoryMalloc(sizeof(STag) + from->len);
+  *to = taosMemoryMalloc(from->len);
   if (*to == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  memcpy(*to, from, sizeof(STag) + from->len);
+  memcpy(*to, from, from->len);
   return 0;
 }
 
