@@ -2473,6 +2473,10 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
 }
 
 int tdbBtcClose(SBTC *pBtc) {
+  if (pBtc->freeTxn) {
+    tdbTxnClose(pBtc->pTxn);
+  }
+
   if (pBtc->iPage < 0) return 0;
 
   for (;;) {
@@ -2494,10 +2498,6 @@ int tdbBtcClose(SBTC *pBtc) {
     tdbDebug("tdb btc/close decoder: %p pVal free: %p", &pBtc->coder, pBtc->coder.pVal);
 
     tdbFree(pBtc->coder.pVal);
-  }
-
-  if (pBtc->freeTxn) {
-    tdbTxnClose(pBtc->pTxn);
   }
 
   return 0;
