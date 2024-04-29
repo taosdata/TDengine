@@ -97,21 +97,30 @@ pub async fn migrate_history(
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             }
         };
+
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        for consumer in consumers {
+            consumer.await??;
+        }
+
         tokio::select! {
             _ = future => {}
             _ = cancel.cancelled() => {}
         };
+    } else {
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        for consumer in consumers {
+            consumer.await??;
+        }
     }
-
-    // produce task
-    let producer = Producer::new(&config);
-    let _ = producer.produce(tx).await?;
-
-    // consumer join
-    for consumer in consumers {
-        consumer.await??;
-    }
-
     tracing::info!("migrate postgres finished");
     Ok(())
 }

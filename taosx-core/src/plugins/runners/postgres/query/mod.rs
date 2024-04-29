@@ -56,46 +56,26 @@ impl PostgresQuery {
         match ssl_mode.as_str() {
             "DISABLE" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Disable);
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             "ALLOW" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Allow);
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             "PREFER" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Prefer);
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             "REQUIRE" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::Require);
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             "VERIFY_CA" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::VerifyCa);
                 if let Some(ca) = ssl_ca {
                     options = options.ssl_root_cert(ca.as_str());
                 }
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             "VERIFY_FULL" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::VerifyFull);
@@ -108,14 +88,11 @@ impl PostgresQuery {
                 if let Some(key) = ssl_client_key {
                     options = options.ssl_client_key(key.as_str());
                 }
-                let pool = PgPool::connect_with(options).await?;
-                let _ = pool
-                    .execute(format!("SET timezone='{}';", time_zone).as_str())
-                    .await;
-                Ok(pool)
+                Ok(PgPool::connect_with(options).await?)
             }
             _ => Err(anyhow::anyhow!("unsupported ssl mode: {}", ssl_mode)),
         }
+        // TODO timezone
     }
 
     pub async fn select_one_for_schema(&mut self, sql: &str) -> anyhow::Result<Option<PgRow>> {
