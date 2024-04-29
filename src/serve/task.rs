@@ -496,7 +496,7 @@ pub(super) async fn get_task_metrics(
     let task = task_store.get(task_id).await;
     match task {
         Ok(Some(task)) => {
-            let metrics = try_get_metrics_from_task_detail(&task);
+            let metrics = try_get_metrics_from_task_detail(&task).await;
             match metrics {
                 Some(metrics) => {
                     let status: &Status = task.status();
@@ -524,7 +524,7 @@ pub(super) async fn get_tmq_task_vgroup_progress(
     let task = task_store.get(task_id).await;
     match task {
         Ok(Some(task)) => {
-            let metrics = try_get_metrics_from_task_detail(&task);
+            let metrics = try_get_metrics_from_task_detail(&task).await;
             match metrics {
                 Some(metrics) => match metrics.as_ref() {
                     CoreMetrics::TMQ(tmq_metrics) => tmq_metrics.get_progress_string(),
