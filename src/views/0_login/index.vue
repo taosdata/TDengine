@@ -477,6 +477,8 @@ export default {
           this.pageLoading = true;
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
+          this.registerValidateForm.taosd_version = localStorage.getItem('serverVersion') || '';
+
           const result = await getVerificationResult(this.registerValidateForm)
           if (result && result.code == 0) {
             switch (result.data) {
