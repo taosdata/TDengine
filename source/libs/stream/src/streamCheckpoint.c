@@ -483,11 +483,6 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t chkpId, cha
     return 0;
   }
 
-  // void* p = taskAcquireDb(pTask->pBackend);
-  // if (p == NULL) {
-  //   return 0;
-  // }
-
   SAsyncUploadArg* arg = taosMemoryCalloc(1, sizeof(SAsyncUploadArg));
   arg->type = type;
   arg->taskId = taosStrdup(taskId);
