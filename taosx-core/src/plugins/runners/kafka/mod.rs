@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use anyhow::bail;
 use arrow::array::{
-    ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder
+    ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
+    TimestampNanosecondBuilder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
