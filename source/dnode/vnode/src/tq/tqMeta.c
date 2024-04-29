@@ -499,7 +499,7 @@ int32_t tqMetaTransform(STQ* pTq) {
     code = -1;
     goto END;
   }
-  if(taosCopyFile(offset, offsetNew) < 0){
+  if(taosCheckExistFile(offset) && taosCopyFile(offset, offsetNew) < 0){
     tqError("copy offset file error");
     code = -1;
     goto END;
