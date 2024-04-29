@@ -209,7 +209,7 @@ struct RequestBodyReportVerificationStatus {
     code: String,
     #[serde(rename = "taosdVersion")]
     taosd_version: String,
-    #[serde(rename = "exploreVersion")]
+    #[serde(rename = "explorerVersion")]
     explorer_version: String,
 }
 
