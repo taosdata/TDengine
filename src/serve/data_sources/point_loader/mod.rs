@@ -495,9 +495,9 @@ pub async fn get_pi_default_config(
     tracing::debug!("params: {:?}", params);
     let update = params.update.unwrap_or(false);
     let file_name = match params.task_id {
-        Some(task_id) => format!("./files/default_pi_config_for_task_{}.txt", task_id),
+        Some(task_id) => format!("./files/default_pi_config_for_task_{}.csv", task_id),
         None => format!(
-            "./files/default_pi_config_{}.txt",
+            "./files/default_pi_config_{}.csv",
             chrono::Local::now().timestamp()
         ),
     };
@@ -538,7 +538,7 @@ pub async fn get_pi_default_config(
             _ => unimplemented!(),
         };
         // 保存原始 json 数据
-        std::fs::write(file_name.as_str().replace(".txt", ".json"), pi_data).unwrap();
+        std::fs::write(file_name.as_str().replace(".csv", ".json"), pi_data).unwrap();
         // 保存配置文件
         std::fs::write(file_name.as_str(), config_data).unwrap();
     }

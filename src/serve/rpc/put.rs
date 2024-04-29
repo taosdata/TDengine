@@ -458,7 +458,7 @@ impl PutStream {
                 .in_current_span()
                 .await
                 {
-                    tracing::warn!("IPC stream writer stopped, err:{:#?}", err);
+                    tracing::error!("IPC stream writer stopped, err:{:#?}", err);
                 }
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(

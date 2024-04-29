@@ -776,11 +776,12 @@ async fn consume_lush_record_with_transform(
                 if num_rows == 0 {
                     continue;
                 }
+                let table_name_col_name = lush_model_config.table_name_column.as_str();
                 // 只包含普通列的值
                 let values_record: &RecordBatch = record.record();
                 // tracing::debug!(?values_record, "values_record"); // debug
                 let table_name_column: &Arc<dyn Array> = values_record
-                    .column_by_name(lush_model_config.table_name_column.as_str())
+                    .column_by_name(table_name_col_name)
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
                 let table_name_column: &StringArray = table_name_column
                     .as_any()
@@ -796,45 +797,90 @@ async fn consume_lush_record_with_transform(
                 // 合并 RecordBatch
                 let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
                 // tracing::debug!(?concated_record, "concated_record"); // debug
-
-                let table_name: &str = table_name_column.value(0);
-                let parser: &transform::Parser =
-                    lush_model_config.config.get(table_name).ok_or_else(|| {
-                        anyhow!(
-                            "table_name {} not found in model_config",
-                            table_name.to_string()
-                        )
-                    })?;
-                tracing::debug!("parser: {}", serde_json::to_string(&parser).unwrap()); // debug
-                let parsed_message = lush_parser.transform_record_batch(&concated_record)?;
-                let message: transform::Message =
-                    parser.parse_message_from_records(&parsed_message).with_context(|| {
-                        format!(
-                            "lush_parser parse message from records failed, table_name: {}, parser: {}",
-                            table_name, serde_json::to_string(&lush_parser).unwrap()
-                        )
-                    })?;
-                match message {
-                    crate::plugins::transform::Message::Raw(_) => todo!(),
-                    crate::plugins::transform::Message::Tables(_) => todo!(),
-                    crate::plugins::transform::Message::ChildTables(_) => todo!(),
-                    crate::plugins::transform::Message::Records(message) => {
-                        *count += flat_write_with_sql(
-                            pool,
-                            taos,
-                            taos::Precision::Millisecond,
-                            &req_id,
-                            message,
-                            metrics,
-                        )
-                        .await?;
-                        metrics.add_processed_rows(num_rows as u64);
+                let sub_super_mapping: &HashMap<String, String> =
+                    &lush_model_config.sub_super_mapping;
+                let grouped_batches: LinkedHashMap<String, RecordBatch> = group_by_super_table_name(
+                    &concated_record,
+                    table_name_col_name,
+                    sub_super_mapping,
+                );
+                for (super_table, record_batch) in grouped_batches {
+                    let parser: &transform::Parser = lush_model_config
+                        .super_table_parsers
+                        .get(super_table.as_str())
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "super_table {} not found in model_config",
+                                super_table.to_string()
+                            )
+                        })?;
+                    tracing::debug!(
+                        "super_table: {},parser: {}",
+                        super_table,
+                        serde_json::to_string(&parser).unwrap()
+                    ); // debug
+                    let parsed_message = lush_parser.transform_record_batch(&record_batch)?;
+                    let message: transform::Message =
+                        parser.parse_message_from_records(&parsed_message).with_context(|| {
+                            format!(
+                                "lush_parser parse message from records failed, super_table: {}, parser: {}",
+                                super_table, serde_json::to_string(&lush_parser).unwrap()
+                            )
+                        })?;
+                    match message {
+                        crate::plugins::transform::Message::Raw(_) => todo!(),
+                        crate::plugins::transform::Message::Tables(_) => todo!(),
+                        crate::plugins::transform::Message::ChildTables(_) => todo!(),
+                        crate::plugins::transform::Message::Records(message) => {
+                            *count += flat_write_with_sql(
+                                pool,
+                                taos,
+                                taos::Precision::Millisecond,
+                                &req_id,
+                                message,
+                                metrics,
+                            )
+                            .await?;
+                            metrics.add_processed_rows(num_rows as u64);
+                        }
                     }
                 }
             }
         }
     }
     Ok(())
+}
+
+use arrow::compute::concat_batches;
+
+fn group_by_super_table_name(
+    records: &RecordBatch,
+    sub_table_name_col: &str,
+    sub_super_mapping: &HashMap<String, String>,
+) -> LinkedHashMap<String, RecordBatch> {
+    let table_name_column: &Arc<dyn Array> = records
+        .column_by_name(sub_table_name_col)
+        .expect("table_name_column not found");
+    let table_name_column: &StringArray = table_name_column
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    let schema = records.schema();
+    let mut grouped_batches: LinkedHashMap<String, RecordBatch> = LinkedHashMap::new();
+    for i in 0..records.num_rows() {
+        let table_name = table_name_column.value(i);
+        let super_table = sub_super_mapping.get(table_name).unwrap();
+        let new_record = records.slice(i, 1);
+        if grouped_batches.contains_key(super_table) {
+            let old_record_batch = grouped_batches.get(super_table).unwrap();
+            let new_record_batch =
+                concat_batches(&schema, vec![old_record_batch, &new_record]).unwrap();
+            grouped_batches.insert(super_table.to_string(), new_record_batch);
+        } else {
+            grouped_batches.insert(super_table.to_string(), new_record);
+        }
+    }
+    grouped_batches
 }
 
 fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch) -> RecordBatch {
@@ -3909,15 +3955,40 @@ pub async fn listen_tcp_socket(
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
 
-#[test]
-fn test_get_ts_from_sql() {
-    let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
-    let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
-    let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
-    let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(get_ts_from_sql(sql1), Some("123".to_string()));
-    assert_eq!(get_ts_from_sql(sql2), Some("456".to_string()));
-    assert_eq!(get_ts_from_sql(sql3), Some("789".to_string()));
-    assert_eq!(get_ts_from_sql(sql4), Some("101".to_string()));
+    #[test]
+    fn test_group_by_super_table_name() {
+        let table_name = StringArray::from(vec!["table1", "table2", "table3"]);
+        let sub_super_mapping: HashMap<String, String> = HashMap::from_iter(vec![
+            ("table1".to_string(), "super1".to_string()),
+            ("table2".to_string(), "super2".to_string()),
+            ("table3".to_string(), "super1".to_string()),
+        ]);
+        let schema = Schema::new(vec![Field::new("table_name", DataType::Utf8, true)]);
+        let record =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(table_name) as ArrayRef]).unwrap();
+        let grouped_batches = group_by_super_table_name(&record, "table_name", &sub_super_mapping);
+        assert_eq!(grouped_batches.len(), 2);
+        let record_batch = grouped_batches.get("super1").unwrap();
+        assert_eq!(record_batch.num_rows(), 2);
+        for (super_table_name, record) in grouped_batches {
+            println!("super_table_name: {}", super_table_name);
+            println!("record: {:?}", record);
+        }
+    }
+    #[test]
+    fn test_get_ts_from_sql() {
+        let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
+        let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
+        let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
+        let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
+
+        assert_eq!(get_ts_from_sql(sql1), Some("123".to_string()));
+        assert_eq!(get_ts_from_sql(sql2), Some("456".to_string()));
+        assert_eq!(get_ts_from_sql(sql3), Some("789".to_string()));
+        assert_eq!(get_ts_from_sql(sql4), Some("101".to_string()));
+    }
 }

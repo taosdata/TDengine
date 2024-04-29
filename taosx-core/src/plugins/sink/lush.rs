@@ -14,10 +14,12 @@ use taosx_ipc::stream::reader::LushInsertAttrs;
 pub struct LushModelConfig {
     /// The name of the column that represent sub-table name in the recived RecordBatch.
     pub table_name_column: String,
-    /// key: the value of sub-table name column.
-    /// For PI point model, the column is point_name;
-    /// For PI element model, the column is element_id;
-    pub config: HashMap<String, Parser>,
+    /// key:  super-table name .
+    /// value: parser for the super-table.
+    pub super_table_parsers: HashMap<String, Parser>,
+    /// key: sub-table name.
+    /// value: super-table name.
+    pub sub_super_mapping: HashMap<String, String>,
     pub table_tags: Arc<TableTagCache>,
 }
 
@@ -107,16 +109,20 @@ impl TryFrom<Dsn> for LushModelConfig {
 
 impl From<PIPointModelConfig> for LushModelConfig {
     fn from(config: PIPointModelConfig) -> Self {
-        let table_map: HashMap<String, SuperTableConfig> =
+        let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
-        let mut map: HashMap<String, Parser> = HashMap::new();
+        let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
+        for (super_table_name, config) in super_table_config.iter() {
+            super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
+        }
+        let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
         for point in config.points {
-            let super_table = table_map.get(point.super_table.as_str()).unwrap();
-            map.insert(point.point_name, super_table.to_owned().into());
+            sub_super_mapping.insert(point.point_name, point.super_table);
         }
         LushModelConfig {
             table_name_column: "point_name".to_string(),
-            config: map,
+            super_table_parsers: super_table_parsers,
+            sub_super_mapping: sub_super_mapping,
             table_tags: Arc::new(TableTagCache::new()),
         }
     }
@@ -124,16 +130,20 @@ impl From<PIPointModelConfig> for LushModelConfig {
 
 impl From<PIElementModelConfig> for LushModelConfig {
     fn from(config: PIElementModelConfig) -> Self {
-        let table_map: HashMap<String, SuperTableConfig> =
+        let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
-        let mut map: HashMap<String, Parser> = HashMap::new();
+        let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
+        for (super_table_name, config) in super_table_config.iter() {
+            super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
+        }
+        let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
         for element in config.elements {
-            let super_table = table_map.get(element.super_table.as_str()).unwrap();
-            map.insert(element.element_id.clone(), super_table.to_owned().into());
+            sub_super_mapping.insert(element.element_id, element.super_table);
         }
         LushModelConfig {
             table_name_column: "element_id".to_string(),
-            config: map,
+            super_table_parsers: super_table_parsers,
+            sub_super_mapping: sub_super_mapping,
             table_tags: Arc::new(TableTagCache::new()),
         }
     }
