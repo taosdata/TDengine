@@ -620,7 +620,7 @@ _exit:
   return (terrno = code);
 }
 
-static int32_t metaAddTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request) {
+static int32_t metaAddTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request, STableMetaRsp *response) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -663,6 +663,8 @@ static int32_t metaAddTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *
   };
   strcpy(schema->pSchema[schema->nCols - 1].name, request->colName);
 
+  metaUpdateMetaRsp(entry->uid, entry->name, schema, response);
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
@@ -670,7 +672,7 @@ _exit:
   return code;
 }
 
-static int32_t metaDropTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request) {
+static int32_t metaDropTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request, STableMetaRsp *response) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -706,6 +708,8 @@ static int32_t metaDropTableColumn(SMeta *meta, SMetaEntry *entry, SVAlterTbReq 
   memmove(schema->pSchema + i, schema->pSchema + i + 1, (schema->nCols - i - 1) * sizeof(SSchema));
   schema->nCols--;
 
+  metaUpdateMetaRsp(entry->uid, entry->name, schema, response);
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
@@ -713,7 +717,8 @@ _exit:
   return code;
 }
 
-static int32_t metaUpdateTableColumnBytes(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request) {
+static int32_t metaUpdateTableColumnBytes(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request,
+                                          STableMetaRsp *response) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -754,6 +759,8 @@ static int32_t metaUpdateTableColumnBytes(SMeta *meta, SMetaEntry *entry, SVAlte
   schema->version++;
   schema->pSchema[i].bytes = request->colModBytes;
 
+  metaUpdateMetaRsp(entry->uid, entry->name, schema, response);
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
@@ -761,7 +768,8 @@ _exit:
   return code;
 }
 
-static int32_t metaUpdateTableColumnName(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request) {
+static int32_t metaUpdateTableColumnName(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *request,
+                                         STableMetaRsp *response) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -789,6 +797,8 @@ static int32_t metaUpdateTableColumnName(SMeta *meta, SMetaEntry *entry, SVAlter
 
   schema->version++;
   strncpy(schema->pSchema[i].name, request->colNewName, TSDB_COL_NAME_LEN - 1);
+
+  metaUpdateMetaRsp(entry->uid, entry->name, schema, response);
 
 _exit:
   if (code) {
@@ -877,7 +887,8 @@ _exit:
   return code;
 }
 
-static int32_t metaValidateAlterTableReq(SMeta *meta, SVAlterTbReq *request, SMetaEntry **entry) {
+static int32_t metaValidateAlterTableReq(SMeta *meta, SVAlterTbReq *request, SMetaEntry **entry,
+                                         STableMetaRsp *response) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *value = NULL;
@@ -895,19 +906,19 @@ static int32_t metaValidateAlterTableReq(SMeta *meta, SVAlterTbReq *request, SMe
 
   if (request->action == TSDB_ALTER_TABLE_ADD_COLUMN) {
     // TSDB_NORMAL_TABLE
-    code = metaAddTableColumn(meta, *entry, request);
+    code = metaAddTableColumn(meta, *entry, request, response);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_DROP_COLUMN) {
     // TSDB_NORMAL_TABLE
-    code = metaDropTableColumn(meta, *entry, request);
+    code = metaDropTableColumn(meta, *entry, request, response);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES) {
     // TSDB_NORMAL_TABLE
-    code = metaUpdateTableColumnBytes(meta, *entry, request);
+    code = metaUpdateTableColumnBytes(meta, *entry, request, response);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME) {
     // TSDB_NORMAL_TABLE
-    code = metaUpdateTableColumnName(meta, *entry, request);
+    code = metaUpdateTableColumnName(meta, *entry, request, response);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (request->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
     // TSDB_CHILD_TABLE
@@ -935,7 +946,7 @@ int32_t metaAlterTable(SMeta *meta, int64_t version, SVAlterTbReq *request, STab
   SMetaEntry *entry = NULL;
 
   // validate
-  code = metaValidateAlterTableReq(meta, request, &entry);
+  code = metaValidateAlterTableReq(meta, request, &entry, response);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   ASSERT(version > entry->version);
