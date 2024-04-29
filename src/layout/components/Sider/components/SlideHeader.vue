@@ -10,7 +10,7 @@ import { Logo, MenuTrigger } from "./index.js";
 export default {
   data() {
     return {
-      isOem: process.env.VUE_APP_CUS_NAME !== "",
+      isOem: process.env.VUE_APP_CUS_NAME && process.env.VUE_APP_CUS_NAME !== "TDengine",
     };
   },
   components: { MenuTrigger, Logo },

@@ -31,7 +31,7 @@
     </section>
     <section v-else-if="active == 3" class="mt20">
       <p v-dompurify-html="$t('docs.taosxAgent.3')"></p>
-      <pre v-highlight><code>endpoint="{{ taoxAddress }}"
+      <pre v-highlight><code style="text-wrap: wrap;word-wrap:break-word">endpoint="{{ taoxAddress }}"
 token="{{ token }}"</code></pre>
       <p v-dompurify-html="$t('docs.taosxAgent.6',agentAddress)"></p>
     </section>
