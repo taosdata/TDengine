@@ -928,26 +928,26 @@ pub async fn get_table_progress(
 
     let (from_sql, to_sql) = if let Some(start) = start {
         if let Some(end) = end {
-            (format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
-            format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
+            (format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
+            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
         } else {
             (
                 format!(
-                    "SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
                 ),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
+                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
             )
         }
     } else {
         if let Some(end) = end {
             (
-                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
+                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
+                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
             )
         } else {
             (
-                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}`"),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}`"),
+                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
+                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
             )
         }
     };
