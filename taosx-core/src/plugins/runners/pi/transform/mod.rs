@@ -186,7 +186,7 @@ impl PIPointModelConfig {
                     schema.push(SchemaRow {
                         column_name: "element_paths".to_string(),
                         column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(100)".to_string(),
+                        column_data_type: "NCHAR(512)".to_string(),
                         column_map: "$element_paths".to_string(),
                     });
                 }
