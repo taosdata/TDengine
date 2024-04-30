@@ -1186,21 +1186,21 @@ export default {
       extractdesc: `<strong>taosX 目前支持 2 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
-      更详细解析规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#2-提取或拆分">企业版文档<a>。`,
       filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
       2. <strong>字符串类型</strong>：支持函数 <em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em> 等，例如 c.starts_with("taos")，可判断字段<em>c</em>是否以<em>taos</em>为前缀。<br/>
       3. <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
-      可使用 && 或 || 组合多个判断表达式，更详细过滤规则请访问<a href="/docs/enterprise/datain/transformation#filter">企业版文档<a>。`,
+      可使用 && 或 || 组合多个判断表达式，更详细过滤规则请访问<a href="/docs/enterprise/datain/transformer/#3-过滤">企业版文档<a>。`,
       expressiondesc: `<strong>taosX 支持映射表达式，将解析、提取、拆分的字段映射到目标超级表中</strong>：<br/>
       1. <strong>value</strong>：常量，例如 <em>1</em>、<em>"taos"</em>；<br/>
       2. <strong>expr</strong>：数学计算表达式，例如将摄氏度转为华氏度数值，可使用表达式 <em>centigrade * 1.8 + 32</em>；<br/>
       3. <strong>format</strong>：字符串格式化，使用占位符 <em>$\{\}</em> 来引用字段，例如 <em>$\{year\}-$\{month\}-$\{day\}</em> 可以格式为日期。<br/>
-      更详细映射规则请访问<a href="/docs/enterprise/datain/transformation#mapping">企业版文档<a>。`,
+      更详细映射规则请访问<a href="/docs/enterprise/datain/transformer/#4-映射">企业版文档<a>。`,
       subextractdesc: `<strong>taosX 目前支持以下 2 种规则</strong>：<br/>
       1. <strong>Split</strong>: 将一个字段分割为多个，需指定参数<strong>分隔符</strong>和<strong>拆分数量</strong>。例如字段<em>c</em>拆分为 2 个字段后，字段名为 <em>c_0</em>、<em>c_1</em>。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取 3 个字段 y、m 和 d。<br/>
-      更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformer/#2-提取或拆分">企业版文档<a>。`,
       uploadexe: "请上传csv文件并执行下一步操作",
       extractrule: {
         nofield: "未指定提取列名",
