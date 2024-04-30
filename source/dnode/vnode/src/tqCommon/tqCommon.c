@@ -764,13 +764,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int64_t el = taosGetTimestampMs() - st;
   tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el / 1000.);
 
-  code = streamMetaLoadAllTasks(pMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    tqError("vgId:%d failed to load stream tasks, code:%s", vgId, tstrerror(terrno));
-    streamMetaWUnLock(pMeta);
-    code = terrno;
-    return code;
-  }
+  streamMetaLoadAllTasks(pMeta);
 
   {
     STaskStartInfo* pStartInfo = &pMeta->startInfo;
