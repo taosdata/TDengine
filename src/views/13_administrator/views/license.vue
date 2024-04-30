@@ -211,10 +211,6 @@ export default {
       version_no_later_than_3230: false,
       version_greater_than_3300: false,
       version_greater_than_3301: false,
-      condition: {
-        v_3230: ['mysql', 'postgres', 'oracle'],
-        v_3300: ['oracle']
-      }
     };
   },
   computed: {
@@ -263,7 +259,7 @@ export default {
         if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3)){
           this.version_greater_than_3300 = true;
         }
-        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b >= 3 && c >=0 ) || (a == 3 && b >= 3 && c >=0 && d > 0)){
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b >= 3 && c >0 ) || (a == 3 && b >= 3 && c >=0 && d > 0)){
           this.version_greater_than_3301 = true;
         }
       } else {

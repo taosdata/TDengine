@@ -408,7 +408,7 @@ export default {
           this.requesting_q = true;
           let { table, timeRange } = this.formInline
           let params = 'table' + '=' + table
-          params += timeRange.length > 0 
+          params += timeRange && timeRange.length > 0 
             ? `&start=${encodeURIComponent(parsinginZone(timeRange[0]))}&end=${encodeURIComponent(parsinginZone(timeRange[1]))}`
             : ''
           let res = await getTableProgress(this.taskId,params)
