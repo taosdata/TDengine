@@ -250,7 +250,7 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
-int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
+int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 SSDataBlock* createDataBlock();
 void*        blockDataDestroy(SSDataBlock* pBlock);

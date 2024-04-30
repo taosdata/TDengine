@@ -2475,7 +2475,12 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
 }
 
 int tdbBtcClose(SBTC *pBtc) {
-  if (pBtc->iPage < 0) return 0;
+  if (pBtc->iPage < 0) {
+    if (pBtc->freeTxn) {
+      tdbTxnClose(pBtc->pTxn);
+    }
+    return 0;
+  }
 
   for (;;) {
     if (NULL == pBtc->pPage) {

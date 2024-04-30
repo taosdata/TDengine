@@ -56,6 +56,8 @@ If there are other TSMA created based on the TSMA being deleted, the delete oper
 ## TSMA Calculation
 The calculation result of TSMA is a super table in the same database as the original table, but it is not visible to users. It cannot be deleted and will be automatically deleted when `DROP TSMA` is executed. The calculation of TSMA is done through stream computing, which is a background asynchronous process. The calculation result of TSMA is not guaranteed to be real-time, but it can guarantee eventual correctness.
 
+If there is no data in the original subtable, the corresponding output subtable may not be created. Therefore, in count queries, even if `countAlwaysReturnValue` is configured, the result of this subtable will not be returned.
+
 When there is a large amount of historical data, after creating TSMA, the stream computing will first calculate the historical data. During this period, newly created TSMA will not be used. The calculation will be automatically recalculated when data updates, deletions, or expired data arrive. During the recalculation period, the TSMA query results are not guaranteed to be real-time. If you want to query real-time data, you can use the hint `/*+ skip_tsma() */` in the SQL statement or disable the `querySmaOptimize` parameter to query from the original data.
 
 ## Using and Limitations of TSMA
