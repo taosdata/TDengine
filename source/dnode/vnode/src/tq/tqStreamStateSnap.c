@@ -128,7 +128,6 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   int32_t             code = 0;
   SStreamStateWriter* pWriter;
 
-  char tdir[TSDB_FILENAME_LEN * 2] = {0};
   // alloc
   pWriter = (SStreamStateWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
@@ -139,15 +138,14 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  sprintf(tdir, "%s%s%s", pTq->pStreamMeta->path, TD_DIRSEP, VNODE_TQ_STREAM);
-  taosMkDir(tdir);
+  taosMkDir(pTq->pStreamMeta->path);
 
   SStreamSnapWriter* pSnapWriter = NULL;
-  if (streamSnapWriterOpen(pTq, sver, ever, tdir, &pSnapWriter) < 0) {
+  if (streamSnapWriterOpen(pTq, sver, ever, pTq->pStreamMeta->path, &pSnapWriter) < 0) {
     goto _err;
   }
 
-  tqDebug("vgId:%d, vnode %s snapshot writer opened, path:%s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER, tdir);
+  tqDebug("vgId:%d, vnode %s snapshot writer opened, path:%s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER, pTq->pStreamMeta->path);
   pWriter->pWriterImpl = pSnapWriter;
 
   *ppWriter = pWriter;
