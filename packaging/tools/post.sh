@@ -235,6 +235,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
+    ${csudo}rm -f ${bin_link_dir}/taos-explorer || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo || :
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
@@ -275,8 +276,8 @@ function install_bin() {
     if [ -x ${bin_dir}/taoskeeper ]; then
       ${csudo}ln -sf ${bin_dir}/taoskeeper ${bin_link_dir}/taoskeeper        2>>${install_log_path} || return 1
     fi
-    if [ -x ${bin_dir}/*explorer ]; then
-      ${csudo}ln -s ${bin_dir}/*explorer ${bin_link_dir}/*explorer           2>>${install_log_path} || return 1
+    if [ -x ${bin_dir}/taos-explorer ]; then
+      ${csudo}ln -s ${bin_dir}/taos-explorer ${bin_link_dir}/taos-explorer           2>>${install_log_path} || return 1
     fi
     log_print "install bin success"
 }
@@ -651,6 +652,11 @@ function install_service_on_launchctl() {
     ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist > /dev/null 2>&1 || :
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taoskeeper.plist /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
     ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
+  fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taos-explorer.plist ]; then
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taos-explorer.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taos-explorer.plist /Library/LaunchDaemons/com.taosdata.taos-explorer.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taos-explorer.plist || :
   fi
 }
 
