@@ -308,8 +308,9 @@ int32_t tsS3UploadDelaySec = 60;
 
 bool tsExperimental = true;
 
-int32_t tsMaxTsmaNum = 8;
+int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
+int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24; // in ms, default to 1d
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -568,6 +569,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
       0)
     return -1;
+  if (cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX, CFG_SCOPE_CLIENT,
+                  CFG_DYN_CLIENT) != 0)
+    return -1;
   return 0;
 }
 
@@ -748,7 +752,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 3, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1141,6 +1145,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMultiResultFunctionStarReturnTags = cfgGetItem(pCfg, "multiResultFunctionStarReturnTags")->bval;
   tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
+  tsmaDataDeleteMark = cfgGetItem(pCfg, "tsmaDataDeleteMark")->i32;
   return 0;
 }
 
@@ -1807,7 +1812,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"useAdapter", &tsUseAdapter},
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
-                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay}};
+                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);

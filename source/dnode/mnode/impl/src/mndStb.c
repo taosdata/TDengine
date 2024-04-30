@@ -4216,7 +4216,10 @@ static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pRsp) {
   SMnode                 *pMnode = pRsp->info.node;
   SVFetchTtlExpiredTbsRsp rsp = {0};
   SMndDropTbsWithTsmaCtx *pCtx = NULL;
-  if (pRsp->code != TSDB_CODE_SUCCESS) goto _end;
+  if (pRsp->code != TSDB_CODE_SUCCESS) {
+    terrno = pRsp->code;
+    goto _end;
+  }
   if (pRsp->contLen == 0) {
     code = 0;
     goto _end;

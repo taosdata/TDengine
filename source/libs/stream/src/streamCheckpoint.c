@@ -20,10 +20,12 @@
 
 typedef struct {
   ECHECKPOINT_BACKUP_TYPE type;
-  char*       taskId;
-  int64_t     chkpId;
+  char*                   taskId;
+  int64_t                 chkpId;
 
   SStreamTask* pTask;
+  int64_t      dbRefId;
+  void*        pMeta;
 } SAsyncUploadArg;
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
@@ -323,7 +325,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   taosThreadMutexLock(&p->lock);
 
   SStreamTaskState* pStatus = streamTaskGetStatus(p);
-  ETaskStatus prevStatus = pStatus->state;
+  ETaskStatus       prevStatus = pStatus->state;
 
   if (pStatus->state == TASK_STATUS__CK) {
     ASSERT(pCKInfo->checkpointId <= pCKInfo->checkpointingId && pCKInfo->checkpointingId == checkpointId &&
@@ -426,26 +428,37 @@ int32_t uploadCheckpointData(void* param) {
   char*            path = NULL;
   int32_t          code = 0;
   SArray*          toDelFiles = taosArrayInit(4, sizeof(void*));
+  char*            taskStr = arg->taskId ? arg->taskId : "NULL";
 
-  if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
+  void* pBackend = taskAcquireDb(arg->dbRefId);
+  if (pBackend == NULL) {
+    stError("s-task:%s failed to acquire db", taskStr);
+    taosMemoryFree(arg->taskId);
+    taosMemoryFree(arg);
+    return -1;
+  }
+
+  if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, ((SStreamMeta*)arg->pMeta)->bkdChkptMgt, arg->chkpId,
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
-    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
+    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", taskStr, arg->chkpId);
   }
   if (arg->type == DATA_UPLOAD_S3) {
     if (code == 0 && (code = getCheckpointDataMeta(arg->taskId, path, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
+      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", taskStr, arg->chkpId);
     }
   }
 
   if (code == 0 && (code = streamTaskBackupCheckpoint(arg->taskId, path)) != 0) {
-    stError("s-task:%s failed to upload checkpoint:%" PRId64, arg->pTask->id.idStr, arg->chkpId);
+    stError("s-task:%s failed to upload checkpoint:%" PRId64, taskStr, arg->chkpId);
   }
+
+  taskReleaseDb(arg->dbRefId);
 
   if (code == 0) {
     for (int i = 0; i < taosArrayGetSize(toDelFiles); i++) {
       char* p = taosArrayGetP(toDelFiles, i);
       code = deleteCheckpointFile(arg->taskId, p);
-      stDebug("s-task:%s try to del file: %s", arg->pTask->id.idStr, p);
+      stDebug("s-task:%s try to del file: %s", taskStr, p);
       if (code != 0) {
         break;
       }
@@ -453,12 +466,11 @@ int32_t uploadCheckpointData(void* param) {
   }
 
   taosArrayDestroyP(toDelFiles, taosMemoryFree);
-
   taosRemoveDir(path);
   taosMemoryFree(path);
-
   taosMemoryFree(arg->taskId);
   taosMemoryFree(arg);
+
   return code;
 }
 
@@ -477,6 +489,8 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t chkpId, cha
   arg->taskId = taosStrdup(taskId);
   arg->chkpId = chkpId;
   arg->pTask = pTask;
+  arg->dbRefId = taskGetDBRef(pTask->pBackend);
+  arg->pMeta = pTask->pMeta;
 
   return streamMetaAsyncExec(pTask->pMeta, uploadCheckpointData, arg, NULL);
 }
@@ -595,8 +609,8 @@ static int32_t uploadCheckpointToS3(char* id, char* path) {
 }
 
 static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
-  int32_t   code = 0;
-  char* buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  int32_t code = 0;
+  char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
   sprintf(buf, "%s/%s", id, fname);
   if (s3GetObjectToFile(buf, dstName) != 0) {
     code = -1;

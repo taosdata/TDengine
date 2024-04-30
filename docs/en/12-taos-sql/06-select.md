@@ -95,6 +95,7 @@ The list of currently supported Hints is as follows:
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
 | PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
 | SMALLDATA_TS_SORT| None             | When sorting the supertable rows by timestamp, if the length of query columns >= 256, and there are relatively few rows, this hint can improve performance. | Sorting the supertable rows by timestamp  |
+| SKIP_TSMA| None| To explicitly disable tsma optimization for select query|Select query with agg funcs|
 
 For example:
 

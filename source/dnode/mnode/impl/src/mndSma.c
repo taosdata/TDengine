@@ -1455,6 +1455,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->targetStbUid = 0;
   pCxt->pCreateStreamReq->fillNullCols = NULL;
   pCxt->pCreateStreamReq->igUpdate = 0;
+  pCxt->pCreateStreamReq->deleteMark = pCxt->pCreateSmaReq->deleteMark;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
   pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
