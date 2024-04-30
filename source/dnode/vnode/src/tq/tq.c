@@ -119,21 +119,25 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 }
 
 int32_t tqInitialize(STQ* pTq) {
-  if (tqMetaOpen(pTq) < 0) {
-    return -1;
-  }
-
-  pTq->pOffsetStore = tqOffsetOpen(pTq);
-  if (pTq->pOffsetStore == NULL) {
-    return -1;
-  }
-
   pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, -1);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
 
   if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
+    return -1;
+  }
+
+  if (tqMetaTransform(pTq) < 0) {
+    return -1;
+  }
+
+  if (tqMetaRestoreCheckInfo(pTq) < 0) {
+    return -1;
+  }
+
+  pTq->pOffsetStore = tqOffsetOpen(pTq);
+  if (pTq->pOffsetStore == NULL) {
     return -1;
   }
 

@@ -135,6 +135,7 @@ int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
+int32_t tqMetaTransform(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);

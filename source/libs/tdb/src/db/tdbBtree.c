@@ -274,6 +274,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   return 0;
 }
 
+#if 0
 int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn) {
   SBTC btc = {0};
   int  c;
@@ -317,6 +318,7 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
   tdbBtcClose(&btc);
   return 0;
 }
+#endif
 
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pBt, pKey, kLen, NULL, NULL, ppVal, vLen);
@@ -2489,6 +2491,10 @@ int tdbBtcClose(SBTC *pBtc) {
 
     pBtc->pPage = pBtc->pgStack[pBtc->iPage];
     pBtc->idx = pBtc->idxStack[pBtc->iPage];
+  }
+
+  if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
+    tdbFree(pBtc->coder.pKey);
   }
 
   if (TDB_CELLDECODER_FREE_VAL(&pBtc->coder)) {

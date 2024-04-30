@@ -51,7 +51,7 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
 
   SStreamSnapReader* pSnapReader = NULL;
 
-  if (streamSnapReaderOpen(meta, sver, chkpId, pTq->path, &pSnapReader) == 0) {
+  if (streamSnapReaderOpen(meta, sver, chkpId, meta->path, &pSnapReader) == 0) {
     pReader->complete = 1;
   } else {
     code = -1;
@@ -139,7 +139,7 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "received");
+  sprintf(tdir, "%s%s%s", pTq->pStreamMeta->path, TD_DIRSEP, "received");
   taosMkDir(tdir);
 
   SStreamSnapWriter* pSnapWriter = NULL;
