@@ -1264,7 +1264,8 @@ bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->status.timerActive >= 1) {
-      stDebug("s-task:%s in timer, blocking tasks in vgId:%d restart", pTask->id.idStr, pMeta->vgId);
+      stDebug("s-task:%s in timer, blocking tasks in vgId:%d restart, set closing again", pTask->id.idStr, pMeta->vgId);
+      streamTaskStop(pTask);
       inTimer = true;
     }
   }
