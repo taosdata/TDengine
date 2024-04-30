@@ -43,7 +43,8 @@ class StreamComputingPerfTest(TDCase):
         self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
         self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
         self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
-        
+        self.primary_key = True
+
     def get_batch_query_sql(self, ori_str, pos_str, str_add):
         str_list = ori_str.split(",")
         for i in str_list:
@@ -70,7 +71,7 @@ class StreamComputingPerfTest(TDCase):
                     ready_count = self._remote.cmd(self.fqdn, [f'taos -s "show dnodes" | grep {self.firstEp} | grep ready | wc -l'])
                 else:
                     return
-                
+
     def desc(self):
         pass
 
@@ -89,8 +90,8 @@ class StreamComputingPerfTest(TDCase):
         file_name = []
 
         test_root = os.environ['TEST_ROOT']
-        cfg = read_yaml(test_root + "/cases/Performance/stream_computing/count_window_interval.yaml")
-        
+        cfg = read_yaml(test_root + "/cases/Performance/stream_computing/insert.yaml")
+
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
         for cases in cfg:
@@ -155,6 +156,8 @@ class StreamComputingPerfTest(TDCase):
                                        insert_mode=cfg[cases][json_file]["stb_info"]["insert_mode"],
                                        interlace_rows=cfg[cases][json_file]["stb_info"]["interlace_rows"],
                                        line_protocol=cfg[cases][json_file]["stb_info"]["line_protocol"])
+                if self.primary_key:
+                    stb["primary_key"] = 1
                 database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
                 if "stream_info" in cfg[cases][json_file]:
                     if "watermark" in cfg[cases][json_file]["stream_info"]:
@@ -206,7 +209,8 @@ class StreamComputingPerfTest(TDCase):
                 self.tdSql.execute(f'drop table if exists {target_tb}')
             # self.tdCom.drop_all_db()
             self.tdCom.createDb(dbname=db['name'], vgroups=cfg[cases][json_file]["db_info"]["vgroups"], replica=cfg[cases][json_file]["db_info"]["replica"],  WAL_RETENTION_PERIOD=86400)
-            column_elm_list = [{"type": "int", "count": 2}, {"type": "double", "count": 2}, {"type": "timestamp", "count": 1}]
+            c0_val = "bigint primary key" if self.primary_key else "bigint"
+            column_elm_list = [{"type": c0_val, "count": 1}, {"type": "int", "count": 2}, {"type": "double", "count": 2}, {"type": "timestamp", "count": 1}]
             tag_elm_list = [{"type": "int", "count": 1}, {"type": "varchar", "count": 1, "len": 16}]
             self.tdCom.create_stable(dbname=db['name'], column_elm_list=column_elm_list, tag_elm_list=tag_elm_list, default_column_index_start_num=0, default_tag_index_start_num=0)
             if "stream_info" in cfg[cases][json_file]:
@@ -222,7 +226,7 @@ class StreamComputingPerfTest(TDCase):
             for query_data in self.tdSql.query_data:
                 if query_data[1] == "TIMESTAMP" and query_data[0] != "ts":
                     non_prikey_ts_col_name = query_data[0]
-            
+
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             # get insert result
             # Insert_file.full_create_tb_result(result_filename)
@@ -271,8 +275,6 @@ class StreamComputingPerfTest(TDCase):
                     time.sleep(1)
                     self.tdSql.query(query_sql)
                     expected_res = self.tdSql.query_data[0][0]
-                    
-                    
                     if latency < self.stream_timeout:
                         latency += 1
                         time.sleep(1)
@@ -286,7 +288,6 @@ class StreamComputingPerfTest(TDCase):
                 else:
                     f.write(str(0))
                 f.write(f'\n\n')
-                
                 f.write(f'--------{cases}---- sub_query row_count \t--------\n')
                 if "interval" not in cfg[cases][json_file]["stream_info"]["source_sql"]:
                     self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["db_info"]["db_name"]}.{cfg[cases][json_file]["stb_info"]["stb_name"]}')
