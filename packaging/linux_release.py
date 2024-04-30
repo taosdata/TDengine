@@ -194,7 +194,8 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     binary_file = os.path.join(explore_dir,"target",mode.lower(),"taos-explorer")
     os.chdir(top_dir)
     deploy_file = os.path.join(top_dir,"target","deploy","taos-explorer")
-    os.system(f"cargo make upx {binary_file} {deploy_file}")
+    # os.system(f"cargo make upx {binary_file} {deploy_file}")
+    shutil.copy2(binary_file, deploy_file)
 
     check_directory(dst_dir)
     shutil.copy(deploy_file, dst_dir)

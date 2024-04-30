@@ -526,7 +526,9 @@ def build_taos_explorer(explorer_path, mode):
     os.chdir(taosx_dir)
     binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer.exe")
     deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer.exe")
-    os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
+    # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
+    shutil.copy2(binary_file, deploy_file)
+
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer.exe")

@@ -413,7 +413,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx target/deploy/taosx
 else
-  upx_run "target/${profile}/taosx" "target/deploy/taosx"
+  cp target/${profile}/taosx target/deploy/taosx
 end
 """
 
@@ -427,7 +427,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx.exe target/deploy/taosx.exe
 else
-  upx_run "target/${profile}/taosx.exe" "target/deploy/taosx.exe"
+  cp target/${profile}/taosx.exe target/deploy/taosx.exe
 end
 """
 
@@ -441,7 +441,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent target/deploy/taosx-agent
 else
-  upx_run "target/${profile}/taosx-agent" "target/deploy/taosx-agent"
+  cp target/${profile}/taosx-agent target/deploy/taosx-agent
 end
 """
 
@@ -455,6 +455,6 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent.exe target/deploy/taosx-agent.exe
 else
-  upx_run "target/${profile}/taosx-agent.exe" "target/deploy/taosx-agent.exe"
+  cp target/${profile}/taosx-agent.exe target/deploy/taosx-agent.exe
 end
 """
