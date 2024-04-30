@@ -314,6 +314,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   if (streamMetaMayCvtDbFormat(pMeta) < 0) {
+    stError("vgId:%d convert sub info format failed, open stream meta failed", pMeta->vgId);
     goto _err;
   }
 
@@ -372,8 +373,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->numOfPausedTasks = 0;
   pMeta->numOfStreamTasks = 0;
-  stInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
-         stage);
+
+  stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
 
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
