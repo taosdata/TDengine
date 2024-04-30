@@ -1150,6 +1150,23 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
 /*
    0
 */
+
+void* taskAcquireDb(int64_t refId) {
+  // acquire
+  void* p = taosAcquireRef(taskDbWrapperId, refId);
+  return p;
+}
+void taskReleaseDb(int64_t refId) {
+  // release
+  taosReleaseRef(taskDbWrapperId, refId);
+}
+
+int64_t taskGetDBRef(void* arg) {
+  if (arg == NULL) return -1;
+  STaskDbWrapper* pDb = arg;
+  return pDb->refId;
+}
+
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();

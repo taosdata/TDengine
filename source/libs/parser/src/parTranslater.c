@@ -1054,9 +1054,9 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
 static bool hasPkInTable(const STableMeta* pTableMeta) {
   bool hasPK = pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
   if (hasPK) {
-    uInfo("has primary key, %s", pTableMeta->schema[1].name);
+    uDebug("has primary key, %s", pTableMeta->schema[1].name);
   } else {
-    uInfo("no primary key, %s", pTableMeta->schema[1].name);
+    uDebug("no primary key, %s", pTableMeta->schema[1].name);
   }
   return hasPK;
 }
@@ -9327,10 +9327,13 @@ static int32_t addSubtableNameToCreateStreamQuery(STranslateContext* pCxt, SCrea
   if (NULL == pStmt->pSubtable) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
   if (NULL == pSelect->pSubtable) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    if (NULL == pSelect->pSubtable) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
+
   SRewriteSubtableCxt cxt = {.pCxt = pCxt, .pPartitionList = pSelect->pPartitionByList};
   nodesRewriteExpr(&pSelect->pSubtable, rewriteSubtable, &cxt);
   return pCxt->errCode;
@@ -10928,7 +10931,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   pReq->intervalUnit = TIME_UNIT_MILLISECOND;
 
-#define TSMA_MIN_INTERVAL_MS 1                 // 1ms
+#define TSMA_MIN_INTERVAL_MS 1000 * 60         // 1m
 #define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000)  // 1h
   if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
     return TSDB_CODE_TSMA_INVALID_INTERVAL;
@@ -10989,6 +10992,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    pReq->deleteMark = convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
 

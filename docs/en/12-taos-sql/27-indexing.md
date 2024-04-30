@@ -28,9 +28,9 @@ In the function list, you can only specify supported aggregate functions (see be
 
 Since the output of TSMA is a super table, the row length of the output table is subject to the maximum row length limit. The size of the `intermediate results of different functions` varies, but they are generally larger than the original data size. If the row length of the output table exceeds the maximum row length limit, an error `Row length exceeds max length` will be reported. In this case, you need to reduce the number of functions or split commonly used functions groups into multiple TSMA objects.
 
-The window size is limited to [1ms ~ 1h]. The unit of INTERVAL is the same as the INTERVAL clause in the query, such as a (milliseconds), b (nanoseconds), h (hours), m (minutes), s (seconds), u (microseconds).
+The window size is limited to [1m ~ 1h]. The unit of INTERVAL is the same as the INTERVAL clause in the query, such as a (milliseconds), b (nanoseconds), h (hours), m (minutes), s (seconds), u (microseconds).
 
-TSMA is a database-level object, but it is globally unique. The number of TSMA that can be created in the cluster is limited by the parameter `maxTsmaNum`, with a default value of 8 and a range of [0-12]. Note that since TSMA background calculation uses stream computing, creating a TSMA will create a stream. Therefore, the number of TSMA that can be created is also limited by the number of existing streams and the maximum number of streams that can be created.
+TSMA is a database-level object, but it is globally unique. The number of TSMA that can be created in the cluster is limited by the parameter `maxTsmaNum`, with a default value of 3 and a range of [0-3]. Note that since TSMA background calculation uses stream computing, creating a TSMA will create a stream. Therefore, the number of TSMA that can be created is also limited by the number of existing streams and the maximum number of streams that can be created.
 
 ## Supported Functions
 | function |  comments |
@@ -44,7 +44,6 @@ TSMA is a database-level object, but it is globally unique. The number of TSMA t
 |count| If you want to use count(*), you should create the count(ts) function|
 |spread||
 |stddev||
-|hyperloglog||
 |||
 
 ## Drop TSMA
@@ -57,6 +56,8 @@ If there are other TSMA created based on the TSMA being deleted, the delete oper
 ## TSMA Calculation
 The calculation result of TSMA is a super table in the same database as the original table, but it is not visible to users. It cannot be deleted and will be automatically deleted when `DROP TSMA` is executed. The calculation of TSMA is done through stream computing, which is a background asynchronous process. The calculation result of TSMA is not guaranteed to be real-time, but it can guarantee eventual correctness.
 
+If there is no data in the original subtable, the corresponding output subtable may not be created. Therefore, in count queries, even if `countAlwaysReturnValue` is configured, the result of this subtable will not be returned.
+
 When there is a large amount of historical data, after creating TSMA, the stream computing will first calculate the historical data. During this period, newly created TSMA will not be used. The calculation will be automatically recalculated when data updates, deletions, or expired data arrive. During the recalculation period, the TSMA query results are not guaranteed to be real-time. If you want to query real-time data, you can use the hint `/*+ skip_tsma() */` in the SQL statement or disable the `querySmaOptimize` parameter to query from the original data.
 
 ## Using and Limitations of TSMA
@@ -64,6 +65,8 @@ When there is a large amount of historical data, after creating TSMA, the stream
 Client configuration parameter: `querySmaOptimize`, used to control whether to use TSMA during queries. Set it to `True` to use TSMA, and `False` to query from the original data.
 
 Client configuration parameter: `maxTsmaCalcDelay`, in seconds, is used to control the acceptable TSMA calculation delay for users. If the calculation progress of a TSMA is within this range from the latest time, the TSMA will be used. If it exceeds this range, it will not be used. The default value is 600 (10 minutes), with a minimum value of 600 (10 minutes) and a maximum value of 86400 (1 day).
+
+Client configuration parameter: `tsmaDataDeleteMark`, in milliseconds, consistent with the stream computing parameter `deleteMark`, is used to control the retention time of intermediate results in stream computing. The default value is 1 day, with a minimum value of 1 hour. Therefore, historical data that is older than the configuration parameter will not have the intermediate results saved in stream computing. If you modify the data within these time windows, the TSMA calculation results will not include the updated results. This means that the TSMA results will be inconsistent with querying the original data.
 
 ### Using TSMA Duraing Query
 
