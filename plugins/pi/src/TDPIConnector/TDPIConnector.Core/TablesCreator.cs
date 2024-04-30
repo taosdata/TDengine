@@ -88,17 +88,19 @@ namespace TDPIConnector.Core
             int checking = 0;
             foreach (var e in allElements) {
                 checking++;
-                string elePath = $"{e.GetPath()}\\{e.Name}";
+                string elementFullPath = $"{e.GetPath()}";
+                string[] parts = elementFullPath.Split('\\');
+                string elementPath = string.Join("\\", parts.Skip(4));
                 foreach (var attr in e.Attributes) {
                     if (attr.PIPoint != null) {
                         int pointID = attr.PIPoint.PointId;
                         if (!pointSet.Contains(pointID)) continue;
                         if (pointElementPath.ContainsKey(pointID))
                         {
-                            pointElementPath[pointID] += $"|{elePath}";
+                            pointElementPath[pointID] += $"|{elementPath}";
                         }
                         else {
-                            pointElementPath.Add(pointID, elePath);
+                            pointElementPath.Add(pointID, elementPath);
                         }
                     }
                 }
