@@ -576,6 +576,8 @@ static int32_t tsdbDoCompactAsync(void *arg) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
+
+    (void)tsdbCompactEnd(compactor);
   }
   tsdbRemoveCompMonitorTask(compactArg->tsdb, compactArg->taskid);
   return code;
