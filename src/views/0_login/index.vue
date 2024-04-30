@@ -478,6 +478,7 @@ export default {
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
           this.registerValidateForm.taosd_version = localStorage.getItem('serverVersion') || '';
+          this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
 
           const result = await getVerificationResult(this.registerValidateForm)
           if (result && result.code == 0) {
