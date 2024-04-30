@@ -131,7 +131,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
 
   // no checkpoint specified or not exists invalid checkpoint, do checkpoint at default path and translate it
   if (validChkp == 0) {
-    sprintf(tdir, "%s%s%s%s%s", path, TD_DIRSEP, "stream", TD_DIRSEP, "state");
+    sprintf(tdir, "%s%s%s", path, TD_DIRSEP, "state");
     char* chkpdir = taosMemoryCalloc(1, len + 256);
     sprintf(chkpdir, "%s%s%s", tdir, TD_DIRSEP, "tmp");
     taosMemoryFree(tdir);
