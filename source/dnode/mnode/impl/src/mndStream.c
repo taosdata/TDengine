@@ -1279,7 +1279,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
-    mError("stream:%s uid:0x%"PRIx64" failed to drop since %s", dropReq.name, terrstr());
+    mError("stream:%s uid:0x%"PRIx64" failed to drop since %s", dropReq.name, pStream->uid, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
     return -1;
