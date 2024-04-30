@@ -136,6 +136,7 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key);
 int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 
 STqOffsetStore* tqOffsetOpen(STQ* pTq);
+int32_t         tqMetaTransform(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);

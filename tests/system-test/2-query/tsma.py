@@ -1064,6 +1064,12 @@ class TDTestCase:
                     .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
                     .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.664').get_qc())
 
+        sql = f"SELECT avg(c1), avg(c2) FROM {db_name}.meters WHERE ts >= '2018-09-17 09:00:00.009' AND ts < '2018-09-17 10:23:19.665' PARTITION BY t5 INTERVAL(30m)"
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:29:59.999')
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:30:00', '2018-09-17 09:59:59.999')
+                    .should_query_with_table('meters', '2018-09-17 10:00:00.000', '2018-09-17 10:23:19.664').get_qc())
+
         sql = f"select avg(c1), avg(c2) from {db_name}.meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m, 25m) SLIDING(10m)"
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_table('meters', '2018-09-17 09:00:00.009', '2018-09-17 09:04:59.999')
