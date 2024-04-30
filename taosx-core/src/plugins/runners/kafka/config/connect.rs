@@ -123,8 +123,6 @@ mod tests {
 
     #[test]
     fn test_parse_certification() {
-        dbg!(std::env::current_dir().unwrap());
-
         let dsn = format!(
             "kafka://{}?use_ssl=true&ca={}&cert={}&cert_key={}",
             "127.0.0.1:9092",
