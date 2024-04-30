@@ -151,7 +151,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
-    if (useCompress(pMeta->tableType)) {
+    if (useCompress(pMeta->tableType) && pMeta->schemaExt) {
       if (i < pMeta->tableInfo.numOfColumns) {
         STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
         colDataSetVal(pCol5, pBlock->info.rows, buf, false);
@@ -201,7 +201,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType)) {
+    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType) && pDesc->pMeta.schemaExt) {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
     } else {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
@@ -569,7 +569,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    if (useCompress(pCfg->tableType)) {
+    if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
       sprintf(type + strlen(type), " ENCODE \'%s\'",
               columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
       sprintf(type + strlen(type), " COMPRESS \'%s\'",
