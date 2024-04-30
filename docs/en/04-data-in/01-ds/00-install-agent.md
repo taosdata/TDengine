@@ -11,8 +11,9 @@ You can install the connection agent as the following.
 
 ## Prerequisites
 
-- Ensure that your local machine is located on the same network as your data source machines, such as PI Data Archive and PI AF Server (optional).
+- Ensure that your local machine is located on the same network as your data source machines, such as your OPC-UA Server, PI Data Archive and/or PI AF Server.
 - Ensure that your local machine is running Linux or Windows.
+- If you are installing the agent for PI or PI Backfill data source, then the agent should only be installed on a machine running Windows. The agent will need need the [PI AF Client](https://docs.aveva.com/bundle/pi-server-af-install/page/1021902.html) installed. Before installing the agent please make sure that the PI AF Client is installed on the local machine.
 
 ## Create Agent
 
