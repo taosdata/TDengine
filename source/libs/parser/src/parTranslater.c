@@ -1054,9 +1054,9 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
 static bool hasPkInTable(const STableMeta* pTableMeta) {
   bool hasPK = pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
   if (hasPK) {
-    uInfo("has primary key, %s", pTableMeta->schema[1].name);
+    uDebug("has primary key, %s", pTableMeta->schema[1].name);
   } else {
-    uInfo("no primary key, %s", pTableMeta->schema[1].name);
+    uDebug("no primary key, %s", pTableMeta->schema[1].name);
   }
   return hasPK;
 }
@@ -9327,10 +9327,13 @@ static int32_t addSubtableNameToCreateStreamQuery(STranslateContext* pCxt, SCrea
   if (NULL == pStmt->pSubtable) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
   if (NULL == pSelect->pSubtable) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    if (NULL == pSelect->pSubtable) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
+
   SRewriteSubtableCxt cxt = {.pCxt = pCxt, .pPartitionList = pSelect->pPartitionByList};
   nodesRewriteExpr(&pSelect->pSubtable, rewriteSubtable, &cxt);
   return pCxt->errCode;

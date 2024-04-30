@@ -206,11 +206,11 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute  | Description                                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable | Server only                                                                                                                                                                                                                     |
+| Applicable | Server and Client                                                                                                                                                                                                                     |
 | Meaning    | count()/hyperloglog() return value or not if the input data is empty or NULL                                                                                                                                                    |
-| Vlue Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
+| Value Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
 | Default    | 1                                                                                                                                                                                                                               |
-| Notes      | When this parameter is setting to 1, for queries containing GROUP BY, PARTITION BY and INTERVAL clause, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values |
+| Notes      | When this parameter is setting to 1, for queries containing INTERVAL clause or the queries using TSMA, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values. Server and client use the same value|
 
 ### maxNumOfDistinctRes
 
