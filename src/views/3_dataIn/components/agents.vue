@@ -169,6 +169,7 @@
             size="mini"
             @click="edit(scope.row, scope.$index)"
             icon="el-icon-edit"
+            :disabled="$COMMUNITY"
           ></el-button>
           <!-- <el-button
             plain
@@ -187,6 +188,7 @@
             size="mini"
             @click="del(scope.row)"
             icon="el-icon-delete"
+            :disabled="$COMMUNITY"
           ></el-button>
         </template>
       </el-table-column>
