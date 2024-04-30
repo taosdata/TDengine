@@ -336,7 +336,7 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
     SRow* pNewRow = *(SRow**)TARRAY_GET_ELEM(pNew->aRowP, j);
     SRow* pOldRow = *(SRow**)TARRAY_GET_ELEM(pExisted->aRowP, k);
 
-    if (pNewRow->ts <= pOldRow->ts) {
+    if (pNewRow->ts < pOldRow->ts) {
       taosArrayPush(pFinal, &pNewRow);
       j += 1;
     } else if (pNewRow->ts > pOldRow->ts) {
