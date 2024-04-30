@@ -4,7 +4,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::bail;
 use arrow::array::{
     ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
     TimestampNanosecondBuilder,
@@ -41,29 +40,25 @@ mod config;
 pub const KAFKA_ID: &str = "kafka";
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let config = KafkaTaskConfig::from_dsn(dsn);
-    match config {
-        Err(err) => DataSourceValidation::invalid(
-            KAFKA_ID.to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
-        ),
-        Ok(c) => {
-            let client = build_client(c.connect.clone()).expect("Client creation failed");
-            let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
-            let result = consumer.fetch_metadata(None, Duration::from_secs(5));
-            match result {
-                Ok(_) => DataSourceValidation::valid(KAFKA_ID.to_string(), None),
-                Err(err) => DataSourceValidation::invalid(
-                    KAFKA_ID.to_string(),
-                    format!("failed to connect to kafka, cause: {}", err.to_string()),
-                ),
-            }
-        }
+    match is_valid_impl(dsn) {
+        Ok(()) => DataSourceValidation::valid(KAFKA_ID.to_string(), None),
+        Err(err) => DataSourceValidation::invalid(KAFKA_ID.to_string(), err.to_string()),
     }
+}
+
+fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
+    let config = KafkaTaskConfig::from_dsn(dsn)
+        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {}", dsn, err.to_string()))?;
+
+    let client_config = build_client_config(config.connect);
+    let consumer: BaseConsumer = client_config
+        .create()
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {}", err.to_string()))?;
+
+    let _metadata = consumer
+        .fetch_metadata(None, Duration::from_secs(5))
+        .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))?;
+    Ok(())
 }
 
 pub async fn kafka_to_taos(
@@ -264,7 +259,7 @@ struct SubTask {
 
 impl SubTask {
     pub fn from_kafka_config(config: KafkaTaskConfig) -> anyhow::Result<Vec<Self>> {
-        let client = build_client(config.connect.clone())?;
+        let client = build_client_config(config.connect.clone());
         // client.load_metadata_all()?;
 
         // create a base consumer
@@ -287,7 +282,7 @@ impl SubTask {
                 }
             });
         if topic_partitions.is_empty() {
-            bail!("no invalid topic, topics: {:?}", topics);
+            anyhow::bail!("no invalid topic, topics: {:?}", topics);
         }
 
         let mut concurrency = config
@@ -310,11 +305,7 @@ impl SubTask {
                 let mut parts = c.split(":");
                 let topic = parts.next().unwrap().to_string();
                 let partition = parts.next().unwrap().parse::<i32>().unwrap();
-                // if topic_partitions.contains_key(&topic) {
-                //     topic_partitions.get_mut(&topic).unwrap().push(partition);
-                // } else {
-                //     topic_partitions.insert(topic, vec![partition]);
-                // }
+
                 topic_partition_list.add_partition(topic.as_str(), partition);
             }
             tracing::info!(
@@ -322,14 +313,6 @@ impl SubTask {
                 index,
                 topic_partitions
             );
-
-            // let mut builder = consumer_builder(config.clone())?;
-            // for (topic, partitions) in topic_partitions {
-            //     builder = builder.with_topic_partitions(topic, partitions.as_slice());
-            // }
-            // let consumer = builder.create().map_err(|err| {
-            //     anyhow::format_err!("Kafka consumer-{} create error: {:?}", index, err)
-            // })?;
 
             let consumer = consumer_builder(config.clone())?;
             consumer
@@ -459,9 +442,9 @@ fn build_schema() -> Schema {
     schema
 }
 
-// A context can be used to change the behavior of producers and consumers by adding callbacks
-// that will be executed by librdkafka.
-// This particular context sets up custom callbacks to log rebalancing events.
+/// A context can be used to change the behavior of producers and consumers by adding callbacks
+/// that will be executed by librdkafka.
+/// This particular context sets up custom callbacks to log rebalancing events.
 struct CustomContext;
 
 impl ClientContext for CustomContext {}
@@ -484,7 +467,7 @@ impl ConsumerContext for CustomContext {
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
 fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
-    let mut client = build_client(config.connect.clone())?;
+    let mut client = build_client_config(config.connect.clone());
     // Client identifier, default "rdkafka".
     if config.client_id.is_some() {
         client.set("client.id", config.client_id.unwrap());
@@ -541,46 +524,47 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     Ok(consumer)
 }
 
-// use rdkafka::ClientConfig;
-fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
-    let mut client = ClientConfig::new();
+fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
+    let mut client_config = ClientConfig::new();
+
     // set bootstrap servers
-    client.set("bootstrap.servers", connect.bootstrap_servers.join(","));
+    client_config.set("bootstrap.servers", config.bootstrap_servers.join(","));
+
     // security.protocol: plaintext, ssl, sasl_plaintext, sasl_ssl
-    if connect.use_ssl && connect.use_sasl {
-        client.set("security.protocol", "sasl_ssl");
-    } else if connect.use_ssl {
-        client.set("security.protocol", "ssl");
-    } else if connect.use_sasl {
-        client.set("security.protocol", "sasl_plaintext");
-    } else {
-        client.set("security.protocol", "plaintext");
-    }
+    match (config.use_ssl, config.use_sasl) {
+        (true, true) => client_config.set("security.protocol", "sasl_ssl"),
+        (true, false) => client_config.set("security.protocol", "ssl"),
+        (false, true) => client_config.set("security.protocol", "sasl_plaintext"),
+        (false, false) => client_config.set("security.protocol", "plaintext"),
+    };
+
     // ssl settings
-    if connect.use_ssl {
-        if let Some(ca_cert) = connect.ca_cert {
-            client.set("ssl.ca.pem", ca_cert);
+    if config.use_ssl {
+        if let Some(ca_cert) = config.ca_cert {
+            client_config.set("ssl.ca.pem", ca_cert);
         }
-        if let Some(client_cert) = connect.client_cert {
-            client.set("ssl.certificate.pem", client_cert);
+        if let Some(client_cert) = config.client_cert {
+            client_config.set("ssl.certificate.pem", client_cert);
         }
-        if let Some(client_key) = connect.client_key {
-            client.set("ssl.key.pem", client_key);
+        if let Some(client_key) = config.client_key {
+            client_config.set("ssl.key.pem", client_key);
         }
     }
+
     // sasl settings
-    if connect.use_sasl {
-        if let Some(sasl_mechanism) = connect.sasl_mechanism {
-            client.set("sasl.mechanisms", sasl_mechanism);
+    if config.use_sasl {
+        if let Some(sasl_mechanism) = config.sasl_mechanism {
+            client_config.set("sasl.mechanisms", sasl_mechanism);
         }
-        if let Some(sasl_username) = connect.sasl_username {
-            client.set("sasl.username", sasl_username);
+        if let Some(sasl_username) = config.sasl_username {
+            client_config.set("sasl.username", sasl_username);
         }
-        if let Some(sasl_password) = connect.sasl_password {
-            client.set("sasl.password", sasl_password);
+        if let Some(sasl_password) = config.sasl_password {
+            client_config.set("sasl.password", sasl_password);
         }
     }
-    Ok(client.clone())
+
+    client_config
 }
 
 #[cfg(test)]
