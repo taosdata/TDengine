@@ -224,7 +224,7 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
     // kafka task config
     let config = KafkaTaskConfig::from_dsn(&from)?;
     // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::from_kafka_config(config)?;
+    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config)?;
     // polling from kafka and send to ipc writer
     let mut consumers = Vec::new();
     for (idx, task) in sub_tasks.into_iter().enumerate() {
@@ -258,31 +258,39 @@ struct SubTask {
 }
 
 impl SubTask {
-    pub fn from_kafka_config(config: KafkaTaskConfig) -> anyhow::Result<Vec<Self>> {
-        let client = build_client_config(config.connect.clone());
-        // client.load_metadata_all()?;
+    pub fn build_tasks(config: KafkaTaskConfig) -> anyhow::Result<Vec<Self>> {
+        let client_config = build_client_config(config.connect.clone());
 
         // create a base consumer
-        let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
+        let consumer: BaseConsumer = client_config.create().map_err(|err| {
+            anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string())
+        })?;
+
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .expect("Failed to fetch metadata");
+            .map_err(|err| {
+                anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string())
+            })?;
 
-        let topics = config.topics.clone();
         let mut topic_partitions: Vec<String> = Vec::new();
         metadata
             .topics()
             .iter()
             .filter(|tp| !tp.name().starts_with("__"))
-            .filter(|tp| topics.contains(&tp.name().to_string()))
+            .filter(|tp| config.topics.contains(&tp.name().to_string()))
             .for_each(|tp| {
-                for partition in tp.partitions() {
-                    topic_partitions.push(format!("{}:{}", tp.name(), partition.id()))
-                }
+                let topic_name = tp.name();
+                let partitions: Vec<String> = tp
+                    .partitions()
+                    .iter()
+                    .map(|partition| format!("{}:{}", topic_name, partition.id()))
+                    .collect();
+                topic_partitions.extend(partitions);
             });
+
         if topic_partitions.is_empty() {
-            anyhow::bail!("no invalid topic, topics: {:?}", topics);
+            anyhow::bail!("topics is empty");
         }
 
         let mut concurrency = config
@@ -354,7 +362,7 @@ async fn poll_message(
 
         let _ = consumer
             .stream()
-            .take(100)
+            .take(1)
             .for_each(|message| {
                 match message {
                     Err(e) => tracing::warn!("Kafka error: {}", e),
