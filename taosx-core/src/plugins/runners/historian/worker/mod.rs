@@ -348,7 +348,7 @@ fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{NaiveDateTime, TimeZone};
+    use chrono::TimeZone;
 
     use super::*;
 
@@ -356,7 +356,9 @@ mod tests {
     fn test_convert_datetime() {
         let ts_nano = 10_0000_0000_123_456_789;
 
-        let naive_datetime = NaiveDateTime::from_timestamp_micros(ts_nano / 1000).unwrap();
+        let naive_datetime = DateTime::from_timestamp_micros(ts_nano / 1000)
+            .unwrap()
+            .naive_utc();
 
         let datetime = Local::now().timezone().from_utc_datetime(&naive_datetime);
 
