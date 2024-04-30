@@ -25,6 +25,10 @@ struct STqOffsetStore {
 char* tqOffsetBuildFName(const char* path, int32_t fVer) {
   int32_t len = strlen(path);
   char*   fname = taosMemoryCalloc(1, len + 40);
+  if(fname == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   snprintf(fname, len + 40, "%s/offset-ver%d", path, fVer);
   return fname;
 }
