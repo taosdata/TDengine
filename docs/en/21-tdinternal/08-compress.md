@@ -1,6 +1,4 @@
-
 ---
-
 title: Configurable Column Compression
 description: Configurable column storage compression method
 ---
