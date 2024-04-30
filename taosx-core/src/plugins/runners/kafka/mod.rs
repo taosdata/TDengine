@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use anyhow::bail;
 use arrow::array::{
-    BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
+    ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
+    TimestampNanosecondBuilder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
@@ -387,35 +388,39 @@ async fn poll_message(
 
         let _ = consumer
             .stream()
-            .take(1)
+            .take(100)
             .for_each(|message| {
                 match message {
                     Err(e) => tracing::warn!("Kafka error: {}", e),
                     Ok(m) => {
-                        let payload = match m.payload_view::<str>() {
-                            None => "",
-                            Some(Ok(s)) => s,
+                        match m.payload_view::<str>() {
+                            None => {}
+                            Some(Ok(s)) => {
+                                // if let Some(headers) = m.headers() {
+                                //     for header in headers.iter() {
+                                //         tracing::info!(
+                                //             "Header {:#?}: {:?}",
+                                //             header.key,
+                                //             header.value
+                                //         );
+                                //     }
+                                // }
+                                timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                                topic.append_value(m.topic());
+                                partition.append_value(m.partition());
+                                offset.append_value(m.offset());
+                                key.append_value(m.key().unwrap_or(&[]));
+                                value.append_value(s);
+                                // commit offset
+                                consumer.commit_message(&m, CommitMode::Async).unwrap();
+                            }
                             Some(Err(e)) => {
                                 tracing::warn!(
                                     "Error while deserializing message payload: {:?}",
                                     e
                                 );
-                                ""
                             }
                         };
-                        if let Some(headers) = m.headers() {
-                            for header in headers.iter() {
-                                tracing::info!("Header {:#?}: {:?}", header.key, header.value);
-                            }
-                        }
-                        timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
-                        topic.append_value(m.topic());
-                        partition.append_value(m.partition());
-                        offset.append_value(m.offset());
-                        key.append_value(m.key().unwrap_or(&[]));
-                        value.append_value(payload);
-                        // commit offset
-                        consumer.commit_message(&m, CommitMode::Async).unwrap();
                     }
                 };
                 future::ready(())
@@ -435,6 +440,17 @@ async fn poll_message(
         //     }
         //     consumer.consume_messageset(ms)?;
         // }
+
+        if value.is_empty() {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let now = chrono::Utc::now().timestamp_millis();
+            if timeout >= 0 && now - last_polling > timeout {
+                tracing::info!("Kafka consumer-{} polling timeout", index);
+                break;
+            } else {
+                continue;
+            }
+        }
 
         let batch = RecordBatch::try_new(
             Arc::new(schema.clone()),
@@ -738,5 +754,20 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!(KAFKA_ID, dsv.data_source);
         assert_eq!(None, dsv.version);
+    }
+
+    #[test]
+    fn test_build_client() {
+        let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=/data/ypzhang/kafka-ca/ca.pem&cert=/data/ypzhang/kafka-ca/client.pem&cert_key=/data/ypzhang/kafka-ca/client-key.pem&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
+        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+        let client = build_client(config).unwrap();
+
+        assert_eq!(
+            "192.168.2.19:9093",
+            client.get("bootstrap.servers").unwrap()
+        );
+
+        let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
+        let result = consumer.fetch_metadata(None, Duration::from_secs(5));
     }
 }

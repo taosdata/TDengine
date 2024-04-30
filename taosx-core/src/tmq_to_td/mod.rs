@@ -916,6 +916,7 @@ pub async fn get_table_progress(
     let (from_db, table) = table
         .split_once('.')
         .ok_or(anyhow!("Invalid table format"))?;
+    from.subject.replace(from_db.to_string());
     let to: Dsn = to.parse()?;
     let to_db = to
         .subject
@@ -924,6 +925,7 @@ pub async fn get_table_progress(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
     let from_taos = from_builder.build().await?;
+    from_taos.use_database(from_db).await?;
     let to_taos = to_builder.build().await?;
 
     let (from_sql, to_sql) = if let Some(start) = start {
