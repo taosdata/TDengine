@@ -6041,7 +6041,7 @@ static EDealRes tsmaOptTagCheck(SNode* pNode, void* pContext) {
       STsmaOptTagCheckCtx* pCtx = pContext;
       for (int32_t i = 0; i < pCtx->pTsma->pTags->size; ++i) {
         SSchema* pSchema = taosArrayGet(pCtx->pTsma->pTags, i);
-        if (pSchema->colId == pCol->colId) {
+        if (strcmp(pSchema->name, pCol->colName) == 0) {
           found = true;
         }
       }
