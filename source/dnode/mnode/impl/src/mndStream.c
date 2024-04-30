@@ -1513,7 +1513,9 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     // checkpoint interval
     char tmp[20 + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tmp, "none")
+    sprintf(varDataVal(tmp), "%d sec", tsStreamCheckpointInterval);
+    varDataSetLen(tmp, strlen(varDataVal(tmp)));
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)tmp, false);
 
