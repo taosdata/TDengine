@@ -388,7 +388,7 @@ async fn poll_message(
 
         let _ = consumer
             .stream()
-            .take(100)
+            .take(1)
             .for_each(|message| {
                 match message {
                     Err(e) => tracing::warn!("Kafka error: {}", e),
@@ -756,18 +756,18 @@ mod tests {
         assert_eq!(None, dsv.version);
     }
 
-    #[test]
-    fn test_build_client() {
-        let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=/data/ypzhang/kafka-ca/ca.pem&cert=/data/ypzhang/kafka-ca/client.pem&cert_key=/data/ypzhang/kafka-ca/client-key.pem&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
-        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client = build_client(config).unwrap();
+    // #[test]
+    // fn test_build_client() {
+    //     let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=/data/ypzhang/kafka-ca/ca.pem&cert=/data/ypzhang/kafka-ca/client.pem&cert_key=/data/ypzhang/kafka-ca/client-key.pem&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
+    //     let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+    //     let client = build_client(config).unwrap();
 
-        assert_eq!(
-            "192.168.2.19:9093",
-            client.get("bootstrap.servers").unwrap()
-        );
+    //     assert_eq!(
+    //         "192.168.2.19:9093",
+    //         client.get("bootstrap.servers").unwrap()
+    //     );
 
-        let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
-        let result = consumer.fetch_metadata(None, Duration::from_secs(5));
-    }
+    //     let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
+    //     let result = consumer.fetch_metadata(None, Duration::from_secs(5));
+    // }
 }
