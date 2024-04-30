@@ -311,7 +311,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random"):
         self.clean_env()
         self.dataDict = {
             "stb_name" : f"{self.case_name}_stb",
@@ -366,8 +366,12 @@ class StreamComputingTest(TDCase):
         if fill_history_value == 1:
             for i in range(self.range_count):
                 ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
+                # if self.pk_test:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col, pk_dict=self.pk_dict)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col, pk_dict=self.pk_dict)
+                # else:
+                #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, constant_col=constant_col, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, constant_col=constant_col, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 # if ignore_expired is not None:
                 #     self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=ts_value, constant_col=constant_col)
                 if i == 1:
