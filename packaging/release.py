@@ -519,16 +519,21 @@ def build_taos_explorer(explorer_path, mode):
     copy_docs_to_explorer(explorer_path)
     os.chdir(explorer_path)
     os.system('yarn install')
+    explorer_exe_path = os.path.join(taosx_dir, "target", "deploy")
+    check_directory(explorer_exe_path)
     if release_info.OS.lower() == 'windows':
         os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&yarn build:bin')
+        os.chdir(taosx_dir)
+        binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer.exe")
+        deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer.exe")
+        # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
+        shutil.copy2(binary_file, deploy_file)
     else:
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} yarn build:bin')
-    os.chdir(taosx_dir)
-    binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer.exe")
-    deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer.exe")
-    # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
-    shutil.copy2(binary_file, deploy_file)
-
+        binary_file = os.path.join(explorer_path, "target", mode.lower(), "taos-explorer")
+        deploy_file = os.path.join(taosx_dir,"target","deploy","taos-explorer")
+        # os.system(f"cargo make upx \"{binary_file}\" \"{deploy_file}\"")
+        shutil.copy2(binary_file, deploy_file)
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer.exe")
