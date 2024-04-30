@@ -88,7 +88,7 @@
             min-width="130"
           >
           <template slot-scope="{ row }">
-            <span>{{ formatDuration(row.to_last_ts - row.from_last_ts, row.from_last_ts, row.to_last_ts ) || 0 }}</span>
+            <span>{{ formatDuration(row.from_last_ts - row.to_last_ts, row.from_last_ts, row.to_last_ts ) || 0 }}</span>
           </template>
           </el-table-column>
           <el-table-column
@@ -303,7 +303,7 @@ export default {
       }
 
       if (from_last_ts && from_last_ts.toString().length > 13 && from_last_ts.toString().length <= 16) {
-        let diffMicroseconds = to_last_ts - from_last_ts;
+        let diffMicroseconds = from_last_ts - to_last_ts;
         diffMicroseconds = diffMicroseconds % 1000;
         if (diffMicroseconds > 0) {
           formattedDuration += diffMicroseconds + this.$t('microseconds')
@@ -311,7 +311,7 @@ export default {
       }
 
       if (from_last_ts && from_last_ts.toString().length >=19) {
-        let diffNanoseconds = to_last_ts - from_last_ts;
+        let diffNanoseconds = from_last_ts - to_last_ts;
         diffNanoseconds = diffNanoseconds % 1000000;
         if (diffNanoseconds > 0) {
           formattedDuration += diffNanoseconds + this.$t('nanoseconds')
