@@ -166,7 +166,7 @@ class CompactTest(TDCase):
 
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
             self.childtable_count = 1000
-            self.stage_rows = 3000
+            self.stage_rows = 3000 if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else 2000
 
     def insert_fh_data(self, dbname):
         if dbname == self.dbname2:
@@ -523,7 +523,7 @@ class CompactTest(TDCase):
             self.insert_fh_data(self.dbname1)
             self.insert_base_data(self.dbname1)
             self.alter_db_keep_param()
-            self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
+            self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[]) if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else None
             self.cal_compact_resource()
             self.compact_multi_dbs()
         else:

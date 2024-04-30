@@ -11,7 +11,7 @@ fi
 
 # work main path
 TDENGINE_DIR=/root/TDinternal/community
-TAOSTEST_ROOT=/root/taostest
+TAOSTEST_ROOT=/root/taos-test-framework
 TESTNG_ROOT=/root/TestNG
 TAOSTEST_BRANCH=master
 TESTNG_BRANCH=master
@@ -165,6 +165,7 @@ function runTestNGCases() {
     runtime=`date +"%Y%m%d_%H_%M_%S"`
     /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_insert_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-insert_$runtime  -d debug  -o 12000 -f False
     /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_query.json -t $TEST_ROOT/scripts/coverage/cases_query_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-query_$runtime  -d debug  -o 12000 -f False
+    /root/TestNG/scripts/run.sh -m $TEST_ROOT/scripts/coverage/m_insert.json -t $TEST_ROOT/scripts/coverage/cases_cluster_coverage.txt -l $TEST_ROOT/testnglog/FullTest-3.0-cluster_$runtime  -d debug  -o 1800 -f False
     stopTaosd
 }
 
@@ -185,8 +186,6 @@ function runPythonCases() {
     runCasesOneByOne ../parallel_test/cases.task system-test
 
     # taostest
-    # cd /root && bash taostest.sh
-    # /root/TestNG/scripts/run.sh -m /home/m.json -t /root/TestNG/scripts/cases_query_replica1.txt -l /root/TestNG/testnglog/FullTest-3.0-query_001  -d debug  -o 12000  -w http://192.168.1.64:8081/testnglog/FullTest-3.0-query_001 -f True
     runTestNGCases
     # develop-test
     cd $TDENGINE_DIR/tests/develop-test

@@ -1086,8 +1086,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query("desc `1000E0DC000124`")
         if self.tdSql.query_data[-1] == ('_tag_null', 'NCHAR', 1, 'TAG'):
             self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG'))
-        elif self.tdSql.query_data[-1] == ('_tag_null', 'NCHAR', 1, 'TAG', ''):
-            self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG', ''))
+        elif self.tdSql.query_data[-1] == ('_tag_null', 'NCHAR', 1, 'TAG', '', '', ''):
+            self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG', '', '', ''))
         else:
             raise Exception
 
@@ -1303,8 +1303,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #             ]
 
     def run(self):
-        self.test()
-        return
+        #self.test()
+        ##return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()

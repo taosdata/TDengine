@@ -112,7 +112,7 @@ class VnodeRedistribute(TDCase):
         self.cluster_to_redistribute_list = list()
         self.use_stream = True
         self.stream_drop_after_test = False
-        self.use_tmq = True
+        self.use_tmq = True if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else False
         self.tmq_status = 0
         self.consumer_ip = self.taosd_setting["spec"]["config"]["firstEP"].split(":")[0]
         self.queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
@@ -135,7 +135,7 @@ class VnodeRedistribute(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
-            self.insert_rows = 30000
+            self.insert_rows = 30000 if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else 3000
             self.thread_count = 20
             self.trying_interval = 30000
             self.reserve_dnode_list = [self.taosd_setting["spec"]["reserve_dnodes"][0]] if self.replica == 1 else self.taosd_setting["spec"]["reserve_dnodes"]

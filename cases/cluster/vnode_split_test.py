@@ -105,7 +105,7 @@ class VnodeSplit(TDCase):
         self.loop_split_times = 1
         # * not support
         self.use_stream = False
-        self.use_tmq = True
+        self.use_tmq = True if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else False
         self.tmq_status = 0
         self.consumer_ip = self.taosd_setting["spec"]["config"]["firstEP"].split(":")[0]
         self.queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
@@ -129,7 +129,7 @@ class VnodeSplit(TDCase):
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
             self.fill_history_rows = 5000
-            self.insert_rows = 10000
+            self.insert_rows = 10000 if "TAOSTEST_COVERAGE_ENABLED" not in os.environ else 3000
             self.thread_count = 20
             self.trying_interval = 30000
             self.childtable_count = 2500

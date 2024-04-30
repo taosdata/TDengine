@@ -1,12 +1,12 @@
 settings:
   - name: taosd
-    fqdn: [u1-60]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: u1-60:6030
+        firstEP: localhost:6030
       dnodes:
-        - endpoint: u1-60:6030
+        - endpoint: localhost:6030
           config_dir: /root/jayden/config/dnode1
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -21,7 +21,7 @@ settings:
             numOfLogLines: 2000000000
             checkpointInterval: 60
       reserve_dnodes:
-        - endpoint: u1-60:6031
+        - endpoint: localhost:6031
           config_dir: /root/jayden/config/dnode2
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -36,22 +36,22 @@ settings:
             numOfLogLines: 2000000000
             checkpointInterval: 60
   - name: taosBenchmark
-    fqdn: [u1-60]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0
       taos_version: 3.0.0.0
       config_dir: /etc/taos
       taos_config:
-        firstEP: u1-60:6030
+        firstEP: localhost:6030
         logDir: /var/log/taos
         debugFlag: 131
   - name: taospy
-    fqdn: [u1-60]
+    fqdn: [localhost]
     spec:
       version: 3.0.0.0
       client_version: 3.0.0.0
       config:
-        firstEP: u1-60:6030
+        firstEP: localhost:6030
         dataDir: /var/lib/taos
         logDir: /var/log/taos
         debugFlag: 131

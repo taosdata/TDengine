@@ -1,59 +1,61 @@
-taostest --setup=cluster/stream_snapshot.yaml --case=stream_computing/stream_snapshot.py
-taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py
-taostest --setup=common_insert.yaml --case=taosc_insert/alter_table.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/delete_data.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/alter_insert.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/auto_create_table.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/batch_insert.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/bool_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/child_tb_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_buffer.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_cachelast.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_comp.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_duration.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_fsync.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_maxrows.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_minrows.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_ntables.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_pages.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_pagesize.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_precision.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_replica.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_single_stable.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_vgroups.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_wal.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/disorder_insert.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/specified_column_insert.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/stable_param_comment.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/stb_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/tag_col_limit_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/tb_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/timestamp_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep
-taostest --use=common_insert.yaml --case=taosc_insert/str_type_boundary_check.py --keep
-taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep
-taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep
-taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2910.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2912.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2918.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2919.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2920.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts2989.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts3090.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts3099.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts3159.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts3236.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts3948.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts4001.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_td28032.py --keep
-taostest --use=common_insert.yaml --case=bug_regression/bug_ts4556.py --keep
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/count_window.py --keep
+taostest --setup=cluster/stream_snapshot.yaml --case=stream_computing/stream_snapshot.py --coverage --disable_collection
+taostest --setup=coverage_test.yaml --case=stream_computing/stream_computing_test.py --coverage --disable_collection
+taostest --setup=coverage_test.yaml --case=taosc_insert/alter_table.py --coverage  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/delete_data.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/alter_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/auto_create_table.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/batch_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/bool_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/child_tb_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_buffer.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_cachelast.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_comp.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_duration.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_fsync.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_maxrows.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_minrows.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_ntables.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_pages.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_pagesize.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_precision.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_replica.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_single_stable.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_vgroups.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_wal.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/db_param_keep.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/disorder_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/double_boundary_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/error_insert_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/float_boundary_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/illegal_type_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/multi_table_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/specified_column_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/stable_param_comment.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/stb_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/tag_col_limit_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/tb_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/timestamp_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/null_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/numeric_type_boundary_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=taosc_insert/str_type_boundary_check.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts2910.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts2912.py  --keep --disable_collection
+taostest --setup=coverage_test.yaml --case=bug_regression/bug_ts2918.py --coverage  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts2919.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts2920.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts2989.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts3090.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts3099.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts3159.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts3236.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts3948.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts4001.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_td28032.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=bug_regression/bug_ts4556.py  --keep --disable_collection
+taostest --use=coverage_test.yaml --case=Query/queryscript/stable_query/count_window.py  --keep --disable_collection
+
+
