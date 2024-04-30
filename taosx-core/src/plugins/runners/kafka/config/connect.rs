@@ -83,6 +83,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_from_dsn() {
+        let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=@./files/1714353700398/cert-file-signed&cert=@./files/1714353700401/ca-cert&cert_key=@./files/1714353700402/ca-key&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
+        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+
+        dbg!(&config);
+    }
+
+    #[test]
     fn test_parse_bootstrap_servers() {
         let dsn = Dsn::from_str("kafka://localhost:9092,192.168.1.92:9092").unwrap();
         let bootstrap_servers = KafkaConnectConfig::parse_bootstrap_servers(&dsn).unwrap();
