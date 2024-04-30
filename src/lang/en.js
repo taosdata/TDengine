@@ -1402,21 +1402,21 @@ export default {
       extractdesc: `<strong style='paddingRight: 20px'>taosX supports two kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit">the enterprise version documentation</a>.`,
+      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit" target="_blank">the enterprise version documentation</a>.`,
       subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit">the enterprise version documentation</a>.`,
+      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit" target="_blank">the enterprise version documentation</a>.`,
       filterdesc: `<strong>Only rows with a filtering expression of true are written to TDengine:</strong><br/>
       1. <strong>Bool type</strong> can directly use variable names of BOOL type as expressions.<br/>
       2. <strong>String type</strong> supports functions such as is_empty, contains, start_with, ends_with, etc. For example, <em>c.start_with("taos")</em> can be used to determine whether field c is prefixed with <em>taos</em>.<br/>
       3. <strong>Numerical types</strong> support ==, !=, >, >=, <, <=, etc for comparison operator.<br/>
-      Multiple expressions</strong> can be combined with logical operators <em>&&</em> or <em>||</em>. For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#3-filter">the enterprise version documentation</a>.`,
+      Multiple expressions</strong> can be combined with logical operators <em>&&</em> or <em>||</em>. For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#3-filter" target="_blank">the enterprise version documentation</a>.`,
       expressiondesc: `<strong>taosX supports mapping expressions to map parsed, extracted, and split fields to the target super table</strong>:<br/>
       1. <strong>value</strong>: Constant value, such as <em>1</em>、<em>"taos"</em>.<br/>
       2. <strong>expr</strong>: Mathematical calculation expressions, for example, to convert Celsius to Fahrenheit values, the expression <em>centigrade * 1.8 + 32</em> can be used.<br/>
       3. <strong>format</strong>: String formatting using placeholders <em>$\{\}</em> to reference fields, for example <em>$\{year\}-$\{month\}-$\{day\}</em> can be used to format as a date string.<br/>
-      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#4-mapping">the enterprise version documentation</a>.`,
+      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#4-mapping" target="_blank">the enterprise version documentation</a>.`,
       uploadexe: "Please upload the csv file and execute the next step",
       extractrule: {
         nofield: "haven't select the field to extract",
