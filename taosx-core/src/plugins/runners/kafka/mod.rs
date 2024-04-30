@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::{bail, Context};
 use arrow::array::{
     ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
     TimestampNanosecondBuilder,
@@ -23,6 +24,7 @@ use rdkafka::error::KafkaResult;
 use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
 use taos::Dsn;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
@@ -106,15 +108,26 @@ pub async fn kafka_to_taos(
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let worker = tokio::spawn(execute(from, ipc_port, aborted_cloned));
-    let abort_handle = worker.abort_handle();
+    let mut join_set = execute(from, ipc_port, aborted_cloned).await?;
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
-            status = worker => {
-                match status? {
+            status = async {
+                while let Some(res) = join_set.join_next().await {
+                    match res {
+                        Ok(_) => {}
+                        Err(err) => {
+                            tracing::error!("Kafka worker exit with error: {:#}", err);
+                            anyhow::bail!("Kafka worker exit with error: {:#}", err);
+                        }
+                    }
+                }
+                tracing::debug!("Kafka polling finished");
+                Ok(())
+            } => {
+                match status {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         match ipc.try_recv_error() {
@@ -137,18 +150,18 @@ pub async fn kafka_to_taos(
             err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 aborted.store(true, std::sync::atomic::Ordering::Relaxed);
-                abort_handle.abort();
+                join_set.abort_all();
                 if let Some(err) = err {
                     let _ = ipc.send(()).await;
                     let _ = ipc.close().await;
-                    abort_handle.abort();
+                    join_set.abort_all();
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
                 aborted.store(true, std::sync::atomic::Ordering::Relaxed);
-                abort_handle.abort();
+                join_set.abort_all();
             }
         }
         // send an empty tuple
@@ -167,7 +180,12 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
+type KafkaJoinSet = JoinSet<anyhow::Result<()>>;
+async fn execute(
+    from: Dsn,
+    ipc_server_port: u16,
+    aborted: Arc<AtomicBool>,
+) -> anyhow::Result<KafkaJoinSet> {
     let ipc_server = format!("127.0.0.1:{}", ipc_server_port);
 
     // ipc writer stream
@@ -179,9 +197,10 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
     let ack_stream = stream.try_clone()?;
     set_tcp_keepalive(&ack_stream)?;
     ack_stream.set_read_timeout(None)?;
+    let mut consumers = JoinSet::new();
 
     // receive ACK from IPC
-    let ack = tokio::task::spawn_blocking(move || {
+    consumers.spawn_blocking(move || {
         let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
         for ack in ack_reader {
             if !ack.success() {
@@ -201,7 +220,8 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
 
     // IPC Writer
     let schema_clone = schema.clone();
-    let ipc_writer = tokio::task::spawn_blocking(move || {
+    // polling from kafka and send to ipc writer
+    consumers.spawn_blocking(move || {
         let mut writer = StreamWriter::try_new(stream, &schema_clone)?;
 
         let mut row_count = 0;
@@ -229,8 +249,6 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
 
     // split into sub tasks
     let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config)?;
-    // polling from kafka and send to ipc writer
-    let mut consumers = Vec::new();
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
@@ -238,22 +256,14 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
         let consumer = task.consumer;
         let timeout = task.timeout;
 
-        let sub_task = tokio::spawn(async move {
-            let _ = poll_message(idx, consumer, tx, timeout, aborted, schema, batch_size).await;
-        });
-        consumers.push(sub_task);
+        consumers.spawn(poll_message(
+            idx, consumer, tx, timeout, aborted, schema, batch_size,
+        ));
     }
 
     drop(tx);
-    for c in consumers {
-        c.await?;
-    }
-    tracing::debug!("Kafka polling finished");
-    ack.await??;
-    tracing::debug!("Kafka ACK reader finished");
-    ipc_writer.await??;
-    tracing::debug!("Kafka IPC Writer finished");
-    Ok(())
+
+    Ok(consumers)
 }
 
 struct SubTask {
