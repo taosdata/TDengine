@@ -27,6 +27,8 @@ typedef struct SMStreamCheckpointReadyRspMsg {
   SMsgHead head;
 } SMStreamCheckpointReadyRspMsg;
 
+static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg);
+
 static STaskId replaceStreamTaskId(SStreamTask* pTask) {
   ASSERT(pTask->info.fillHistory);
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
@@ -488,16 +490,6 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   }
 
   return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
-}
-
-static void setParam(SStreamTask* pTask, int64_t* startCheckTs, bool* hasHTask, STaskId* pId) {
-  *startCheckTs = pTask->execInfo.checkTs;
-
-  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    *hasHTask = true;
-    pId->streamId = pTask->hTaskInfo.id.streamId;
-    pId->taskId = pTask->hTaskInfo.id.taskId;
-  }
 }
 
 int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader) {
@@ -1054,10 +1046,9 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) { return taosArrayGetSize(pMeta->pTaskList); }
 
-static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+int32_t doProcessDummyRspMsg(SStreamMeta* UNUSED_PARAM(pMeta), SRpcMsg* pMsg) {
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
-
   return TSDB_CODE_SUCCESS;
 }
 
