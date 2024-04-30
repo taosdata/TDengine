@@ -47,12 +47,14 @@ class TestTs4728(TDCase):
         for j in range(self.range_count):
             self.tdSql.execute(f'insert into d1001 values ({ts+j}, "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}", "{self.tdCom.get_long_name(self.str_len)}");')
         vgid = self.tdCom.get_vgid_list(self.dbname)[0]
-        main_tdb_file = f'{self.vnode_dir}/vnode{vgid}/tq/main.tdb'
+        main_tdb_file = f'{self.vnode_dir}/vnode{vgid}/tq/subscribe/main.tdb'
         usage_list = list()
         for i in range(self.range_count):
             usage1 = self.check_tdb_disk_usage(main_tdb_file)
+            self._remote._logger.info(f'usage1-----: {usage1}')
             self.loop_consumer()
             usage2 = self.check_tdb_disk_usage(main_tdb_file)
+            self._remote._logger.info(f'usage2-----: {usage2}')
             usage_list.append(usage1)
             usage_list.append(usage2)
             self.tdSql.checkEqual(len(set(usage_list)) < self.range_count, True)
