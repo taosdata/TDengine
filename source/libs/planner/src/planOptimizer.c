@@ -1295,6 +1295,69 @@ static int32_t pushDownCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   return pushDownCondOptimizeImpl(pCxt, pLogicSubplan->pNode);
 }
 
+static bool eliminateCondMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode)) {
+    return false;
+  }
+  
+  SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  if (pNode->pChildren->length != 1 || NULL != pAgg->pGroupKeys) {
+    return false;
+  }
+
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if (NULL == pScan->node.pConditions || QUERY_NODE_OPERATOR != nodeType(pScan->node.pConditions)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pScan->node.pConditions;
+  if (OP_TYPE_IS_NOT_NULL != pOp->opType) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) {
+    return false;
+  }
+
+  SNode* pTmp = NULL;
+  FOREACH(pTmp, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pTmp;
+    if (!fmIsIgnoreNullFunc(pFunc->funcId)) {
+      return false;
+    }
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+      return false;
+    }
+    if (!nodesEqualNode(pParam, pOp->pLeft)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t eliminateCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pNode = (SLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateCondMayBeOptimized);
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  nodesDestroyNode(pScan->node.pConditions);
+  pScan->node.pConditions = NULL;
+
+  pCxt->optimized = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
   if (1 != LIST_LENGTH(pSortKeys)) {
     return false;
@@ -4331,6 +4394,7 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pushDownCondOptimize},
+  {.pName = "EliminateCondition",         .optimizeFunc = eliminateCondOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
