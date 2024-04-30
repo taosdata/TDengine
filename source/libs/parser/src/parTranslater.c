@@ -9327,9 +9327,11 @@ static int32_t addSubtableNameToCreateStreamQuery(STranslateContext* pCxt, SCrea
   if (NULL == pStmt->pSubtable) {
     return TSDB_CODE_SUCCESS;
   }
-  pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
   if (NULL == pSelect->pSubtable) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    if (NULL == pSelect->pSubtable) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   SRewriteSubtableCxt cxt = {.pCxt = pCxt, .pPartitionList = pSelect->pPartitionByList};
