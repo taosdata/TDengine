@@ -322,7 +322,7 @@ mod tests {
     use std::io::Write;
     use std::str::FromStr;
 
-    use chrono::{DateTime, NaiveDateTime, Utc};
+    use chrono::{DateTime, Utc};
     use rand::Rng;
     use taos::Dsn;
 
@@ -398,9 +398,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         for i in 0..total_records {
-            let dt: DateTime<Utc> = NaiveDateTime::from_timestamp_opt(ts + (i * gap_sec), 0)
-                .unwrap()
-                .and_utc();
+            let dt: DateTime<Utc> = DateTime::from_timestamp(ts + (i * gap_sec), 0).unwrap();
             let date_time = dt.format("%Y/%m/%d|%H:%M:%S").to_string();
             let date_value = rng.gen_range(0.0..100.0);
             file.write_all(

@@ -15,17 +15,13 @@ use arrow::record_batch::RecordBatch;
 use chrono::Utc;
 use futures::future;
 use futures::stream::StreamExt;
-use kafka::consumer::{Builder, GroupOffsetStorage};
-use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Rebalance};
 use rdkafka::error::KafkaResult;
-use rdkafka::message::{Headers, Message};
+use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
-use rdkafka::util::Timeout;
-use rhai::packages::BasicArrayPackage;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
@@ -38,7 +34,7 @@ use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::set_tcp_keepalive;
 use crate::utils::port_pool::PortPool;
-use crate::{build, build_ipc, Action, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
@@ -56,8 +52,6 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            // let mut client = KafkaClient::new(c.connect.bootstrap_servers);
-            // let result = client.load_metadata_all();
             let client = build_client(c.connect.clone()).expect("Client creation failed");
             let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
             let result = consumer.fetch_metadata(None, Duration::from_secs(5));
@@ -354,7 +348,7 @@ impl SubTask {
 
 async fn poll_message(
     index: usize,
-    mut consumer: LoggingConsumer,
+    consumer: LoggingConsumer,
     tx: flume::Sender<RecordBatch>,
     timeout: i64,
     aborted: Arc<AtomicBool>,
@@ -367,17 +361,6 @@ async fn poll_message(
             tracing::info!("Kafka consumer-{} cancelled", index);
             break;
         }
-
-        // if message_sets.is_empty() {
-        //     tokio::time::sleep(Duration::from_millis(100)).await;
-        //     let now = chrono::Utc::now().timestamp_millis();
-        //     if timeout >= 0 && now - &last_polling > timeout {
-        //         tracing::info!("Kafka consumer-{} polling timeout", index);
-        //         break;
-        //     } else {
-        //         continue;
-        //     }
-        // }
 
         let mut timestamp = TimestampNanosecondBuilder::new();
         let mut topic = StringBuilder::new();
@@ -396,15 +379,6 @@ async fn poll_message(
                         match m.payload_view::<str>() {
                             None => {}
                             Some(Ok(s)) => {
-                                // if let Some(headers) = m.headers() {
-                                //     for header in headers.iter() {
-                                //         tracing::info!(
-                                //             "Header {:#?}: {:?}",
-                                //             header.key,
-                                //             header.value
-                                //         );
-                                //     }
-                                // }
                                 timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
                                 topic.append_value(m.topic());
                                 partition.append_value(m.partition());
@@ -426,20 +400,6 @@ async fn poll_message(
                 future::ready(())
             })
             .await;
-
-        // for ms in message_sets.iter() {
-        //     for m in ms.messages() {
-        //         let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-
-        //         timestamp.append_value(ts);
-        //         topic.append_value(ms.topic());
-        //         partition.append_value(ms.partition());
-        //         offset.append_value(m.offset.clone());
-        //         key.append_value(m.key);
-        //         value.append_value(m.value);
-        //     }
-        //     consumer.consume_messageset(ms)?;
-        // }
 
         if value.is_empty() {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -472,7 +432,6 @@ async fn poll_message(
             index,
             batch_size
         );
-        // consumer.commit_consumed()?;
 
         last_polling = chrono::Utc::now().timestamp_millis();
     }
@@ -624,93 +583,6 @@ fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
     Ok(client.clone())
 }
 
-// fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<Builder> {
-//     let mut client = build_client(config.connect)?;
-//     client.load_metadata_all()?;
-
-//     let mut builder = Consumer::from_client(client);
-//     // group
-//     builder = builder.with_group(config.group);
-
-//     // fallback_offset
-//     builder = builder.with_fallback_offset(config.fallback_offset);
-
-//     // offset_storage: use Kafka as Default
-//     builder = builder.with_offset_storage(Some(GroupOffsetStorage::Kafka));
-
-//     if config.fetch_max_wait_time.is_some() {
-//         builder = builder.with_fetch_max_wait_time(config.fetch_max_wait_time.unwrap());
-//     }
-//     if config.fetch_min_bytes.is_some() {
-//         builder = builder.with_fetch_min_bytes(config.fetch_min_bytes.unwrap());
-//     }
-//     if config.fetch_max_bytes_per_partition.is_some() {
-//         builder = builder
-//             .with_fetch_max_bytes_per_partition(config.fetch_max_bytes_per_partition.unwrap());
-//     }
-//     if config.fetch_crc_validation.is_some() {
-//         builder = builder.with_fetch_crc_validation(config.fetch_crc_validation.unwrap());
-//     }
-//     if config.offset_storage.is_some() {
-//         builder = builder.with_offset_storage(config.offset_storage);
-//     }
-//     if config.retry_max_bytes_limit.is_some() {
-//         builder = builder.with_retry_max_bytes_limit(config.retry_max_bytes_limit.unwrap());
-//     }
-//     if config.connection_idle_timeout.is_some() {
-//         builder = builder.with_connection_idle_timeout(config.connection_idle_timeout.unwrap());
-//     }
-//     if config.client_id.is_some() {
-//         builder = builder.with_client_id(config.client_id.unwrap());
-//     }
-
-//     Ok(builder)
-// }
-
-// // use kafka::client::KafkaClient;
-// fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<KafkaClient> {
-//     let client = if connect.use_ssl {
-//         let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-//         builder.set_cipher_list("DEFAULT")?;
-//         builder.set_verify(SslVerifyMode::PEER);
-//         if let (Some(ccert), Some(ckey)) = (connect.client_cert, connect.client_key) {
-//             tracing::info!("loading cert-file={}, key-file={}", ccert, ckey);
-
-//             builder
-//                 .set_certificate_file(ccert, SslFiletype::PEM)
-//                 .unwrap();
-//             builder
-//                 .set_private_key_file(ckey, SslFiletype::PEM)
-//                 .unwrap();
-//             builder.check_private_key().unwrap();
-//         }
-
-//         if let Some(ca_cert) = connect.ca_cert {
-//             tracing::info!("loading ca-file={}", ca_cert);
-//             builder.set_ca_file(ca_cert).unwrap();
-//         } else {
-//             // ~ allow client specify the CAs through the default paths:
-//             // "These locations are read from the SSL_CERT_FILE and
-//             // SSL_CERT_DIR environment variables if present, or defaults
-//             // specified at OpenSSL build time otherwise."
-//             builder.set_default_verify_paths().unwrap();
-//         }
-//         let connector = builder.build();
-
-//         // ~ instantiate KafkaClient with the previous OpenSSL setup
-//         let client = KafkaClient::new_secure(
-//             connect.bootstrap_servers,
-//             SecurityConfig::new(connector).with_hostname_verification(false),
-//         );
-
-//         client
-//     } else {
-//         KafkaClient::new(connect.bootstrap_servers)
-//     };
-
-//     Ok(client)
-// }
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -718,56 +590,15 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
-    async fn test_invalid() {
+    async fn test_is_valid() {
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
         let result = is_valid(&dsn).await;
         assert_eq!(false, result.valid);
         assert_eq!(false, result.support);
         assert_eq!(KAFKA_ID, result.data_source);
         assert_eq!(
-            "failed to connect to kafka, cause: No host reachable",
+            "invalid dsn: kafka://127.0.0.1:9092, cause: topics is required",
             result.message.unwrap()
         );
     }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_valid() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!(KAFKA_ID, dsv.data_source);
-        assert_eq!(None, dsv.version);
-
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!(KAFKA_ID, dsv.data_source);
-        assert_eq!(None, dsv.version);
-
-        let dsn = Dsn::from_str("kafka://127.0.0.1:9092,jf92:9092").unwrap();
-        let dsv = is_valid(&dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!(KAFKA_ID, dsv.data_source);
-        assert_eq!(None, dsv.version);
-    }
-
-    // #[test]
-    // fn test_build_client() {
-    //     let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=/data/ypzhang/kafka-ca/ca.pem&cert=/data/ypzhang/kafka-ca/client.pem&cert_key=/data/ypzhang/kafka-ca/client-key.pem&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
-    //     let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-    //     let client = build_client(config).unwrap();
-
-    //     assert_eq!(
-    //         "192.168.2.19:9093",
-    //         client.get("bootstrap.servers").unwrap()
-    //     );
-
-    //     let consumer: BaseConsumer = client.create().expect("Consumer creation failed");
-    //     let result = consumer.fetch_metadata(None, Duration::from_secs(5));
-    // }
 }
