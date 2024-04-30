@@ -916,6 +916,7 @@ pub async fn get_table_progress(
     let (from_db, table) = table
         .split_once('.')
         .ok_or(anyhow!("Invalid table format"))?;
+    from.subject.replace(from_db.to_string());
     let to: Dsn = to.parse()?;
     let to_db = to
         .subject
