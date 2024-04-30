@@ -14,6 +14,7 @@ use arrow::record_batch::RecordBatch;
 use chrono::Utc;
 use futures::future;
 use futures::stream::StreamExt;
+use futures_util::TryStreamExt;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -223,6 +224,9 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
 
     // kafka task config
     let config = KafkaTaskConfig::from_dsn(&from)?;
+
+    let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
+
     // split into sub tasks
     let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config)?;
     // polling from kafka and send to ipc writer
@@ -235,7 +239,7 @@ async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> a
         let timeout = task.timeout;
 
         let sub_task = tokio::spawn(async move {
-            let _ = poll_message(idx, consumer, tx, timeout, aborted, schema).await;
+            let _ = poll_message(idx, consumer, tx, timeout, aborted, schema, batch_size).await;
         });
         consumers.push(sub_task);
     }
@@ -344,8 +348,10 @@ async fn poll_message(
     timeout: i64,
     aborted: Arc<AtomicBool>,
     schema: Schema,
+    batch_size: usize,
 ) -> anyhow::Result<()> {
     let mut last_polling = chrono::Utc::now().timestamp_millis();
+
     loop {
         // let message_sets = consumer.poll().context("Kafka polling error")?;
         if aborted.load(std::sync::atomic::Ordering::Relaxed) {
@@ -360,37 +366,33 @@ async fn poll_message(
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
-        let _ = consumer
+        let chunk = consumer
             .stream()
-            .take(1)
-            .for_each(|message| {
-                match message {
-                    Err(e) => tracing::warn!("Kafka error: {}", e),
-                    Ok(m) => {
-                        match m.payload_view::<str>() {
-                            None => {}
-                            Some(Ok(s)) => {
-                                timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
-                                topic.append_value(m.topic());
-                                partition.append_value(m.partition());
-                                offset.append_value(m.offset());
-                                key.append_value(m.key().unwrap_or(&[]));
-                                value.append_value(s);
-                                // commit offset
-                                consumer.commit_message(&m, CommitMode::Async).unwrap();
-                            }
-                            Some(Err(e)) => {
-                                tracing::warn!(
-                                    "Error while deserializing message payload: {:?}",
-                                    e
-                                );
-                            }
-                        };
+            .try_ready_chunks(batch_size)
+            .try_next()
+            .await
+            .map_err(|err| anyhow::anyhow!("Kafka polling error: {}", err.to_string()))?;
+        if let Some(chunk) = chunk {
+            for msg in chunk {
+                match msg.payload_view::<str>() {
+                    None => {}
+                    Some(Ok(s)) => {
+                        timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                        topic.append_value(msg.topic());
+                        partition.append_value(msg.partition());
+                        offset.append_value(msg.offset());
+                        key.append_value(msg.key().unwrap_or(&[]));
+                        value.append_value(s);
+
+                        // commit offset
+                        consumer.commit_message(&msg, CommitMode::Async).unwrap();
+                    }
+                    Some(Err(e)) => {
+                        tracing::warn!("Error while deserializing message payload: {:?}", e);
                     }
                 };
-                future::ready(())
-            })
-            .await;
+            }
+        }
 
         if value.is_empty() {
             tokio::time::sleep(Duration::from_millis(100)).await;
