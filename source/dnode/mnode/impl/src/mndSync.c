@@ -65,7 +65,7 @@ static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -158,7 +158,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
   int32_t    code = -1;
-  int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
+  int32_t    transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
 
   if (transId <= 0) {
     mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
