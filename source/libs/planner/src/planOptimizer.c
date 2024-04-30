@@ -6670,6 +6670,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
+  {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},

@@ -2660,6 +2660,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED| FUNC_MGT_IGNORE_NULL_FUNC,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
