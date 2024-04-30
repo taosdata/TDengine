@@ -333,9 +333,10 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   }
 
   while (j < newLen && k < oldLen) {
-    SRow* pNewRow = taosArrayGetP(pNew->aRowP, j);
-    SRow* pOldRow = taosArrayGetP(pExisted->aRowP, k);
-    if (pNewRow->ts < pOldRow->ts) {
+    SRow* pNewRow = TARRAY_GET_ELEM(pNew->aRowP, j);
+    SRow* pOldRow = TARRAY_GET_ELEM(pExisted->aRowP, k);
+
+    if (pNewRow->ts <= pOldRow->ts) {
       taosArrayPush(pFinal, &pNewRow);
       j += 1;
     } else if (pNewRow->ts > pOldRow->ts) {
@@ -373,12 +374,12 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   }
 
   while (j < newLen) {
-    SRow* pRow = taosArrayGetP(pNew->aRowP, j++);
+    SRow* pRow = TARRAY_GET_ELEM(pNew->aRowP, j++);
     taosArrayPush(pFinal, &pRow);
   }
 
   while (k < oldLen) {
-    SRow* pRow = taosArrayGetP(pExisted->aRowP, k++);
+    SRow* pRow = TARRAY_GET_ELEM(pExisted->aRowP, k++);
     taosArrayPush(pFinal, &pRow);
   }
 
