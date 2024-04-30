@@ -1236,7 +1236,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   if (pStream->smaId != 0) {
-    mDebug("stream:%s try to drop sma related stream", dropReq.name);
+    mDebug("stream:%s, uid:0x%"PRIx64" try to drop sma related stream", dropReq.name, pStream->uid);
 
     void    *pIter = NULL;
     SSmaObj *pSma = NULL;
@@ -1250,8 +1250,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
         tFreeMDropStreamReq(&dropReq);
         terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
 
-        mError("try to drop sma-related stream:%s, code:%s only allowed to be dropped along with sma", dropReq.name,
-               tstrerror(terrno));
+        mError("try to drop sma-related stream:%s, uid:0x%" PRIx64 " code:%s only allowed to be dropped along with sma",
+               dropReq.name, pStream->uid, tstrerror(terrno));
         return -1;
       }
 
@@ -1279,7 +1279,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
-    mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("stream:%s uid:0x%"PRIx64" failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
     return -1;
@@ -1289,7 +1289,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   // drop all tasks
   if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
+    mError("stream:%s uid:0x%" PRIx64 " failed to drop task since %s", dropReq.name, pStream->uid, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
@@ -1315,11 +1315,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   // kill the related checkpoint trans
   int32_t transId = mndStreamGetRelTrans(pMnode, pStream->uid);
   if (transId != 0) {
-    mDebug("drop active related transId:%d due to stream:%s dropped", transId, pStream->name);
+    mDebug("drop active transId:%d due to stream:%s uid:0x%" PRIx64 " dropped", transId, pStream->name, pStream->uid);
     mndKillTransImpl(pMnode, transId, pStream->sourceDb);
   }
 
-  mDebug("stream:%s transId:%d start to drop related task when dropping stream", dropReq.name, transId);
+  mDebug("stream:%s uid:0x%" PRIx64 " transId:%d start to drop related task when dropping stream", dropReq.name,
+         pStream->uid, transId);
+
   removeStreamTasksInBuf(pStream, &execInfo);
 
   SName name = {0};
