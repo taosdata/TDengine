@@ -85,26 +85,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   }
 }
 
-int32_t tqInitialize(STQ* pTq) {
-  if (tqMetaOpen(pTq) < 0) {
-    return -1;
-  }
-
-  pTq->pOffsetStore = tqOffsetOpen(pTq);
-  if (pTq->pOffsetStore == NULL) {
-    return -1;
-  }
-
-  int32_t vgId = TD_VID(pTq->pVnode);
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, vgId, -1, tqStartTaskCompleteCallback);
-  if (pTq->pStreamMeta == NULL) {
-    return -1;
-  }
-
-  /*int32_t code = */streamMetaLoadAllTasks(pTq->pStreamMeta);
-  return 0;
-}
-
 void tqClose(STQ* pTq) {
   qDebug("start to close tq");
   if (pTq == NULL) {
@@ -135,6 +115,26 @@ void tqClose(STQ* pTq) {
 
   qDebug("end to close tq");
   taosMemoryFree(pTq);
+}
+
+int32_t tqInitialize(STQ* pTq) {
+  if (tqMetaOpen(pTq) < 0) {
+    return -1;
+  }
+
+  pTq->pOffsetStore = tqOffsetOpen(pTq);
+  if (pTq->pOffsetStore == NULL) {
+    return -1;
+  }
+
+  int32_t vgId = TD_VID(pTq->pVnode);
+  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, vgId, -1, tqStartTaskCompleteCallback);
+  if (pTq->pStreamMeta == NULL) {
+    return -1;
+  }
+
+  /*int32_t code = */streamMetaLoadAllTasks(pTq->pStreamMeta);
+  return 0;
 }
 
 void tqNotifyClose(STQ* pTq) {

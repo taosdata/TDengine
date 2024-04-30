@@ -333,7 +333,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
     taosRemoveDir(defaultPath);
   }
 
-  code = downloadCheckpoint(key, chkpPath);
+  code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -342,7 +342,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
   return code;
 }
 int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = downloadCheckpoint(key, chkpPath);
+  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -2110,8 +2110,8 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
-  STaskDbWrapper* pDb = arg;
-  ECHECKPOINT_BACKUP_TYPE     utype = type;
+  STaskDbWrapper*         pDb = arg;
+  ECHECKPOINT_BACKUP_TYPE utype = type;
 
   if (utype == DATA_UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
