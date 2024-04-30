@@ -45,7 +45,7 @@ impl KafkaConnectConfig {
         Ok(bootstrap_servers)
     }
 
-    // use `ca` to determine whether to use ssl
+    /// use `ca` to determine whether to use ssl
     fn parse_use_ssl(dsn: &Dsn) -> anyhow::Result<bool> {
         match dsn.get("ca") {
             Some(ca) => {
@@ -59,7 +59,7 @@ impl KafkaConnectConfig {
         }
     }
 
-    // use `sasl_mechanism` to determine whether to use sasl
+    /// use `sasl_mechanism` to determine whether to use sasl
     fn parse_use_sasl(dsn: &Dsn) -> anyhow::Result<bool> {
         match dsn.get("sasl_mechanism") {
             Some(sasl_mechanism) => {
@@ -81,14 +81,6 @@ mod tests {
     use taos::{Dsn, IntoDsn};
 
     use super::*;
-
-    #[test]
-    fn test_from_dsn() {
-        let dsn = Dsn::from_str("kafka://192.168.2.19:9093?ca=@./files/1714353700398/cert-file-signed&cert=@./files/1714353700401/ca-cert&cert_key=@./files/1714353700402/ca-key&topics=test&fallback_offset=Earliest&read_concurrency=0").unwrap();
-        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-
-        dbg!(&config);
-    }
 
     #[test]
     fn test_parse_bootstrap_servers() {
@@ -131,8 +123,6 @@ mod tests {
 
     #[test]
     fn test_parse_certification() {
-        dbg!(std::env::current_dir().unwrap());
-
         let dsn = format!(
             "kafka://{}?use_ssl=true&ca={}&cert={}&cert_key={}",
             "127.0.0.1:9092",

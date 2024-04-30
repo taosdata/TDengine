@@ -264,7 +264,7 @@ mod points_da_config_tests {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-enum UpdateMode {
+pub enum UpdateMode {
     None,
     Append,
     Update,
