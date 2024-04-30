@@ -371,7 +371,7 @@ async fn poll_message(
 
         let _ = consumer
             .stream()
-            .take(100)
+            .take(1)
             .for_each(|message| {
                 match message {
                     Err(e) => tracing::warn!("Kafka error: {}", e),
