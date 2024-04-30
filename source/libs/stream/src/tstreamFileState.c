@@ -293,7 +293,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
   memcpy(pNewPos->pKey, pKey, keyLen);
 
   TSKEY ts = pFileState->getTs(pKey);
-  if (ts > pFileState->maxTs - pFileState->deleteMark && ts < pFileState->flushMark) {
+  if (ts > pFileState->maxTs - pFileState->deleteMark && ts <= pFileState->flushMark) {
     int32_t len = 0;
     void*   p = NULL;
     int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
