@@ -1503,12 +1503,19 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
 
+    // sink_quota
     char sinkQuota[20 + VARSTR_HEADER_SIZE] = {0};
     sinkQuota[0] = '0';
     char dstStr[20] = {0};
     STR_TO_VARSTR(dstStr, sinkQuota)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
+
+    // checkpoint interval
+    char tmp[20 + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tmp, "none")
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmp, false);
 
     // checkpoint backup type
     char backup[20 + VARSTR_HEADER_SIZE] = {0};
