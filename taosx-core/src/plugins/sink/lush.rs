@@ -151,6 +151,10 @@ impl From<PIElementModelConfig> for LushModelConfig {
 
 #[cfg(test)]
 mod test {
+    use crate::runners::pi::transform::PIPointModelConfig;
+
+    use super::LushModelConfig;
+
     #[test]
     fn test_table_cache() {
         use super::TableTagCache;
@@ -158,5 +162,144 @@ mod test {
         cache.insert("table1".to_string(), Default::default());
         assert!(cache.get("table1").is_some());
         assert!(cache.get("table2").is_none());
+    }
+
+    #[test]
+    fn test_create_lush_model_config() {
+        let point_model_config =
+            PIPointModelConfig::from_csv("default_pi_config_1714435852.csv").unwrap();
+        let super_tables = &point_model_config.super_tables;
+        let super_table = super_tables.get(0).unwrap();
+        let scheam = super_table.schema.clone();
+        for row in scheam {
+            println!("{}", row.column_map);
+        }
+
+        let lush_model_config = LushModelConfig::from(point_model_config);
+        let parser = lush_model_config
+            .super_table_parsers
+            .get("volt_double")
+            .unwrap();
+        println!("{}", serde_json::to_string_pretty(parser).unwrap());
+    }
+
+    #[test]
+    fn test_parser() {
+        let s = r#"{
+            "global": {
+              "replace_dot_in_table_name": "_"
+            },
+            "parse": null,
+            "mutate": [
+              {
+                "filter": [
+                  {
+                    "Expr": {
+                      "expr": ""
+                    }
+                  }
+                ]
+              },
+              {
+                "map": {
+                  "value": {
+                    "expr": "value",
+                    "null_if_error": true,
+                    "as": "double"
+                  },
+                  "status": {
+                    "expr": "status",
+                    "null_if_error": true,
+                    "as": "int"
+                  },
+                  "path": {
+                    "expr": "path",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "ptclassname": {
+                    "expr": "ptclassname",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "sourcetag": {
+                    "expr": "sourcetag",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "tag": {
+                    "expr": "tag",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "descriptor": {
+                    "expr": "descriptor",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "exdesc": {
+                    "expr": "exdesc",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "engunits": {
+                    "expr": "engunits",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "pointsource": {
+                    "expr": "pointsource",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "step": {
+                    "expr": "step",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "future": {
+                    "expr": "future",
+                    "null_if_error": true,
+                    "as": "nchar(100)"
+                  },
+                  "element_paths": {
+                    "expr": "element_paths.replace('\', 'b')",
+                    "null_if_error": true,
+                    "as": "nchar(512)"
+                  }
+                }
+              }
+            ],
+            "model": [
+              {
+                "name": "${point_name}",
+                "using": "volt_double",
+                "tags": [
+                  "path",
+                  "ptclassname",
+                  "sourcetag",
+                  "tag",
+                  "descriptor",
+                  "exdesc",
+                  "engunits",
+                  "pointsource",
+                  "step",
+                  "future",
+                  "element_paths"
+                ],
+                "columns": [
+                  "ts",
+                  "value",
+                  "status"
+                ],
+                "where": null,
+                "global": null
+              }
+            ]
+          }"#;
+        use crate::plugins::transform::Parser;
+
+        let parse: Parser = serde_json::from_str(s).unwrap();
+        println!("{:?}", serde_json::to_string(&parse).unwrap());
     }
 }

@@ -188,7 +188,7 @@ impl PIPointModelConfig {
                         column_name: "element_paths".to_string(),
                         column_type: ColumnType::TAG,
                         column_data_type: "NCHAR(512)".to_string(),
-                        column_map: "$element_paths".to_string(),
+                        column_map: r#"`$element_paths.replace("\\", ".")`"#.to_string(),
                     });
                 }
                 SuperTableConfig {
@@ -688,6 +688,38 @@ pub struct SuperTableConfig {
     pub template_schema: Option<Vec<SchemaRow>>,
 }
 
+/// split line by ','
+/// if the "," is between ``, it will be ignored, and the "," will be treated as a part of the string
+fn split_csv_line(line: &str) -> Vec<&str> {
+    let mut parts = Vec::<&str>::new();
+    let mut start = 0;
+    let mut in_quote = false;
+    for (i, c) in line.char_indices() {
+        match c {
+            ',' => {
+                if !in_quote {
+                    parts.push(&line[start..i]);
+                    start = i + 1;
+                }
+            }
+            '`' => {
+                in_quote = !in_quote;
+            }
+            _ => {}
+        }
+    }
+    let sec = &line[start..];
+    // trime the qutoe at beging and end
+    let pat = '`';
+    if sec.starts_with(pat) && sec.ends_with(pat) {
+        let set = sec.trim_matches(pat);
+        parts.push(&set);
+    } else {
+        parts.push(sec);
+    }
+    parts
+}
+
 impl SuperTableConfig {
     fn from_csv(csv: String) -> anyhow::Result<Self> {
         let lines = csv.lines();
@@ -697,7 +729,7 @@ impl SuperTableConfig {
         let mut filter: Option<String> = None;
         let mut schema: Vec<SchemaRow> = Vec::<SchemaRow>::new();
         for line in lines {
-            let parts = line.split(',').collect::<Vec<&str>>();
+            let parts = split_csv_line(line);
             let part_0 = parts[0].to_lowercase();
             match part_0.as_str() {
                 "supertable" => {
@@ -981,6 +1013,15 @@ mod tests {
     use crate::sink::lush::LushModelConfig;
 
     use super::*;
+
+    #[test]
+    fn test_csv_line_split() {
+        let line = r#"element_paths,TAG,NCHAR(512),`$element_paths.replace("\", ".")`"#;
+        let parts = split_csv_line(line);
+        for part in parts {
+            println!("{}", part);
+        }
+    }
 
     #[test]
     fn test_parse_point_data() {
