@@ -92,6 +92,8 @@ namespace TDPIConnector.PI
             AFDataPipeManager afDataPipeManager = new AFDataPipeManager(numberOfDataPipes);
             afDataPipeManager.Subscribe(observerWrapper);
             afDataPipeManager.AddSignups(elements);
+            log.Info($"AF AddSignups finished,{elements.Count()}.");
+
             return afDataPipeManager;
         }
 

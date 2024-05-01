@@ -198,10 +198,11 @@ namespace TDPIConnector.Core
                     {
                         if (!existTemplates.ContainsKey(element.Template.Name))
                         {
-                            existTemplates.Add(element.Template.Name, new List<AFElementWrapper>());
                             var superTable = TemplateSTableConverter.Convert(element.Template);
                             if (!superTable.HasValidColumn()) continue;
+                            existTemplates.Add(superTable.Name, new List<AFElementWrapper>());
                             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+                            log.Info($"Creating TDengine super table info {element.Template.Name}");
                         }
                         existTemplates[element.Template.Name].Add(element);
                     }
@@ -210,11 +211,14 @@ namespace TDPIConnector.Core
                         var superTable = ElemenetSTableConverter.Convert(element);
                         if (!superTable.HasValidColumn()) return null;
                         await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+                        log.Info($"Creating TDengine single super table info {element.Name}");
                     }
                 }
             }
 
-            foreach(var template in existTemplates) {
+            log.Info($"Creating TDengine table start ...");
+            int batchNum = 0;
+            foreach (var template in existTemplates) {
                 var superTableName = template.Key;
                 var templateAttributeColumns = AttributeColumnConverter.Convert(template.Value.First().Template.AttributeTemplates);
 
@@ -229,11 +233,14 @@ namespace TDPIConnector.Core
                         elementsCollection.Add(table.Id, element);
                     }
                     if (tables.Count() > 500) {
+                        log.Info($"Creating TDengine table batch index: {++batchNum} st:{superTableName} ...");
                         await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
                         tables.Clear();
                     }
                 };
+                log.Info($"Creating TDengine table batch index: {++batchNum} st:{superTableName} ...");
                 await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
+                log.Info($"Creating TDengine table info for template: {superTableName} end");
             }
             return elementsCollection;
         }

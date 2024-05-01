@@ -70,11 +70,26 @@ namespace TDPIConnector.Core
                 }
                 if (PointList != null && PointList.Any())
                 {
-                    sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                    if (ElementIDList.Count() <= 10)
+                    {
+                        sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"PointList count: {ElementIDList.Count()}");
+                    }
+                    
                 }
                 if (ElementIDList != null && ElementIDList.Any())
                 {
-                    sb.AppendLine($"ElementIDList={string.Join(", ", ElementIDList)}");
+                    if (ElementIDList.Count() <= 10)
+                    {
+                        sb.AppendLine($"ElementIDList={string.Join(", ", ElementIDList)}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"ElementIDList count: {ElementIDList.Count()}");
+                    }
                 }
                 return sb.ToString();
             }
