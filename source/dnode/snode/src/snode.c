@@ -93,9 +93,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     goto FAIL;
   }
 
-  if (streamMetaLoadAllTasks(pSnode->pMeta) < 0) {
-    goto FAIL;
-  }
+  streamMetaLoadAllTasks(pSnode->pMeta);
 
   stopRsync();
   startRsync();

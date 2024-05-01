@@ -896,7 +896,7 @@ void    streamMetaWUnLock(SStreamMeta* pMeta);
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
-int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta);
+void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
