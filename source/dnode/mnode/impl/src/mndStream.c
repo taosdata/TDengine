@@ -1213,27 +1213,31 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
+    mError("invalid drop stream msg recv, discarded");
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  pStream = mndAcquireStream(pMnode, dropReq.name);
+  mDebug("recv drop stream:%s msg", dropReq.name);
 
+  pStream = mndAcquireStream(pMnode, dropReq.name);
   if (pStream == NULL) {
     if (dropReq.igNotExists) {
-      mInfo("stream:%s not exist, ignore not exist is set", dropReq.name);
+      mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       tFreeMDropStreamReq(&dropReq);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
-      mError("stream:%s not exist failed to drop", dropReq.name);
+      mError("stream:%s not exist failed to drop it", dropReq.name);
       tFreeMDropStreamReq(&dropReq);
       return -1;
     }
   }
 
   if (pStream->smaId != 0) {
+    mDebug("stream:%s, uid:0x%"PRIx64" try to drop sma related stream", dropReq.name, pStream->uid);
+
     void    *pIter = NULL;
     SSmaObj *pSma = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
@@ -1241,13 +1245,21 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       if (pSma && pSma->uid == pStream->smaId) {
         sdbRelease(pMnode->pSdb, pSma);
         sdbRelease(pMnode->pSdb, pStream);
+
         sdbCancelFetch(pMnode->pSdb, pIter);
         tFreeMDropStreamReq(&dropReq);
         terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+
+        mError("try to drop sma-related stream:%s, uid:0x%" PRIx64 " code:%s only allowed to be dropped along with sma",
+               dropReq.name, pStream->uid, tstrerror(terrno));
         return -1;
       }
-      if (pSma) sdbRelease(pMnode->pSdb, pSma);
-      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void**)&pSma);
+
+      if (pSma) {
+        sdbRelease(pMnode->pSdb, pSma);
+      }
+
+      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
     }
   }
 
@@ -1267,7 +1279,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   STrans *pTrans = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
-    mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("stream:%s uid:0x%"PRIx64" failed to drop since %s", dropReq.name, pStream->uid, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
     return -1;
@@ -1277,7 +1289,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   // drop all tasks
   if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
+    mError("stream:%s uid:0x%" PRIx64 " failed to drop task since %s", dropReq.name, pStream->uid, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
@@ -1303,9 +1315,12 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   // kill the related checkpoint trans
   int32_t transId = mndStreamGetRelTrans(pMnode, pStream->uid);
   if (transId != 0) {
-    mDebug("drop active related transId:%d due to stream:%s dropped", transId, pStream->name);
+    mDebug("drop active transId:%d due to stream:%s uid:0x%" PRIx64 " dropped", transId, pStream->name, pStream->uid);
     mndKillTransImpl(pMnode, transId, pStream->sourceDb);
   }
+
+  mDebug("stream:%s uid:0x%" PRIx64 " transId:%d start to drop related task when dropping stream", dropReq.name,
+         pStream->uid, transId);
 
   removeStreamTasksInBuf(pStream, &execInfo);
 
@@ -1488,12 +1503,21 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
 
+    // sink_quota
     char sinkQuota[20 + VARSTR_HEADER_SIZE] = {0};
     sinkQuota[0] = '0';
     char dstStr[20] = {0};
     STR_TO_VARSTR(dstStr, sinkQuota)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
+
+    // checkpoint interval
+    char tmp[20 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(varDataVal(tmp), "%d sec", tsStreamCheckpointInterval);
+    varDataSetLen(tmp, strlen(varDataVal(tmp)));
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmp, false);
 
     // checkpoint backup type
     char backup[20 + VARSTR_HEADER_SIZE] = {0};

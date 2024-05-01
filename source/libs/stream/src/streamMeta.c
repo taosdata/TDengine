@@ -117,31 +117,22 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
   return 0;
 }
 
-typedef struct {
-  int64_t chkpId;
-  char*   path;
-  char*   taskId;
-
-  SArray* pChkpSave;
-  SArray* pChkpInUse;
-  int8_t  chkpCap;
-  void*   backend;
-
-} StreamMetaTaskState;
-
 int32_t streamMetaOpenTdb(SStreamMeta* pMeta) {
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0, 0, NULL) < 0) {
+    stError("vgId:%d open file:%s failed, stream meta open failed", pMeta->vgId, pMeta->path);
     return -1;
-    // goto _err;
   }
 
   if (tdbTbOpen("task.db", STREAM_TASK_KEY_LEN, -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {
+    stError("vgId:%d, open task.db failed, stream meta open failed", pMeta->vgId);
     return -1;
   }
 
   if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb, 0) < 0) {
+    stError("vgId:%d, open checkpoint.db failed, stream meta open failed", pMeta->vgId);
     return -1;
   }
+
   return 0;
 }
 
@@ -231,17 +222,18 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   if (compatible == STREAM_STATA_COMPATIBLE) {
     return 0;
   } else if (compatible == STREAM_STATA_NEED_CONVERT) {
-    stInfo("stream state need covert backend format");
+    stInfo("vgId:%d stream state need covert backend format", pMeta->vgId);
 
     return streamMetaCvtDbFormat(pMeta);
   } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
     stError(
-        "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
+        "vgId:%d stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
         "manually",
-        tsDataDir);
+        pMeta->vgId, tsDataDir);
 
     return -1;
   }
+
   return 0;
 }
 
@@ -322,35 +314,43 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   if (streamMetaMayCvtDbFormat(pMeta) < 0) {
+    stError("vgId:%d convert sub info format failed, open stream meta failed", pMeta->vgId);
     goto _err;
   }
+
   if (streamMetaBegin(pMeta) < 0) {
+    stError("vgId:%d begin trans for stream meta failed", pMeta->vgId);
     goto _err;
   }
 
   _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
   pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
   if (pMeta->pTasksMap == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   pMeta->updateInfo.pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
   if (pMeta->updateInfo.pTasks == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   pMeta->startInfo.pReadyTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
   if (pMeta->startInfo.pReadyTaskSet == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   pMeta->startInfo.pFailedTaskSet = taosHashInit(4, fp, false, HASH_NO_LOCK);
   if (pMeta->startInfo.pFailedTaskSet == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   pMeta->pHbInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pMeta->pHbInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
@@ -373,8 +373,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->numOfPausedTasks = 0;
   pMeta->numOfStreamTasks = 0;
-  stInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
-         stage);
+
+  stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
 
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
@@ -825,7 +825,8 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   return chkpId;
 }
 
-int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
+// not allowed to return error code
+void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC*     pCur = NULL;
   void*    pKey = NULL;
   int32_t  kLen = 0;
@@ -834,7 +835,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   SDecoder decoder;
 
   if (pMeta == NULL) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   SArray* pRecycleList = taosArrayInit(4, sizeof(STaskId));
@@ -845,7 +846,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d failed to open stream meta, code:%s, not load any stream tasks", vgId, tstrerror(terrno));
     taosArrayDestroy(pRecycleList);
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   tdbTbcMoveToFirst(pCur);
@@ -938,7 +939,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
           pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
 
   taosArrayDestroy(pRecycleList);
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
@@ -1264,7 +1264,8 @@ bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->status.timerActive >= 1) {
-      stDebug("s-task:%s in timer, blocking tasks in vgId:%d restart", pTask->id.idStr, pMeta->vgId);
+      stDebug("s-task:%s in timer, blocking tasks in vgId:%d restart, set closing again", pTask->id.idStr, pMeta->vgId);
+      streamTaskStop(pTask);
       inTimer = true;
     }
   }
@@ -1644,7 +1645,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
-    qDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
+    stDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
            pMeta->vgId, taskId, ready, el);
     streamMetaWUnLock(pMeta);
     return 0;
@@ -1652,7 +1653,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
   void* p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (p == NULL) {  // task does not exists in current vnode, not record the complete info
-    qError("vgId:%d s-task:0x%x not exists discard the check downstream info", pMeta->vgId, taskId);
+    stError("vgId:%d s-task:0x%x not exists discard the check downstream info", pMeta->vgId, taskId);
     streamMetaWUnLock(pMeta);
     return 0;
   }

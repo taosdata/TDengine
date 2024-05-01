@@ -29,7 +29,9 @@ typedef struct {
 } SAsyncUploadArg;
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
-static int32_t deleteCheckpointFile(char* id, char* name);
+static int32_t deleteCheckpointFile(const char* id, const char* name);
+static int32_t streamTaskBackupCheckpoint(char* id, char* path);
+static int32_t deleteCheckpoint(char* id);
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -658,9 +660,9 @@ int32_t downloadCheckpointDataByName(const char* id, const char* fname, const ch
   return 0;
 }
 
-int32_t downloadCheckpoint(char* id, char* path) {
+int32_t streamTaskDownloadCheckpointData(char* id, char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
-    stError("downloadCheckpoint parameters invalid");
+    stError("streamTaskDownloadCheckpointData parameters invalid");
     return -1;
   }
 
@@ -686,7 +688,7 @@ int32_t deleteCheckpoint(char* id) {
   return 0;
 }
 
-int32_t deleteCheckpointFile(char* id, char* name) {
+int32_t deleteCheckpointFile(const char* id, const char* name) {
   char object[128] = {0};
   snprintf(object, sizeof(object), "%s/%s", id, name);
   char* tmp = object;
