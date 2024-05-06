@@ -1217,7 +1217,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   // need to stop, stop now
-  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {
+  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {  // todo refactor: not need this now, use closeFlag in Meta
     pMeta->pHbInfo->stopFlag = STREAM_META_OK_TO_STOP;
     stDebug("vgId:%d jump out of meta timer", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
@@ -1308,7 +1308,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     }
   }
 
-  stDebug("vgId:%d start to check all tasks", vgId);
+  stDebug("vgId:%d start to check all tasks for closing", vgId);
   int64_t st = taosGetTimestampMs();
 
   while (streamMetaTaskInTimer(pMeta)) {
@@ -1758,4 +1758,26 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
   }
 
   return code;
+}
+
+void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
+                                     int64_t startTs) {
+  const char* id = pTask->id.idStr;
+  int32_t     vgId = pTask->pMeta->vgId;
+
+  // keep the already updated info
+  STaskUpdateEntry entry = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .transId = transId};
+  taosHashPut(pMeta->updateInfo.pTasks, &entry, sizeof(entry), NULL, 0);
+
+  int64_t el = taosGetTimestampMs() - startTs;
+  if (pHTask != NULL) {
+    STaskUpdateEntry hEntry = {.streamId = pHTask->id.streamId, .taskId = pHTask->id.taskId, .transId = transId};
+    taosHashPut(pMeta->updateInfo.pTasks, &hEntry, sizeof(hEntry), NULL, 0);
+
+    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask/hTask closed, elapsed:%" PRId64
+            " ms", id, vgId, transId, el);
+  } else {
+    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
+            id, vgId, transId, el);
+  }
 }

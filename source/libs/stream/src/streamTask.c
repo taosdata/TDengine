@@ -993,17 +993,54 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   return 0;
 }
 
-static int32_t streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs) {
-  taosArrayClear(pInfo->pList);
-
-  if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
-    pInfo->notReadyTasks = 1;
-  } else if (pOutputInfo->type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    pInfo->notReadyTasks = taosArrayGetSize(pOutputInfo->shuffleDispatcher.dbInfo.pVgroupInfos);
-    ASSERT(pInfo->notReadyTasks == pOutputInfo->shuffleDispatcher.dbInfo.vgNum);
+SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    if (pInfo->taskId == taskId) {
+      return pInfo;
+    }
   }
 
-  pInfo->startTs = startTs;
-  return TSDB_CODE_SUCCESS;
+  stError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
+  return NULL;
 }
 
+char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
+  char buf[128] = {0};
+  sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
+  return taosStrdup(buf);
+}
+
+static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
+  int8_t            status = TASK_INPUT_STATUS__NORMAL;
+
+  // enqueue
+  if (pData != NULL) {
+    stDebug("s-task:%s (child %d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
+            pTask->info.selfChildId, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
+
+    pData->type = STREAM_INPUT__DATA_RETRIEVE;
+    pData->srcVgId = 0;
+    streamRetrieveReqToData(pReq, pData);
+    if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pData) == 0) {
+      status = TASK_INPUT_STATUS__NORMAL;
+    } else {
+      status = TASK_INPUT_STATUS__FAILED;
+    }
+  } else {  // todo handle oom
+    /*streamTaskInputFail(pTask);*/
+    /*status = TASK_INPUT_STATUS__FAILED;*/
+  }
+
+  return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
+}
+
+int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
+  int32_t code = streamTaskEnqueueRetrieve(pTask, pReq);
+  if(code != 0){
+    return code;
+  }
+  return streamSchedExec(pTask);
+}

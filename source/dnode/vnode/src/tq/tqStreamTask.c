@@ -149,27 +149,13 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return 0;
   }
 
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    streamMetaWUnLock(pMeta);
-    return -1;
-  }
-
   tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, vnd restored:%d", vgId,
           numOfTasks, alreadyRestored);
 
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = 0;
-  pRunReq->taskId = 0;
-  pRunReq->reqType = STREAM_EXEC_T_EXTRACT_WAL_DATA;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
+  int32_t code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
   streamMetaWUnLock(pMeta);
 
-  return 0;
+  return code;
 }
 
 int32_t tqStopStreamTasksAsync(STQ* pTq) {
