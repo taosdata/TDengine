@@ -64,6 +64,7 @@ taostest --use=common_insert.yaml --case=bug_regression/bug_ts3159.py --keep --c
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts3236.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts3948.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts4001.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts4730.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_td28032.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/improve_29091.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/improve_29092.py --keep --containers
