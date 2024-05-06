@@ -381,7 +381,9 @@ async fn poll_message(
             .try_ready_chunks(batch_size)
             .try_next()
             .await
-            .map_err(|err| anyhow::anyhow!("Kafka polling error: {}", err.to_string()))?;
+            .map_err(|err| {
+                anyhow::anyhow!("failed to polling from kafka, cause: {}", err.to_string())
+            })?;
         if let Some(chunk) = chunk {
             for msg in chunk {
                 match msg.payload_view::<str>() {
@@ -394,14 +396,23 @@ async fn poll_message(
                         key.append_value(msg.key().unwrap_or(&[]));
                         value.append_value(s);
 
-                        // commit offset
-                        consumer.commit_message(&msg, CommitMode::Async).unwrap();
+                        // // commit offset
+                        // consumer.commit_message(&msg, CommitMode::Async).unwrap();
                     }
                     Some(Err(e)) => {
                         tracing::warn!("Error while deserializing message payload: {:?}", e);
                     }
                 };
             }
+
+            consumer
+                .commit_consumer_state(CommitMode::Async)
+                .map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to commit consumer state, cause: {}",
+                        err.to_string()
+                    )
+                })?;
         }
 
         if value.is_empty() {
