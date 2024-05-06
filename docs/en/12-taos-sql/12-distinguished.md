@@ -31,7 +31,7 @@ A PARTITION BY clause is processed as follows:
 select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 
-The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes£º
+The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutesÂ£Âº
 ```sql
 select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
@@ -44,12 +44,12 @@ Aggregation by time window is supported in TDengine. For example, in the case wh
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
 ```
 
-Both interval_val and sliding_value are time durations which have 3 forms of representation.
+Both interval_val and sliding_value are time durations, and interval_offset is the window offset, interval_offset must be less than interval_val, There are 3 forms of representation.
 - INTERVAL(1s, 500a) SLIDING(1s), the unit char should be any one of a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year).
 - INTERVAL(1000, 500) SLIDING(1000), the unit will the same as the queried database, if there are more than one databases, higher precision will be used.
 - INTERVAL('1s', '500a') SLIDING('1s'), unit must be specified, no spaces allowed.
