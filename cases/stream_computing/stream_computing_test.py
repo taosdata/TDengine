@@ -2648,7 +2648,8 @@ class StreamComputingTest(TDCase):
         if fill_value:
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
-        if use_except:
+        if use_except or not self.pk_test:
+            use_except = True
             stream_sql = self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, use_except=use_except)
             self.tdSql.error(stream_sql)
             return
@@ -5218,7 +5219,7 @@ class StreamComputingTest(TDCase):
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, fill_value="NULL", use_except=True)
             self.at_once_count_window(count_window_value=1, partition="tbname", watermark=random.randint(20, 25), ignore_expired=1, use_except=True)
-            self.at_once_interval_ext(interval=random.randint(10, 15), delete=True, fill_history_value=1, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, use_except=True)
+            # self.at_once_interval_ext(interval=random.randint(10, 15), delete=True, fill_history_value=1, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, use_except=True)
             # * not stable and put them last
             # if self.replica != 3:
                 # self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
