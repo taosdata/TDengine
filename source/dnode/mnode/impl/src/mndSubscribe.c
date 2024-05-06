@@ -673,7 +673,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mInfo("start to process mq timer");
+  mTrace("start to process mq timer");
 
   // iterate all consumers, find all modification
   while (1) {

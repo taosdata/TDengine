@@ -152,26 +152,33 @@ static int metaUpdateTableOptions(SMeta *meta, SMetaEntry *entry, SVAlterTbReq *
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (entry->type == TSDB_CHILD_TABLE) {
-    // if (request->updateTTL) {
-    //   metaDeleteTtl(meta, entry);
-    //   entry->ctbEntry.ttlDays = request->newTTL;
-    //   metaUpdateTtl(meta, entry);
-    // }
-    // if (request->newCommentLen >= 0) {
-    //   entry->ctbEntry.commentLen = request->newCommentLen;
-    //   entry->ctbEntry.comment = request->newComment;
-    // }
-  } else {
-    // if (request->updateTTL) {
-    //   metaDeleteTtl(meta, entry);
-    //   entry->ntbEntry.ttlDays = request->newTTL;
-    //   metaUpdateTtl(meta, entry);
-    // }
-    // if (request->newCommentLen >= 0) {
-    //   entry->ntbEntry.commentLen = request->newCommentLen;
-    //   entry->ntbEntry.comment = request->newComment;
-    // }
+  ASSERT(entry->type == TSDB_CHILD_TABLE || entry->type == TSDB_NORMAL_TABLE);
+
+  if (request->updateTTL) {
+    if (entry->type == TSDB_CHILD_TABLE) {
+      entry->ctbEntry.ttlDays = request->newTTL;
+    } else {
+      entry->ntbEntry.ttlDays = request->newTTL;
+    }
+  }
+
+  // change comment
+  if (request->newCommentLen >= 0) {
+    if (entry->type == TSDB_CHILD_TABLE) {
+      taosMemoryFreeClear(entry->ctbEntry.comment);
+      entry->ctbEntry.commentLen = request->newCommentLen;
+      if ((entry->ctbEntry.comment = taosMemoryCalloc(1, request->newCommentLen + 1)) == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
+      memcpy(entry->ctbEntry.comment, request->newComment, request->newCommentLen);
+    } else {
+      taosMemoryFreeClear(entry->ntbEntry.comment);
+      entry->ntbEntry.commentLen = request->newCommentLen;
+      if ((entry->ntbEntry.comment = taosMemoryCalloc(1, request->newCommentLen + 1)) == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
+      memcpy(entry->ntbEntry.comment, request->newComment, request->newCommentLen);
+    }
   }
 
 _exit:
