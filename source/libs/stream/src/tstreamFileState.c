@@ -26,6 +26,7 @@
 #define FLUSH_RATIO                    0.5
 #define FLUSH_NUM                      4
 #define DEFAULT_MAX_STREAM_BUFFER_SIZE (128 * 1024 * 1024);
+#define STREAM_STATE_INFO_NAME "StreamStateCheckPoint"
 
 struct SStreamFileState {
   SList*     usedBuffs;
@@ -47,6 +48,8 @@ struct SStreamFileState {
 };
 
 typedef SRowBuffPos SRowBuffInfo;
+
+static void streamFileStateDecode(TSKEY* pKey, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, pKey); }
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                       GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId,
@@ -87,6 +90,16 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->id = taosStrdup(taskId);
 
   recoverSnapshot(pFileState, checkpointId);
+
+  void*   valBuf = NULL;
+  int32_t len = 0;
+  int32_t code = streamDefaultGet_rocksdb(pFileState->pFileStore, STREAM_STATE_INFO_NAME, &valBuf, &len);
+  if (code == TSDB_CODE_SUCCESS) {
+    ASSERT(len == sizeof(TSKEY));
+    streamFileStateDecode(&pFileState->flushMark, valBuf, len);
+    qDebug("===stream===flushMark  read:%" PRId64, pFileState->flushMark);
+  }
+  taosMemoryFreeClear(valBuf);
   return pFileState;
 
 _error:
@@ -280,7 +293,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
   memcpy(pNewPos->pKey, pKey, keyLen);
 
   TSKEY ts = pFileState->getTs(pKey);
-  if (ts > pFileState->maxTs - pFileState->deleteMark && ts < pFileState->flushMark) {
+  if (ts > pFileState->maxTs - pFileState->deleteMark && ts <= pFileState->flushMark) {
     int32_t len = 0;
     void*   p = NULL;
     int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
@@ -346,8 +359,6 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   return pFileState->usedBuffs;
 }
 
-void streamFileStateDecode(TSKEY* key, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, key); }
-
 void streamFileStateEncode(TSKEY* key, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
@@ -375,6 +386,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   while ((pNode = tdListNext(&iter)) != NULL && code == TSDB_CODE_SUCCESS) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     ASSERT(pPos->pRowBuff && pFileState->rowSize > 0);
+    pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
 
     if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
       streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
@@ -404,20 +416,19 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     const char* taskKey = "streamFileState";
     {
       char    keyBuf[128] = {0};
-      void*   valBuf = NULL;
-      int32_t len = 0;
-      sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
-      taosMemoryFree(valBuf);
-    }
-    {
-      char    keyBuf[128] = {0};
       char    valBuf[64] = {0};
       int32_t len = 0;
       memcpy(keyBuf, taskKey, strlen(taskKey));
       len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
       code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
+    }
+    {
+      void*   valBuf = NULL;
+      int32_t len = 0;
+      streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
+      qDebug("===stream===flushMark write:%" PRId64, pFileState->flushMark);
+      streamStatePutBatch(pFileState->pFileStore, "default", batch, STREAM_STATE_INFO_NAME, valBuf, len, 0);
+      taosMemoryFree(valBuf);
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
