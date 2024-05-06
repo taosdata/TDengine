@@ -410,7 +410,7 @@ upx_run ${1} ${2}
 """
 
 [tasks.deploy-taosx]
-dependencies = ["taosx"]
+# dependencies = ["taosx"]
 script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
@@ -419,7 +419,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx target/deploy/taosx
 else
-  cp target/${profile}/taosx target/deploy/taosx
+  upx_run target/${profile}/taosx target/deploy/taosx
 end
 """
 
@@ -433,7 +433,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx.exe target/deploy/taosx.exe
 else
-  cp target/${profile}/taosx.exe target/deploy/taosx.exe
+  upx_run target/${profile}/taosx.exe target/deploy/taosx.exe
 end
 """
 
@@ -447,7 +447,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent target/deploy/taosx-agent
 else
-  cp target/${profile}/taosx-agent target/deploy/taosx-agent
+  upx_run target/${profile}/taosx-agent target/deploy/taosx-agent
 end
 """
 
@@ -461,6 +461,6 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taosx-agent.exe target/deploy/taosx-agent.exe
 else
-  cp target/${profile}/taosx-agent.exe target/deploy/taosx-agent.exe
+  upx_run target/${profile}/taosx-agent.exe target/deploy/taosx-agent.exe
 end
 """
