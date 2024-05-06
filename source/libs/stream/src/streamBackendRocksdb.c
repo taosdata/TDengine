@@ -1964,6 +1964,9 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
     stInfo("newly create db, need to restart");
     // pre create db
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
+    if (pTaskDb->db == NULL) {
+      goto _EXIT;
+    }
     rocksdb_close(pTaskDb->db);
 
     if (cfNames != NULL) {
