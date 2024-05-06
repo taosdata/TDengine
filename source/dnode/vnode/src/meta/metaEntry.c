@@ -412,6 +412,7 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  metaTagIdxKeyDestroy(tagIdxKey);
   return code;
 }
 
@@ -1313,14 +1314,17 @@ static int32_t metaDropIndexOnTag(SMeta *meta, const SMetaEntry *superTableEntry
   int32_t code = 0;
   int32_t lino = 0;
 
-  SArray *childTableUids = NULL;
+  SMetaEntry *childTableEntry = NULL;
+  SArray     *childTableUids = NULL;
   code = metaGetChildTableUidList(meta, superTableEntry->uid, &childTableUids);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   for (int32_t i = 0; i < taosArrayGetSize(childTableUids); i++) {
+    metaEntryCloneDestroy(childTableEntry);
+    childTableEntry = NULL;
+
     int64_t uid = *(int64_t *)taosArrayGet(childTableUids, i);
 
-    SMetaEntry *childTableEntry = NULL;
     code = metaGetTableEntryByUidImpl(meta, uid, &childTableEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1335,6 +1339,7 @@ _exit:
   if (code) {
     metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
   }
+  metaEntryCloneDestroy(childTableEntry);
   taosArrayDestroy(childTableUids);
   return code;
 }

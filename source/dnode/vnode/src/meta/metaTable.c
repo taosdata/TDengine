@@ -544,7 +544,7 @@ _exit:
   return (terrno = code);
 }
 
-static int32_t metaValidateAlterSuperTableReq(SMeta *meta, SVCreateStbReq *request) {
+static int32_t metaValidateAlterSuperTableReq(SMeta *meta, SVCreateStbReq *request, bool *hasChange) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -577,7 +577,7 @@ static int32_t metaValidateAlterSuperTableReq(SMeta *meta, SVCreateStbReq *reque
 
   if (request->schemaRow.version == superTableEntry->stbEntry.schemaRow.version &&
       request->schemaTag.version == superTableEntry->stbEntry.schemaTag.version) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, lino, _exit);
+    *hasChange = false;
   }
 
 _exit:
@@ -591,10 +591,15 @@ _exit:
 int32_t metaAlterSuperTable(SMeta *meta, int64_t version, SVCreateStbReq *request) {
   int32_t code = 0;
   int32_t lino = 0;
+  bool    hasChange = true;
 
   // validate
-  code = metaValidateAlterSuperTableReq(meta, request);
+  code = metaValidateAlterSuperTableReq(meta, request, &hasChange);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (!hasChange) {
+    return 0;
+  }
 
   // handle
   SMetaEntry entry = {
@@ -792,8 +797,9 @@ static int32_t metaUpdateTableColumnName(SMeta *meta, SMetaEntry *entry, SVAlter
   if (i >= schema->nCols) {
     TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_NOT_EXISTS, lino, _exit);
   }
-  code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId);
-  TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  if ((code = tqCheckColModifiable(meta->pVnode->pTq, entry->uid, schema->pSchema[i].colId))) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_VND_COL_SUBSCRIBED, lino, _exit);
+  }
 
   schema->version++;
   strncpy(schema->pSchema[i].name, request->colNewName, TSDB_COL_NAME_LEN - 1);
