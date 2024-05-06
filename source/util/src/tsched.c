@@ -28,7 +28,7 @@ static void  taosDumpSchedulerStatus(void *qhandle, void *tmrId);
 
 void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *label, SSchedQueue *pSched) {
   bool schedMalloced = false;
-  
+
   if (NULL == pSched) {
     pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
     if (pSched == NULL) {
@@ -100,7 +100,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     int32_t code = taosThreadCreate(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
     taosThreadAttrDestroy(&attr);
     if (code != 0) {
-      uError("%s: failed to create rpc thread(%s)", label, strerror(errno));
+      uError("%s: failed to create thread(%s)", label, strerror(errno));
       taosCleanUpScheduler(pSched);
       if (schedMalloced) {
         taosMemoryFree(pSched);
