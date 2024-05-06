@@ -362,6 +362,7 @@ export default {
           this.$store.commit('app/SET_RESULTTB_SHOW',false)
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',null)
           this.$store.commit('app/SET_HISTORIAN_DSN','')
+          this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",[]);
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);

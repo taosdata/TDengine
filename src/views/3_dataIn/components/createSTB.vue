@@ -210,8 +210,8 @@ export default {
     }
   },
   mounted() {
-    if (this.columnsArr.length > 0) {
-      let arr = this.columnsArr.map(item => {
+    if (this.$store.state.app.stbDefaultColumns.length > 0) {
+      let arr = this.$store.state.app.stbDefaultColumns.map(item => {
         return {
           field: item.name,
           type: item.localType.toUpperCase()

@@ -540,10 +540,10 @@
         :visible.sync="showCreateDIalog"
         width="40%"
         center
-        destroy-on-close
         :append-to-body="true"
         @close="closeDialog"
         :close-on-click-modal="false"
+        v-if="showCreateDIalog"
       >
         <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
         <div class="buttons">
@@ -1095,6 +1095,9 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
+        this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",this.columnsArr)
+        console.log('this.columnsArr',this.columnsArr);
+
         // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
         this.handelExtractArr(this.columnsArr,this.extractArr)
         this.showIndentifyResulttb();

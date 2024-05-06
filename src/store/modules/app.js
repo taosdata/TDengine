@@ -105,7 +105,8 @@ const state = {
   ticket: '',
   limitOffset: 5,
   showSystemMes: false, // 辅助判断是否展示联系团队的弹框
-  validOpcFileRes: { valid: true }
+  validOpcFileRes: { valid: true },
+  stbDefaultColumns: [],// transfrom 创建超级表时默认的列
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -133,7 +134,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
-
+  SET_STB_DEFAULT_COLUMNS:(state,data) => {
+    state.stbDefaultColumns=data
+  },
   SET_SHOW_SYSTEM_MES:(state,data) => {
     state.showSystemMes=data
   },
