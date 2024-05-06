@@ -484,7 +484,6 @@ async fn consume_lush_record(
                     }
                     Err(err) => {
                         let errstr = format!("{err:#}");
-                        tracing::warn!(sql = query_tags_sql, error = errstr, "query_tags_sql err");
                         if errstr.contains("0x2603") || errstr.contains("0x2662") {
                             // table not exists
                             let table_sql = table.to_sql(None);
@@ -527,6 +526,11 @@ async fn consume_lush_record(
                                 }
                             }
                         } else {
+                            tracing::warn!(
+                                sql = query_tags_sql,
+                                error = errstr,
+                                "query_tags_sql err"
+                            );
                             bail!("lush message table query error: {err:#}");
                         }
                     }
