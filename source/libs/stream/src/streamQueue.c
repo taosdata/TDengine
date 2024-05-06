@@ -425,3 +425,5 @@ void streamTaskPutbackToken(STokenBucket* pBucket) {
 void streamTaskConsumeQuota(STokenBucket* pBucket, int32_t bytes) {
   pBucket->quotaRemain -= SIZE_IN_MiB(bytes);
 }
+
+void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }

@@ -17,12 +17,6 @@
 #include "tq.h"
 #include "tstream.h"
 
-typedef struct STaskUpdateEntry {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t transId;
-} STaskUpdateEntry;
-
 typedef struct SMStreamCheckpointReadyRspMsg {
   SMsgHead head;
 } SMStreamCheckpointReadyRspMsg;
@@ -116,22 +110,10 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
     return 0;
   }
 
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    return -1;
-  }
-
   tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = 0;
-  pRunReq->taskId = 0;
-  pRunReq->reqType = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
 
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(cb, STREAM_QUEUE, &msg);
-  return 0;
+  int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
+  return streamTaskSchedTask(cb, vgId, 0, 0, type);
 }
 
 int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
@@ -143,22 +125,8 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
     return 0;
   }
 
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to start task:0x%x, code:%s", vgId, taskId, terrstr());
-    return -1;
-  }
-
   tqDebug("vgId:%d start task:0x%x async", vgId, taskId);
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = STREAM_EXEC_T_START_ONE_TASK;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(cb, STREAM_QUEUE, &msg);
-  return 0;
+  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
 }
 
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
@@ -259,6 +227,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     }
   }
 
+  // save
   if (updated) {
     tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
     streamMetaSaveTask(pMeta, pTask);
@@ -269,21 +238,14 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     tqDebug("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
   }
 
+  // stop
   streamTaskStop(pTask);
-
-  // keep the already updated info
-  taosHashPut(pMeta->updateInfo.pTasks, &entry, sizeof(entry), NULL, 0);
-
-  int64_t now = taosGetTimestampMs();
   if (ppHTask != NULL) {
     streamTaskStop(*ppHTask);
-    tqDebug("s-task:%s vgId:%d task nodeEp update completed, streamTask/fill-history closed, elapsed:%" PRId64 " ms",
-            idstr, vgId, now - st);
-    taosHashPut(pMeta->updateInfo.pTasks, &(*ppHTask)->id, sizeof(pTask->id), NULL, 0);
-  } else {
-    tqDebug("s-task:%s vgId:%d, task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms", idstr,
-            vgId, now - st);
   }
+
+  // keep info
+  streamMetaAddIntoUpdateTaskList(pMeta, pTask, (ppHTask != NULL) ? (*ppHTask) : NULL, req.transId, st);
 
   rsp.code = 0;
 
@@ -307,10 +269,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     } else {
       tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
-      // for test purpose, to trigger the leader election
-      taosMSleep(5000);
+      taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif
-
       tqStreamTaskStartAsync(pMeta, cb, true);
     }
   }
@@ -712,26 +672,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   return 0;
 }
 
-int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta) {
-  int32_t vgId = pMeta->vgId;
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-
-  tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, numOfTasks);
-  if (numOfTasks == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
-
-    STaskId       id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
-    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-    streamTaskResetStatus(*pTask);
-  }
-
-  return 0;
-}
-
 static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int32_t vgId = pMeta->vgId;
   int32_t code = 0;
@@ -781,7 +721,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
     streamMetaWUnLock(pMeta);
-    tqInfo("vgId:%d, follower node not start stream tasks", vgId);
+    tqInfo("vgId:%d, follower node not start stream tasks or stream is disabled", vgId);
   }
 
   code = terrno;

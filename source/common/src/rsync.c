@@ -9,7 +9,7 @@
 #define ERRNO_ERR_DATA    errno,strerror(errno)
 
 // deleteRsync function produce empty directories, traverse base directory to remove them
-static void removeEmptyDir(){
+static void removeEmptyDir() {
   TdDirPtr pDir = taosOpenDir(tsCheckpointBackupDir);
   if (pDir == NULL) return;
 
@@ -53,7 +53,7 @@ static void changeDirFromWindowsToLinux(char* from, char* to){
 }
 #endif
 
-static int generateConfigFile(char* confDir){
+static int generateConfigFile(char* confDir) {
   TdFilePtr pFile = taosOpenFile(confDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     uError("[rsync] open conf file error, dir:%s,"ERRNO_ERR_FORMAT, confDir, ERRNO_ERR_DATA);
@@ -111,7 +111,7 @@ static int execCommand(char* command){
   return code;
 }
 
-void stopRsync(){
+void stopRsync() {
   int code =
 #ifdef WINDOWS
   system("taskkill /f /im rsync.exe");
@@ -125,7 +125,7 @@ void stopRsync(){
   uDebug("[rsync] stop rsync server successful");
 }
 
-void startRsync(){
+void startRsync() {
   if(taosMulMkDir(tsCheckpointBackupDir) != 0){
     uError("[rsync] build checkpoint backup dir failed, dir:%s,"ERRNO_ERR_FORMAT, tsCheckpointBackupDir, ERRNO_ERR_DATA);
     return;
@@ -151,7 +151,7 @@ void startRsync(){
   uDebug("[rsync] start server successful");
 }
 
-int uploadRsync(char* id, char* path){
+int uploadRsync(const char* id, const char* path) {
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
   changeDirFromWindowsToLinux(path, pathTransform);
@@ -188,7 +188,7 @@ int uploadRsync(char* id, char* path){
   return 0;
 }
 
-int downloadRsync(char* id, char* path){
+int downloadRsync(const char* id, const char* path) {
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
   changeDirFromWindowsToLinux(path, pathTransform);
@@ -212,7 +212,7 @@ int downloadRsync(char* id, char* path){
   return 0;
 }
 
-int deleteRsync(char* id){
+int deleteRsync(const char* id) {
   char* tmp = "./tmp_empty/";
   int code = taosMkDir(tmp);
   if(code != 0){

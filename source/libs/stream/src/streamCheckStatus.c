@@ -342,22 +342,22 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
   }
 
   if (!pInfo->inCheckProcess) {
-//    stWarn("s-task:%s already not in-check-procedure", id);
+    int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
+    stDebug("s-task:%s clear the in check-rsp flag, set the check-rsp done, elapsed time:%" PRId64 " ms", id, el);
+
+    pInfo->startTs = 0;
+    pInfo->timeoutStartTs = 0;
+    pInfo->notReadyTasks = 0;
+    pInfo->inCheckProcess = 0;
+    pInfo->stopCheckProcess = 0;
+
+    pInfo->notReadyRetryCount = 0;
+    pInfo->timeoutRetryCount = 0;
+
+    taosArrayClear(pInfo->pList);
+  } else {
+    stDebug("s-task:%s already not in check-rsp procedure", id);
   }
-
-  int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
-  stDebug("s-task:%s clear the in check-rsp flag, not in check-rsp anymore, elapsed time:%" PRId64 " ms", id, el);
-
-  pInfo->startTs = 0;
-  pInfo->timeoutStartTs = 0;
-  pInfo->notReadyTasks = 0;
-  pInfo->inCheckProcess = 0;
-  pInfo->stopCheckProcess = 0;
-
-  pInfo->notReadyRetryCount = 0;
-  pInfo->timeoutRetryCount = 0;
-
-  taosArrayClear(pInfo->pList);
 
   if (lock) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
@@ -527,23 +527,7 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
 // The restart of all tasks requires that all tasks should not have active timer for now. Therefore, the execution
 // of restart in timer thread will result in a dead lock.
 int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId) {
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    stError("vgId:%d failed to create msg to stop tasks async, code:%s", vgId, terrstr());
-    return -1;
-  }
-
-  stDebug("vgId:%d create msg add failed s-task:0x%x", vgId, taskId);
-
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = STREAM_EXEC_T_ADD_FAILED_TASK;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  return 0;
+  return streamTaskSchedTask(pMsgCb, vgId, streamId, taskId, STREAM_EXEC_T_ADD_FAILED_TASK);
 }
 
 // this function is executed in timer thread
