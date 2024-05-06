@@ -287,7 +287,19 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   SMetaReader* mr = (SMetaReader*)pContext;
+  bool isTagCol = false, isTbname = false;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)*pNode;
+    if (pCol->colType == COLUMN_TYPE_TBNAME)
+      isTbname = true;
+    else
+      isTagCol = true;
+  } else if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (pFunc->funcType == FUNCTION_TYPE_TBNAME)
+      isTbname = true;
+  }
+  if (isTagCol) {
     SColumnNode* pSColumnNode = *(SColumnNode**)pNode;
 
     SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -316,24 +328,21 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
     }
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)res;
-  } else if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
-    SFunctionNode* pFuncNode = *(SFunctionNode**)pNode;
-    if (pFuncNode->funcType == FUNCTION_TYPE_TBNAME) {
-      SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-      if (NULL == res) {
-        return DEAL_RES_ERROR;
-      }
-
-      res->translate = true;
-      res->node.resType = pFuncNode->node.resType;
-
-      int32_t len = strlen(mr->me.name);
-      res->datum.p = taosMemoryCalloc(len + VARSTR_HEADER_SIZE + 1, 1);
-      memcpy(varDataVal(res->datum.p), mr->me.name, len);
-      varDataSetLen(res->datum.p, len);
-      nodesDestroyNode(*pNode);
-      *pNode = (SNode*)res;
+  } else if (isTbname) {
+    SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    if (NULL == res) {
+      return DEAL_RES_ERROR;
     }
+
+    res->translate = true;
+    res->node.resType = ((SExprNode*)(*pNode))->resType;
+
+    int32_t len = strlen(mr->me.name);
+    res->datum.p = taosMemoryCalloc(len + VARSTR_HEADER_SIZE + 1, 1);
+    memcpy(varDataVal(res->datum.p), mr->me.name, len);
+    varDataSetLen(res->datum.p, len);
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)res;
   }
 
   return DEAL_RES_CONTINUE;

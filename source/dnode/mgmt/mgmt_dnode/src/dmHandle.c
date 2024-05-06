@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "systable.h"
+#include "tchecksum.h"
 
 extern SConfig *tsCfg;
 
@@ -113,6 +114,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
+  req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
+  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -166,23 +169,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
-void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
-  SNotifyReq req = {0};
-
-  taosThreadRwlockRdlock(&pMgmt->pData->lock);
-  req.dnodeId = pMgmt->pData->dnodeId;
-  taosThreadRwlockUnlock(&pMgmt->pData->lock);
-
-  req.clusterId = pMgmt->pData->clusterId;
-
-  SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
-  req.pVloads = vinfo.pVloads;
-
-  int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
-  void *  pHead = rpcMallocCont(contLen);
-  tSerializeSNotifyReq(pHead, contLen, &req);
-  tFreeSNotifyReq(&req);
+void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
+  int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
+  void   *pHead = rpcMallocCont(contLen);
+  tSerializeSNotifyReq(pHead, contLen, pReq);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
@@ -216,16 +206,41 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
   SConfig *pCfg = taosGetCfg();
-  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD);
+  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
   taosCfgDynamicOptions(pCfg, cfgReq.config, true);
   return 0;
+}
+
+int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#ifdef TD_ENTERPRISE
+  int32_t       code = 0;
+  SDCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = dmUpdateEncryptKey(cfgReq.value);
+  if (code == 0) {
+    tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
+    tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
+    tstrncpy(tsEncryptKey, cfgReq.value, ENCRYPT_KEY_LEN + 1);
+  }
+
+_exit:
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  return 0;
+#endif
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
 
-  SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode &&
@@ -304,39 +319,10 @@ SSDataBlock *dmBuildVariablesBlock(void) {
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
-  int32_t numOfRows = 0;
-  blockDataEnsureCapacity(pBlock, numOfCfg);
+  /*int32_t code = */dumpConfToDataBlock(pBlock, 1);
 
-  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
-    SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
-    // GRANT_CFG_SKIP;
-
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
-
-    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, name, false);
-
-    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
-    int32_t valueLen = 0;
-    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
-    varDataSetLen(value, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, value, false);
-
-    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
-    varDataSetLen(scope, valueLen);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataSetVal(pColInfo, i, scope, false);
-
-    numOfRows++;
-  }
-
-  pBlock->info.rows = numOfRows;
+  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+  colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -421,6 +407,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

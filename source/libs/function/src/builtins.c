@@ -2517,7 +2517,7 @@ static int32_t translateMd5(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = MD5_OUTPUT_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  pFunc->node.resType = (SDataType){.bytes = MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3169,7 +3169,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC | FUNC_MGT_TSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -3181,7 +3181,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #endif
     .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
-    .pStateFunc = "_hyperloglog_state",
     .pMergeFunc   = "_hyperloglog_merge"
   },
   {
@@ -3211,7 +3210,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
 #endif
     .combineFunc  = hllCombine,
-    .pPartialFunc = "_hyperloglog_state_merge",
     .pMergeFunc = "_hyperloglog_merge",
   },
   {
@@ -4087,8 +4085,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc = lastFunctionMerge,
     .finalizeFunc = firstLastPartialFinalize,
   },
-  {
-    .name = "_hyperloglog_state",
+  {   .name = "_hyperloglog_state",
     .type = FUNCTION_TYPE_HYPERLOGLOG_STATE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_COUNT_LIKE_FUNC | FUNC_MGT_TSMA_FUNC,
     .translateFunc = translateHLLState,

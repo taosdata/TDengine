@@ -39,7 +39,7 @@ select_expr: {
 
 from_clause: {
     table_reference [, table_reference] ...
-  | join_clause [, join_clause] ...
+  | table_reference join_clause [, join_clause] ...
 }
 
 table_reference:
@@ -52,7 +52,7 @@ table_expr: {
 }
 
 join_clause:
-    table_reference [INNER] JOIN table_reference ON condition
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -95,6 +95,7 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
 | PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
 | SMALLDATA_TS_SORT| 无             | 超级表的数据按时间戳排序时, 查询列长度大于等于256, 但是行数不多, 使用这个提示, 可以提高性能 | 超级表的数据按时间戳排序时  |
+| SKIP_TSMA | 无 | 用于显示的禁用TSMA查询优化 | 带Agg函数的查询语句 |
 
 举例： 
 
@@ -410,7 +411,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN 子句
 
-TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制，其它连接条件与主键间必须是 AND 操作。
+在 3.3.0.0 版本之前 TDengine 只支持内连接，自 3.3.0.0 版本起 TDengine 支持了更为广泛的 JOIN 类型，这其中既包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
+
+### 示例
 
 普通表与普通表之间的 JOIN 操作：
 
@@ -420,23 +423,23 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-超级表与超级表之间的 JOIN 操作：
+超级表与超级表之间的 LEFT JOIN 操作：
 
 ```sql
 SELECT *
-FROM temp_stable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-子表与超级表之间的 JOIN 操作：
+子表与超级表之间的 LEFT ASOF JOIN 操作：
 
 ```sql
 SELECT *
-FROM temp_ctable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
+更多 JOIN 操作相关介绍参见页面 [TDengine 关联查询](../join)
 
 ## 嵌套查询
 

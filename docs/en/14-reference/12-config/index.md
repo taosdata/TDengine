@@ -206,11 +206,11 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute  | Description                                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable | Server only                                                                                                                                                                                                                     |
+| Applicable | Server and Client                                                                                                                                                                                                                     |
 | Meaning    | count()/hyperloglog() return value or not if the input data is empty or NULL                                                                                                                                                    |
-| Vlue Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
+| Value Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
 | Default    | 1                                                                                                                                                                                                                               |
-| Notes      | When this parameter is setting to 1, for queries containing GROUP BY, PARTITION BY and INTERVAL clause, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values |
+| Notes      | When this parameter is setting to 1, for queries containing INTERVAL clause or the queries using TSMA, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values. Server and client use the same value|
 
 ### maxNumOfDistinctRes
 
@@ -240,6 +240,25 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Value Range   | 0: do not return tags, 1: return tags |
 | Default Value | 0          |
 | Notes         |  When this parameter is set to 0, last(\*)/last_row(\*)/first(\*) only returns the columns of the super table; When it is 1, return the columns and tags of the super table.               |
+
+### maxTsmaCalcDelay
+
+| Attribute     | Description                                                                                                                                  |
+| --------      | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                                                  |
+| Meaning       | Query allowed tsma calculation delay, if the tsma calculation delay is greater than the configured value, the TSMA will not be used.         |
+| Value Range   | 600s - 86400s, 10 minutes to 1 hour                                                                                                          |
+| Default value | 600s                                                                                                                                         |
+
+### tsmaDataDeleteMark
+
+| Attribute     | Description                        |
+| -------- | --------------------------- |
+| Applicable | Client only                |
+| Meaning     | The duration for which the intermediate results of TSMA calculations are saved, in milliseconds |
+| Value Range | >= 3600000, greater than or equal to 1 hour                       |
+| Default value   | 86400000, 1d                           |
+
 
 ## Locale Parameters
 
@@ -759,6 +778,15 @@ The charset that takes effect is UTF-8.
 | Meaning     | The max num of topics  |
 | Value Range | 1-10000|
 | Default Value   | 20                  |
+
+### maxTsmaNum
+
+| Attribute | Description                   |
+| --------- | ----------------------------- |
+| Applicable | Server Only                  |
+| Meaning   | Max num of TSMAs              |
+| Value Range | 0-3                        |
+| Default Value | 3                         |
 
 ## 3.0 Parameters
 

@@ -39,7 +39,7 @@ select_expr: {
 
 from_clause: {
     table_reference [, table_reference] ...
-  | join_clause [, join_clause] ...
+  | table_reference join_clause [, join_clause] ...
 }
 
 table_reference:
@@ -52,7 +52,7 @@ table_expr: {
 }
 
 join_clause:
-    table_reference [INNER] JOIN table_reference ON condition
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -95,6 +95,7 @@ The list of currently supported Hints is as follows:
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
 | PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
 | SMALLDATA_TS_SORT| None             | When sorting the supertable rows by timestamp, if the length of query columns >= 256, and there are relatively few rows, this hint can improve performance. | Sorting the supertable rows by timestamp  |
+| SKIP_TSMA| None| To explicitly disable tsma optimization for select query|Select query with agg funcs|
 
 For example:
 
@@ -408,9 +409,11 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables, primary key and other conditions must be combined with `AND` operator.
+Before the 3.3.0.0 version, TDengine only supported Inner Join queries. Since the 3.3.0.0 version, TDengine supports a wider range of JOIN types, including LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN in traditional databases, as well as ASOF JOIN and WINDOW JOIN in time series databases. JOIN operations are supported between subtables, normal tables, super tables, and subqueries.
 
-For standard tables:
+### Examples
+
+INNER JOIN between normal tables:
 
 ```sql
 SELECT *
@@ -418,23 +421,23 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-For supertables:
+LEFT JOIN between super tables:
 
 ```sql
 SELECT *
-FROM temp_stable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-For sub-table and super table:
+LEFT ASOF JOIN between child table and super table:
 
 ```sql
 SELECT *
-FROM temp_ctable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-Similarly, join operations can be performed on the result sets of multiple subqueries.
+For more information about JOIN operations, please refer to the page [TDengine Join] (../join).
 
 ## Nested Query
 

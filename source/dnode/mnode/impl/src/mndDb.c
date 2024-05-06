@@ -36,7 +36,7 @@
 #include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 28
+#define DB_RESERVE_SIZE 27
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -146,6 +146,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.s3KeepLocal, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.s3Compact, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.withArbitrator, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.encryptAlgorithm, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->tsmaVersion, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
@@ -242,6 +243,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.s3KeepLocal, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.s3Compact, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.withArbitrator, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.encryptAlgorithm, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->tsmaVersion, _OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
@@ -425,9 +427,12 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
 #ifdef TD_ENTERPRISE
   if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return -1;
+  if (pCfg->encryptAlgorithm < TSDB_MIN_ENCRYPT_ALGO || pCfg->encryptAlgorithm > TSDB_MAX_ENCRYPT_ALGO) return -1;
 #else
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
+  if (pCfg->encryptAlgorithm != TSDB_DEFAULT_ENCRYPT_ALGO) return -1;
 #endif
+
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
@@ -544,6 +549,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->s3KeepLocal <= 0) pCfg->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   if (pCfg->s3Compact <= 0) pCfg->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   if (pCfg->withArbitrator < 0) pCfg->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
 
 static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
@@ -721,6 +727,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .s3Compact = pCreate->s3Compact,
       .tsdbPageSize = pCreate->tsdbPageSize,
       .withArbitrator = pCreate->withArbitrator,
+      .encryptAlgorithm = pCreate->encryptAlgorithm,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -806,17 +813,52 @@ static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int6
   }
 }
 
+static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
+  int32_t    code = 0;
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = NULL;
+  void      *pIter = NULL;
+
+#ifdef TD_ENTERPRISE
+  if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
+  if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
+    code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
+    mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
+           tsEncryptionKeyStat);
+    goto _exit;
+  }
+
+  int64_t curMs = taosGetTimestampMs();
+  while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
+    bool online = false;
+    if ((pDnode->encryptionKeyStat != tsEncryptionKeyStat || pDnode->encryptionKeyChksum != tsEncryptionKeyChksum) &&
+        (online = mndIsDnodeOnline(pDnode, curMs))) {
+      code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
+      mError("db:%s, failed to check encryption key:%" PRIi8
+             "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
+             pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
+             tsEncryptionKeyChksum);
+      sdbRelease(pSdb, pDnode);
+      break;
+    }
+    sdbRelease(pSdb, pDnode);
+  }
+#else
+  if (pReq->encryptAlgorithm != TSDB_ENCRYPT_ALGO_NONE) {
+    code = TSDB_CODE_MND_INVALID_DB_OPTION;
+    goto _exit;
+  }
+#endif
+_exit:
+  return code;
+}
+
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
-
-  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
-    code = terrno;
-    goto _OVER;
-  }
 
   if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -854,6 +896,16 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     } else {  // TSDB_CODE_APP_ERROR
       goto _OVER;
     }
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if ((code = mndCheckDbEncryptKey(pMnode, &createReq)) != 0) {
+    terrno = code;
+    goto _OVER;
   }
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
@@ -1207,6 +1259,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->s3KeepLocal = pDb->cfg.s3KeepLocal;
   cfgRsp->s3Compact = pDb->cfg.s3Compact;
   cfgRsp->withArbitrator = pDb->cfg.withArbitrator;
+  cfgRsp->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -2028,6 +2081,18 @@ static const char *getCacheModelStr(int8_t cacheModel) {
   return "unknown";
 }
 
+static const char *getEncryptAlgorithmStr(int8_t encryptAlgorithm) {
+  switch (encryptAlgorithm) {
+    case TSDB_ENCRYPT_ALGO_NONE:
+      return TSDB_ENCRYPT_ALGO_NONE_STR;
+    case TSDB_ENCRYPT_ALGO_SM4:
+      return TSDB_ENCRYPT_ALGO_SM4_STR;
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
   if (pDb->cfg.replications == 1) return true;
 
@@ -2248,6 +2313,12 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
+
+    const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
+    char        encryptAlgorithmVStr[24] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
   }
 
   taosMemoryFree(buf);

@@ -110,6 +110,8 @@ typedef struct {
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
+  EEncryptAlgor  encryptAlgorigthm;
+  EEncryptScope  encryptScope;
 } SDnodeData;
 
 typedef struct {
@@ -180,6 +182,7 @@ TdFilePtr dmCheckRunning(const char *dataDir);
 int32_t dmInitDndInfo(SDnodeData *pData);
 
 // dmEps.c
+int32_t dmGetDnodeSize(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
@@ -191,7 +194,8 @@ void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
 void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-
+int32_t dmUpdateEncryptKey(char *key);
+int32_t dmGetEncryptKey();
 #ifdef __cplusplus
 }
 #endif

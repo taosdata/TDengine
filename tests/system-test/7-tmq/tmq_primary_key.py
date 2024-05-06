@@ -62,7 +62,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -80,6 +80,8 @@ class TDTestCase:
                 break
         finally:
             consumer.close()
+
+        time.sleep(4)  # wait for heart beat
 
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
@@ -171,7 +173,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -190,6 +192,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)
@@ -279,7 +282,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -298,6 +301,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)
@@ -387,7 +391,7 @@ class TDTestCase:
             while True:
                 res = consumer.poll(1)
                 if not res:
-                    break
+                    continue
                 val = res.value()
                 if val is None:
                     continue
@@ -406,6 +410,7 @@ class TDTestCase:
         finally:
             consumer.close()
 
+        time.sleep(4)  # wait for heart beat
         tdSql.query(f'show subscriptions;')
         sub = tdSql.getData(0, 4);
         print(sub)

@@ -309,11 +309,10 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
 
   pRec->numOfSubmit += 1;
   if ((pRec->numOfSubmit % 1000) == 0) {
-    double el = (taosGetTimestampMs() - pTask->execInfo.start) / 1000.0;
+    double el = (taosGetTimestampMs() - pTask->execInfo.readyTs) / 1000.0;
     tqInfo("s-task:%s vgId:%d write %" PRId64 " blocks (%" PRId64 " rows) in %" PRId64
            " submit into dst table, %.2fMiB duration:%.2f Sec.",
-           pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MiB(pRec->dataSize),
-           el);
+           id, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MiB(pRec->dataSize), el);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -334,8 +333,9 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   }
 
   while (j < newLen && k < oldLen) {
-    SRow* pNewRow = taosArrayGetP(pNew->aRowP, j);
-    SRow* pOldRow = taosArrayGetP(pExisted->aRowP, k);
+    SRow* pNewRow = *(SRow**)TARRAY_GET_ELEM(pNew->aRowP, j);
+    SRow* pOldRow = *(SRow**)TARRAY_GET_ELEM(pExisted->aRowP, k);
+
     if (pNewRow->ts < pOldRow->ts) {
       taosArrayPush(pFinal, &pNewRow);
       j += 1;
@@ -374,12 +374,12 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   }
 
   while (j < newLen) {
-    SRow* pRow = taosArrayGetP(pNew->aRowP, j++);
+    SRow* pRow = *(SRow**)TARRAY_GET_ELEM(pNew->aRowP, j++);
     taosArrayPush(pFinal, &pRow);
   }
 
   while (k < oldLen) {
-    SRow* pRow = taosArrayGetP(pExisted->aRowP, k++);
+    SRow* pRow = *(SRow**)TARRAY_GET_ELEM(pExisted->aRowP, k++);
     taosArrayPush(pFinal, &pRow);
   }
 
@@ -486,6 +486,7 @@ SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, in
 
 int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId, const char* id) {
   if (tSimpleHashGetSize(pSinkTableMap) > MAX_CACHE_TABLE_INFO_NUM) {
+    taosMemoryFreeClear(pTableSinkInfo);  // too many items, failed to cache it
     return TSDB_CODE_FAILED;
   }
 
@@ -584,7 +585,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
       if (IS_SET_NULL(pCol)) {
         if (pCol->flags & COL_IS_KEY) {
-          qError("ts:%" PRId64 " Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
+          qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8, ts,
                  pCol->colId, pCol->type);
           break;
         }
@@ -594,7 +595,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
         if (colDataIsNull_s(pColData, j)) {
           if (pCol->flags & COL_IS_KEY) {
-            qError("ts:%" PRId64 "Primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
+            qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
                    ts, pCol->colId, pCol->type);
             break;
           }
@@ -604,7 +605,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           dataIndex++;
         } else {
           void* colData = colDataGetData(pColData, j);
-          if (IS_STR_DATA_TYPE(pCol->type)) {
+          if (IS_VAR_DATA_TYPE(pCol->type)) {
             // address copy, no value
             SValue sv =
                 (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
@@ -625,8 +626,8 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
-      pTableData->aRowP = taosArrayDestroy(pTableData->aRowP);
       taosArrayDestroy(pVals);
+      tqError("s-task:%s build rows for submit failed, ts:%"PRId64, id, ts);
       return code;
     }
 

@@ -14,6 +14,7 @@
  */
 
 #include "streamBackendRocksdb.h"
+#include "lz4.h"
 #include "streamInt.h"
 #include "tcommon.h"
 #include "tref.h"
@@ -332,7 +333,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
     taosRemoveDir(defaultPath);
   }
 
-  code = downloadCheckpoint(key, chkpPath);
+  code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -341,7 +342,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
   return code;
 }
 int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = downloadCheckpoint(key, chkpPath);
+  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -375,10 +376,10 @@ int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char
   return code;
 }
 int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  UPLOAD_TYPE type = getUploadType();
-  if (type == UPLOAD_S3) {
+  ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+  if (type == DATA_UPLOAD_S3) {
     return rebuildFromRemoteChkp_s3(key, chkpPath, chkpId, defaultPath);
-  } else if (type == UPLOAD_RSYNC) {
+  } else if (type == DATA_UPLOAD_RSYNC) {
     return rebuildFromRemoteChkp_rsync(key, chkpPath, chkpId, defaultPath);
   }
   return -1;
@@ -1149,6 +1150,23 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
 /*
    0
 */
+
+void* taskAcquireDb(int64_t refId) {
+  // acquire
+  void* p = taosAcquireRef(taskDbWrapperId, refId);
+  return p;
+}
+void taskReleaseDb(int64_t refId) {
+  // release
+  taosReleaseRef(taskDbWrapperId, refId);
+}
+
+int64_t taskGetDBRef(void* arg) {
+  if (arg == NULL) return -1;
+  STaskDbWrapper* pDb = arg;
+  return pDb->refId;
+}
+
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
@@ -1550,48 +1568,107 @@ void destroyCompare(void* arg) {
 }
 
 int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
-  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .data = (char*)(value)};
+  SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .rawLen = vlen, .compress = 0, .data = (char*)(value)};
   int32_t      len = 0;
+  char*        dst = NULL;
+  if (vlen > 512) {
+    dst = taosMemoryCalloc(1, vlen + 128);
+    int32_t dstCap = vlen + 128;
+    int32_t compressedSize = LZ4_compress_default((char*)value, dst, vlen, dstCap);
+    if (compressedSize < vlen) {
+      key.compress = 1;
+      key.len = compressedSize;
+      value = dst;
+    }
+    stDebug("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
+  }
+
   if (*dest == NULL) {
-    char* p = taosMemoryCalloc(1, sizeof(int64_t) + sizeof(int32_t) + key.len);
+    char* p = taosMemoryCalloc(
+        1, sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len);
     char* buf = p;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
     *dest = p;
   } else {
     char* buf = *dest;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
-    len += taosEncodeBinary((void**)&buf, (char*)value, vlen);
+    len += taosEncodeFixedI32((void**)&buf, key.rawLen);
+    len += taosEncodeFixedI8((void**)&buf, key.compress);
+    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
   }
+  taosMemoryFree(dst);
+
   return len;
 }
+
 /*
  *  ret >= 0 : found valid value
  *  ret < 0 : error or timeout
  */
 int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
+  int32_t      code = -1;
   SStreamValue key = {0};
   char*        p = value;
+
+  char* pCompressData = NULL;
+  char* pOutput = NULL;
   if (streamStateValueIsStale(p)) {
     goto _EXCEPT;
   }
+
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
-  if (vlen != (sizeof(int64_t) + sizeof(int32_t) + key.len)) {
-    stError("vlen: %d, read len: %d", vlen, key.len);
+  if (key.len == 0) {
+    code = 0;
     goto _EXCEPT;
   }
-  if (key.len != 0 && dest != NULL) p = taosDecodeBinary(p, (void**)dest, key.len);
+  if (vlen == (sizeof(key.unixTimestamp) + sizeof(key.len) + key.len)) {
+    // compatiable with previous data
+    p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+  } else {
+    p = taosDecodeFixedI32(p, &key.rawLen);
+    p = taosDecodeFixedI8(p, &key.compress);
+    if (vlen != (sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len)) {
+      stError("vlen: %d, read len: %d", vlen, key.len);
+      goto _EXCEPT;
+    }
+    if (key.compress == 1) {
+      p = taosDecodeBinary(p, (void**)&pCompressData, key.len);
+      pOutput = taosMemoryCalloc(1, key.rawLen);
+      int32_t rawLen = LZ4_decompress_safe(pCompressData, pOutput, key.len, key.rawLen);
+      if (rawLen != key.rawLen) {
+        stError("read invalid read, rawlen: %d, currlen: %d", key.rawLen, key.len);
+        goto _EXCEPT;
+      }
+      key.len = rawLen;
+    } else {
+      p = taosDecodeBinary(p, (void**)&pOutput, key.len);
+    }
+  }
 
   if (ttl != NULL) *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - taosGetTimestampMs();
+
+  code = 0;
+  if (dest) {
+    *dest = pOutput;
+    pOutput = NULL;
+  }
+  taosMemoryFree(pCompressData);
+  taosMemoryFree(pOutput);
   return key.len;
 
 _EXCEPT:
   if (dest != NULL) *dest = NULL;
   if (ttl != NULL) *ttl = 0;
-  return -1;
+
+  taosMemoryFree(pOutput);
+  taosMemoryFree(pCompressData);
+  return code;
 }
 
 const char* compareDefaultName(void* arg) {
@@ -2050,12 +2127,12 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
-  STaskDbWrapper* pDb = arg;
-  UPLOAD_TYPE     utype = type;
+  STaskDbWrapper*         pDb = arg;
+  ECHECKPOINT_BACKUP_TYPE utype = type;
 
-  if (utype == UPLOAD_RSYNC) {
+  if (utype == DATA_UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
-  } else if (utype == UPLOAD_S3) {
+  } else if (utype == DATA_UPLOAD_S3) {
     return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
   }
   return -1;
@@ -2119,6 +2196,7 @@ int32_t copyDataAt(RocksdbCfInst* pSrc, STaskDbWrapper* pDst, int8_t i) {
   }
 
 _EXIT:
+  rocksdb_writebatch_destroy(wb);
   rocksdb_iter_destroy(pIter);
   rocksdb_readoptions_destroy(pRdOpt);
   taosMemoryFree(err);
@@ -3644,7 +3722,7 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[i].toStrFunc((void*)key, tbuf);
-    stDebug("streamState str: %s succ to write to %s_%s, len: %d", tbuf, wrapper->idstr, ginitDict[i].key, vlen);
+    stTrace("streamState str: %s succ to write to %s_%s, len: %d", tbuf, wrapper->idstr, ginitDict[i].key, vlen);
   }
   return 0;
 }
@@ -3669,7 +3747,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   {
     char tbuf[256] = {0};
     ginitDict[cfIdx].toStrFunc((void*)key, tbuf);
-    stDebug("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[cfIdx].key);
+    stTrace("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[cfIdx].key);
   }
   return 0;
 }

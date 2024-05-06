@@ -1455,10 +1455,11 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->targetStbUid = 0;
   pCxt->pCreateStreamReq->fillNullCols = NULL;
   pCxt->pCreateStreamReq->igUpdate = 0;
+  pCxt->pCreateStreamReq->deleteMark = pCxt->pCreateSmaReq->deleteMark;
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
-  pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
+  pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
+  pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
 
   // construct tags
   pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
@@ -1494,7 +1495,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
   tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   pCxt->pDropStreamReq->igNotExists = false;
-  pCxt->pDropStreamReq->sql = strdup(pCxt->pDropSmaReq->name);
+  pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
   pCxt->pDropStreamReq->sqlLen = strlen(pCxt->pDropStreamReq->sql);
 }
 
@@ -1526,6 +1527,8 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   int32_t      code = -1;
   STransAction createStreamRedoAction = {0};
   STransAction createStreamUndoAction = {0};
+  STransAction dropStbUndoAction = {0};
+  SMDropStbReq dropStbReq = {0};
   STrans      *pTrans =
       mndTransCreate(pCxt->pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pCxt->pRpcReq, "create-tsma");
   if (!pTrans) {
@@ -1556,7 +1559,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
 
   createStreamUndoAction.epSet = createStreamRedoAction.epSet;
   createStreamUndoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
-  createStreamUndoAction.actionType = TDMT_STREAM_DROP;
+  createStreamUndoAction.msgType = TDMT_STREAM_DROP;
   createStreamUndoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
   createStreamUndoAction.pCont = taosMemoryCalloc(1, createStreamUndoAction.contLen);
   if (!createStreamUndoAction.pCont) {
@@ -1565,6 +1568,24 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   }
   if (createStreamUndoAction.contLen != tSerializeSMDropStreamReq(createStreamUndoAction.pCont, createStreamUndoAction.contLen, pCxt->pDropStreamReq)) {
     mError("sma: %s, failed to create due to drop stream req encode failure", pCxt->pCreateSmaReq->name);
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  dropStbReq.igNotExists = true;
+  strncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
+  dropStbUndoAction.epSet = createStreamRedoAction.epSet;
+  dropStbUndoAction.acceptableCode = TSDB_CODE_MND_STB_NOT_EXIST;
+  dropStbUndoAction.retryCode = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
+  dropStbUndoAction.msgType = TDMT_MND_STB_DROP;
+  dropStbUndoAction.contLen = tSerializeSMDropStbReq(0, 0, &dropStbReq);
+  dropStbUndoAction.pCont = taosMemoryCalloc(1, dropStbUndoAction.contLen);
+  if (!dropStbUndoAction.pCont) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  if (dropStbUndoAction.contLen != tSerializeSMDropStbReq(dropStbUndoAction.pCont, dropStbUndoAction.contLen, &dropStbReq)) {
+    mError("sma: %s, failed to create due to drop stb req encode failure", pCxt->pCreateSmaReq->name);
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -1579,6 +1600,7 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   if (mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma) != 0) goto _OVER;
   if (mndTransAppendRedoAction(pTrans, &createStreamRedoAction) != 0) goto _OVER;
   if (mndTransAppendUndoAction(pTrans, &createStreamUndoAction) != 0) goto _OVER;
+  if (mndTransAppendUndoAction(pTrans, &dropStbUndoAction) != 0) goto _OVER;
   if (mndTransPrepare(pCxt->pMnode, pTrans) != 0) goto _OVER;
 
   code = TSDB_CODE_SUCCESS;
@@ -2319,11 +2341,6 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0) {
-    mError("failed to get table tsma %s since %s fetching with tsma name %d", tsmaReq.name, terrstr(),
-           tsmaReq.fetchingWithTsmaName);
-  }
-
   tFreeTableTSMAInfoRsp(&rsp);
   return code;
 }

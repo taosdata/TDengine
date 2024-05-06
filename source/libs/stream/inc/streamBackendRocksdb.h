@@ -258,7 +258,12 @@ void     bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list);
 
-uint32_t nextPow2(uint32_t x); 
+void* taskAcquireDb(int64_t refId);
+void  taskReleaseDb(int64_t refId);
+
+int64_t taskGetDBRef(void* arg);
+
+uint32_t nextPow2(uint32_t x);
 #ifdef __cplusplus
 }
 #endif

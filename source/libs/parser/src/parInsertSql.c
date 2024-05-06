@@ -670,11 +670,13 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t output = 0;
-      void*   p = taosMemoryCalloc(1, pSchema->bytes - VARSTR_HEADER_SIZE);
+      int64_t realLen = pToken->n << 2;
+      if (realLen > pSchema->bytes - VARSTR_HEADER_SIZE) realLen = pSchema->bytes - VARSTR_HEADER_SIZE;
+      void* p = taosMemoryMalloc(realLen);
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), realLen, &output)) {
         if (errno == E2BIG) {
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);

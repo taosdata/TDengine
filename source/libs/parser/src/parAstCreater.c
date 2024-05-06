@@ -745,7 +745,6 @@ SNode* createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral
   return (SNode*)val;
 }
 
-
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pCxt->pQueryCxt->db) {
@@ -965,7 +964,8 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   return (SNode*)tempTable;
 }
 
-SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight, SNode* pJoinCond) {
+SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
+                           SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
   SJoinTableNode* joinTable = (SJoinTableNode*)nodesMakeNode(QUERY_NODE_JOIN_TABLE);
   CHECK_OUT_OF_MEM(joinTable);
@@ -1264,7 +1264,6 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   return pStmt;
 }
 
-
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {
@@ -1272,10 +1271,9 @@ SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   }
   SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
   pJoinNode->pJLimit = pJLimit;
-  
+
   return pJoin;
 }
-
 
 SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinOffset) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1284,10 +1282,9 @@ SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinO
   }
   SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
   pJoinNode->pWindowOffset = pWinOffset;
-  
+
   return pJoin;
 }
-
 
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable,
                         SNodeList* pHint) {
@@ -1375,6 +1372,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   return (SNode*)pOptions;
 }
 
@@ -1414,6 +1412,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->s3KeepLocal = -1;
   pOptions->s3Compact = -1;
   pOptions->withArbitrator = -1;
+  pOptions->encryptAlgorithm = -1;
   return (SNode*)pOptions;
 }
 
@@ -1547,6 +1546,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_KEEP_TIME_OFFSET: {
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
+      case DB_OPTION_ENCRYPT_ALGORITHM:
+        COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
+        pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+        break;
     }
     default:
       break;
@@ -1738,17 +1741,17 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
       memset(((SColumnOptions*)pOptions)->compress, 0, TSDB_CL_COMPRESS_OPTION_LEN);
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compress, (SToken*)pVal);
       if (0 == strlen(((SColumnOptions*)pOptions)->compress)) {
-        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+        pCxt->errCode = TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
       }
       break;
     case COLUMN_OPTION_LEVEL:
       memset(((SColumnOptions*)pOptions)->compressLevel, 0, TSDB_CL_COMPRESS_OPTION_LEN);
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->compressLevel, (SToken*)pVal);
       if (0 == strlen(((SColumnOptions*)pOptions)->compressLevel)) {
-        pCxt->errCode = TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+        pCxt->errCode = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
       }
       break;
-      case COLUMN_OPTION_PRIMARYKEY:
+    case COLUMN_OPTION_PRIMARYKEY:
       ((SColumnOptions*)pOptions)->bPrimaryKey = true;
       break;
     default:
@@ -1783,7 +1786,7 @@ SDataType createDataType(uint8_t type) {
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
   int32_t len = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
   if (type == TSDB_DATA_TYPE_NCHAR) len /= TSDB_NCHAR_SIZE;
-  if(pLen) len = taosStr2Int32(pLen->z, NULL, 10);
+  if (pLen) len = taosStr2Int32(pLen->z, NULL, 10);
   SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = len};
   return dt;
 }
@@ -1889,8 +1892,8 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
-                                    SNode* pOptions) {
+SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
+                                           SToken* pColName, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pColName)) {
     return NULL;
@@ -2332,6 +2335,14 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
   return (SNode*)pStmt;
+}
+
+SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
+  SToken config;
+  config.type = TK_NK_STRING;
+  config.z = "\"encrypt_key\"";
+  config.n = strlen(config.z);
+  return createAlterDnodeStmt(pCxt, NULL, &config, pValue);
 }
 
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
@@ -2951,7 +2962,7 @@ SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
   CHECK_PARSER_STATUS(pCxt);
   STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
   if (!pOptions) {
-    //nodesDestroyList(pTSMAFuncs);
+    // nodesDestroyList(pTSMAFuncs);
     pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
     return NULL;

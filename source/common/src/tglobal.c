@@ -41,6 +41,13 @@ uint16_t tsServerPort = 6030;
 int32_t  tsVersion = 30000000;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfSupportVnodes = 256;
+char     tsEncryptAlgorithm[16] = {0};
+char     tsEncryptScope[100] = {0};
+EEncryptAlgor  tsiEncryptAlgorithm = 0;
+EEncryptScope  tsiEncryptScope = 0;
+//char     tsAuthCode[500] = {0};
+//char     tsEncryptKey[17] = {0};
+char     tsEncryptKey[17] = {0};
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -53,7 +60,7 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 4;
+int32_t tsNumOfTaskQueueThreads = 10;
 int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
@@ -77,8 +84,6 @@ int32_t tsSnapReplMaxWaitN = 128;
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
-int8_t  tsGrant = 1;
-int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 
@@ -91,6 +96,11 @@ int32_t tsArbSetAssignedTimeoutSec = 30;
 int64_t tsDndStart = 0;
 int64_t tsDndStartOsUptime = 0;
 int64_t tsDndUpTime = 0;
+
+// dnode misc
+uint32_t tsEncryptionKeyChksum = 0;
+int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
+int8_t   tsGrant = 1;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -298,8 +308,9 @@ int32_t tsS3UploadDelaySec = 60;
 
 bool tsExperimental = true;
 
-int32_t tsMaxTsmaNum = 8;
+int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
+int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24; // in ms, default to 1d
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -542,12 +553,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsKeepAliveIdle = TRANGE(tsKeepAliveIdle, 1, 72000);
   if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
 
-  tsNumOfTaskQueueThreads = tsNumOfCores / 2;
-  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+  tsNumOfTaskQueueThreads = tsNumOfCores;
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 10);
 
-  if (tsNumOfTaskQueueThreads >= 50) {
-    tsNumOfTaskQueueThreads = 50;
-  }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
@@ -560,6 +568,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "maxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
       0)
+    return -1;
+  if (cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX, CFG_SCOPE_CLIENT,
+                  CFG_DYN_CLIENT) != 0)
     return -1;
   return 0;
 }
@@ -608,6 +619,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSupportVnodes = tsNumOfCores * 2;
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
   if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
+
+  if (cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  //if (cfgAddString(pCfg, "authCode", tsAuthCode, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
@@ -705,7 +720,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "grantMode", tsMndGrantMode, 0, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -738,7 +752,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqRowSize", tmqRowSize, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 12, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxTsmaNum", tsMaxTsmaNum, 0, 3, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
@@ -1019,7 +1033,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   sndDebugFlag = cfgGetItem(pCfg, "sndDebugFlag")->i32;
 }
 
-static int32_t taosSetSlowLogScope(char *pScope) {
+static int32_t taosSetSlowLogScope(const char *pScope) {
   if (NULL == pScope || 0 == strlen(pScope)) {
     tsSlowLogScope = SLOW_LOG_TYPE_ALL;
     return 0;
@@ -1068,13 +1082,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   SEp          firstEp = {0};
   taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
   snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, true);
 
   SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
   SEp          secondEp = {0};
   taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? defaultFirstEp : pSecondpItem->str, &secondEp);
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype, true);
 
   tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
@@ -1131,14 +1145,16 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMultiResultFunctionStarReturnTags = cfgGetItem(pCfg, "multiResultFunctionStarReturnTags")->bval;
   tsMaxTsmaCalcDelay = cfgGetItem(pCfg, "maxTsmaCalcDelay")->i32;
+  tsmaDataDeleteMark = cfgGetItem(pCfg, "tsmaDataDeleteMark")->i32;
   return 0;
 }
 
 static void taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+
   osSetTimezone(pItem->str);
   uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
-  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, true);
 
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
@@ -1163,6 +1179,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
   tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
+  tstrncpy(tsEncryptAlgorithm, cfgGetItem(pCfg, "encryptAlgorithm")->str, 16);
+  tstrncpy(tsEncryptScope, cfgGetItem(pCfg, "encryptScope")->str, 100);
+  //tstrncpy(tsAuthCode, cfgGetItem(pCfg, "authCode")->str, 100);
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
@@ -1238,7 +1257,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
   tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
-  tsMndGrantMode = cfgGetItem(pCfg, "grantMode")->i32;
   tsEnableWhiteList = cfgGetItem(pCfg, "enableWhiteList")->bval;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
@@ -1490,7 +1508,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
+static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
   if (strcasecmp(name, "resetlog") == 0) {
@@ -1500,15 +1518,20 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
     return 0;
   }
 
+  cfgLock(pCfg);
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
     taosSetAllDebugFlag(pCfg, pItem->i32);
+    cfgUnLock(pCfg);
     return 0;
   }
 
@@ -1565,16 +1588,21 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
     }
   }
 
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
+static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
+  cfgLock(pCfg);
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
-  if (!pItem || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
+  if ((pItem == NULL) || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
     uError("failed to config:%s, not support", name);
     terrno = TSDB_CODE_INVALID_CFG;
+
+    cfgUnLock(pCfg);
     return -1;
   }
 
@@ -1583,6 +1611,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
+
   switch (lowcaseName[0]) {
     case 'd': {
       if (strcasecmp("debugFlag", name) == 0) {
@@ -1613,7 +1642,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("firstEp", name) == 0) {
@@ -1628,7 +1658,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       }
@@ -1675,7 +1706,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         SEp secondEp = {0};
         taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? tsFirst : pItem->str, &secondEp);
         snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
-        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype);
+        cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, false);
         uInfo("%s set to %s", name, tsSecond);
         matched = true;
       } else if (strcasecmp("smlChildTableName", name) == 0) {
@@ -1706,11 +1737,13 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         SEp          firstEp = {0};
         taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
-        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+        cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
       } else if (strcasecmp("slowLogScope", name) == 0) {
         if (taosSetSlowLogScope(pItem->str)) {
+          cfgUnLock(pCfg);
           return -1;
         }
         uInfo("%s set to %s", name, pItem->str);
@@ -1722,7 +1755,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
       if (strcasecmp("timezone", name) == 0) {
         osSetTimezone(pItem->str);
         uInfo("%s set from %s to %s", name, tsTimezoneStr, pItem->str);
-        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+
+        cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, false);
         matched = true;
       } else if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
@@ -1730,6 +1764,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
         if (taosMulMkDir(tsTempDir) != 0) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
+          cfgUnLock(pCfg);
           return -1;
         }
         matched = true;
@@ -1777,7 +1812,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
                                          {"useAdapter", &tsUseAdapter},
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},
-                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay}};
+                                         {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
+                                         {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1785,12 +1821,16 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   }
 
 _out:
+  cfgUnLock(pCfg);
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
-int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer) {
-  if (forServer) return taosCfgDynamicOptionsForServer(pCfg, name);
-  return taosCfgDynamicOptionsForClient(pCfg, name);
+int32_t taosCfgDynamicOptions(SConfig *pCfg, const char *name, bool forServer) {
+  if (forServer) {
+    return taosCfgDynamicOptionsForServer(pCfg, name);
+  } else {
+    return taosCfgDynamicOptionsForClient(pCfg, name);
+  }
 }
 
 void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
@@ -1858,7 +1898,9 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosArrayClear(noNeedToSetVars);  // reset array
 
   uInfo("all debug flag are set to %d", flag);
-  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) {
+    terrno = TSDB_CODE_SUCCESS;  // ignore not exist
+  }
 }
 
 int8_t taosGranted(int8_t type) {

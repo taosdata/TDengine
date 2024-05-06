@@ -405,6 +405,13 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
   int32_t code =
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    if (NULL == pSelect->pSubtable) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
   }
@@ -641,6 +648,11 @@ static int32_t collectMetaKeyFromShowGrantsLogs(SCollectMetaKeyCxt* pCxt, SShowS
 
 static int32_t collectMetaKeyFromShowClusterMachines(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MACHINES,
+                                 pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromShowEncryptions(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ENCRYPTIONS,
                                  pCxt->pMetaCache);
 }
 
@@ -916,6 +928,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowGrantsLogs(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return collectMetaKeyFromShowClusterMachines(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+      return collectMetaKeyFromShowEncryptions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return collectMetaKeyFromShowCreateDatabase(pCxt, (SShowCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:

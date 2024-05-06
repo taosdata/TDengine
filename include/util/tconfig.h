@@ -98,34 +98,35 @@ typedef struct {
   const char *value;
 } SConfigPair;
 
-typedef struct SConfig {
-  ECfgSrcType stype;
-  SArray     *array;
-} SConfig;
+typedef struct SConfig SConfig;
+typedef struct SConfigIter SConfigIter;
 
-SConfig *cfgInit();
-int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
-int32_t  cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
-void     cfgCleanup(SConfig *pCfg);
-
+SConfig     *cfgInit();
+int32_t      cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr);
+int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
+void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
-SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
-int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
+SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
+int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
+int32_t      cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
 
-int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer);
+SConfigIter *cfgCreateIter(SConfig *pConf);
+SConfigItem *cfgNextIter(SConfigIter *pIter);
+void         cfgDestroyIter(SConfigIter *pIter);
+void         cfgLock(SConfig *pCfg);
+void         cfgUnLock(SConfig *pCfg);
 
+// clang-format off
 int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope);
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope);
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
-                    int8_t dynScope);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope);
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope);
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope);
 int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope);
 int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope);
+// clang-format on
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);

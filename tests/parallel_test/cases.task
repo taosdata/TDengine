@@ -11,9 +11,10 @@
 # army-test
 #
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f community/query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
@@ -129,7 +130,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
@@ -320,6 +321,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
@@ -377,6 +381,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
