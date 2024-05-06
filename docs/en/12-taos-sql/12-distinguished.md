@@ -44,7 +44,7 @@ Aggregation by time window is supported in TDengine. For example, in the case wh
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
 ```
