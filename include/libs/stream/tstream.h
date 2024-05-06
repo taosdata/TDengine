@@ -530,6 +530,7 @@ typedef struct SStreamMeta {
   int32_t         vgId;
   int64_t         stage;
   int32_t         role;
+  bool            closeFlag;
   bool            sendMsgBeforeClosing;  // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
   TdThreadRwlock  lock;
@@ -552,6 +553,12 @@ typedef struct SStreamMeta {
   void*    qHandle;           // todo remove it
   void*    bkdChkptMgt;
 } SStreamMeta;
+
+typedef struct STaskUpdateEntry {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t transId;
+} STaskUpdateEntry;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
@@ -792,7 +799,12 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamExecTask(SStreamTask* pTask);
 int32_t streamResumeTask(SStreamTask* pTask);
-int32_t streamSchedExec(SStreamTask* pTask);
+int32_t streamTrySchedExec(SStreamTask* pTask);
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType);
+int32_t streamTaskResumeInFuture(SStreamTask* pTask);
+void    streamTaskClearSchedIdleInfo(SStreamTask* pTask);
+void    streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime);
+
 bool    streamTaskShouldStop(const SStreamTask* pStatus);
 bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
@@ -888,6 +900,8 @@ int32_t      streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId,
                                            int64_t endTs, bool ready);
 int32_t      streamMetaResetTaskStatus(SStreamMeta* pMeta);
 int32_t      streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
+                                     int64_t startTs);
 
 void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);

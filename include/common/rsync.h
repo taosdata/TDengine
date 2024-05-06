@@ -13,9 +13,9 @@ extern "C" {
 
 void stopRsync();
 void startRsync();
-int  uploadRsync(char* id, char* path);
-int  downloadRsync(char* id, char* path);
-int  deleteRsync(char* id);
+int  uploadRsync(const char* id, const char* path);
+int  downloadRsync(const char* id, const char* path);
+int  deleteRsync(const char* id);
 
 #ifdef __cplusplus
 }

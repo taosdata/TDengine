@@ -30,8 +30,8 @@ typedef struct {
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
-static int32_t streamTaskBackupCheckpoint(char* id, char* path);
-static int32_t deleteCheckpoint(char* id);
+static int32_t streamTaskBackupCheckpoint(const char* id, const char* path);
+static int32_t deleteCheckpoint(const char* id);
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -157,7 +157,7 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  streamSchedExec(pTask);
+  streamTrySchedExec(pTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -578,7 +578,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   return code;
 }
 
-static int32_t uploadCheckpointToS3(char* id, char* path) {
+static int32_t uploadCheckpointToS3(const char* id, const char* path) {
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) return -1;
 
@@ -631,7 +631,7 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   }
 }
 
-int32_t streamTaskBackupCheckpoint(char* id, char* path) {
+int32_t streamTaskBackupCheckpoint(const char* id, const char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("streamTaskBackupCheckpoint parameters invalid");
     return -1;
@@ -675,7 +675,7 @@ int32_t streamTaskDownloadCheckpointData(char* id, char* path) {
   return 0;
 }
 
-int32_t deleteCheckpoint(char* id) {
+int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
     return -1;
