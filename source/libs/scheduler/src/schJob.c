@@ -862,6 +862,7 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
   
   SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
 
+  int32_t code = 0;
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
   for (int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
@@ -873,7 +874,11 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
     for (int32_t j = 0; j < numOfTasks; ++j) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, j);
       SCH_LOCK_TASK(pTask);
-      SCH_ERR_RET(schChkUpdateRedirectCtx(pJob, pTask, NULL, rspCode));
+      code = schChkUpdateRedirectCtx(pJob, pTask, NULL, rspCode);
+      if (TSDB_CODE_SUCCESS != code) {
+        SCH_UNLOCK_TASK(pTask);
+        SCH_RET(code);
+      }
       qClearSubplanExecutionNode(pTask->plan);
       schResetTaskForRetry(pJob, pTask);
       SCH_UNLOCK_TASK(pTask);
