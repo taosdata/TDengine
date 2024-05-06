@@ -42,6 +42,7 @@ namespace TDPIConnector.Core.Tasks
                     log.Error("Error Occured when AF Element AddSignups.", e);
                     stopTaskRequested = true;
                 }
+                log.Info($"Process datapipe, AF Element Mode observer end. element count:{this.elements.Count()}.");
                 semSignup.Release();
                 while (!stopTaskRequested)
                 {

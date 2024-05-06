@@ -60,7 +60,7 @@ namespace PISimulator.JsonGenerator
 
         private static void GenerateDefaultJson()
         {
-            int numberOfMetersPerCity = 30000;
+            int numberOfMetersPerCity = 100;
             AFSettingsConfig afSettingsConfig = new AFSettingsConfig();
             afSettingsConfig.AFDatabase = "Meters";
             afSettingsConfig.PIPointPrefix = "Meters_";
@@ -86,7 +86,12 @@ namespace PISimulator.JsonGenerator
             californiaConfig.Add("San Francisco", GenerateCityConfig(numberOfMetersPerCity));
             californiaConfig.Add("San Diego", GenerateCityConfig(numberOfMetersPerCity));
             californiaConfig.Add("Los Angeles", GenerateCityConfig(numberOfMetersPerCity));
+            var Texas = new StateConfig();
+            Texas.Add("Dallas", GenerateCityConfig(numberOfMetersPerCity));
+            Texas.Add("Houston", GenerateCityConfig(numberOfMetersPerCity));
+            Texas.Add("Austin", GenerateCityConfig(numberOfMetersPerCity));
             afSettingsConfig.AFTree.Add("California", californiaConfig);
+            afSettingsConfig.AFTree.Add("Texas", Texas);
             string str = JsonConvert.SerializeObject(afSettingsConfig, Formatting.Indented);
             string fileName = "AFSettingsGenerated.json";
             if (File.Exists(fileName))

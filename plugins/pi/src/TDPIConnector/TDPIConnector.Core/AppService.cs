@@ -351,7 +351,7 @@ namespace TDPIConnector.Core
                 string info = scanner.GetInfo(scanMode, filter, filterMode);
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
-                log.Info(info);
+                log.Debug(info);
             } catch (Exception e)
             {
                 Console.WriteLine(e.Message);

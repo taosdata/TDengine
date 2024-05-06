@@ -200,7 +200,7 @@ namespace TDPIConnector.TDEngine
             var taosxClient = getTaosxClient(superTableName.ToTDEngineNamingPattern());
             if (taosxClient == null)
             {
-                log.Error($"Create stable for AFElement failed, not found {superTableName}");
+                log.Error($"Create stable for AFElement(V2) failed, not found {superTableName}");
                 return null;
             }
 
@@ -215,7 +215,7 @@ namespace TDPIConnector.TDEngine
                     if (column.IsTDengineTag())
                     {
                         if (column.TagValue.Length > 100) {
-                            log.Error($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
+                            log.Debug($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
                             column.TagValue = column.TagValue.Substring(0, 99);
                         }
                         tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));

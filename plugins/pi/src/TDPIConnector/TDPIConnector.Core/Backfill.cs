@@ -196,7 +196,7 @@ namespace TDPIConnector.Core
                         if (attribute.IsTDengineTag())
                         {
                             var valuestring = attribute.ToStringWithUOM();
-                            log.Info($"element tag {element.Name}: {attribute.Name}:{valuestring}");
+                            log.Debug($"element tag {element.Name}: {attribute.Name}:{valuestring}");
                             continue;
                         }
                         string superTableName;
@@ -209,7 +209,7 @@ namespace TDPIConnector.Core
                         var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
                         stables.Add(superTableName, tables);
                         this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-                        log.Info($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                        log.Debug($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
                  
                         if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime
                             && values[values.Count - 1].AFSDKObject.IsGood == true)
@@ -219,7 +219,7 @@ namespace TDPIConnector.Core
                         count += values.Count;
                     }
                 }
-                log.Info($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
+                log.Debug($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
                 if (count >= 10000) Thread.Sleep(backfillWait);
 
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
@@ -227,7 +227,7 @@ namespace TDPIConnector.Core
                 stopwatch.Reset();
                 if (!found) break;
             } while (currentStart < endTime);
-            log.Info($"Backfill TDEngine attribute {element.Name} values written finished.");
+            log.Debug($"Backfill TDEngine element {element.Name} values written finished.");
         }
 
         private void ConvertAFAttibutesAndValuesToTDTables(AFAttributeWrapper attribute, AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)
