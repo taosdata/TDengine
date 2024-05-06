@@ -385,8 +385,14 @@ else
   if is_path_exists ${file}
     echo "UPX already downloaded"
   else
-
-    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-amd64_linux.tar.xz"
+    triple = get_env CARGO_MAKE_RUST_TARGET_TRIPLE
+    echo Target triple: ${triple}
+    if contains ${triple} "aarch64"
+      arch = set "arm64"
+    else
+      arch = set "amd64"
+    end
+    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
     echo ${url}
     response_size = wget -O ${file} ${url}
     echo Got response size: ${reponse_size}
