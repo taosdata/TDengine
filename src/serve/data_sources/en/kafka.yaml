@@ -173,3 +173,12 @@ advanced:
         type: integer
         min: 0
         max: 1000
+    - name: batch_size
+      display: Batch Size
+      description: |
+        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 100000

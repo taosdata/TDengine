@@ -168,3 +168,12 @@ advanced:
         type: integer
         min: 0
         max: 1000
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 100000
