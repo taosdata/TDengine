@@ -333,7 +333,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
     taosRemoveDir(defaultPath);
   }
 
-  code = streamTaskDownloadCheckpointData(key, chkpPath);
+  code = downloadCheckpoint(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -342,7 +342,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
   return code;
 }
 int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
+  int32_t code = downloadCheckpoint(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -1964,8 +1964,10 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
     stInfo("newly create db, need to restart");
     // pre create db
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
+    if (pTaskDb->db == NULL) {
+      goto _EXIT;
+    }
     rocksdb_close(pTaskDb->db);
-
     if (cfNames != NULL) {
       rocksdb_list_column_families_destroy(cfNames, nCf);
     }
@@ -1988,7 +1990,6 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
   stDebug("succ to init stream backend at %s, backend:%p", dbPath, pTaskDb);
   return pTaskDb;
 _EXIT:
-
   taskDbDestroy(pTaskDb, false);
   if (err) taosMemoryFree(err);
   if (cfNames) rocksdb_list_column_families_destroy(cfNames, nCf);
