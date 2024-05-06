@@ -374,9 +374,9 @@ static SLastCol *tsdbCacheDeserializeV2(char const *value) {
   SLastCol *pLastCol = taosMemoryMalloc(sizeof(SLastCol));
   *pLastCol = *(SLastCol *)(value);
 
-  char* currentPos = (char *)value + sizeof(*pLastCol);
+  char *currentPos = (char *)value + sizeof(*pLastCol);
   for (int8_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
-    SValue* pValue = &pLastCol->rowKey.pks[i];
+    SValue *pValue = &pLastCol->rowKey.pks[i];
     if (IS_VAR_DATA_TYPE(pValue->type)) {
       if (pValue->nData > 0) {
         pValue->pData = currentPos;
@@ -437,7 +437,7 @@ static void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   *value = taosMemoryMalloc(length);
 
   // copy last col
-  SLastCol* pToLastCol = (SLastCol *)(*value);
+  SLastCol *pToLastCol = (SLastCol *)(*value);
   *pToLastCol = *pLastCol;
   char *currentPos = *value + sizeof(*pLastCol);
 
@@ -544,9 +544,7 @@ static void reallocVarDataVal(SValue *pValue) {
   }
 }
 
-static void reallocVarData(SColVal *pColVal) {
-  reallocVarDataVal(&pColVal->value);
-}
+static void reallocVarData(SColVal *pColVal) { reallocVarDataVal(&pColVal->value); }
 
 static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud) {
   SLastCol *pLastCol = (SLastCol *)value;
@@ -1094,7 +1092,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
           char  *value = NULL;
           size_t vlen = 0;
-          tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+          tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,
+                             &vlen);
 
           // SLastKey key = (SLastKey){.ltype = 0, .uid = uid, .cid = pColVal->cid};
           taosThreadMutexLock(&pTsdb->rCache.rMutex);
@@ -1135,7 +1134,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
           if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
             char  *value = NULL;
             size_t vlen = 0;
-            tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+            tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,
+                               &vlen);
 
             // SLastKey key = (SLastKey){.ltype = 1, .uid = uid, .cid = pColVal->cid};
             taosThreadMutexLock(&pTsdb->rCache.rMutex);
@@ -1562,7 +1562,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
-    SLastCol* PToFree = pLastCol;
+    SLastCol *PToFree = pLastCol;
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
