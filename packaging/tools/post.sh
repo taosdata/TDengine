@@ -475,6 +475,22 @@ function install_taoskeeper_config() {
         ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml ${cfg_dir}
 }
 
+function install_taos-explorer_config() {
+    if [ ! -f "${cfg_install_dir}/explorer.toml" ]; then
+        [ ! -d ${cfg_install_dir} ] &&
+            ${csudo}${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${cfg_dir}/explorer.toml ] && ${csudo}cp ${cfg_dir}/explorer.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/explorer.toml ] &&
+            ${csudo}chmod 644 ${cfg_install_dir}/explorer.toml
+    fi
+
+    [ -f ${cfg_dir}/explorer.toml ] &&
+      ${csudo}mv ${cfg_dir}/explorer.toml ${cfg_dir}/explorer.toml.new
+
+    [ -f ${cfg_install_dir}/explorer.toml ] &&
+      ${csudo}ln -s ${cfg_install_dir}/explorer.toml ${cfg_dir}
+}
+
 function install_config() {
     log_print "start install config from ${cfg_dir} to ${cfg_install_dir}"
     if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
@@ -678,6 +694,15 @@ function install_taoskeeper_service() {
     fi
 }
 
+function install_taos-explorer_service() {
+    if ((${service_mod}==0)); then
+        [ -f ${script_dir}/../cfg/taos-explorer.service ] &&\
+            ${csudo}cp ${script_dir}/../cfg/taos-explorer.service \
+            ${service_config_dir}/ || :
+        ${csudo}systemctl daemon-reload
+    fi
+}
+
 function install_service() {
   log_print "start install service"
   if [ "$osType" != "Darwin" ]; then
@@ -754,8 +779,10 @@ function install_TDengine() {
     install_config
     install_taosadapter_config
     install_taoskeeper_config
+    install_taos-explorer_config
     install_taosadapter_service
     install_taoskeeper_service
+    install_taos-explorer_service
     install_service
     install_app
 
@@ -763,17 +790,29 @@ function install_TDengine() {
     #echo
     #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
-    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure TDengine      ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure taosAdapter   ${NC}: edit /etc/taos/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure taos-explorer ${NC}: edit /etc/taos/explorer.toml"    
     if ((${service_mod}==0)); then
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo}systemctl start taosd${NC}"
+        echo -e "${GREEN_DARK}To start TDengine      ${NC}: ${csudo}systemctl start taosd${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}: ${csudo}systemctl start taosadapter${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}: ${csudo}systemctl start taoskeeper${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}: ${csudo}systemctl start taos-explorer${NC}"
     elif ((${service_mod}==1)); then
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo}update-rc.d taosd default  ${RED} for the first time${NC}"
+        echo -e "${GREEN_DARK}To start TDengine      ${NC}: ${csudo}update-rc.d taosd default  ${RED} for the first time${NC}"
         echo -e "                      : ${csudo}service taosd start ${RED} after${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}: ${csudo}update-rc.d taosadapter default  ${RED} for the first time${NC}"
+        echo -e "                      : ${csudo}service taosd taosadapter ${RED} after${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}: ${csudo}update-rc.d taoskeeper default  ${RED} for the first time${NC}"
+        echo -e "                      : ${csudo}service taosd taoskeeper ${RED} after${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}: ${csudo}update-rc.d taos-explorer default  ${RED} for the first time${NC}"
+        echo -e "                      : ${csudo}service taosd taos-explorer ${RED} after${NC}"
     else
         echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter     ${NC}: ./taosadapter${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper     ${NC}: ./taoskeeper${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer     ${NC}: ./taos-explorer${NC}"
     fi
-
-
 
     if [ ! -z "$firstEp" ]; then
       tmpFqdn=${firstEp%%:*}
