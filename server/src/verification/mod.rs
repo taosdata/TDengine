@@ -96,7 +96,6 @@ struct RequestBodySendVerificationCode {
 #[derive(Deserialize, Debug)]
 struct ResponseCloudOpenApi {
     code: u32,
-    msg: Option<String>,
 }
 
 // 如果配置了url，则使用配置的url，否则根据语言选择默认的url
