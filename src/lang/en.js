@@ -1402,7 +1402,7 @@ export default {
       extractdesc: `<strong style='paddingRight: 20px'>taosX supports two kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit" target="_blank">the enterprise version documentation</a>.`,
+      For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank">the enterprise version documentation</a>.`,
       subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
