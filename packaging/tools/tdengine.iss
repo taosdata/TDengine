@@ -129,6 +129,20 @@ begin
   Result := True;
 end;
 
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  uninspath, uninsname, NewUninsName : string;
+begin
+  if CurStep = ssDone then
+  begin
+    NewUninsName := 'uninstall';
+    uninspath := ExtractFilePath(ExpandConstant('{uninstallexe}'));
+    uninsname := Copy(ExtractFileName(ExpandConstant('{uninstallexe}')), 1, 8);
+    RenameFile(uninspath + uninsname + '.exe', uninspath + NewUninsName + '.exe');
+    RenameFile(uninspath + uninsname + '.dat', uninspath + NewUninsName + '.dat');
+  end;
+end;
+
 
 procedure DeinitializeUninstall();
 begin

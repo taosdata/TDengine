@@ -926,7 +926,7 @@ function updateProduct() {
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
     if [ "$verMode" == "cluster" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"      
     fi
@@ -1020,7 +1020,7 @@ function installProduct() {
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
 
-    echo -e "${GREEN_DARK}To enable ${clientName}keeper ${NC}\t\t: sudo systemctl enable ${clientName}keeper ${NC}"
+    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
 
     if [ "$verMode" == "cluster" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
