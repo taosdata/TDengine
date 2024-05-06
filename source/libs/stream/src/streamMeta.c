@@ -1441,7 +1441,7 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   }
 }
 
-static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList) {
+static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now) {
   streamMetaWLock(pMeta);
 
   if (pMeta->closeFlag) {
@@ -1454,7 +1454,7 @@ static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList) {
 
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
-  pMeta->startInfo.startTs = taosGetTimestampMs();
+  pMeta->startInfo.startTs = now;
 
   streamMetaResetTaskStatus(pMeta);
   streamMetaWUnLock(pMeta);
@@ -1468,7 +1468,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int64_t now = taosGetTimestampMs();
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  stInfo("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
+  stInfo("vgId:%d start to check all %d stream task(s) downstream status, start ts:%"PRId64, vgId, numOfTasks, now);
 
   if (numOfTasks == 0) {
     stInfo("vgId:%d no tasks to be started", pMeta->vgId);
@@ -1476,7 +1476,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   }
 
   SArray* pTaskList = NULL;
-  code = prepareBeforeStartTasks(pMeta, &pTaskList);
+  code = prepareBeforeStartTasks(pMeta, &pTaskList, now);
   if (code != TSDB_CODE_SUCCESS) {
     ASSERT(pTaskList == NULL);
     return TSDB_CODE_SUCCESS;
