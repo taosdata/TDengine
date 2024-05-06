@@ -1,6 +1,5 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use cargo_metadata::MetadataCommand;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -97,7 +96,6 @@ struct RequestBodySendVerificationCode {
 #[derive(Deserialize, Debug)]
 struct ResponseCloudOpenApi {
     code: u32,
-    msg: Option<String>,
 }
 
 // 如果配置了url，则使用配置的url，否则根据语言选择默认的url
