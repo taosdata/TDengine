@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
 use oracle::SqlValue;
@@ -98,7 +99,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         for (col_cidx, col) in row.sql_values().iter().enumerate() {
             let col_name = col_map.iter().nth(col_cidx).map(|(key, _)| key);
             let col_type: &OracleType = col.oracle_type()?;
-            let col_val = generate_json_value(col, col_type)?;
+            let col_val = generate_json_value(col, col_type, config.task.time_zone.clone())?;
             sample_map.insert(col_name.unwrap_or(&"unknown".to_string()).clone(), col_val);
         }
         input_sample.push(sample_map);
@@ -239,7 +240,11 @@ pub async fn oracle_to_taos(
     Ok(())
 }
 
-fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<serde_json::Value> {
+fn generate_json_value(
+    col: &SqlValue,
+    col_type: &OracleType,
+    time_zone: String,
+) -> anyhow::Result<serde_json::Value> {
     match col_type {
         // 字符串
         OracleType::Varchar2(_)
@@ -284,11 +289,29 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
                 Ok(val) => Ok(json!(val)),
             }
         }
-        OracleType::Timestamp(_) | OracleType::TimestampTZ(_) | OracleType::TimestampLTZ(_) => {
+        OracleType::Timestamp(_) => {
             let val = col.get::<NaiveDateTime>();
             match val {
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
+            }
+        }
+        OracleType::TimestampTZ(_) => {
+            let val = col.get::<DateTime<FixedOffset>>();
+            match val {
+                Err(_) => Ok(json!(null)),
+                Ok(val) => Ok(json!(val)),
+            }
+        }
+        OracleType::TimestampLTZ(_) => {
+            let val = col.get::<NaiveDateTime>();
+            match val {
+                Err(_) => Ok(json!(null)),
+                Ok(val) => {
+                    let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                    let val_with_tz = val.and_local_timezone(time_zone).unwrap();
+                    Ok(json!(val_with_tz))
+                }
             }
         }
         OracleType::IntervalDS(_, _) | OracleType::IntervalYM(_) => {
@@ -380,7 +403,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_sample() {
-        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -433,7 +456,7 @@ mod tests {
         for row in rows {
             for (_, col) in row.sql_values().iter().enumerate() {
                 let col_type: &OracleType = col.oracle_type().unwrap();
-                let col_val = generate_json_value(col, col_type);
+                let col_val = generate_json_value(col, col_type, String::from("+06:00"));
                 dbg!(&col_val);
             }
         }

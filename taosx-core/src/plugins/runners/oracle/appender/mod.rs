@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
@@ -26,14 +27,16 @@ pub fn to_schema(col_map: LinkedHashMap<String, OracleType>) -> anyhow::Result<S
 pub fn to_record_batch(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
+    time_zone: String,
 ) -> anyhow::Result<RecordBatch> {
-    to_record_batches(col_map, rows, usize::MAX).map(|batches| batches[0].clone())
+    to_record_batches(col_map, rows, usize::MAX, time_zone).map(|batches| batches[0].clone())
 }
 
 pub fn to_record_batches(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
     batch_size: usize,
+    time_zone: String,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let mut fields = Vec::new();
     let mut builders = Vec::new();
@@ -155,9 +158,7 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::Timestamp(_)
-                | OracleType::TimestampTZ(_)
-                | OracleType::TimestampLTZ(_) => {
+                OracleType::Timestamp(_) => {
                     let val = col.get::<NaiveDateTime>();
                     match val {
                         Err(_) => {
@@ -173,6 +174,46 @@ pub fn to_record_batches(
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
                                 .append_value(val.and_utc().timestamp_nanos_opt().unwrap() as i64);
+                        }
+                    }
+                }
+                OracleType::TimestampTZ(_) => {
+                    let val = col.get::<DateTime<FixedOffset>>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_value(val.timestamp_nanos_opt().unwrap() as i64);
+                        }
+                    }
+                }
+                OracleType::TimestampLTZ(_) => {
+                    let val = col.get::<NaiveDateTime>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                            let val_with_tz = val.and_local_timezone(time_zone).unwrap();
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_value(val_with_tz.timestamp_nanos_opt().unwrap() as i64);
                         }
                     }
                 }
@@ -395,7 +436,7 @@ mod tests {
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 
-        let batch = to_record_batch(col_map, rows).unwrap();
+        let batch = to_record_batch(col_map, rows, String::from("+08:00")).unwrap();
         dbg!(batch);
     }
 
@@ -407,7 +448,7 @@ mod tests {
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 
-        let batches = to_record_batches(col_map, rows, 3).unwrap();
+        let batches = to_record_batches(col_map, rows, 3, String::from("+08:00")).unwrap();
         dbg!(batches);
     }
 
