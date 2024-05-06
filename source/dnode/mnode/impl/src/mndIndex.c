@@ -177,8 +177,7 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
       continue;
     }
 
-    int32_t len;
-    void   *pReq = mndBuildDropIdxReq(pMnode, pVgroup, pStb, pIdx, &len);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -187,7 +186,7 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
-    action.contLen = len;
+    action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_INDEX;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
@@ -208,9 +207,6 @@ void mndCleanupIdx(SMnode *pMnode) {
 
 static SSdbRaw *mndIdxActionEncode(SIdxObj *pIdx) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-
-  // int32_t size =
-  //     sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_IDX_RESERVE_SIZE;
   int32_t size = sizeof(SIdxObj) + TSDB_IDX_RESERVE_SIZE;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_IDX, TSDB_IDX_VER_NUMBER, size);
@@ -389,29 +385,6 @@ static int32_t mndSetCreateIdxVgroupCommitLogs(SMnode *pMnode, STrans *pTrans, S
   return 0;
 }
 
-// static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
-//   SStbObj stbObj = {0};
-//   taosRLockLatch(&pStb->lock);
-//   memcpy(&stbObj, pStb, sizeof(SStbObj));
-//   taosRUnLockLatch(&pStb->lock);
-//   stbObj.numOfColumns = 0;
-//   stbObj.pColumns = NULL;
-//   stbObj.numOfTags = 0;
-//  stbObj.pTags = NULL;
-//   stbObj.numOfFuncs = 0;
-//   stbObj.pFuncs = NULL;
-//   stbObj.updateTime = taosGetTimestampMs();
-//   stbObj.lock = 0;
-//   stbObj.tagVer++;
-
-// SSdbRaw *pCommitRaw = mndStbActionEncode(&stbObj);
-// if (pCommitRaw == NULL) return -1;
-// if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-// if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
-//
-// return 0;
-//}
-
 static void mndDestroyIdxObj(SIdxObj *pIdxObj) {
   if (pIdxObj) {
     // do nothing
@@ -580,11 +553,6 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   return numOfRows;
 }
 
-// static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
-//   SSdb *pSdb = pMnode->pSdb;
-//
-//  sdbCancelFetch(pSdb, pIter);
-//}
 static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
   // impl
   return TSDB_CODE_SUCCESS;
@@ -664,7 +632,6 @@ int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pSt
   code = 0;
 
 _OVER:
-  // mndDestoryIdxObj(pIdx);
   if (newStb.pTags != NULL) {
     taosMemoryFree(newStb.pTags);
     taosMemoryFree(newStb.pColumns);
@@ -744,11 +711,6 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
     return -1;
   }
 
-  // SSchema *pTag = pStb->pTags + tag;
-  // if (IS_IDX_ON(pTag)) {
-  //   terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-  //   return -1;
-  // }
   code = mndAddIndexImpl(pMnode, pReq, pDb, pStb, &idxObj);
 
   return code;

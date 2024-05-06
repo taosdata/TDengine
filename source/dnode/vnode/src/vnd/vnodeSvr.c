@@ -1997,14 +1997,18 @@ _err:
   return -1;
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SDropIndexReq req = {0};
+  SVCreateStbReq req = {0};
+  SDecoder       dc = {0};
   pRsp->msgType = TDMT_VND_DROP_INDEX_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  if (tDeserializeSDropIdxReq(pReq, len, &req)) {
+  tDecoderInit(&dc, pReq, len);
+
+  if (tDecodeSVCreateStbReq(pReq, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
     return -1;
   }
 
@@ -2013,7 +2017,11 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
     pRsp->code = terrno;
     return -1;
   }
+  tDecoderClear(&dc);
   return TSDB_CODE_SUCCESS;
+_err:
+  tDecoderClear(&dc);
+  return -1;
 }
 
 extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
