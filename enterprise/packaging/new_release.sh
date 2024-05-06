@@ -242,7 +242,7 @@ function build_taosx() {
     else
         echo "build explorer community version"
         rm -rf ${explorerDir}/target/release/taos-explorer || :
-        
+        rm -rf ${explorerDir}/public/docs ${explorerDir}/public/docs-en || true
         # pull explorer
         git_pull "${explorerDir}" "main" "ver-$version"
         cd ${explorerDir}
