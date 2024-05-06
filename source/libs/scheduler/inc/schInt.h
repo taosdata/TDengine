@@ -286,6 +286,7 @@ typedef struct SSchJob {
 
   SExplainCtx         *explainCtx;
   int8_t               status;
+  int8_t               inRetry;
   SQueryNodeAddr       resNode;
   tsem_t               rspSem;
   SSchOpStatus         opStatus;
