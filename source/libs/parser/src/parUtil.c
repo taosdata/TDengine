@@ -1225,7 +1225,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
   SSchemaExt* pSchemaExt = NULL;
-  if (useCompress(pCfg->tableType)) {
+  if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
     memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);

@@ -333,7 +333,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
     taosRemoveDir(defaultPath);
   }
 
-  code = downloadCheckpoint(key, chkpPath);
+  code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }
@@ -342,7 +342,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
   return code;
 }
 int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = downloadCheckpoint(key, chkpPath);
+  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
   }

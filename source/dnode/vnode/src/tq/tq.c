@@ -92,7 +92,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  /*int32_t code = */streamMetaLoadAllTasks(pTq->pStreamMeta);
+  streamMetaLoadAllTasks(pTq->pStreamMeta);
 
   if (tqMetaTransform(pTq) < 0) {
     return -1;
