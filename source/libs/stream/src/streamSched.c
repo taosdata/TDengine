@@ -16,7 +16,103 @@
 #include "streamInt.h"
 #include "ttimer.h"
 
-static void streamSchedByTimer(void* param, void* tmrId) {
+static void streamTaskResumeHelper(void* param, void* tmrId);
+static void streamSchedByTimer(void* param, void* tmrId);
+
+int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
+  if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
+    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+    ASSERT(ref == 2 && pTask->schedInfo.pDelayTimer == NULL);
+
+    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
+
+    pTask->schedInfo.pDelayTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
+    pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
+  }
+
+  return 0;
+}
+
+int32_t streamTrySchedExec(SStreamTask* pTask) {
+  if (streamTaskSetSchedStatusWait(pTask)) {
+    streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0);
+  } else {
+    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+  }
+
+  return 0;
+}
+
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("vgId:%d failed to create msg to start stream task:0x%x exec, type:%d, code:%s", vgId, taskId, execType,
+            terrstr());
+    return -1;
+  }
+
+  stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = streamId;
+  pRunReq->taskId = taskId;
+  pRunReq->reqType = execType;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamTaskClearSchedIdleInfo(SStreamTask* pTask) { pTask->status.schedIdleTime = 0; }
+
+void streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime) { pTask->status.schedIdleTime = idleTime; }
+
+int32_t streamTaskResumeInFuture(SStreamTask* pTask) {
+  int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("s-task:%s task should idle, add into timer to retry in %dms, ref:%d", pTask->id.idStr,
+          pTask->status.schedIdleTime, ref);
+
+  // add one ref count for task
+  /*SStreamTask* pAddRefTask = */streamMetaAcquireOneTask(pTask);
+
+  if (pTask->schedInfo.pIdleTimer == NULL) {
+    pTask->schedInfo.pIdleTimer = taosTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer);
+  } else {
+    taosTmrReset(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer, &pTask->schedInfo.pIdleTimer);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void streamTaskResumeHelper(void* param, void* tmrId) {
+  SStreamTask*      pTask = (SStreamTask*)param;
+  SStreamTaskId*    pId = &pTask->id;
+  SStreamTaskState* p = streamTaskGetStatus(pTask);
+
+  if (p->state == TASK_STATUS__DROPPING || p->state == TASK_STATUS__STOP) {
+    streamTaskSetSchedStatusInactive(pTask);
+
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s status:%s not resume task, ref:%d", pId->idStr, p->name, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
+
+  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("trigger to resume s-task:%s after being idled for %dms, ref:%d", pId->idStr, pTask->status.schedIdleTime,
+          ref);
+
+  // release the task ref count
+  streamTaskClearSchedIdleInfo(pTask);
+  streamMetaReleaseTask(pTask->pMeta, pTask);
+}
+
+void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
   const char*  id = pTask->id.idStr;
   int32_t      nextTrigger = (int32_t)pTask->info.triggerParam;
@@ -61,69 +157,9 @@ static void streamSchedByTimer(void* param, void* tmrId) {
         return;
       }
 
-      streamSchedExec(pTask);
+      streamTrySchedExec(pTask);
     }
   }
 
   taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
-}
-
-int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
-  if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2 && pTask->schedInfo.pDelayTimer == NULL);
-
-    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
-
-    pTask->schedInfo.pDelayTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
-    pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
-  }
-
-  return 0;
-}
-
-int32_t streamSchedExec(SStreamTask* pTask) {
-  if (streamTaskSetSchedStatusWait(pTask)) {
-    SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-    if (pRunReq == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
-      stError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
-      return -1;
-    }
-
-    pRunReq->head.vgId = pTask->info.nodeId;
-    pRunReq->streamId = pTask->id.streamId;
-    pRunReq->taskId = pTask->id.taskId;
-
-    stDebug("trigger to run s-task:%s", pTask->id.idStr);
-
-    SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-    tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
-  } else {
-    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
-  }
-
-  return 0;
-}
-
-int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    stError("vgId:%d failed to create msg to start stream task:0x%x, type:%d, code:%s", vgId, taskId, execType,
-            terrstr());
-    return -1;
-  }
-
-  stDebug("vgId:%d create msg to start stream task:0x%x", vgId, taskId);
-
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = execType;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  return TSDB_CODE_SUCCESS;
 }

@@ -157,7 +157,7 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  streamSchedExec(pTask);
+  streamTrySchedExec(pTask);
   return TSDB_CODE_SUCCESS;
 }
 
