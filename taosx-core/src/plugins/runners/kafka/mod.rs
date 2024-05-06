@@ -376,44 +376,45 @@ async fn poll_message(
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
-        let chunk = consumer
-            .stream()
-            .try_ready_chunks(batch_size)
-            .try_next()
-            .await
-            .map_err(|err| {
-                anyhow::anyhow!("failed to polling from kafka, cause: {}", err.to_string())
-            })?;
-        if let Some(chunk) = chunk {
-            for msg in chunk {
-                match msg.payload_view::<str>() {
-                    None => {}
-                    Some(Ok(s)) => {
-                        timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
-                        topic.append_value(msg.topic());
-                        partition.append_value(msg.partition());
-                        offset.append_value(msg.offset());
-                        key.append_value(msg.key().unwrap_or(&[]));
-                        value.append_value(s);
+        let mut read_chunks = consumer.stream().try_ready_chunks(batch_size);
+        let mut fetch = read_chunks.try_next();
 
-                        // // commit offset
-                        // consumer.commit_message(&msg, CommitMode::Async).unwrap();
+        match tokio::time::timeout(Duration::from_millis(timeout as u64), fetch).await? {
+            Ok(chunk) => {
+                if let Some(chunk) = chunk {
+                    for msg in chunk {
+                        match msg.payload_view::<str>() {
+                            None => {}
+                            Some(Ok(s)) => {
+                                timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                                topic.append_value(msg.topic());
+                                partition.append_value(msg.partition());
+                                offset.append_value(msg.offset());
+                                key.append_value(msg.key().unwrap_or(&[]));
+                                value.append_value(s);
+                            }
+                            Some(Err(e)) => {
+                                tracing::warn!(
+                                    "Error while deserializing message payload: {:?}",
+                                    e
+                                );
+                            }
+                        };
                     }
-                    Some(Err(e)) => {
-                        tracing::warn!("Error while deserializing message payload: {:?}", e);
-                    }
-                };
+                    consumer
+                        .commit_consumer_state(CommitMode::Async)
+                        .map_err(|err| {
+                            anyhow::anyhow!(
+                                "failed to commit consumer state, cause: {}",
+                                err.to_string()
+                            )
+                        })?;
+                }
             }
-
-            consumer
-                .commit_consumer_state(CommitMode::Async)
-                .map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to commit consumer state, cause: {}",
-                        err.to_string()
-                    )
-                })?;
-        }
+            Err(err) => {
+                anyhow::bail!("failed to polling from kafka, cause: {}", err.to_string());
+            }
+        };
 
         if value.is_empty() {
             tokio::time::sleep(Duration::from_millis(100)).await;
