@@ -2006,7 +2006,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   tDecoderInit(&dc, pReq, len);
 
-  if (tDecodeSVCreateStbReq(pReq, &req) < 0) {
+  if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
     return -1;
