@@ -916,7 +916,7 @@ _return:
 
   SCH_LOCK_TASK(pTask);
 
-  schProcessOnTaskFailure(pJob, pTask, code);
+  code = schProcessOnTaskFailure(pJob, pTask, code);
 
   if (inRetry) {
     atomic_store_8(&pJob->inRetry, 0);
