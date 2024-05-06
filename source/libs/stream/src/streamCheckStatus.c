@@ -341,7 +341,7 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
     taosThreadMutexLock(&pInfo->checkInfoLock);
   }
 
-  if (!pInfo->inCheckProcess) {
+  if (pInfo->inCheckProcess) {
     int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
     stDebug("s-task:%s clear the in check-rsp flag, set the check-rsp done, elapsed time:%" PRId64 " ms", id, el);
 

@@ -947,7 +947,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
       tqScanWalAsync((STQ*)handle, false);
     } else {
-      streamSchedExec(pTask);
+      streamTrySchedExec(pTask);
     }
   } else if (status == TASK_STATUS__UNINIT) {
     // todo: fill-history task init ?

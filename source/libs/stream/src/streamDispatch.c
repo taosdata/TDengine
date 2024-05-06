@@ -1256,7 +1256,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
-  streamSchedExec(pTask);
+  streamTrySchedExec(pTask);
 
   return 0;
 }

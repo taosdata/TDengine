@@ -1042,5 +1042,5 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   if(code != 0){
     return code;
   }
-  return streamSchedExec(pTask);
+  return streamTrySchedExec(pTask);
 }
