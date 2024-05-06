@@ -3,7 +3,7 @@ import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
 import { StaticTemplatePath, IsAliyun } from '@/const';
 import { Loading } from 'element-ui';
-import { parsinginZone, decrypt } from "@/utils/index";
+import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
 
@@ -1079,10 +1079,14 @@ function getGroupsQuery(groups, query) {
         } else {
           const field = getOriginField(k);
           if (TimeFormats.includes(k)) {
-            let value = parsinginZone(groups[key][k])
-            groups[key][k] = value
+            let value = groups[key][k]
+            if (typeof groups[key][k] == 'object') {
+              value = formatTime(groups[key][k])
+            }
+            query.push(field + '=' + getQueryParamValue(value));
+          } else {
+            query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
-          query.push(field + '=' + getQueryParamValue(groups[key][k]));
         }
       }
     }
