@@ -38,14 +38,11 @@ namespace TDPIConnector.PI
             {
                 int k = i % afDataPipes.Count;
                 // if (elements[i].HasInvalidAttr()) continue;
-                string signupAttrNames = "";
                 foreach (AFAttributeWrapper attr in elements[i].Attributes ) {
                     if (attr.Valid() && attr.signUpValid() && !attr.Unsupported()) {
                         attributeSetLists[k].Add(attr.AFSDKObject);
-                        signupAttrNames += attr.Name + ";";
                     }
                 }
-                log.Debug($"AddSignups, element{elements[i].Name}:  attrs:{signupAttrNames}");
             }
 
             for (int i = 0; i < afDataPipes.Count; i++)
