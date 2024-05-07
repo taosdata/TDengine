@@ -1580,12 +1580,11 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
       key.len = compressedSize;
       value = dst;
     }
-    stDebug("vlen: raw size: %d, compressed size: %d", vlen, compressedSize);
   }
 
   if (*dest == NULL) {
-    char* p = taosMemoryCalloc(
-        1, sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len);
+    size_t size = sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len;
+    char*  p = taosMemoryCalloc(1, size);
     char* buf = p;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
@@ -1601,8 +1600,8 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
     len += taosEncodeFixedI8((void**)&buf, key.compress);
     len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
   }
-  taosMemoryFree(dst);
 
+  taosMemoryFree(dst);
   return len;
 }
 

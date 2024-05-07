@@ -158,7 +158,6 @@ typedef enum ECHECKPOINT_BACKUP_TYPE {
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
 int32_t streamTaskDownloadCheckpointData(char* id, char* path);
-
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
 

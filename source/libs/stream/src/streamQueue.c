@@ -330,6 +330,36 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   return 0;
 }
 
+int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
+  SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
+  if (pTranstate == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTranstate->type = STREAM_INPUT__TRANS_STATE;
+
+  pBlock->info.type = STREAM_TRANS_STATE;
+  pBlock->info.rows = 1;
+  pBlock->info.childId = pTask->info.selfChildId;
+
+  pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
+  taosArrayPush(pTranstate->blocks, pBlock);
+
+  taosMemoryFree(pBlock);
+  if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTranstate) < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTask->status.appendTranstateBlock = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // the result should be put into the outputQ in any cases, the result may be lost otherwise.
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;

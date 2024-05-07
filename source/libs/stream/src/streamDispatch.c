@@ -833,7 +833,7 @@ FAIL:
 }
 
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
-                                 int8_t isSucceed) {
+                                 int32_t setCode) {
   int32_t  len = 0;
   int32_t  code = 0;
   SEncoder encoder;
@@ -845,7 +845,7 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
       .streamId = pReq->streamId,
       .expireTime = pReq->expireTime,
       .mnodeId = pReq->mnodeId,
-      .success = isSucceed,
+      .success = (setCode == TSDB_CODE_SUCCESS) ? 1 : 0,
   };
 
   tEncodeSize(tEncodeStreamCheckpointSourceRsp, &rsp, len, code);
@@ -866,22 +866,24 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
   tEncoderClear(&encoder);
 
   initRpcMsg(pMsg, 0, pBuf, sizeof(SMsgHead) + len);
+
+  pMsg->code = setCode;
   pMsg->info = *pRpcInfo;
   return 0;
 }
 
-int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
-                                        int8_t isSucceed) {
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask) {
   SStreamChkptReadyInfo info = {0};
-  buildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, isSucceed);
+  buildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
 
   if (pTask->pReadyMsgList == NULL) {
     pTask->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
   }
 
   taosArrayPush(pTask->pReadyMsgList, &info);
-  stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr,
-          (int32_t)taosArrayGetSize(pTask->pReadyMsgList));
+
+  int32_t size = taosArrayGetSize(pTask->pReadyMsgList);
+  stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size);
   return TSDB_CODE_SUCCESS;
 }
 
