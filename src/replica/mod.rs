@@ -1160,7 +1160,6 @@ impl Cli {
 mod tests {
     use std::mem::transmute;
 
-    use futures::TryStreamExt;
     use rand::distributions::DistString;
     use taos::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta, IsOffset, MessageSet};
 

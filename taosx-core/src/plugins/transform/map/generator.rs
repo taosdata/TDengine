@@ -36,8 +36,6 @@ impl ValueBuilder for GeneratorValueBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use arrow::array::StringArray;
     use arrow_schema::{DataType, TimeUnit};
 

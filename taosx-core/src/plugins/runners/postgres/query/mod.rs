@@ -2,7 +2,7 @@ use std::pin::Pin;
 
 use futures::stream::IntoStream;
 use futures::{StreamExt, TryStreamExt};
-use sqlx::{Error, Executor, Pool, Row};
+use sqlx::{Error, Executor, Pool};
 use sqlx_postgres::{PgConnectOptions, PgPool, PgRow, Postgres};
 
 use crate::runners::postgres::config::connect::ConnectConfig;
@@ -44,7 +44,7 @@ impl PostgresQuery {
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
-        time_zone: String,
+        _time_zone: String,
     ) -> anyhow::Result<Pool<Postgres>> {
         let mut options = PgConnectOptions::new()
             .host(host)
@@ -106,6 +106,7 @@ impl PostgresQuery {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
         let result = self.pool.fetch_all(sql).await;
         match result {
@@ -145,6 +146,7 @@ impl PostgresQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::Row;
     use std::str::FromStr;
     use taos::Dsn;
 

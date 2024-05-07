@@ -75,6 +75,7 @@ impl ZFileMan {
         }
         Ok(())
     }
+    #[allow(unused /* previous version */)]
     async fn write_vgroup_with_meta(
         &self,
         vgroup: i32,
@@ -88,6 +89,7 @@ impl ZFileMan {
         metrics.add_messages_of_meta(1);
         Ok(())
     }
+    #[allow(unused /* previous version */)]
     async fn write_vgroup_with_data(
         &self,
         vgroup: i32,
@@ -256,7 +258,7 @@ async fn backup(
                                 break;
                             }
                         }
-                        MessageSet::MetaData(meta, data) => {
+                        MessageSet::MetaData(_meta, data) => {
                             let raw = data.as_raw_data().await?;
                             man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
                             man.flush_vgroup(vgroup).await?;

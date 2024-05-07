@@ -798,7 +798,6 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taos::Dsn;
 
     #[tokio::test]
     async fn test_invalid() {

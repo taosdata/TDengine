@@ -28,8 +28,6 @@ impl ValueBuilder for FormatValueBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::plugins::transform::map::format::FormatValueBuilder;
-    use crate::plugins::transform::map::ValueBuilder;
     use arrow::array::Int64Array;
     use arrow_schema::DataType;
     use std::sync::Arc;

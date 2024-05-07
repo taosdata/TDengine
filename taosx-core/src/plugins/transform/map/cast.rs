@@ -36,12 +36,9 @@ impl ValueBuilder for CastValueBuilder {
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{
-            Array, BooleanArray, Float32Array, Int32Array, StringArray, TimestampNanosecondArray,
-        },
+        array::{Array, BooleanArray, Float32Array, Int32Array, TimestampNanosecondArray},
         datatypes::DataType,
     };
-    use std::sync::Arc;
     use taosx_ipc::prelude::IpcDataType;
 
     use super::*;

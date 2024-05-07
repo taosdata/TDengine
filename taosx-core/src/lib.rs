@@ -120,8 +120,8 @@ impl ConnectorLicense {
     }
 
     pub fn expired_seconds(&self) -> Option<chrono::Duration> {
-        let expire_time = chrono::NaiveDateTime::from_timestamp_opt(self.expire as _, 0).unwrap();
-        let now = chrono::Utc::now().naive_utc();
+        let expire_time = chrono::DateTime::from_timestamp(self.expire as _, 0)?;
+        let now = chrono::Utc::now();
         if expire_time > now || self.expire < 0 {
             return None;
         } else {
@@ -586,8 +586,6 @@ impl TaskOpts {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-
-    use taos::Dsn;
 
     use super::*;
 

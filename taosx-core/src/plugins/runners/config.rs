@@ -68,9 +68,9 @@ impl PerformanceConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
+
+    use super::*;
 
     #[test]
     fn test_from_dsn() {

@@ -476,8 +476,6 @@ mod tests {
     use std::env;
     use std::str::FromStr;
 
-    use taos::Dsn;
-
     use super::*;
 
     #[tokio::test]

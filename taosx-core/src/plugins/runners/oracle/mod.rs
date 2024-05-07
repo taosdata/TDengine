@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::NaiveDateTime;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
 use oracle::SqlValue;
@@ -341,15 +341,8 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
             }
-        }
-        // 其他
-        _ => {
-            let val = col.get::<String>();
-            match val {
-                Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
-            }
-        }
+        } // 其他
+          // }
     }
 }
 
@@ -357,7 +350,6 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
     async fn test_is_valid() {

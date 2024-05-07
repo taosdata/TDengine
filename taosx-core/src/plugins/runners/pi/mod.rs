@@ -690,8 +690,6 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
 mod tests {
     use std::str::FromStr;
 
-    use taos::Dsn;
-
     use super::*;
 
     #[ignore]

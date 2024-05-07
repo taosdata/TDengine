@@ -33,7 +33,7 @@ impl OracleQuery {
         subject: &String,
         username: &String,
         password: &String,
-        time_zone: String,
+        _time_zone: String,
     ) -> anyhow::Result<Pool> {
         let addr = format!("//{}:{}/{}", host, port, subject);
         let pool_builder = PoolBuilder::new(username, password, addr);
@@ -60,6 +60,7 @@ impl OracleQuery {
         Ok(col_map)
     }
 
+    #[allow(dead_code)]
     pub fn select_all(
         &mut self,
         sql: &str,

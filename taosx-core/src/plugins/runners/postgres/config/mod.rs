@@ -301,7 +301,6 @@ impl TaskConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
 
     #[test]
     fn test_parse_config_invalid_driver() {

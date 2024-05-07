@@ -5,7 +5,7 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use chrono::NaiveDateTime;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
@@ -23,6 +23,7 @@ pub fn to_schema(col_map: LinkedHashMap<String, OracleType>) -> anyhow::Result<S
     Ok(schema)
 }
 
+#[allow(dead_code)]
 pub fn to_record_batch(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
@@ -313,9 +314,8 @@ pub fn to_record_batches(
                                 .append_value(val);
                         }
                     }
-                }
-                // 其他
-                _ => anyhow::bail!("unsupported data type: {:?}", col_type),
+                } // 其他
+                  // _ => anyhow::bail!("unsupported data type: {:?}", col_type),
             }
         }
         // increase row count
@@ -327,7 +327,7 @@ pub fn to_record_batches(
             batches.push(batch);
             // reset builders
             builders = Vec::new();
-            for (col_name, col_type) in col_map.clone() {
+            for (_col_name, col_type) in col_map.clone() {
                 // arrow data type
                 let arrow_type = column_meta::to_arrow_data_type(&col_type)?;
                 builders.push(array::make_builder(&arrow_type, 10));

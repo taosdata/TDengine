@@ -8,7 +8,6 @@ use std::fmt::Display;
 use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
-use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TmqMetrics {

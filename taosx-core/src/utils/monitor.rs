@@ -113,7 +113,7 @@ pub fn update_sub_connector_process_metrics(
                 living_sub_processes.push(sub_info);
             }
 
-            Err(err) => {
+            Err(_err) => {
                 break;
             }
         }

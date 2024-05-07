@@ -300,8 +300,6 @@ mod tests {
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
 
-    use taos::AsyncTBuilder;
-
     use super::*;
 
     #[ignore]
@@ -458,7 +456,6 @@ mod tests {
                         let meta = raw.into();
                         taos.write_raw_meta(&meta).await?
                     }
-                    _ => unreachable!(),
                 },
                 Err(err) => {
                     dbg!(&err);

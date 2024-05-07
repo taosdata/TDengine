@@ -3,6 +3,7 @@ use taosx_ipc::stream::writer::IpcDataType;
 
 // use taosx_ipc::prelude::IpcDataType;
 
+#[allow(dead_code)]
 pub struct ColumnMeta {
     pub column_name: String,
     pub type_name: String,

@@ -210,8 +210,6 @@ impl TaskConfig {
 mod tests {
     use std::str::FromStr;
 
-    use taos::Dsn;
-
     use super::*;
 
     #[test]

@@ -1829,7 +1829,7 @@ fn test_indices_to_ranges() {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{plugins::transform::modeler::Modeler, runners::opc::config::model};
+    use crate::plugins::transform::modeler::Modeler;
 
     use super::Parser;
 

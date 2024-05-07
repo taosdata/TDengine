@@ -33,7 +33,7 @@ impl Producer {
         );
 
         // split the task into multiple windows
-        let mut window_start = start.clone();
+        let window_start = start.clone();
 
         // with time zone
         let mut window_start_with_tz = window_start.with_timezone(&time_zone);
@@ -44,7 +44,7 @@ impl Producer {
             let mut window_end_with_tz = min(window_start_with_tz + interval, end_with_tz);
 
             // when the window across days, we need to adjust the end to the start of the next day
-            if window_end_with_tz.date() > window_start_with_tz.date() {
+            if window_end_with_tz.date_naive() > window_start_with_tz.date_naive() {
                 window_end_with_tz = window_start_with_tz
                     .date_naive()
                     .checked_add_days(Days::new(1))
@@ -78,7 +78,6 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -98,7 +97,16 @@ mod tests {
         });
 
         let producer = Producer::new(&config);
-        producer.produce(tx).await.unwrap();
+
+        tokio::select! {
+            res = consumer => {
+                let tasks = res.unwrap();
+                dbg!(tasks);
+            }
+            res = producer.produce(tx) => {
+                let _ = dbg!(res);
+            }
+        }
 
         // let tasks = consumer.await.unwrap();
 

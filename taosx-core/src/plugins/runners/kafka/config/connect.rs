@@ -78,7 +78,7 @@ impl KafkaConnectConfig {
 mod tests {
     use std::str::FromStr;
 
-    use taos::{Dsn, IntoDsn};
+    use taos::IntoDsn;
 
     use super::*;
 

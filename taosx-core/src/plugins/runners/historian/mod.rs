@@ -324,7 +324,6 @@ mod tests {
 
     use chrono::{DateTime, Utc};
     use rand::Rng;
-    use taos::Dsn;
 
     use super::*;
 

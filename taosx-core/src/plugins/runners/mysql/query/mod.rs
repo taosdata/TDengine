@@ -90,6 +90,7 @@ impl MySqlQuery {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn show_tables(&mut self) -> anyhow::Result<Vec<String>> {
         let result = self.pool.fetch_all("SHOW TABLES").await;
         let tables = match result {
@@ -102,6 +103,7 @@ impl MySqlQuery {
         Ok(tables)
     }
 
+    #[allow(dead_code)]
     pub async fn show_columns(&mut self, table: &str) -> anyhow::Result<HashMap<String, String>> {
         let result = self
             .pool
@@ -133,6 +135,7 @@ impl MySqlQuery {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<MySqlRow>> {
         let result = self.pool.fetch_all(sql).await;
         match result {

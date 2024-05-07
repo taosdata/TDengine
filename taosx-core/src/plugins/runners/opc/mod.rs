@@ -716,8 +716,6 @@ impl Display for OpcType {
 
 #[cfg(test)]
 mod opc_type_tests {
-    use taos::Dsn;
-
     use super::*;
 
     #[test]

@@ -118,7 +118,6 @@ impl ConnectConfig {
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[test]
     fn test_from_dsn() {

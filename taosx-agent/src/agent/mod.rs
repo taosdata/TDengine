@@ -26,6 +26,7 @@ use taosx_core::{
 
 use crate::runner::Action;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Client {
     pub endpoint: String,
@@ -34,6 +35,7 @@ pub struct Client {
     pub req_id: Arc<AtomicU64>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct Agent {
     pub id: i64,

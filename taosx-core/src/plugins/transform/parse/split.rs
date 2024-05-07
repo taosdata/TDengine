@@ -220,9 +220,6 @@ fn split_ops() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::StringArray;
-    use arrow::datatypes::{DataType, Field};
-    use std::sync::Arc;
 
     #[test]
     fn test_split() {

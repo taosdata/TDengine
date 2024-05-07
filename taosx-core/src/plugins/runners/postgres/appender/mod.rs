@@ -5,7 +5,6 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::{format, DateTime, Datelike, Timelike, Utc};
 use itertools::Itertools;
 use sqlx::{Column, Row, TypeInfo};
 use sqlx_postgres::types::PgTimeTz;

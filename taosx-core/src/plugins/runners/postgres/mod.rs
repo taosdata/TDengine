@@ -441,7 +441,6 @@ fn generate_json_value(
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
     async fn test_is_valid() {

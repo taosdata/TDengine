@@ -4,6 +4,7 @@ use taos::Dsn;
 /// advanced options for all data sources. Option value is None when data source not support.
 #[derive(Debug, Clone)]
 pub struct AdvancedOptions {
+    #[allow(dead_code)]
     pub log_level: Option<LogLevel>,
     pub read_concurrency: Option<usize>,
     pub write_concurrency: Option<usize>,
@@ -150,8 +151,6 @@ impl FromStr for LogLevel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
-    use taos::Dsn;
 
     #[test]
     fn test_parse_log_level() {
