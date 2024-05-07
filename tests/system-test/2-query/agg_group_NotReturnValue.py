@@ -382,7 +382,11 @@ class TDTestCase(TDTestCase):
         #union all
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union all ({sql}) order by tb"
-        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        
+        sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by tbname "
+        sql = f"({sql}) union all ({sql}) order by tb"
+        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
         self.data_check_tbname(sql1,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
