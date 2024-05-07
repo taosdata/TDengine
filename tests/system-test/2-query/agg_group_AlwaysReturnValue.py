@@ -640,6 +640,15 @@ class TDTestCase(TDTestCase):
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,count(*) "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
+        sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
+        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
+        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a group by tbname order by a.tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
         sql1 = f"select * from ({sql})"
         self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
@@ -647,7 +656,16 @@ class TDTestCase(TDTestCase):
         self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
+        sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by a.tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
+        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by a.tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        
+        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by tbname,count(*) "
+        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
         self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
@@ -1011,7 +1029,19 @@ class TDTestCase(TDTestCase):
             #union all 
             sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN),count(*)"
             sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            
+            sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by tbname,AGG(COLUMN),count(*)"
+            sql = f"({sql}) union all ({sql}) order by tb"
+            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+            
+            sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,AGG(COLUMN),count(*)"
+            sql = f"({sql}) union all ({sql}) order by tb"
+            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            
+            sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by tbname order by a.tbname,AGG(COLUMN),count(*)"
+            sql = f"({sql}) union all ({sql}) order by tb"
+            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
         
             sql1 = f"select * from ({sql})"
             self.data_check_tbname(sql1,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
