@@ -1499,18 +1499,21 @@ _exit:
 
 extern int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaHandleChildTableTagUpdate(SMeta *meta, const SMetaEntry *oldChildTableEntry,
-                                             const SMetaEntry *newChildTableEntry, const SMetaEntry *superTableEntry) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  STagIdxKey *newTagIdxKey = NULL;
-  int32_t     newTagIdxKeySize = 0;
-  STagIdxKey *oldTagIdxKey = NULL;
-  int32_t     oldTagIdxKeySize = 0;
+static int32_t metaHandleChildTableNormalTagUpdate(SMeta *meta, const SMetaEntry *oldChildTableEntry,
+                                                   const SMetaEntry *newChildTableEntry,
+                                                   const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   const SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
-  const STag           *oldTag = oldChildTableEntry->ctbEntry.pTags;
-  const STag           *newTag = newChildTableEntry->ctbEntry.pTags;
+  STagIdxKey           *newTagIdxKey = NULL;
+  int32_t               newTagIdxKeySize = 0;
+  STagIdxKey           *oldTagIdxKey = NULL;
+  int32_t               oldTagIdxKeySize = 0;
+
+  const STag *oldTag = oldChildTableEntry->ctbEntry.pTags;
+  const STag *newTag = newChildTableEntry->ctbEntry.pTags;
+  bool        isTagChanged = false;
 
   for (int32_t i = 0; i < tagSchema->nCols; i++) {
     if (!IS_IDX_ON(&tagSchema->pSchema[i])) {
@@ -1530,6 +1533,7 @@ static int32_t metaHandleChildTableTagUpdate(SMeta *meta, const SMetaEntry *oldC
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (tagIdxKeyCmpr(newTagIdxKey, newTagIdxKeySize, oldTagIdxKey, oldTagIdxKeySize) != 0) {
+      isTagChanged = true;
       if (tdbTbDelete(meta->pTagIdx, oldTagIdxKey, oldTagIdxKeySize, meta->txn) != 0) {
         TSDB_CHECK_CODE(code = TSDB_CODE_TDB_OP_ERROR, lino, _exit);
       }
@@ -1539,7 +1543,7 @@ static int32_t metaHandleChildTableTagUpdate(SMeta *meta, const SMetaEntry *oldC
     }
   }
 
-  if (oldTag->len != newTag->len || memcmp(oldTag, newTag, oldTag->len) != 0) {
+  if (isTagChanged) {
     code = metaUpsertCtbIdx(meta, newChildTableEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1550,6 +1554,51 @@ _exit:
   }
   metaTagIdxKeyDestroy(newTagIdxKey);
   metaTagIdxKeyDestroy(oldTagIdxKey);
+  return code;
+}
+
+static int32_t metaHandleChildTableJsonTagUpdate(SMeta *meta, const SMetaEntry *oldChildTableEntry,
+                                                 const SMetaEntry *newChildTableEntry,
+                                                 const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  bool isTagChanged = true;  // TODO
+
+  if (isTagChanged) {
+    code = metaUpsertTagIdx(meta, newChildTableEntry, superTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = metaUpsertCtbIdx(meta, newChildTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t metaHandleChildTableTagUpdate(SMeta *meta, const SMetaEntry *oldChildTableEntry,
+                                             const SMetaEntry *newChildTableEntry, const SMetaEntry *superTableEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  const SSchemaWrapper *tagSchema = &superTableEntry->stbEntry.schemaTag;
+
+  if (tagSchema->nCols == 1 && tagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    code = metaHandleChildTableJsonTagUpdate(meta, oldChildTableEntry, newChildTableEntry, superTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = metaHandleChildTableNormalTagUpdate(meta, oldChildTableEntry, newChildTableEntry, superTableEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    metaError("vgId:%d %s failed at line %d since %s", TD_VID(meta->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
