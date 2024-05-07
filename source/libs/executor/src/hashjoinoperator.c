@@ -1109,7 +1109,7 @@ static uint32_t hJoinGetFinBlkCapacity(SHJoinOperatorInfo* pJoin, SHashJoinPhysi
   uint32_t maxRows = TMAX(HJOIN_DEFAULT_BLK_ROWS_NUM, HJOIN_BLK_SIZE_LIMIT/pJoinNode->node.pOutputDataBlockDesc->totalRowSize);
   if (INT64_MAX != pJoin->ctx.limit && NULL == pJoin->pFinFilter) {
     uint32_t limitMaxRows = pJoin->ctx.limit / HJOIN_BLK_THRESHOLD_RATIO + 1;
-    return (maxRows > limitMaxRows) ? limitMaxRows : maxRows;
+    return TMIN(maxRows, limitMaxRows);
   }
 
   return maxRows;

@@ -329,7 +329,7 @@ void createDummyDownstreamOperators(int32_t num, SOperatorInfo** ppRes) {
   }
 }
 
-void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
+void createTargetSlotList(SNodeList** pTargets) {
   jtCtx.resColNum = 0;
   memset(jtCtx.resColList, 0, sizeof(jtCtx.resColList));
   jtCtx.resColSize = MAX_SLOT_NUM * 2 * sizeof(bool);
@@ -394,7 +394,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       dstOffset += tDataTypes[jtInputColType[i]].bytes;
       jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
       
-      nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget);
+      nodesListMakeStrictAppend(pTargets, (SNode*)pTarget);
 
       jtCtx.resColNum++;
     }
@@ -418,7 +418,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       dstOffset += tDataTypes[jtInputColType[i]].bytes;
       jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
       
-      nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget);
+      nodesListMakeStrictAppend(pTargets, (SNode*)pTarget);
       jtCtx.resColNum++;
     }
   }  
@@ -426,7 +426,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
   jtCtx.resColBuf = (char*)taosMemoryRealloc(jtCtx.resColBuf, jtCtx.resColSize);
 }
 
-void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
+void createColEqCondStart(void* p, bool mJoin) {
   jtCtx.colEqNum = 0;
   do {
     jtCtx.colEqNum = taosRand() % MAX_SLOT_NUM; // except TIMESTAMP
@@ -454,7 +454,7 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
       pCol1->node.resType.type = jtInputColType[i];
       pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      nodesListMakeStrictAppend(&p->pEqLeft, (SNode*)pCol1);
+      nodesListMakeStrictAppend(mJoin ? &((SSortMergeJoinPhysiNode*)p)->pEqLeft : &((SHashJoinPhysiNode*)p)->pOnLeft, (SNode*)pCol1);
 
       SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol2->dataBlockId = RIGHT_BLK_ID;
@@ -462,12 +462,12 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
       pCol2->node.resType.type = jtInputColType[i];
       pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      nodesListMakeStrictAppend(&p->pEqRight, (SNode*)pCol2);
+      nodesListMakeStrictAppend(mJoin ? &((SSortMergeJoinPhysiNode*)p)->pEqRight : &((SHashJoinPhysiNode*)p)->pOnRight, (SNode*)pCol2);
     }
   }
 }
 
-void createColOnCondStart(SSortMergeJoinPhysiNode* p) {
+void createColOnCondStart() {
   jtCtx.colOnNum = 0;
   do {
     jtCtx.colOnNum = taosRand() % (MAX_SLOT_NUM + 1);
@@ -544,7 +544,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
   }  
 }
 
-void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
+void createColOnCondEnd(void* p, bool mJoin) {
   if (jtCtx.colOnNum <= 0) {
     return;
   }
@@ -581,23 +581,35 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
       if (jtCtx.colOnNum > 1) {
         nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp);
       } else {
-        p->pColOnCond = (SNode*)pOp;
+        if (mJoin) {
+          ((SSortMergeJoinPhysiNode*)p)->pColOnCond = (SNode*)pOp;
+        } else {
+          ((SHashJoinPhysiNode*)p)->pFullOnCond = (SNode*)pOp;
+        }
         break;
       }
     }
   }
 
   if (jtCtx.colOnNum > 1) {
-    p->pColOnCond = (SNode*)pLogic;
+    if (mJoin) {
+      ((SSortMergeJoinPhysiNode*)p)->pColOnCond = (SNode*)pLogic;
+    } else {
+      ((SHashJoinPhysiNode*)p)->pFullOnCond = (SNode*)pLogic;
+    }
   }  
 
-  SNode* pTmp = nodesCloneNode(p->pColOnCond);
-  jtMergeEqCond(&p->pFullOnCond, &pTmp);
+  if (!mJoin) {
+    return;
+  }
+
+  SNode* pTmp = nodesCloneNode(((SSortMergeJoinPhysiNode*)p)->pColOnCond);
+  jtMergeEqCond(&((SSortMergeJoinPhysiNode*)p)->pFullOnCond, &pTmp);
 }
 
 
 
-void createColCond(SSortMergeJoinPhysiNode* p, int32_t cond) {
+void createColCond(void* p, int32_t cond, bool mJoin) {
   jtCtx.colCond = cond;
   switch (cond) {
     case TEST_NO_COND:
@@ -607,18 +619,18 @@ void createColCond(SSortMergeJoinPhysiNode* p, int32_t cond) {
       memset(jtCtx.colOnList, 0, sizeof(jtCtx.colOnList));
       break;
     case TEST_EQ_COND:
-      createColEqCondStart(p);
+      createColEqCondStart(p, mJoin);
       jtCtx.colOnNum = 0;
       memset(jtCtx.colOnList, 0, sizeof(jtCtx.colOnList));
       break;
     case TEST_ON_COND:
-      createColOnCondStart(p);
+      createColOnCondStart();
       jtCtx.colEqNum = 0;
       memset(jtCtx.colEqList, 0, sizeof(jtCtx.colEqList));
       break;
     case TEST_FULL_COND:
-      createColEqCondStart(p);
-      createColOnCondStart(p);
+      createColEqCondStart(p, mJoin);
+      createColOnCondStart();
       break;    
     default:
       break;
@@ -638,7 +650,7 @@ void* getFilterValue(int32_t type) {
   }
 }
 
-void createFilterStart(SSortMergeJoinPhysiNode* p, bool filter) {
+void createFilterStart(bool filter) {
   jtCtx.filter = filter;
   if (!filter) {
     jtCtx.leftFilterNum = 0;
@@ -697,7 +709,7 @@ void createFilterStart(SSortMergeJoinPhysiNode* p, bool filter) {
   }
 }
 
-void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
+void createFilterEnd(SNode** pCond, bool filter) {
   if (!filter || (jtCtx.leftFilterNum <= 0 && jtCtx.rightFilterNum <= 0)) {
     return;
   }
@@ -734,7 +746,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
         nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp);
       } else {
-        p->node.pConditions = (SNode*)pOp;
+        *pCond = (SNode*)pOp;
         break;
       }
     }
@@ -764,14 +776,14 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
         nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp);
       } else {
-        p->node.pConditions = (SNode*)pOp;
+        *pCond = (SNode*)pOp;
         break;
       }
     }
   }
 
   if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
-    p->node.pConditions = (SNode*)pLogic;
+    *pCond = (SNode*)pLogic;
   }  
 }
 
@@ -849,17 +861,76 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
   jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == param->joinType && JOIN_STYPE_SEMI == param->subType);
   jtCtx.inGrpId = 1;
 
-  createColCond(p, param->cond);
-  createFilterStart(p, param->filter);
-  createTargetSlotList(p);
+  createColCond(p, param->cond, true);
+  createFilterStart(param->filter);
+  createTargetSlotList(&p->pTargets);
   createColEqCondEnd(p);
-  createColOnCondEnd(p);
-  createFilterEnd(p, param->filter);
+  createColOnCondEnd(p, true);
+  createFilterEnd(&p->node.pConditions, param->filter);
   updateColRowInfo();
   createBlockDescNode(&p->node.pOutputDataBlockDesc);
 
   return p;
 }
+
+
+SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
+  SHashJoinPhysiNode* p = (SHashJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN);
+  p->joinType = param->joinType;
+  p->subType = param->subType;
+  //p->asofOpType = param->asofOp;
+  //p->grpJoin = param->grpJoin;
+  if (p->subType == JOIN_STYPE_WIN || param->jLimit > 1 || taosRand() % 2) {
+    SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+    limitNode->limit = param->jLimit;
+    p->pJLimit = (SNode*)limitNode;
+  }
+  
+  p->leftPrimSlotId = JT_PRIM_TS_SLOT_ID;
+  p->rightPrimSlotId = JT_PRIM_TS_SLOT_ID;
+  p->node.inputTsOrder = param->asc ? ORDER_ASC : ORDER_DESC;
+  if (JOIN_STYPE_WIN == p->subType) {
+    SWindowOffsetNode* pOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
+    SValueNode* pStart = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pEnd = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    pStart->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pStart->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    pStart->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
+    pEnd->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pEnd->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    pEnd->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
+    if (pStart->datum.i > pEnd->datum.i) {
+      TSWAP(pStart->datum.i, pEnd->datum.i);
+    }
+    pOffset->pStartOffset = (SNode*)pStart;
+    pOffset->pEndOffset = (SNode*)pEnd;
+    p->pWindowOffset = (SNode*)pOffset;
+
+    jtCtx.winStartOffset = pStart->datum.i;
+    jtCtx.winEndOffset = pEnd->datum.i;
+  }
+
+  jtCtx.grpJoin = param->grpJoin;
+  jtCtx.joinType = param->joinType;
+  jtCtx.subType = param->subType;
+  jtCtx.asc = param->asc;
+  jtCtx.jLimit = param->jLimit;
+  jtCtx.asofOpType = param->asofOp;
+  jtCtx.leftColOnly = (JOIN_TYPE_LEFT == param->joinType && JOIN_STYPE_SEMI == param->subType);
+  jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == param->joinType && JOIN_STYPE_SEMI == param->subType);
+  jtCtx.inGrpId = 1;
+
+  createColCond(p, param->cond, false);
+  createFilterStart(param->filter);
+  createTargetSlotList(&p->pTargets);
+  createColOnCondEnd(p, false);
+  createFilterEnd(&p->node.pConditions, param->filter);
+  updateColRowInfo();
+  createBlockDescNode(&p->node.pOutputDataBlockDesc);
+
+  return p;
+}
+
 
 SExecTaskInfo* createDummyTaskInfo(char* taskId) {
   SExecTaskInfo* p = (SExecTaskInfo*)taosMemoryCalloc(1, sizeof(SExecTaskInfo));
@@ -2761,7 +2832,7 @@ void checkJoinRes(SSDataBlock* pBlock) {
   }
 }
 
-void resetForJoinRerun(int32_t dsNum, SSortMergeJoinPhysiNode* pNode, SExecTaskInfo* pTask) {
+void resetForJoinRerun(int32_t dsNum, void* pNode, SExecTaskInfo* pTask, bool mJoin) {
   jtCtx.leftBlkReadIdx = 0;
   jtCtx.rightBlkReadIdx = 0;
   jtCtx.curKeyOffset = 0;
@@ -2772,7 +2843,7 @@ void resetForJoinRerun(int32_t dsNum, SSortMergeJoinPhysiNode* pNode, SExecTaskI
   SOperatorInfo* pDownstreams[2];
   createDummyDownstreamOperators(2, pDownstreams);  
   SOperatorInfo* ppDownstreams[] = {pDownstreams[0], pDownstreams[1]};
-  jtCtx.pJoinOp = createMergeJoinOperatorInfo(ppDownstreams, 2, pNode, pTask);
+  jtCtx.pJoinOp = mJoin ? createMergeJoinOperatorInfo(ppDownstreams, 2, (SSortMergeJoinPhysiNode*)pNode, pTask) : createHashJoinOperatorInfo(ppDownstreams, 2, (SHashJoinPhysiNode*)pNode, pTask);
   ASSERT_TRUE(NULL != jtCtx.pJoinOp);
 }
 
@@ -2863,7 +2934,7 @@ void handleTestDone() {
   jtCtx.inputStat = 0;
 }
 
-void runSingleTest(char* caseName, SJoinTestParam* param) {
+void runSingleMJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
@@ -2871,7 +2942,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   
   while (contLoop) {
     rerunBlockedHere();
-    resetForJoinRerun(2, pNode, param->pTask);
+    resetForJoinRerun(2, pNode, param->pTask, true);
     printBasicInfo(caseName);
     printOutputInfo();
 
@@ -2893,6 +2964,37 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   handleTestDone();
 }
 
+void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
+  bool contLoop = true;
+  
+  SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
+  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+  
+  while (contLoop) {
+    rerunBlockedHere();
+    resetForJoinRerun(2, pNode, param->pTask, false);
+    printBasicInfo(caseName);
+    printOutputInfo();
+
+    jtCtx.startTsUs = taosGetTimestampUs();
+    while (true) {
+      SSDataBlock* pBlock = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp);
+      if (NULL == pBlock) {
+        checkJoinDone(caseName);
+        break;
+      } else {
+        checkJoinRes(pBlock);
+      }
+    }
+  
+    handleJoinDone(&contLoop);
+  }
+  
+  nodesDestroyNode((SNode*)pNode);
+  handleTestDone();
+}
+
+
 void handleCaseEnd() {
   taosMemoryFreeClear(jtCtx.rightFinMatch);
   jtCtx.rightFinMatchNum = 0;
@@ -2902,9 +3004,9 @@ void handleCaseEnd() {
 
 #if 1
 #if 1
-TEST(innerJoin, noCondTest) {
+TEST(mInnerJoin, noCondTest) {
   SJoinTestParam param;
-  char* caseName = "innerJoin:noCondTest";
+  char* caseName = "mInnerJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -2917,10 +3019,10 @@ TEST(innerJoin, noCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -2929,9 +3031,9 @@ TEST(innerJoin, noCondTest) {
 #endif
 
 #if 1
-TEST(innerJoin, eqCondTest) {
+TEST(mInnerJoin, eqCondTest) {
   SJoinTestParam param;
-  char* caseName = "innerJoin:eqCondTest";
+  char* caseName = "mInnerJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -2944,10 +3046,10 @@ TEST(innerJoin, eqCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName); 
@@ -2956,9 +3058,9 @@ TEST(innerJoin, eqCondTest) {
 #endif
 
 #if 1
-TEST(innerJoin, onCondTest) {
+TEST(mInnerJoin, onCondTest) {
   SJoinTestParam param;
-  char* caseName = "innerJoin:onCondTest";
+  char* caseName = "mInnerJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -2971,10 +3073,10 @@ TEST(innerJoin, onCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -2983,9 +3085,9 @@ TEST(innerJoin, onCondTest) {
 #endif
 
 #if 1
-TEST(innerJoin, fullCondTest) {
+TEST(mInnerJoin, fullCondTest) {
   SJoinTestParam param;
-  char* caseName = "innerJoin:fullCondTest";
+  char* caseName = "mInnerJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -2998,10 +3100,10 @@ TEST(innerJoin, fullCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3013,9 +3115,9 @@ TEST(innerJoin, fullCondTest) {
 
 #if 1
 #if 1
-TEST(leftOuterJoin, noCondTest) {
+TEST(mLeftOuterJoin, noCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftOuterJoin:noCondTest";
+  char* caseName = "mLeftOuterJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3028,11 +3130,11 @@ TEST(leftOuterJoin, noCondTest) {
     param.asc = !param.asc;
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3041,9 +3143,9 @@ TEST(leftOuterJoin, noCondTest) {
 #endif
 
 #if 1
-TEST(leftOuterJoin, eqCondTest) {
+TEST(mLeftOuterJoin, eqCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftOuterJoin:eqCondTest";
+  char* caseName = "mLeftOuterJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3056,10 +3158,10 @@ TEST(leftOuterJoin, eqCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName); 
@@ -3068,9 +3170,9 @@ TEST(leftOuterJoin, eqCondTest) {
 #endif
 
 #if 1
-TEST(leftOuterJoin, onCondTest) {
+TEST(mLeftOuterJoin, onCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftOuterJoin:onCondTest";
+  char* caseName = "mLeftOuterJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3083,10 +3185,10 @@ TEST(leftOuterJoin, onCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3095,9 +3197,9 @@ TEST(leftOuterJoin, onCondTest) {
 #endif
 
 #if 1
-TEST(leftOuterJoin, fullCondTest) {
+TEST(mLeftOuterJoin, fullCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftOuterJoin:fullCondTest";
+  char* caseName = "mLeftOuterJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3110,10 +3212,10 @@ TEST(leftOuterJoin, fullCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3124,9 +3226,9 @@ TEST(leftOuterJoin, fullCondTest) {
 
 #if 1
 #if 1
-TEST(fullOuterJoin, noCondTest) {
+TEST(mFullOuterJoin, noCondTest) {
   SJoinTestParam param;
-  char* caseName = "fullOuterJoin:noCondTest";
+  char* caseName = "mFullOuterJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3139,10 +3241,10 @@ TEST(fullOuterJoin, noCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3151,9 +3253,9 @@ TEST(fullOuterJoin, noCondTest) {
 #endif
 
 #if 1
-TEST(fullOuterJoin, eqCondTest) {
+TEST(mFullOuterJoin, eqCondTest) {
   SJoinTestParam param;
-  char* caseName = "fullOuterJoin:eqCondTest";
+  char* caseName = "mFullOuterJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3166,10 +3268,10 @@ TEST(fullOuterJoin, eqCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName); 
@@ -3179,9 +3281,9 @@ TEST(fullOuterJoin, eqCondTest) {
 #endif
 
 #if 1
-TEST(fullOuterJoin, onCondTest) {
+TEST(mFullOuterJoin, onCondTest) {
   SJoinTestParam param;
-  char* caseName = "fullOuterJoin:onCondTest";
+  char* caseName = "mFullOuterJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3194,10 +3296,10 @@ TEST(fullOuterJoin, onCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3206,9 +3308,9 @@ TEST(fullOuterJoin, onCondTest) {
 #endif
 
 #if 1
-TEST(fullOuterJoin, fullCondTest) {
+TEST(mFullOuterJoin, fullCondTest) {
   SJoinTestParam param;
-  char* caseName = "fullOuterJoin:fullCondTest";
+  char* caseName = "mFullOuterJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3221,10 +3323,10 @@ TEST(fullOuterJoin, fullCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3235,9 +3337,9 @@ TEST(fullOuterJoin, fullCondTest) {
 
 #if 1
 #if 1
-TEST(leftSemiJoin, noCondTest) {
+TEST(mLeftSemiJoin, noCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftSemiJoin:noCondTest";
+  char* caseName = "mLeftSemiJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3250,10 +3352,10 @@ TEST(leftSemiJoin, noCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3262,9 +3364,9 @@ TEST(leftSemiJoin, noCondTest) {
 #endif
 
 #if 1
-TEST(leftSemiJoin, eqCondTest) {
+TEST(mLeftSemiJoin, eqCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftSemiJoin:eqCondTest";
+  char* caseName = "mLeftSemiJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3277,10 +3379,10 @@ TEST(leftSemiJoin, eqCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName); 
@@ -3290,9 +3392,9 @@ TEST(leftSemiJoin, eqCondTest) {
 #endif
 
 #if 1
-TEST(leftSemiJoin, onCondTest) {
+TEST(mLeftSemiJoin, onCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftSemiJoin:onCondTest";
+  char* caseName = "mLeftSemiJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3305,10 +3407,10 @@ TEST(leftSemiJoin, onCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3317,9 +3419,9 @@ TEST(leftSemiJoin, onCondTest) {
 #endif
 
 #if 1
-TEST(leftSemiJoin, fullCondTest) {
+TEST(mLeftSemiJoin, fullCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftSemiJoin:fullCondTest";
+  char* caseName = "mLeftSemiJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3332,10 +3434,10 @@ TEST(leftSemiJoin, fullCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3346,9 +3448,9 @@ TEST(leftSemiJoin, fullCondTest) {
 
 #if 1
 #if 1
-TEST(leftAntiJoin, noCondTest) {
+TEST(mLeftAntiJoin, noCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftAntiJoin:noCondTest";
+  char* caseName = "mLeftAntiJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3361,10 +3463,10 @@ TEST(leftAntiJoin, noCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3373,9 +3475,9 @@ TEST(leftAntiJoin, noCondTest) {
 #endif
 
 #if 1
-TEST(leftAntiJoin, eqCondTest) {
+TEST(mLeftAntiJoin, eqCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftAntiJoin:eqCondTest";
+  char* caseName = "mLeftAntiJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3388,10 +3490,10 @@ TEST(leftAntiJoin, eqCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName); 
@@ -3401,9 +3503,9 @@ TEST(leftAntiJoin, eqCondTest) {
 #endif
 
 #if 1
-TEST(leftAntiJoin, onCondTest) {
+TEST(mLeftAntiJoin, onCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftAntiJoin:onCondTest";
+  char* caseName = "mLeftAntiJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3416,10 +3518,10 @@ TEST(leftAntiJoin, onCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3428,9 +3530,9 @@ TEST(leftAntiJoin, onCondTest) {
 #endif
 
 #if 1
-TEST(leftAntiJoin, fullCondTest) {
+TEST(mLeftAntiJoin, fullCondTest) {
   SJoinTestParam param;
-  char* caseName = "leftAntiJoin:fullCondTest";
+  char* caseName = "mLeftAntiJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3443,10 +3545,10 @@ TEST(leftAntiJoin, fullCondTest) {
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
   
   printStatInfo(caseName);   
@@ -3457,9 +3559,9 @@ TEST(leftAntiJoin, fullCondTest) {
 
 #if 1
 #if 1
-TEST(leftAsofJoin, noCondGreaterThanTest) {
+TEST(mLeftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:noCondGreaterThanTest";
+  char* caseName = "mLeftAsofJoin:noCondGreaterThanTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3475,11 +3577,11 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
 
     param.grpJoin = taosRand() % 2 ? true : false;
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3488,9 +3590,9 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
 #endif
 
 #if 1
-TEST(leftAsofJoin, noCondGreaterEqTest) {
+TEST(mLeftAsofJoin, noCondGreaterEqTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:noCondGreaterEqTest";
+  char* caseName = "mLeftAsofJoin:noCondGreaterEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3506,11 +3608,11 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3519,9 +3621,9 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
 #endif
 
 #if 1
-TEST(leftAsofJoin, noCondEqTest) {
+TEST(mLeftAsofJoin, noCondEqTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:noCondEqTest";
+  char* caseName = "mLeftAsofJoin:noCondEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3537,11 +3639,11 @@ TEST(leftAsofJoin, noCondEqTest) {
     
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3550,9 +3652,9 @@ TEST(leftAsofJoin, noCondEqTest) {
 #endif
 
 #if 1
-TEST(leftAsofJoin, noCondLowerThanTest) {
+TEST(mLeftAsofJoin, noCondLowerThanTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:noCondLowerThanTest";
+  char* caseName = "mLeftAsofJoin:noCondLowerThanTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3568,11 +3670,11 @@ TEST(leftAsofJoin, noCondLowerThanTest) {
     
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3582,9 +3684,9 @@ TEST(leftAsofJoin, noCondLowerThanTest) {
 
 
 #if 1
-TEST(leftAsofJoin, noCondLowerEqTest) {
+TEST(mLeftAsofJoin, noCondLowerEqTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:noCondLowerEqTest";
+  char* caseName = "mLeftAsofJoin:noCondLowerEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3600,11 +3702,11 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
     
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3616,10 +3718,9 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
 
 
 #if 1
-#if 1
-TEST(leftWinJoin, noCondProjectionTest) {
+TEST(mLeftWinJoin, noCondProjectionTest) {
   SJoinTestParam param;
-  char* caseName = "leftWinJoin:noCondProjectionTest";
+  char* caseName = "mLeftWinJoin:noCondProjectionTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
@@ -3634,11 +3735,11 @@ TEST(leftWinJoin, noCondProjectionTest) {
     
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
 
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = true;
-    runSingleTest(caseName, &param);
+    runSingleMJoinTest(caseName, &param);
   }
 
   printStatInfo(caseName); 
@@ -3647,6 +3748,61 @@ TEST(leftWinJoin, noCondProjectionTest) {
 #endif
 
 
+#if 1
+#if 1
+TEST(hInnerJoin, eqCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hInnerJoin:eqCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_INNER;
+  param.subType = JOIN_STYPE_NONE;
+  param.cond = TEST_EQ_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+
+#if 1
+TEST(hInnerJoin, fullCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hInnerJoin:fullCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_INNER;
+  param.subType = JOIN_STYPE_NONE;
+  param.cond = TEST_FULL_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName);   
+  taosMemoryFree(pTask);
+}
+#endif
 #endif
 
 
