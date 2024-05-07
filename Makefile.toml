@@ -410,7 +410,7 @@ upx_run ${1} ${2}
 """
 
 [tasks.deploy-taosx]
-# dependencies = ["taosx"]
+dependencies = ["taosx"]
 script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
