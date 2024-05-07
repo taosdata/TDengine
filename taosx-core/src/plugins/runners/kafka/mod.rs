@@ -4,7 +4,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context};
 use arrow::array::{
     ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
     TimestampNanosecondBuilder,
@@ -13,8 +12,6 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use chrono::Utc;
-use futures::future;
-use futures::stream::StreamExt;
 use futures_util::TryStreamExt;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
@@ -377,7 +374,7 @@ async fn poll_message(
         let mut value = BinaryBuilder::new();
 
         let mut read_chunks = consumer.stream().try_ready_chunks(batch_size);
-        let mut fetch = read_chunks.try_next();
+        let fetch = read_chunks.try_next();
 
         match tokio::time::timeout(Duration::from_millis(timeout as u64), fetch).await? {
             Ok(chunk) => {
