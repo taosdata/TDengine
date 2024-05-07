@@ -351,12 +351,11 @@ static int32_t metaTagIdxKeyBuild(SMeta *meta, int64_t suid, int64_t uid, const 
   if (IS_VAR_DATA_TYPE(column->type)) {
     *(uint16_t *)data = tagDataSize;
     data += VARSTR_HEADER_SIZE;
-    memcpy(data, &tagDataSize, VARSTR_HEADER_SIZE);
   }
   if (tagData) {
     memcpy(data, tagData, tagDataSize);
-    data += tagDataSize;
   }
+  data += tagDataSize;
   *(int64_t *)data = uid;
 
 _exit:
@@ -1373,8 +1372,6 @@ static int32_t metaAlterSuperTableSchema(SMeta *meta, const SMetaEntry *newEntry
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (newSchema->nCols != oldSchema->nCols) {
-    ASSERT(TABS(newSchema->nCols - oldSchema->nCols) == 1);
-
     int32_t iNew = 0, iOld = 0;
     while (iNew < newSchema->nCols && iOld < oldSchema->nCols) {
       if (newSchema->pSchema[iNew].colId == oldSchema->pSchema[iOld].colId) {
@@ -1682,11 +1679,9 @@ static int32_t metaHandleNormalTableEntryUpdate(SMeta *meta, const SMetaEntry *n
 
     if (newNormalTableEntry->ntbEntry.schemaRow.nCols <
         oldNormalTableEntry->ntbEntry.schemaRow.nCols) {  // delete a column
-      ASSERT(newNormalTableEntry->ntbEntry.schemaRow.nCols + 1 == oldNormalTableEntry->ntbEntry.schemaRow.nCols);
       // TODO: deal with cache
     } else if (newNormalTableEntry->ntbEntry.schemaRow.nCols >
                oldNormalTableEntry->ntbEntry.schemaRow.nCols) {  // add a column
-      ASSERT(newNormalTableEntry->ntbEntry.schemaRow.nCols == oldNormalTableEntry->ntbEntry.schemaRow.nCols + 1);
       // TODO: deal with cache
     }
 
