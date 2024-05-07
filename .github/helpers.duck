@@ -52,8 +52,8 @@ fn upx_run
       exit 1
     end
   else
-    ver = exec ${fo} -V
-    if not contains ${ver} "version"
+    ver = exec ${fo} -V || true
+    if not contains ${ver.stdout} "version"
       echo "UPX result file is not ok(-V: ${ver}), fallback to copy"
       cp ${fi} ${fo}
     end

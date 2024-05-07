@@ -389,6 +389,7 @@ else
     echo Target triple: ${triple}
     if contains ${triple} "aarch64"
       arch = set "arm64"
+      version = set "4.2.3"
     else
       arch = set "amd64"
     end
