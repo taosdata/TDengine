@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use actix_web::http::header;
 use anyhow::{anyhow, bail, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::datatypes::{Field, Schema};

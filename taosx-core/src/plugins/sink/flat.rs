@@ -433,14 +433,13 @@ mod tests {
 
     use arrow::array::*;
     use arrow_schema::{Field, FieldRef, Schema};
-    use itertools::Itertools;
     use serde_json::json;
     use std::{collections::HashMap, sync::Arc};
     use taos::AsyncTBuilder;
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
-    use crate::plugins::transform::{MessageArrowRecords, MessageTableMeta};
+    use crate::plugins::transform::MessageTableMeta;
 
     struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.

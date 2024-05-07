@@ -379,6 +379,8 @@ pub trait ArrayForTaos: Array {
             }
         }
     }
+
+    #[allow(dead_code)] // FIXME(@huolinhe): remove this?
     fn taos_values(&self) -> Vec<taos::Value> {
         (0..self.len())
             .map(|index| self.taos_value(index))

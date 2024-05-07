@@ -204,7 +204,7 @@ fn get_default_config_path() -> PathBuf {
 
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let mut args = ArgsParser::parse();
+        let args = ArgsParser::parse();
         let path = get_effective_config_path(&args);
         // let path = if let Ok(c) = ArgsParser::try_parse() {
         //     c.config

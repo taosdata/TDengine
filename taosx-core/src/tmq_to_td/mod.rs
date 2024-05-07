@@ -13,7 +13,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
-use taos::{Consumer, *};
+use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 

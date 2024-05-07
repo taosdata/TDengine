@@ -6,14 +6,11 @@ use std::{
     iter::zip,
     net::SocketAddr,
     str::FromStr,
-    sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
     Int16Array, Int32Array, Int64Array, Int8Array, StringArray, TimestampMicrosecondArray,
@@ -27,13 +24,12 @@ use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
-use futures::TryStreamExt;
 use futures_util::StreamExt;
 use rhai::{Dynamic, Engine, Scope};
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
-    Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
+    Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
 
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
@@ -43,7 +39,7 @@ use taosx_ipc::{
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, Instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::runners::opc::config::model::TableConfig;
@@ -2005,6 +2001,8 @@ async fn consume_point_record(
                         }
                     }
                 }
+
+                tracing::trace!(retry, "Insert point record success");
             }
         }
 

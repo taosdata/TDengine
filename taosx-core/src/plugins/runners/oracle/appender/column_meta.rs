@@ -3,6 +3,7 @@ use oracle::sql_type::OracleType;
 use taosx_ipc::stream::writer::IpcDataType;
 
 pub struct ColumnMeta {
+    #[allow(dead_code)]
     pub column_name: String,
     pub column_type: OracleType,
 }
@@ -51,7 +52,7 @@ impl ColumnMeta {
             OracleType::Int64 => Ok(IpcDataType::Int64),
             OracleType::UInt64 => Ok(IpcDataType::UInt64),
             // 其他
-            _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
+            // _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
         }
     }
 }
@@ -92,7 +93,7 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Int64 => Ok(DataType::Int64),
         OracleType::UInt64 => Ok(DataType::UInt64),
         // 其他
-        _ => anyhow::bail!("unsupported data type: {:?}", column_type),
+        // _ => anyhow::bail!("unsupported data type: {:?}", column_type),
     }
 }
 

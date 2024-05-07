@@ -427,10 +427,7 @@ impl Select {
 mod tests {
     use std::sync::Arc;
 
-    use arrow::{
-        array::{ArrayRef, StringArray},
-        record_batch::RecordBatch,
-    };
+    use arrow::array::{ArrayRef, StringArray};
 
     use super::*;
 

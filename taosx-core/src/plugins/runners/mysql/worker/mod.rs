@@ -105,14 +105,19 @@ pub async fn migrate_history(
         // consumer join
         let future_consume = async move {
             for consumer in consumers {
-                consumer.await;
+                consumer.await??;
             }
+            anyhow::Ok(())
         };
 
         tokio::select! {
             _ = future_produce => {}
-            _ = future_consume => {}
-            _ = cancel.cancelled() => {}
+            res = future_consume => {
+                res?;
+            }
+            _ = cancel.cancelled() => {
+                tracing::info!("Migrate cancelled");
+            }
         };
     } else {
         // produce task

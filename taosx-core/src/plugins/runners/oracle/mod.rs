@@ -364,23 +364,14 @@ fn generate_json_value(
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
             }
-        }
-        // 其他
-        _ => {
-            let val = col.get::<String>();
-            match val {
-                Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
-            }
-        }
+        } // 其他
+          // }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
     async fn test_is_valid() {

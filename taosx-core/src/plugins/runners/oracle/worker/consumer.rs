@@ -5,7 +5,6 @@ use flume::Receiver;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::oracle::appender;
 use crate::runners::oracle::config::OracleConfig;
 use crate::runners::oracle::query::OracleQuery;
 use crate::runners::oracle::worker::set_breakpoint;
@@ -164,12 +163,12 @@ impl Consumer {
 
 #[cfg(test)]
 mod tests {
-    use crate::runners::oracle::worker::producer::Producer;
+    use crate::runners::oracle::{appender::to_schema, worker::producer::Producer};
 
     use super::*;
     use std::str::FromStr;
     use taos::Dsn;
-    use tests::appender::to_schema;
+    // use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_consumer() {

@@ -348,8 +348,6 @@ impl TaskConfig {
 
 #[cfg(test)]
 mod test_historian_task_config {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]

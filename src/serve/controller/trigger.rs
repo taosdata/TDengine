@@ -209,26 +209,26 @@ pub enum StopCondition {
     Repeated(Arc<AtomicU64>),
 }
 
-trait FatalErrorExt {
-    fn is_fatal_error(&self) -> bool;
-}
+// trait FatalErrorExt {
+//     fn is_fatal_error(&self) -> bool;
+// }
 
-impl FatalErrorExt for anyhow::Error {
-    fn is_fatal_error(&self) -> bool {
-        let err = format!("{:#}", self);
+// impl FatalErrorExt for anyhow::Error {
+//     fn is_fatal_error(&self) -> bool {
+//         let err = format!("{:#}", self);
 
-        if err.contains("0xE00")
-            || err.contains("0x000B")
-            || err.contains("WebSocket internal error")
-            || err.contains("WebSocket protocol error")
-        {
-            // Websocket error, connection error should not be fatal.
-            return false;
-        }
+//         if err.contains("0xE00")
+//             || err.contains("0x000B")
+//             || err.contains("WebSocket internal error")
+//             || err.contains("WebSocket protocol error")
+//         {
+//             // Websocket error, connection error should not be fatal.
+//             return false;
+//         }
 
-        true
-    }
-}
+//         true
+//     }
+// }
 impl StopCondition {
     pub fn should_stop(&self) -> bool {
         match self {

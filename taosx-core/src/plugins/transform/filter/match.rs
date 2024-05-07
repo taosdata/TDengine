@@ -600,10 +600,7 @@ impl RecordFilter for MatchRecordFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{
-        FixedSizeBinaryArray, Int32Array, Int64Array, LargeBinaryArray, LargeStringArray,
-        RecordBatch, StringArray, UInt16Array, UInt32Array, UInt64Array,
-    };
+    use arrow::array::RecordBatch;
     use arrow::datatypes::{DataType, Field, Schema};
     use serde_json::json;
     use std::sync::Arc;
