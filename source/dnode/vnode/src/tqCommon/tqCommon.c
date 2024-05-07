@@ -303,7 +303,7 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     if (streamProcessDispatchMsg(pTask, &req, &rsp) != 0) {
       return -1;
     }
-    tDeleteStreamDispatchReq(&req);
+    tCleanupStreamDispatchReq(&req);
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   } else {
@@ -335,7 +335,7 @@ int32_t tqStreamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     tqError("s-task:0x%x send dispatch error rsp, no task", req.taskId);
 
     tmsgSendRsp(&rsp);
-    tDeleteStreamDispatchReq(&req);
+    tCleanupStreamDispatchReq(&req);
 
     return 0;
   }
@@ -379,7 +379,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   if (pTask == NULL) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
-    tDeleteStreamRetrieveReq(&req);
+    tCleanupStreamRetrieveReq(&req);
     return -1;
   }
 
@@ -389,14 +389,14 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   } else {
     req.srcNodeId = pTask->info.nodeId;
     req.srcTaskId = pTask->id.taskId;
-    code = broadcastRetrieveMsg(pTask, &req);
+    code = streamTaskBroadcastRetrieveReq(pTask, &req);
   }
 
   SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-  sendRetrieveRsp(&req, &rsp);
+  streamTaskSendRetrieveRsp(&req, &rsp);
 
   streamMetaReleaseTask(pMeta, pTask);
-  tDeleteStreamRetrieveReq(&req);
+  tCleanupStreamRetrieveReq(&req);
   return code;
 }
 
@@ -415,7 +415,7 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   streamTaskProcessCheckMsg(pMeta, &req, &rsp);
-  return streamSendCheckRsp(pMeta, req.upstreamNodeId, &rsp, &pMsg->info, req.upstreamTaskId);
+  return streamTaskSendCheckRsp(pMeta, req.upstreamNodeId, &rsp, &pMsg->info, req.upstreamTaskId);
 }
 
 int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader) {
@@ -451,7 +451,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
     return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
   }
 
-  code = streamProcessCheckRsp(pTask, &rsp);
+  code = streamTaskProcessCheckRsp(pTask, &rsp);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 }

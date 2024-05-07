@@ -1046,7 +1046,7 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
-void streamMetaClearHbMsg(SStreamHbMsg* pMsg) {
+void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   if (pMsg == NULL) {
     return;
   }
@@ -1204,7 +1204,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
   }
 
 _end:
-  streamMetaClearHbMsg(&hbMsg);
+  tCleanupStreamHbMsg(&hbMsg);
   return TSDB_CODE_SUCCESS;
 }
 
