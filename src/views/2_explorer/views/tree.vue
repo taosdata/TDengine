@@ -667,7 +667,7 @@ export default {
     },
     async view(data) {
       await this.handleVar(data);
-      this.$store.state.console.currentInfoType = data.typeName;
+      this.$store.state.console.currentInfoType = data.typeName === "table" ? data.type : data.typeName
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
