@@ -406,50 +406,16 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
   SStreamTaskCheckReq req;
-  SDecoder            decoder;
+  SStreamTaskCheckRsp rsp = {0};
+
+  SDecoder decoder;
 
   tDecoderInit(&decoder, (uint8_t*)msgBody, msgLen);
   tDecodeStreamTaskCheckReq(&decoder, &req);
   tDecoderClear(&decoder);
 
-  int32_t taskId = req.downstreamTaskId;
-
-  SStreamTaskCheckRsp rsp = {
-      .reqId = req.reqId,
-      .streamId = req.streamId,
-      .childId = req.childId,
-      .downstreamNodeId = req.downstreamNodeId,
-      .downstreamTaskId = req.downstreamTaskId,
-      .upstreamNodeId = req.upstreamNodeId,
-      .upstreamTaskId = req.upstreamTaskId,
-  };
-
-  // only the leader node handle the check request
-  if (pMeta->role == NODE_ROLE_FOLLOWER) {
-    tqError(
-        "s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check status msg",
-        taskId, req.upstreamTaskId, req.upstreamNodeId, pMeta->vgId);
-    rsp.status = TASK_DOWNSTREAM_NOT_LEADER;
-  } else {
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
-    if (pTask != NULL) {
-      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage, &rsp.oldStage);
-      streamMetaReleaseTask(pMeta, pTask);
-
-      SStreamTaskState* pState = streamTaskGetStatus(pTask);
-      tqDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(reqId:0x%" PRIx64
-              ") task:0x%x (vgId:%d), check_status:%d",
-              pTask->id.idStr, pState->name, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-              rsp.status);
-    } else {
-      rsp.status = TASK_DOWNSTREAM_NOT_READY;
-      tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
-              ") from task:0x%x (vgId:%d), rsp check_status %d",
-              req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
-    }
-  }
-
-  return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
+  streamTaskProcessCheckMsg(pMeta, &req, &rsp);
+  return streamSendCheckRsp(pMeta, req.upstreamNodeId, &rsp, &pMsg->info, req.upstreamTaskId);
 }
 
 int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader) {
