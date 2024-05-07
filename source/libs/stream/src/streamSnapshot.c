@@ -32,6 +32,7 @@ typedef struct SBackendFileItem {
   int64_t size;
   int8_t  ref;
 } SBackendFileItem;
+
 typedef struct SBackendFile {
   char*   pCurrent;
   char*   pMainfest;
@@ -102,6 +103,7 @@ struct SStreamSnapWriter {
   int64_t           ever;
   SStreamSnapHandle handle;
 };
+
 const char*    ROCKSDB_OPTIONS = "OPTIONS";
 const char*    ROCKSDB_MAINFEST = "MANIFEST";
 const char*    ROCKSDB_SST = "sst";
@@ -120,7 +122,7 @@ void    streamSnapHandleDestroy(SStreamSnapHandle* handle);
   } while (0)
 
 int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
-  int ret = 0;
+  int32_t ret = 0;
 
   char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
@@ -149,7 +151,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
     if (pSnapFile->pMainfest) sprintf(buf + strlen(buf), "MANIFEST: %s,", pSnapFile->pMainfest);
     if (pSnapFile->pOptions) sprintf(buf + strlen(buf), "options: %s,", pSnapFile->pOptions);
     if (pSnapFile->pSst) {
-      for (int i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
+      for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
         char* name = taosArrayGetP(pSnapFile->pSst, i);
         sprintf(buf + strlen(buf), "%s,", name);
       }
@@ -157,7 +159,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
     sprintf(buf + strlen(buf) - 1, "]");
 
     stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
-          pSnapFile->snapInfo.taskId, buf);
+           pSnapFile->snapInfo.taskId, buf);
     taosMemoryFree(buf);
   }
 }
@@ -183,7 +185,7 @@ int32_t snapFileGenMeta(SBackendSnapFile2* pSnapFile) {
   streamGetFileSize(pSnapFile->path, item.name, &item.size);
   taosArrayPush(pSnapFile->pFileList, &item);
   // sst
-  for (int i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
     char* sst = taosArrayGetP(pSnapFile->pSst, i);
     item.name = sst;
     item.type = ROCKSDB_SST_TYPE;
@@ -270,12 +272,12 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
   taosMemoryFree(pSnap->pMainfest);
   taosMemoryFree(pSnap->pOptions);
   taosMemoryFree(pSnap->path);
-  for (int i = 0; i < taosArrayGetSize(pSnap->pSst); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnap->pSst); i++) {
     char* sst = taosArrayGetP(pSnap->pSst, i);
     taosMemoryFree(sst);
   }
   // unite read/write snap file
-  for (int i = 0; i < taosArrayGetSize(pSnap->pFileList); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnap->pFileList); i++) {
     SBackendFileItem* pItem = taosArrayGet(pSnap->pFileList, i);
     if (pItem->ref == 0) {
       taosMemoryFree(pItem->name);
@@ -297,7 +299,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
 
   SArray* pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
 
-  for (int i = 0; i < taosArrayGetSize(pSnapSet); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapSet); i++) {
     SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
 
     SBackendSnapFile2 snapFile = {0};
@@ -305,7 +307,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
     ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
-  for (int i = 0; i < taosArrayGetSize(pSnapSet); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapSet); i++) {
     SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
     taosMemoryFree(pSnap->dbPrefixPath);
   }
@@ -324,7 +326,7 @@ _err:
 
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   if (handle->pDbSnapSet) {
-    for (int i = 0; i < taosArrayGetSize(handle->pDbSnapSet); i++) {
+    for (int32_t i = 0; i < taosArrayGetSize(handle->pDbSnapSet); i++) {
       SBackendSnapFile2* pSnapFile = taosArrayGet(handle->pDbSnapSet, i);
       snapFileDebugInfo(pSnapFile);
       snapFileDestroy(pSnapFile);
@@ -396,9 +398,9 @@ _NEXT:
   item = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
 
   stDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64
-         ", file no.%d, total set:%d, current set idx: %d",
-         STREAM_STATE_TRANSFER, item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx,
-         (int)taosArrayGetSize(pHandle->pDbSnapSet), pHandle->currIdx);
+          ", file no.%d, total set:%d, current set idx: %d",
+          STREAM_STATE_TRANSFER, item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx,
+          (int32_t)taosArrayGetSize(pHandle->pDbSnapSet), pHandle->currIdx);
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
@@ -489,14 +491,10 @@ int32_t snapInfoEqual(SStreamTaskSnap* a, SStreamTaskSnap* b) {
 }
 
 int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData, SBackendSnapFile2* pSnapFile) {
-  int                  code = -1;
+  int32_t              code = -1;
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)pData;
   SStreamSnapHandle*   pHandle = &pWriter->handle;
-  SStreamTaskSnap      snapInfo = pHdr->snapInfo;
-
-  SStreamTaskSnap* pSnapInfo = &pSnapFile->snapInfo;
-
-  SBackendFileItem* pItem = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
+  SBackendFileItem*    pItem = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
 
   if (pSnapFile->fd == 0) {
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
@@ -540,6 +538,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     pSnapFile->offset += pHdr->size;
   }
   code = 0;
+
 _EXIT:
   return code;
 }
@@ -590,8 +589,8 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
       return streamSnapWrite(pWriter, pData, nData);
     }
   }
-  return code;
 }
+
 int32_t streamSnapWriterClose(SStreamSnapWriter* pWriter, int8_t rollback) {
   if (pWriter == NULL) return 0;
   streamSnapHandleDestroy(&pWriter->handle);

@@ -162,6 +162,32 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   return 0;
 }
 
+int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
+                           SRpcHandleInfo* pRpcInfo, int32_t taskId) {
+  SEncoder encoder;
+  int32_t  code;
+  int32_t  len;
+
+  tEncodeSize(tEncodeStreamTaskCheckRsp, pRsp, len, code);
+  if (code < 0) {
+    stError("vgId:%d failed to encode task check rsp, s-task:0x%x", pMeta->vgId, taskId);
+    return -1;
+  }
+
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
+  ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tEncoderInit(&encoder, (uint8_t*)abuf, len);
+  tEncodeStreamTaskCheckRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
+
+  tmsgSendRsp(&rspMsg);
+  return 0;
+}
+
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
   taosThreadMutexLock(&pInfo->checkInfoLock);
