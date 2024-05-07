@@ -2679,7 +2679,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_partial",
     .type = FUNCTION_TYPE_AVG_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateAvgPartial,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2694,7 +2694,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_avg_merge",
     .type = FUNCTION_TYPE_AVG_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateAvgMerge,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,

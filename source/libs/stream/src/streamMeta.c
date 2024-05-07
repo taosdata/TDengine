@@ -373,6 +373,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->numOfPausedTasks = 0;
   pMeta->numOfStreamTasks = 0;
+  pMeta->closeFlag = false;
 
   stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
 
@@ -1215,7 +1216,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   // need to stop, stop now
-  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {
+  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {  // todo refactor: not need this now, use closeFlag in Meta
     pMeta->pHbInfo->stopFlag = STREAM_META_OK_TO_STOP;
     stDebug("vgId:%d jump out of meta timer", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
@@ -1281,6 +1282,8 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   streamMetaWLock(pMeta);
 
+  pMeta->closeFlag = true;
+
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pMeta->pTasksMap, pIter);
@@ -1304,7 +1307,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     }
   }
 
-  stDebug("vgId:%d start to check all tasks", vgId);
+  stDebug("vgId:%d start to check all tasks for closing", vgId);
   int64_t st = taosGetTimestampMs();
 
   while (streamMetaTaskInTimer(pMeta)) {
@@ -1438,35 +1441,47 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   }
 }
 
-static SArray* prepareBeforeStartTasks(SStreamMeta* pMeta) {
+static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now) {
   streamMetaWLock(pMeta);
 
-  SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  if (pMeta->closeFlag) {
+    streamMetaWUnLock(pMeta);
+    stError("vgId:%d vnode is closed, not start check task(s) downstream status", pMeta->vgId);
+    return -1;
+  }
+
+  *pList = taosArrayDup(pMeta->pTaskList, NULL);
+
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
-  pMeta->startInfo.startTs = taosGetTimestampMs();
+  pMeta->startInfo.startTs = now;
 
   streamMetaResetTaskStatus(pMeta);
   streamMetaWUnLock(pMeta);
 
-  return pTaskList;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
+  int64_t now = taosGetTimestampMs();
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  stInfo("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
+  stInfo("vgId:%d start to check all %d stream task(s) downstream status, start ts:%"PRId64, vgId, numOfTasks, now);
 
   if (numOfTasks == 0) {
-    stInfo("vgId:%d start tasks completed", pMeta->vgId);
+    stInfo("vgId:%d no tasks to be started", pMeta->vgId);
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t now = taosGetTimestampMs();
+  SArray* pTaskList = NULL;
+  code = prepareBeforeStartTasks(pMeta, &pTaskList, now);
+  if (code != TSDB_CODE_SUCCESS) {
+    ASSERT(pTaskList == NULL);
+    return TSDB_CODE_SUCCESS;
+  }
 
-  SArray* pTaskList = prepareBeforeStartTasks(pMeta);
   numOfTasks = taosArrayGetSize(pTaskList);
 
   // broadcast the check downstream tasks msg
@@ -1742,4 +1757,26 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
   }
 
   return code;
+}
+
+void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
+                                     int64_t startTs) {
+  const char* id = pTask->id.idStr;
+  int32_t     vgId = pTask->pMeta->vgId;
+
+  // keep the already updated info
+  STaskUpdateEntry entry = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .transId = transId};
+  taosHashPut(pMeta->updateInfo.pTasks, &entry, sizeof(entry), NULL, 0);
+
+  int64_t el = taosGetTimestampMs() - startTs;
+  if (pHTask != NULL) {
+    STaskUpdateEntry hEntry = {.streamId = pHTask->id.streamId, .taskId = pHTask->id.taskId, .transId = transId};
+    taosHashPut(pMeta->updateInfo.pTasks, &hEntry, sizeof(hEntry), NULL, 0);
+
+    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask/hTask closed, elapsed:%" PRId64
+            " ms", id, vgId, transId, el);
+  } else {
+    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
+            id, vgId, transId, el);
+  }
 }

@@ -1137,6 +1137,129 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   return 0;
 }
 
+static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
+  *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
+  if (*pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
+  ASSERT(((SMsgHead*)(*pBuf))->vgId != 0);
+
+  SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
+
+  pDispatchRsp->stage = htobe64(pReq->stage);
+  pDispatchRsp->msgId = htonl(pReq->msgId);
+  pDispatchRsp->inputStatus = status;
+  pDispatchRsp->streamId = htobe64(pReq->streamId);
+  pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
+  pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
+  pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
+  pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
+  int8_t status = 0;
+
+  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
+  if (pBlock == NULL) {
+    streamTaskInputFail(pTask);
+    status = TASK_INPUT_STATUS__FAILED;
+    stError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+            pTask->id.idStr);
+  } else {
+    if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
+      pTask->status.appendTranstateBlock = true;
+    }
+
+    int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
+    // input queue is full, upstream is blocked now
+    status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
+  }
+
+  return status;
+}
+
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+  int32_t      status = 0;
+  SStreamMeta* pMeta = pTask->pMeta;
+  const char*  id = pTask->id.idStr;
+
+  stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
+          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
+
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
+  ASSERT(pInfo != NULL);
+
+  if (pMeta->role == NODE_ROLE_FOLLOWER) {
+    stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
+    status = TASK_INPUT_STATUS__REFUSED;
+  } else {
+    if (pReq->stage > pInfo->stage) {
+      // upstream task has restarted/leader-follower switch/transferred to other dnodes
+      stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
+                  ", current:%" PRId64 " dispatch msg rejected",
+              id, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
+      status = TASK_INPUT_STATUS__REFUSED;
+    } else {
+      if (!pInfo->dataAllowed) {
+        stWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", id, pReq->upstreamTaskId);
+        status = TASK_INPUT_STATUS__BLOCKED;
+      } else {
+        // This task has received the checkpoint req from the upstream task, from which all the messages should be
+        // blocked. Note that there is no race condition here.
+        if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+          atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
+        } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
+          atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+
+          // disable the related stream task here to avoid it to receive the newly arrived data after the transfer-state
+          STaskId* pRelTaskId = &pTask->streamTaskId;
+          SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pRelTaskId->streamId, pRelTaskId->taskId);
+          if (pStreamTask != NULL) {
+            atomic_add_fetch_32(&pStreamTask->upstreamInfo.numOfClosed, 1);
+            streamTaskCloseUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
+            streamMetaReleaseTask(pMeta, pStreamTask);
+          }
+
+          stDebug("s-task:%s close inputQ for upstream:0x%x since trans-state msgId:%d recv, rel stream-task:0x%" PRIx64
+                      " close inputQ for upstream:0x%x",
+                  id, pReq->upstreamTaskId, pReq->msgId, pTask->streamTaskId.taskId, pReq->upstreamRelTaskId);
+        }
+
+        status = streamTaskAppendInputBlocks(pTask, pReq);
+      }
+    }
+  }
+
+  // disable the data from upstream tasks
+//  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
+//    status = TASK_INPUT_STATUS__BLOCKED;
+//  }
+
+  {
+    // do send response with the input status
+    int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
+      terrno = code;
+      return code;
+    }
+
+    pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
+    tmsgSendRsp(pRsp);
+  }
+
+  streamTrySchedExec(pTask);
+
+  return 0;
+}
+
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
