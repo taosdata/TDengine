@@ -171,6 +171,7 @@ mod tests {
     // use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_consumer() {
         // config
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")

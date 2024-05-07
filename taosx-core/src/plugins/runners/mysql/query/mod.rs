@@ -179,6 +179,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
@@ -191,6 +192,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_show_tables() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -203,6 +205,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_show_columns() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -215,6 +218,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_one_for_schema() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -237,6 +241,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_all() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -252,6 +257,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_by_stream() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -273,6 +279,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_top_n() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -289,6 +296,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_charset() {
         // gbk, not match the charset in mysql
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?charset=gbk")
@@ -340,6 +348,7 @@ mod tests {
 
     /// mysql> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_off() {
         // test: ssl_mode=DISABLED
         let dsn =
@@ -399,6 +408,7 @@ mod tests {
 
     /// mysql> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_on() {
         // // test: ssl_mode=DISABLED
         // let dsn =

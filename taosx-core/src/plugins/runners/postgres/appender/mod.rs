@@ -758,6 +758,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_schema() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
@@ -783,6 +784,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -800,6 +802,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();

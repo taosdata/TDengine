@@ -196,6 +196,7 @@ mod tests {
     use taos::Dsn;
 
     #[test]
+    #[ignore]
     fn test_connect() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
@@ -206,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_select_for_schema() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -216,6 +218,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_select_all() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -227,6 +230,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_select_all_and_to_record_batches() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -239,6 +243,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_top_n() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -251,6 +256,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_top_n_with_tz() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();

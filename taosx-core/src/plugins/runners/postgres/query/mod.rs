@@ -151,6 +151,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
@@ -163,6 +164,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_one_for_schema() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
@@ -186,6 +188,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_all() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
@@ -202,6 +205,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_by_stream() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
@@ -224,6 +228,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_top_n() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
@@ -242,6 +247,7 @@ mod tests {
 
     /// postgres> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_off() {
         // test: ssl_mode=DISABLE
         let dsn = Dsn::from_str(
@@ -315,6 +321,7 @@ mod tests {
 
     /// postgres> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_on() {
         // // test: ssl_mode=DISABLED
         // let dsn =

@@ -374,6 +374,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1").unwrap();
         let res = is_valid(&dsn).await;
@@ -393,6 +394,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
@@ -404,6 +406,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_oracle_to_taos() {
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
@@ -437,6 +440,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_generate_json_value() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();

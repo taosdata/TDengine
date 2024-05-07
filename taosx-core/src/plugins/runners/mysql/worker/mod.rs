@@ -185,6 +185,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_migrate_history() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();

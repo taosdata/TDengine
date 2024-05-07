@@ -185,6 +185,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_migrate_history() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();

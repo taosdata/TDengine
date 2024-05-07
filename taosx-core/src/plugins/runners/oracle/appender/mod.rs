@@ -417,6 +417,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_schema() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -428,6 +429,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -440,6 +442,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
