@@ -868,6 +868,11 @@ export default {
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
       );
+      if (result && Object.hasOwnProperty.call(result,'code')) {
+        this.$message.error(result.message)
+        this.msgForm.msgbody = '';
+        return
+      }
       this.msgForm.msgbody = JSON.stringify(result);
       await this.submitParse();
     },
@@ -1185,6 +1190,11 @@ export default {
           encodeURIComponent(dsn),
           this.sourceParent.sourceForm.agent
         );
+        if (result && Object.hasOwnProperty.call(result,'code')) {
+          this.$message.error(result.message)
+          this.msgForm.msgbody = '';
+          return
+        }
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;
       } else {

@@ -528,7 +528,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(data.from_detail.id=='avevaHistorian' || data.from_detail.id=='mysql' || data.from_detail.id=='postgres'){
+        if(this.$store.state.app.supportSQL){
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
           this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
         }
