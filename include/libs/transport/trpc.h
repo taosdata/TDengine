@@ -37,7 +37,6 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
-
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -63,7 +62,6 @@ typedef struct SRpcHandleInfo {
   SRpcConnInfo conn;
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
-
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
