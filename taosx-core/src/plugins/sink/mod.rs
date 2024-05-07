@@ -463,7 +463,12 @@ async fn consume_lush_record(
                         rs.remove(0);
 
                         for (exist, (tagname, expect)) in rs.iter().zip(tags) {
-                            if exist != expect {
+                            if expect.is_null() {
+                                continue;
+                            }
+                            let exist_value = exist.to_sql_value();
+                            let expect_value = expect.to_sql_value();
+                            if exist_value != expect_value {
                                 tracing::info!(
                                     "table {table_name} tag value not match, new: {}, old:{}",
                                     expect.to_sql_value(),
