@@ -673,6 +673,7 @@ class StreamComputingTest(TDCase):
     def get_subtable(self, tbname_pre):
         self.tdSql.query(f'show {self.dbname}.tables')
         tbname_list = list(map(lambda x:x[0], self.tdSql.query_data))
+        time.sleep(1)
         for tbname in tbname_list:
             if tbname_pre in tbname:
                 return tbname
@@ -686,6 +687,10 @@ class StreamComputingTest(TDCase):
                 latency += 1
                 time.sleep(1)
         return tbname
+
+    def get_group_id_from_stb(self, stbname):
+        self.tdSql.query(f'select distinct group_id from {stbname}')
+        return self.tdSql.query_data[0][0]
 
     def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False):
         self.delete = delete
@@ -798,16 +803,17 @@ class StreamComputingTest(TDCase):
                         self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart,2,3', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart,2,3', sorted=True)
                     else:
                         self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart,2,3', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart,2,3', sorted=True)
-        
+
         if self.subtable :
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
             for tname in [self.stb_name, self.ctb_name]:
+                group_id = self.get_group_id_from_stb(f'{tname}_output')
                 self.tdSql.query(f'select * from {self.ctb_name}')
                 ptn_counter = 0
                 for c1_value in self.tdSql.query_data:
                     if partition == "c1":
-                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}_1.{self.dbname}.{tname}_output_')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                     elif partition is None:
@@ -816,11 +822,11 @@ class StreamComputingTest(TDCase):
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
                     elif partition == "abs(c1)":
                         abs_c1_value = abs(c1_value[self.c1_idx])
-                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}_1.{self.dbname}.{tname}_output_')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}')
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}_1.{self.dbname}.{tname}_output_{group_id}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
@@ -829,12 +835,12 @@ class StreamComputingTest(TDCase):
                         return
                     else:
                         self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
-
+            group_id = self.get_group_id_from_stb(f'{self.tb_name}_output')
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
                 if partition == "c1":
-                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}_1.{self.dbname}.{self.tb_name}_output_')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                 elif partition is None:
@@ -843,11 +849,11 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
                 elif partition == "abs(c1)":
                     abs_c1_value = abs(c1_value[self.c1_idx])
-                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}_1.{self.dbname}.{self.tb_name}_output_')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
                 elif partition == "tbname" and ptn_counter == 0:
-                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}')
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}_1.{self.dbname}.{self.tb_name}_output_{group_id}')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
