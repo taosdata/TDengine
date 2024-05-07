@@ -37,7 +37,9 @@ int32_t transCompressMsg(char* msg, int32_t len) {
     return ret;
   }
 
-  int32_t clen = LZ4_compress_default(msg, buf, len, len + compHdr);
+  // int32_t clen = ZSTD_compress(void *dst, size_t dstCapacity, const void *src, size_t srcSize, int compressionLevel)
+  size_t clen = ZSTD_compress(buf + compHdr, len, msg, len, 5);
+  // int32_t clen = LZ4_compress_default(msg, buf, len, len + compHdr);
   /*
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
@@ -48,7 +50,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
     pComp->contLen = htonl(len);
     memcpy(msg + compHdr, buf, clen);
 
-    tDebug("compress rpc msg, before:%d, after:%d", len, clen);
+    tDebug("compress rpc msg, before:%d, after:%d", len, (int32_t)clen);
     ret = clen + compHdr;
     pHead->comp = 1;
   } else {
@@ -69,8 +71,11 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
 
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
-  int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+
+  int32_t decompLen = ZSTD_decompress((char*)pNewHead->content, oriLen, pCont + sizeof(STransCompMsg),
+                                      len - sizeof(STransMsgHead) - sizeof(STransCompMsg));
+  // int32_t decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
+  //                                         len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));

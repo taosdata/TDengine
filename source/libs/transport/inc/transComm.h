@@ -29,6 +29,7 @@ extern "C" {
 #include "trpc.h"
 #include "ttrace.h"
 #include "tutil.h"
+#include "zstd.h"
 
 typedef bool (*FilteFunc)(void* arg);
 

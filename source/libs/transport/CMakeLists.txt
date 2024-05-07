@@ -3,6 +3,7 @@ add_library(transport STATIC ${TRANSPORT_SRC})
 target_include_directories(
     transport
     PUBLIC "${TD_SOURCE_DIR}/include/libs/transport"
+    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/" 
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
