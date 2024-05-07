@@ -16,7 +16,7 @@ options:
   port:
     display: 服务端口
     description: Oracle 的端口
-    placeholder: "3306"
+    placeholder: "1521"
     required: true
   subject:
     display: 数据库

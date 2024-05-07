@@ -19,7 +19,7 @@ options:
   port:
     display: port
     description: The port of Oracle.
-    placeholder: "3306"
+    placeholder: "1521"
     required: true
   subject:
     display: Database
