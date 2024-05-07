@@ -38,7 +38,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   }
 
   // int32_t clen = ZSTD_compress(void *dst, size_t dstCapacity, const void *src, size_t srcSize, int compressionLevel)
-  size_t clen = ZSTD_compress(buf + compHdr, len, msg, len, 5);
+  size_t clen = ZSTD_compress(buf, len + compHdr, msg, len, 5);
   // int32_t clen = LZ4_compress_default(msg, buf, len, len + compHdr);
   /*
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
