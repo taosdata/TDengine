@@ -374,9 +374,9 @@ static SLastCol *tsdbCacheDeserializeV2(char const *value) {
   SLastCol *pLastCol = taosMemoryMalloc(sizeof(SLastCol));
   *pLastCol = *(SLastCol *)(value);
 
-  char* currentPos = (char *)value + sizeof(*pLastCol);
+  char *currentPos = (char *)value + sizeof(*pLastCol);
   for (int8_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
-    SValue* pValue = &pLastCol->rowKey.pks[i];
+    SValue *pValue = &pLastCol->rowKey.pks[i];
     if (IS_VAR_DATA_TYPE(pValue->type)) {
       if (pValue->nData > 0) {
         pValue->pData = currentPos;
@@ -434,11 +434,10 @@ static void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
     length += pColVal->value.nData;
   }
 
-  // set version
   *value = taosMemoryMalloc(length);
 
   // copy last col
-  SLastCol* pToLastCol = (SLastCol *)(*value);
+  SLastCol *pToLastCol = (SLastCol *)(*value);
   *pToLastCol = *pLastCol;
   char *currentPos = *value + sizeof(*pLastCol);
 
@@ -545,9 +544,7 @@ static void reallocVarDataVal(SValue *pValue) {
   }
 }
 
-static void reallocVarData(SColVal *pColVal) {
-  reallocVarDataVal(&pColVal->value);
-}
+static void reallocVarData(SColVal *pColVal) { reallocVarDataVal(&pColVal->value); }
 
 static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud) {
   SLastCol *pLastCol = (SLastCol *)value;
@@ -1095,7 +1092,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
           char  *value = NULL;
           size_t vlen = 0;
-          tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+          tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,
+                             &vlen);
+
           // SLastKey key = (SLastKey){.ltype = 0, .uid = uid, .cid = pColVal->cid};
           taosThreadMutexLock(&pTsdb->rCache.rMutex);
 
@@ -1135,7 +1134,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
           if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
             char  *value = NULL;
             size_t vlen = 0;
-            tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+            tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,
+                               &vlen);
+
             // SLastKey key = (SLastKey){.ltype = 1, .uid = uid, .cid = pColVal->cid};
             taosThreadMutexLock(&pTsdb->rCache.rMutex);
 
@@ -1409,7 +1410,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
     slotIds[i] = pr->pSlotIds[idxKey->idx];
-    if (idxKey->key.lflag == CACHESCAN_RETRIEVE_LAST >> 3) {
+    if (IS_LAST_KEY(idxKey->key)) {
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
       }
@@ -1548,6 +1549,8 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
                     keys_list_sizes, values_list, values_list_sizes, errs);
   for (int i = 0; i < num_keys; ++i) {
     if (errs[i]) {
+      tsdbError("vgId:%d, %s failed at line %d since %s, index:%d", TD_VID(pTsdb->pVnode), __func__, __LINE__, errs[i],
+                i);
       rocksdb_free(errs[i]);
     }
   }
@@ -1559,7 +1562,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
-    SLastCol* PToFree = pLastCol;
+    SLastCol *PToFree = pLastCol;
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
@@ -1621,7 +1624,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   for (int i = 0; i < num_keys; ++i) {
     int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
 
-    SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = cid};
+    SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
     // for select last_row, last case
     int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
     if (pr->pFuncTypeList != NULL && taosArrayGetSize(pr->pFuncTypeList) > i) {
@@ -1629,10 +1632,10 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     }
     if (((pr->type & CACHESCAN_RETRIEVE_LAST) == CACHESCAN_RETRIEVE_LAST) && FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
       int8_t tempType = CACHESCAN_RETRIEVE_LAST_ROW | (pr->type ^ CACHESCAN_RETRIEVE_LAST);
-      key->lflag = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
+      key.lflag = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
     }
 
-    LRUHandle *h = taosLRUCacheLookup(pCache, key, ROCKS_KEY_LEN);
+    LRUHandle *h = taosLRUCacheLookup(pCache, &key, ROCKS_KEY_LEN);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
@@ -1654,7 +1657,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       if (!remainCols) {
         remainCols = taosArrayInit(num_keys, sizeof(SIdxKey));
       }
-      taosArrayPush(remainCols, &(SIdxKey){i, *key});
+      taosArrayPush(remainCols, &(SIdxKey){i, key});
     }
   }
 
