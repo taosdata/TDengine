@@ -46,5 +46,16 @@ fn upx_run
   if not is_file ${fo}
     echo "UPX failed, fallback to copy"
     cp ${fi} ${fo}
+    ver = exec ${fo} -V
+    if not contains ${ver} "version"
+      echo "UPX result file is not ok(-V: ${ver})"
+      exit 1
+    end
+  else
+    ver = exec ${fo} -V
+    if not contains ${ver} "version"
+      echo "UPX result file is not ok(-V: ${ver}), fallback to copy"
+      cp ${fi} ${fo}
+    end
   end
 end
