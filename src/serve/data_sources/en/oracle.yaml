@@ -54,7 +54,7 @@ groups:
         display: SQL Template
         description: >
           SQL statement used for querying.
-        required: false
+        required: true
         placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
         hint:
           type: str

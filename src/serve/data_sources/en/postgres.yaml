@@ -76,7 +76,7 @@ groups:
         display: SQL Template
         description: >
           The SQL statement used for querying.
-        required: false
+        required: true
         placeholder: "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
         hint:
           type: str

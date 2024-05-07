@@ -161,7 +161,7 @@ impl MySqlQuery {
                     rows.push(row);
                 }
                 Err(e) => {
-                    println!("error: {:?}", e);
+                    anyhow::bail!("error: {:?}", e);
                 }
             }
         }

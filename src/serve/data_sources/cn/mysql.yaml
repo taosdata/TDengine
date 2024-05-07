@@ -83,7 +83,7 @@ groups:
         display: SQL 模板
         description: >
           用于查询的 SQL 语句。
-        required: false
+        required: true
         placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
         hint:
           type: str
