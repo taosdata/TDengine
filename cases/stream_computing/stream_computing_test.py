@@ -673,7 +673,6 @@ class StreamComputingTest(TDCase):
     def get_subtable(self, tbname_pre):
         self.tdSql.query(f'show {self.dbname}.tables')
         tbname_list = list(map(lambda x:x[0], self.tdSql.query_data))
-        time.sleep(1)
         for tbname in tbname_list:
             if tbname_pre in tbname:
                 return tbname
