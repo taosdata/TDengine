@@ -51,25 +51,25 @@ groups:
     params:
       - name: ca
         display: CA
-        description: CA file.
+        description: 	CA certificate file(PEM format) for verifying the broker's key.
         required: true
         hint:
           type: file
       - name: ca_password
         display: CA Password
-        description: CA password.
+        description: CA private key passphrase.
         required: true
         hint:
           type: str
       - name: cert
         display: Client certificate
-        description: Client certificate file.
+        description: Client's public key file(PEM format) used for authentication.
         required: true
         hint:
           type: file
       - name: cert_key
         display: Client key
-        description: Client key file.
+        description: Client's private key file(PEM format) used for authentication.
         required: true
         hint:
           type: file
