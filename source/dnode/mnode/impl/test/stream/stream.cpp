@@ -92,7 +92,11 @@ SRpcMsg buildHbReq() {
   }
   tEncoderClear(&encoder);
 
-  initRpcMsg(&msg1, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
+  {
+    msg1.msgType = TDMT_MND_STREAM_HEARTBEAT;
+    msg1.pCont = buf;
+    msg1.contLen = tlen;
+  }
 
   taosArrayDestroy(msg.pTaskStatus);
   return msg1;
