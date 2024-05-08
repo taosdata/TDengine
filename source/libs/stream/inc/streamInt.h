@@ -88,6 +88,10 @@ struct SStreamQueue {
   int8_t      status;
 };
 
+struct SStreamQueueItem {
+  int8_t type;
+};
+
 typedef enum {
   EXEC_CONTINUE = 0x0,
   EXEC_AFTER_IDLE = 0x1,

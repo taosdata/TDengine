@@ -59,9 +59,10 @@ extern "C" {
 #define STREAM_EXEC_T_RESUME_TASK       (-6)
 #define STREAM_EXEC_T_ADD_FAILED_TASK   (-7)
 
-typedef struct SStreamTask   SStreamTask;
-typedef struct SStreamQueue  SStreamQueue;
-typedef struct SStreamTaskSM SStreamTaskSM;
+typedef struct SStreamTask      SStreamTask;
+typedef struct SStreamQueue     SStreamQueue;
+typedef struct SStreamTaskSM    SStreamTaskSM;
+typedef struct SStreamQueueItem SStreamQueueItem;
 
 #define SSTREAM_TASK_VER                  4
 #define SSTREAM_TASK_INCOMPATIBLE_VER     1
@@ -153,10 +154,6 @@ typedef enum EStreamTaskEvent {
 
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
-typedef struct {
-  int8_t type;
-} SStreamQueueItem;
-
 typedef void    FTbSink(SStreamTask* pTask, void* vnode, void* data);
 typedef void    FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
@@ -189,13 +186,6 @@ typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
-
-typedef struct SStreamQueueNode SStreamQueueNode;
-
-struct SStreamQueueNode {
-  SStreamQueueItem* item;
-  SStreamQueueNode* next;
-};
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
 void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
@@ -437,7 +427,7 @@ struct SStreamTask {
   SCheckpointInfo     chkInfo;
   STaskExec           exec;
   SDataRange          dataRange;
-  SVersionRange       step2Range;
+  SVersionRange       step2Range;     // version range used to scan wal, information in dataRange should not modified.
   SHistoryTaskInfo    hTaskInfo;
   STaskId             streamTaskId;
   STaskExecStatisInfo execInfo;
@@ -445,14 +435,11 @@ struct SStreamTask {
   TdThreadMutex       lock;           // secure the operation of set task status and puting data into inputQ
   SMsgCb*             pMsgCb;         // msg handle
   SStreamState*       pState;         // state backend
-  SArray*             pRspMsgList;
   SUpstreamInfo       upstreamInfo;
   STaskCheckInfo      taskCheckInfo;
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
-
-  int32_t             numOfWaitingUpstream;
   int32_t             refCnt;
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;

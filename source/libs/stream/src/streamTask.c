@@ -456,11 +456,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
 
-  if (pTask->pRspMsgList != NULL) {
-    taosArrayDestroyEx(pTask->pRspMsgList, freeItem);
-    pTask->pRspMsgList = NULL;
-  }
-
   pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
