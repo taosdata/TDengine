@@ -819,9 +819,6 @@ ETaskStatus       streamTaskGetPrevStatus(const SStreamTask* pTask);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
-// recover and fill history
-void streamTaskCheckDownstream(SStreamTask* pTask);
-
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamId, int32_t vgId, int64_t stage, int64_t* oldStage);
 bool    streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
@@ -838,8 +835,10 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event, __state_trans_user_fn callbackFn, void* param);
 int32_t streamTaskRestoreStatus(SStreamTask* pTask);
 
-int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
-                           SRpcHandleInfo* pRpcInfo, int32_t taskId);
+void    streamTaskSendCheckMsg(SStreamTask* pTask);
+void    streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp);
+int32_t streamSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTaskCheckRsp* pRsp, SRpcHandleInfo* pRpcInfo,
+                           int32_t taskId);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
@@ -924,10 +923,9 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t resetRelHalt);
-int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
-                                        int8_t isSucceed);
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
-                                 int8_t isSucceed);
+                                 int32_t setCode);
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
 void*          streamDestroyStateMachine(SStreamTaskSM* pSM);
