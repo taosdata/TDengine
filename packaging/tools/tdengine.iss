@@ -56,6 +56,7 @@ Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNo
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc\"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -127,20 +128,6 @@ begin
   RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\TDengine');
   RegDeleteValue(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers', 'TDengine');
   Result := True;
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-var
-  uninspath, uninsname, NewUninsName : string;
-begin
-  if CurStep = ssDone then
-  begin
-    NewUninsName := 'uninstall';
-    uninspath := ExtractFilePath(ExpandConstant('{uninstallexe}'));
-    uninsname := Copy(ExtractFileName(ExpandConstant('{uninstallexe}')), 1, 8);
-    RenameFile(uninspath + uninsname + '.exe', uninspath + NewUninsName + '.exe');
-    RenameFile(uninspath + uninsname + '.dat', uninspath + NewUninsName + '.dat');
-  end;
 end;
 
 
