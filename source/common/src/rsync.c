@@ -43,7 +43,7 @@ static void removeEmptyDir() {
 static void changeDirFromWindowsToLinux(char* from, char* to){
   to[0] = '/';
   to[1] = from[0];
-  for(int i = 2; i < strlen(from); i++) {
+  for(int32_t i = 2; i < strlen(from); i++) {
     if (from[i] == '\\') {
       to[i] = '/';
     } else {
@@ -53,7 +53,7 @@ static void changeDirFromWindowsToLinux(char* from, char* to){
 }
 #endif
 
-static int generateConfigFile(char* confDir) {
+static int32_t generateConfigFile(char* confDir) {
   TdFilePtr pFile = taosOpenFile(confDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     uError("[rsync] open conf file error, dir:%s,"ERRNO_ERR_FORMAT, confDir, ERRNO_ERR_DATA);
@@ -98,8 +98,8 @@ static int generateConfigFile(char* confDir) {
   return 0;
 }
 
-static int execCommand(char* command){
-  int try = 3;
+static int32_t execCommand(char* command){
+  int32_t try = 3;
   int32_t code = 0;
   while(try-- > 0) {
     code = system(command);
@@ -112,7 +112,7 @@ static int execCommand(char* command){
 }
 
 void stopRsync() {
-  int code =
+  int32_t code =
 #ifdef WINDOWS
   system("taskkill /f /im rsync.exe");
 #else
@@ -135,7 +135,7 @@ void startRsync() {
   char confDir[PATH_MAX] = {0};
   snprintf(confDir, PATH_MAX, "%srsync.conf", tsCheckpointBackupDir);
 
-  int code = generateConfigFile(confDir);
+  int32_t code = generateConfigFile(confDir);
   if(code != 0){
     return;
   }
@@ -148,14 +148,16 @@ void startRsync() {
     uError("[rsync] start server failed, code:%d,"ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return;
   }
+
   uDebug("[rsync] start server successful");
 }
 
-int uploadRsync(const char* id, const char* path) {
+int32_t uploadRsync(const char* id, const char* path) {
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
   changeDirFromWindowsToLinux(path, pathTransform);
 #endif
+
   char command[PATH_MAX] = {0};
 #ifdef WINDOWS
   if(pathTransform[strlen(pathTransform) - 1] != '/'){
@@ -169,7 +171,7 @@ int uploadRsync(const char* id, const char* path) {
              path
 #endif
              , tsSnodeAddress, id);
-  }else{
+  } else {
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
 #ifdef WINDOWS
              pathTransform
@@ -179,16 +181,17 @@ int uploadRsync(const char* id, const char* path) {
              , tsSnodeAddress, id);
   }
 
-  int code = execCommand(command);
+  int32_t code = execCommand(command);
   if(code != 0){
     uError("[rsync] send failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return -1;
   }
+
   uDebug("[rsync] upload data:%s successful", id);
   return 0;
 }
 
-int downloadRsync(const char* id, const char* path) {
+int32_t downloadRsync(const char* id, const char* path) {
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
   changeDirFromWindowsToLinux(path, pathTransform);
@@ -203,33 +206,34 @@ int downloadRsync(const char* id, const char* path) {
 #endif
            );
 
-  int code = execCommand(command);
-  if(code != 0){
+  int32_t code = execCommand(command);
+  if (code != 0) {
     uError("[rsync] get failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return -1;
   }
+
   uDebug("[rsync] down data:%s successful", id);
   return 0;
 }
 
-int deleteRsync(const char* id) {
-  char* tmp = "./tmp_empty/";
-  int code = taosMkDir(tmp);
-  if(code != 0){
+int32_t deleteRsync(const char* id) {
+  char*   tmp = "./tmp_empty/";
+  int32_t code = taosMkDir(tmp);
+  if (code != 0) {
     uError("[rsync] make tmp dir failed. code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return -1;
   }
+
   char command[PATH_MAX] = {0};
-  snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 %s rsync://%s/checkpoint/%s/",
-           tmp, tsSnodeAddress, id);
+  snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tmp, tsSnodeAddress, id);
 
   code = execCommand(command);
   taosRemoveDir(tmp);
-  if(code != 0){
+  if (code != 0) {
     uError("[rsync] get failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return -1;
   }
-  uDebug("[rsync] delete data:%s successful", id);
 
+  uDebug("[rsync] delete data:%s successful", id);
   return 0;
 }

@@ -1208,9 +1208,11 @@ int32_t s3GetObjectToFile(const char *object_name, const char *fileName) {
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("[s3] open file error, errno:%d, fileName:%s", errno, fileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("[s3] open file error, errno:%d, fileName:%s", terrno, fileName);
     return -1;
   }
+
   TS3GetData cbd = {0};
   cbd.file = pFile;
   do {

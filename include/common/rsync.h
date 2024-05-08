@@ -11,11 +11,11 @@ extern "C" {
 
 #include "tarray.h"
 
-void stopRsync();
-void startRsync();
-int  uploadRsync(const char* id, const char* path);
-int  downloadRsync(const char* id, const char* path);
-int  deleteRsync(const char* id);
+void    stopRsync();
+void    startRsync();
+int32_t uploadRsync(const char* id, const char* path);
+int32_t downloadRsync(const char* id, const char* path);
+int32_t deleteRsync(const char* id);
 
 #ifdef __cplusplus
 }
