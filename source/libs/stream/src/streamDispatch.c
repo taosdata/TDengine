@@ -129,7 +129,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   return TSDB_CODE_SUCCESS;
 }
 
-void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq) {
+void tCleanupStreamDispatchReq(SStreamDispatchReq* pReq) {
   taosArrayDestroyP(pReq->data, taosMemoryFree);
   taosArrayDestroy(pReq->dataLen);
 }
@@ -162,9 +162,9 @@ int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
   return 0;
 }
 
-void tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
+void tCleanupStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
 
-void sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
+void streamTaskSendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp));
   ((SMsgHead*)buf)->vgId = htonl(pReq->srcNodeId);
   SStreamRetrieveRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
@@ -176,7 +176,7 @@ void sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
   tmsgSendRsp(pRsp);
 }
 
-int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq* req) {
+int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* req) {
   int32_t code = 0;
   void*   buf = NULL;
   int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
@@ -259,7 +259,7 @@ int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock) 
     return code;
   }
 
-  code = broadcastRetrieveMsg(pTask, &req);
+  code = streamTaskBroadcastRetrieveReq(pTask, &req);
   taosMemoryFree(req.pRetrieve);
 
   return code;
@@ -832,7 +832,7 @@ FAIL:
   return code;
 }
 
-int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
+int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int32_t setCode) {
   int32_t  len = 0;
   int32_t  code = 0;
@@ -874,7 +874,7 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask) {
   SStreamChkptReadyInfo info = {0};
-  buildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
+  streamTaskBuildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
 
   if (pTask->pReadyMsgList == NULL) {
     pTask->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));

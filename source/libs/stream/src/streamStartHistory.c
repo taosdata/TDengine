@@ -48,9 +48,9 @@ static int32_t streamTaskSetReady(SStreamTask* pTask) {
   SStreamTaskState* p = streamTaskGetStatus(pTask);
 
   if ((p->state == TASK_STATUS__SCAN_HISTORY) && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
-    pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
+    int32_t numOfUps = taosArrayGetSize(pTask->upstreamInfo.pList);
     stDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
-            pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream, p->name);
+            pTask->id.idStr, pTask->info.taskLevel, numOfUps, p->name);
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
@@ -117,18 +117,16 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
   int32_t     level = pTask->info.taskLevel;
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
-  ASSERT((pTask->status.downstreamReady == 1) && (status == TASK_STATUS__SCAN_HISTORY));
+  ASSERT((pTask->status.downstreamReady == 1) && (status == TASK_STATUS__SCAN_HISTORY) &&
+         (pTask->info.fillHistory == 1));
 
   if (level == TASK_LEVEL__SOURCE) {
     return doStartScanHistoryTask(pTask);
   } else if (level == TASK_LEVEL__AGG) {
-    if (pTask->info.fillHistory) {
-      streamSetParamForScanHistory(pTask);
-    }
+    return streamSetParamForScanHistory(pTask);
   } else if (level == TASK_LEVEL__SINK) {
     stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
   }
-
   return 0;
 }
 
@@ -208,27 +206,21 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
 }
 
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
-  const char* id = pTask->id.idStr;
-
   // set the state to be ready
   streamTaskSetReady(pTask);
   streamTaskSetRangeStreamCalc(pTask);
 
   SStreamTaskState* p = streamTaskGetStatus(pTask);
-  ASSERT(p->state == TASK_STATUS__SCAN_HISTORY);
+  ASSERT((p->state == TASK_STATUS__SCAN_HISTORY) && (pTask->info.fillHistory == 1));
 
-  if (pTask->info.fillHistory == 1) {
-    stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", id, p->name);
-    streamTaskStartScanHistory(pTask);
-  } else {
-    stDebug("s-task:%s scan wal data, status:%s", id, p->name);
-  }
+  stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", pTask->id.idStr, p->name);
+  streamTaskStartScanHistory(pTask);
 
   // NOTE: there will be an deadlock if launch fill history here.
-//  // start the related fill-history task, when current task is ready
-//  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-//    streamLaunchFillHistoryTask(pTask);
-//  }
+  // start the related fill-history task, when current task is ready
+  //  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+  //    streamLaunchFillHistoryTask(pTask);
+  //  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -515,6 +507,8 @@ bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVe
   SVersionRange* pRange = &pTask->dataRange.range;
   ASSERT(nextProcessVer >= pRange->maxVer);
 
+  // maxVer for fill-history task is the version, where the last timestamp is acquired.
+  // it's also the maximum version to scan data in tsdb.
   int64_t walScanStartVer = pRange->maxVer + 1;
   if (walScanStartVer > nextProcessVer - 1) {
     stDebug(

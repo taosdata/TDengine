@@ -343,7 +343,10 @@ static SLastCol *tsdbCacheConvertLastColV1(SLastColV1 *pLastColV1) {
   pLastCol->rowKey.ts = pLastColV1->ts;
   pLastCol->rowKey.numOfPKs = 0;
   pLastCol->dirty = pLastColV1->dirty;
-  pLastCol->colVal = pLastColV1->colVal;
+  pLastCol->colVal.cid = pLastColV1->colVal.cid;
+  pLastCol->colVal.flag = pLastColV1->colVal.flag;
+  pLastCol->colVal.value.type = pLastColV1->colVal.type;
+  pLastCol->colVal.value.val = pLastColV1->colVal.value.val;
 
   return pLastCol;
 }
@@ -354,8 +357,8 @@ static SLastCol *tsdbCacheDeserializeV1(char const *value) {
   }
 
   SLastColV1 *pLastColV1 = (SLastColV1 *)value;
-  SColVal    *pColVal = &pLastColV1->colVal;
-  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+  SColValV1  *pColVal = &pLastColV1->colVal;
+  if (IS_VAR_DATA_TYPE(pColVal->type)) {
     if (pColVal->value.nData > 0) {
       pColVal->value.pData = (char *)value + sizeof(*pLastColV1);
     } else {
@@ -1025,7 +1028,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     LRUHandle *h = taosLRUCacheLookup(pCache, key, klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
-      if (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1) {
+      int32_t   cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+      if (cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
         tsdbCacheUpdateLastCol(pLastCol, pRowKey, pColVal);
       }
       taosLRUCacheRelease(pCache, h, false);
@@ -1089,7 +1093,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_ROW_KEY(idxKey->key)) {
-        if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
+        int32_t cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+        if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
           char  *value = NULL;
           size_t vlen = 0;
           tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,

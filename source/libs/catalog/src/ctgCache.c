@@ -3455,11 +3455,13 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   }
 
   SCtgTSMACache *pCtgCache = taosHashGet(pDbCache->tsmaCache, pName->tname, strlen(pName->tname));
-  if (!pCtgCache || !pCtgCache->pTsmas || pCtgCache->pTsmas->size == 0) {
-    goto _return;
-  }
+  if (!pCtgCache) goto _return;
 
   CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
+  if (!pCtgCache->pTsmas || pCtgCache->pTsmas->size == 0) {
+    CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+    goto _return;
+  }
   STSMACache *pCache = taosArrayGetP(pCtgCache->pTsmas, 0);
   pOp = createDropAllTbTsmaCtgCacheOp(pCtg, pCache, syncOp);
   if (!pOp) {
