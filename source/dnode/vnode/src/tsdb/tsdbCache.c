@@ -343,7 +343,10 @@ static SLastCol *tsdbCacheConvertLastColV1(SLastColV1 *pLastColV1) {
   pLastCol->rowKey.ts = pLastColV1->ts;
   pLastCol->rowKey.numOfPKs = 0;
   pLastCol->dirty = pLastColV1->dirty;
-  pLastCol->colVal = pLastColV1->colVal;
+  pLastCol->colVal.cid = pLastColV1->colVal.cid;
+  pLastCol->colVal.flag = pLastColV1->colVal.flag;
+  pLastCol->colVal.value.type = pLastColV1->colVal.type;
+  pLastCol->colVal.value.val = pLastColV1->colVal.value.val;
 
   return pLastCol;
 }
@@ -354,8 +357,8 @@ static SLastCol *tsdbCacheDeserializeV1(char const *value) {
   }
 
   SLastColV1 *pLastColV1 = (SLastColV1 *)value;
-  SColVal    *pColVal = &pLastColV1->colVal;
-  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+  SColValV1  *pColVal = &pLastColV1->colVal;
+  if (IS_VAR_DATA_TYPE(pColVal->type)) {
     if (pColVal->value.nData > 0) {
       pColVal->value.pData = (char *)value + sizeof(*pLastColV1);
     } else {

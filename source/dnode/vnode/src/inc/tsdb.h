@@ -901,10 +901,27 @@ typedef struct {
   SColVal colVal;
 } SLastCol;
 
+typedef struct  {
+  union {
+    int64_t val;
+    struct {
+      uint8_t *pData;
+      uint32_t nData;
+    };
+  };
+} SValueV1;
+
 typedef struct {
-  TSKEY   ts;
-  int8_t  dirty;
-  SColVal colVal;
+  int16_t  cid;
+  int8_t   type;
+  int8_t   flag;
+  SValueV1 value;
+} SColValV1;
+
+typedef struct {
+  TSKEY     ts;
+  int8_t    dirty;
+  SColValV1 colVal;
 } SLastColV1;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
