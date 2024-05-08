@@ -484,6 +484,25 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
