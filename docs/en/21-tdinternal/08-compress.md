@@ -45,7 +45,7 @@ Note: For floating point types, if configured as tsz, its precision is determine
 ### Create Table with Compression
 
 ```sql
-CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
+CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
 **Parameter Description**
@@ -62,7 +62,7 @@ CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compr
 ### Change Compression Method
 
 ```sql
-ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
+ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
 ```
 
 **Parameter Description**
@@ -74,7 +74,7 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 - Change the compression method of the column
 
-### View Compression Dethod
+### View Compression Method
 
 ```sql
 DESCRIBE [dbname.]tabName
