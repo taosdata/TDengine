@@ -1028,7 +1028,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     LRUHandle *h = taosLRUCacheLookup(pCache, key, klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
-      if (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1) {
+      int32_t   cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+      if (cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
         tsdbCacheUpdateLastCol(pLastCol, pRowKey, pColVal);
       }
       taosLRUCacheRelease(pCache, h, false);
@@ -1092,7 +1093,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_ROW_KEY(idxKey->key)) {
-        if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
+        int32_t cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+        if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
           char  *value = NULL;
           size_t vlen = 0;
           tsdbCacheSerialize(&(SLastCol){.version = LAST_COL_VERSION, .rowKey = *pRowKey, .colVal = *pColVal}, &value,
