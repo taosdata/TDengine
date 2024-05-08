@@ -1219,7 +1219,7 @@ export default {
       sepntip: "请输入分隔符个数",
       csvtip: "自定义列数必须等于csv列数",
       identified: "1. 识别的列",
-      preview:'预览',
+      preview:'查看点位列表',
       previewmore:'预览结果',
       more:'更多',
       viewmore:'查看更多',
