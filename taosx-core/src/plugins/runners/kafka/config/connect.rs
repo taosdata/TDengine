@@ -1,12 +1,14 @@
+use crate::runners::get_string_from_param_or_file;
 use taos::Dsn;
 
 #[derive(Debug, Clone)]
 pub struct KafkaConnectConfig {
     pub bootstrap_servers: Vec<String>,
     pub use_ssl: bool,
-    pub ca_cert: Option<String>,     // the trusted CA certificates
-    pub client_cert: Option<String>, // the client certificate
-    pub client_key: Option<String>,  // key for the client certificate
+    pub ca_cert: Option<String>,          // the trusted CA certificates
+    pub ca_cert_password: Option<String>, // the password of the CA certificate
+    pub client_cert: Option<String>,      // the client certificate
+    pub client_key: Option<String>,       // key for the client certificate
     pub use_sasl: bool,
     pub sasl_mechanism: Option<String>,
     pub sasl_username: Option<String>,
@@ -18,9 +20,10 @@ impl KafkaConnectConfig {
         Ok(Self {
             bootstrap_servers: Self::parse_bootstrap_servers(dsn)?,
             use_ssl: Self::parse_use_ssl(dsn)?,
-            ca_cert: dsn.get("ca").map(|s| s.to_string()),
-            client_cert: dsn.get("cert").map(|s| s.to_string()),
-            client_key: dsn.get("cert_key").map(|s| s.to_string()),
+            ca_cert: Self::parse_ssl_ca(dsn)?,
+            ca_cert_password: dsn.get("ca_password").map(|s| s.to_string()),
+            client_cert: Self::parse_ssl_cert(dsn)?,
+            client_key: Self::parse_ssl_cert_key(dsn)?,
             use_sasl: Self::parse_use_sasl(dsn)?,
             sasl_mechanism: dsn.get("sasl_mechanism").map(|s| s.to_string()),
             sasl_username: dsn.get("sasl_username").map(|s| s.to_string()),
@@ -57,6 +60,29 @@ impl KafkaConnectConfig {
             }
             None => Ok(false),
         }
+    }
+
+    fn parse_ssl_ca(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None)
+            .map_err(|err| anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string()))
+    }
+
+    fn parse_ssl_cert(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
+            anyhow::anyhow!(
+                "failed to read client certificate config, cause: {}",
+                err.to_string()
+            )
+        })
+    }
+
+    fn parse_ssl_cert_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(|err| {
+            anyhow::anyhow!(
+                "failed to read client key config, cause: {}",
+                err.to_string()
+            )
+        })
     }
 
     /// use `sasl_mechanism` to determine whether to use sasl
@@ -124,9 +150,10 @@ mod tests {
     #[test]
     fn test_parse_certification() {
         let dsn = format!(
-            "kafka://{}?use_ssl=true&ca={}&cert={}&cert_key={}",
+            "kafka://{}?use_ssl=true&ca={}&ca_password={}&cert={}&cert_key={}",
             "127.0.0.1:9092",
             "../tests/kafka/ca.cert",
+            "abcdefgh",
             "../tests/kafka/client.cert",
             "../tests/kafka/client.key",
         )
@@ -134,7 +161,9 @@ mod tests {
         .unwrap();
 
         let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+        dbg!(&config);
         assert_eq!("../tests/kafka/ca.cert", config.ca_cert.unwrap());
+        assert_eq!("abcdefgh", config.ca_cert_password.unwrap());
         assert_eq!("../tests/kafka/client.key", config.client_key.unwrap());
         assert_eq!("../tests/kafka/client.cert", config.client_cert.unwrap());
     }

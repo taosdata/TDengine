@@ -572,12 +572,17 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
         if let Some(ca_cert) = config.ca_cert {
             client_config.set("ssl.ca.pem", ca_cert);
         }
+        if let Some(ca_password) = config.ca_cert_password {
+            client_config.set("ssl.key.password", ca_password);
+        }
         if let Some(client_cert) = config.client_cert {
             client_config.set("ssl.certificate.pem", client_cert);
         }
         if let Some(client_key) = config.client_key {
             client_config.set("ssl.key.pem", client_key);
         }
+        // ref: https://karafka.io/docs/FAQ/#why-am-i-getting-error0a000086ssl-routinescertificate-verify-failed-after-upgrading-karafka
+        client_config.set("ssl.endpoint.identification.algorithm", "none");
     }
 
     // sasl settings
@@ -598,9 +603,9 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
+    use std::str::FromStr;
+    use taos::IntoDsn;
 
     #[tokio::test]
     async fn test_is_valid() {
@@ -613,5 +618,33 @@ mod tests {
             "invalid dsn: kafka://127.0.0.1:9092, cause: topics is required",
             result.message.unwrap()
         );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_use_ssl() {
+        let dsn = format!(
+            "kafka://{}?ca={}&ca_password=abcdefgh&cert={}&cert_key={}",
+            "192.168.2.19:9093",
+            "@../tests/kafka/ca-cert",
+            "@../tests/kafka/client_test_client.pem",
+            "@../tests/kafka/client_test_client.key",
+        )
+        .into_dsn()
+        .unwrap();
+
+        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+        let client_config: ClientConfig = build_client_config(config.clone());
+        // create a base consumer
+        let consumer: BaseConsumer = client_config
+            .create()
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .unwrap();
+        // fetch metadata
+        let metadata = consumer
+            .fetch_metadata(None, Duration::from_secs(5))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .unwrap();
+        dbg!(metadata.topics().len());
     }
 }
