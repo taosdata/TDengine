@@ -1735,7 +1735,7 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
   bool    hasFillhistoryTask = false;
   STaskId hId = {0};
 
-  stDebug("vgId:%d add failed task:0x%x", pMeta->vgId, taskId);
+  stDebug("vgId:%d add start failed task:0x%x", pMeta->vgId, taskId);
 
   streamMetaRLock(pMeta);
 
