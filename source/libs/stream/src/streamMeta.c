@@ -769,7 +769,6 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   return code;
 }
 
-// todo add error log
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
     stError("vgId:%d failed to commit stream meta", pMeta->vgId);
@@ -787,6 +786,7 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
     return -1;
   }
 
+  stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   return 0;
 }
 
