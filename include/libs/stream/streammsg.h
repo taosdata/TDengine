@@ -16,6 +16,10 @@
 #ifndef TDENGINE_STREAMMSG_H
 #define TDENGINE_STREAMMSG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct SStreamChildEpInfo {
   int32_t nodeId;
   int32_t childId;
@@ -143,7 +147,7 @@ struct SStreamRetrieveReq {
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const struct SStreamRetrieveReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, struct SStreamRetrieveReq* pReq);
-void tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
+void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 
 typedef struct SStreamTaskCheckpointReq {
   int64_t streamId;
@@ -171,5 +175,9 @@ typedef struct {
   int32_t  taskId;
   int32_t  reqType;
 } SStreamTaskRunReq;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_STREAMMSG_H
