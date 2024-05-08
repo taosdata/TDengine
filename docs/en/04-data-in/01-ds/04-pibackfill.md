@@ -28,7 +28,7 @@ There is an additional charge for extracting PI System data. The charge depends 
 3. In the **Name** field, enter a name for your data source.
 4. From the **Type** menu, select **PI**.
 5. From the **Agent** menu, select the connection agent for your PI System.
-   If you have not created a connection agent, see [Install Connection Agent](./00-install-agent).
+   If you have not created a connection agent, see [Install Connection Agent](../install-agent/).
 6. In the **Target DB** field, select one database from the current instance that you created to store PI System data.
    If you have not created a database, please go to **Explorer** page to create it.
 7. PI connector supports two connection modes:
