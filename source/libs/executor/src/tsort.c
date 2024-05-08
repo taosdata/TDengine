@@ -1553,7 +1553,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
       blockDataCleanup(pHandle->pDataBlock);
       blkPgSz = pgHeaderSz;
       incBlock = (pHandle->bSortByRowId) ? pHandle->pDataBlock : minBlk;
-      bufInc = getPageBufIncForRow(incBlock, minRow, pHandle->pDataBlock->info.rows);
+      bufInc = getPageBufIncForRow(incBlock, minRow, 0);
 
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
         mergeLimitReached = true;
@@ -1573,6 +1573,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     }
 
     blkPgSz += bufInc;
+    ASSERT(blkPgSz == blockDataGetSize(pHandle->pDataBlock));
 
     ++nRows;
 
