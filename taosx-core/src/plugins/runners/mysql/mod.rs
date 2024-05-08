@@ -1,6 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{FixedOffset, NaiveDateTime};
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use sqlx::mysql::MySqlRow;
@@ -112,7 +114,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         for (idx, col) in row.columns().into_iter().enumerate() {
             let col_name = col.name();
             let col_type = col.type_info().name();
-            let col_val = generate_json_value(&row, col_type, idx)?;
+            let col_val = generate_json_value(&row, col_type, idx, config.task.time_zone.clone())?;
             sample_map.insert(col_name.to_string(), col_val);
         }
         input_sample.push(sample_map);
@@ -259,6 +261,7 @@ fn generate_json_value(
     row: &MySqlRow,
     col_type: &str,
     cidx: usize,
+    time_zone: String,
 ) -> anyhow::Result<serde_json::Value> {
     match col_type {
         // 整型数
@@ -370,14 +373,26 @@ fn generate_json_value(
                 Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
-        "DATETIME" | "TIMESTAMP" => {
+        "DATETIME" => {
+            let val = row.try_get::<Option<NaiveDateTime>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
+            }
+        }
+        "TIMESTAMP" => {
             let val = row
                 .try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(
                     cidx,
                 )?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => {
+                    // mysql 的 timestamp 是基于 session 时区的假 UTC 时间，需要转换为真正的 UTC 时间
+                    let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                    let real_timestamp_utc = val.naive_utc().and_local_timezone(time_zone).unwrap();
+                    Ok(json!(real_timestamp_utc))
+                }
             }
         }
         "YEAR" => {
@@ -521,7 +536,12 @@ mod tests {
         match row {
             Some(row) => {
                 for idx in 0..31 {
-                    let res = generate_json_value(&row, row.column(idx).type_info().name(), idx);
+                    let res = generate_json_value(
+                        &row,
+                        row.column(idx).type_info().name(),
+                        idx,
+                        String::from("+08:00"),
+                    );
                     dbg!(&res);
                 }
             }

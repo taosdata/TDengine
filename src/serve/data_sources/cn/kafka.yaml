@@ -56,7 +56,7 @@ groups:
         hint:
           type: file
       - name: ca_password
-        display: CA 密码,
+        display: CA 密码
         description: CA 私钥密码
         required: true
         hint:

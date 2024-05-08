@@ -113,7 +113,9 @@ impl Consumer {
                     // copy rows
                     let rows_cloned = rows.splice(.., Vec::new()).collect::<Vec<_>>();
                     // transform to record batch
-                    let batch = appender::to_record_batch(rows_cloned).await?;
+                    let batch =
+                        appender::to_record_batch(rows_cloned, self.config.task.time_zone.clone())
+                            .await?;
                     // send to IPC
                     tx.send_async(batch.clone()).await?;
                     // clear rows
@@ -124,7 +126,7 @@ impl Consumer {
             }
             if !rows.is_empty() {
                 // transform to record batch
-                let batch = appender::to_record_batch(rows).await?;
+                let batch = appender::to_record_batch(rows, self.config.task.time_zone.clone()).await?;
                 // send to IPC
                 tx.send_async(batch.clone()).await?;
                 // stastics

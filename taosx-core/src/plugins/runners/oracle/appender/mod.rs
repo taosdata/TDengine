@@ -161,20 +161,20 @@ pub fn to_record_batches(
                 }
                 OracleType::Timestamp(_) => {
                     let val = col.get::<NaiveDateTime>();
-                    match val {
+                    match val { 
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
-                                .append_value(val.and_utc().timestamp_nanos_opt().unwrap() as i64);
+                                .append_value(format!("{:?}", val));
                         }
                     }
                 }

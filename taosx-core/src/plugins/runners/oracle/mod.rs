@@ -293,7 +293,7 @@ fn generate_json_value(
             let val = col.get::<NaiveDateTime>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
+                Ok(val) => Ok(json!(format!("{:?}", val))),
             }
         }
         OracleType::TimestampTZ(_) => {
