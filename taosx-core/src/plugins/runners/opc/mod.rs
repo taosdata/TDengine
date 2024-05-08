@@ -399,6 +399,19 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
+pub fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<String>) -> String {
+    let mut stable = stable_expr.clone();
+    if stable_expr.contains(".") {
+        stable = stable.replace(".", "_");
+    }
+
+    if let Some(t) = value_type {
+        stable = stable.replace("{type}", t.as_str());
+    }
+
+    stable
+}
+
 /// 解析为文件路径.
 /// 1. 如果以@开头，表示文件路径, 直接覆盖会dsn;
 /// 2. 否则，认为是文件内容，存储到临时文件后，返回文件句柄，为了使tempfile不被删除，需要返回NamedTempFile.
@@ -510,7 +523,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let auth_certificate = get_temp_file(&mut dsn, "auth_certificate");
     let auth_private_key = get_temp_file(&mut dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_for_validate(&dsn).await;
+    let config = OPCConfig::from_dsn_check_mode(&dsn).await;
     let r = match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
