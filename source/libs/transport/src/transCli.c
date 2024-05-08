@@ -1777,6 +1777,7 @@ static void cliBuildBatch(SCliMsg* pMsg, queue* h, SCliThrd* pThrd) {
 
       QUEUE_PUSH(&((*ppBatchList)->wq), &pBatch->listq);
       (*ppBatchList)->len += 1;
+      return;
     }
 
     queue*     hdr = QUEUE_TAIL(&((*ppBatchList)->wq));
