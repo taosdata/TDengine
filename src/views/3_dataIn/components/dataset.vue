@@ -96,6 +96,16 @@
           </el-tooltip>
         </div>
       </section>
+      <el-button
+        v-if="value"
+        :loading="loading"
+        :disabled="loading"
+        type="primary"
+        size="mini"
+        class="ml15"
+        @click="search"
+        >{{ $t('datasource.transformer.preview') }}</el-button
+      >
     </section>
     <el-dialog
       :title="$t('dataIn.filterPointTitle')"
@@ -156,7 +166,8 @@ import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTick
 import { getDsnData } from '../utils';
 import { downloadFileBlob } from '@/utils/file';
 import { handleDownload } from '../utils';
-import DocsContent from '@/views/support/components/editorContentDisplay.vue'
+import DocsContent from '@/views/support/components/editorContentDisplay.vue';
+import mixinItem from '../mixins/opcPreviewPoint.js';
 
 export default {
   props: {
@@ -169,6 +180,7 @@ export default {
       default: () => ({})
     }
   },
+  mixins: [mixinItem],
   inject: ['getCurrentDefinition', 'sourceParent'],
   components: { uploadCsv, DocsContent },
   data() {
@@ -184,7 +196,7 @@ export default {
       },
       ticket: '',
       percentage: 5,
-      complete: false,
+      completed: false,
     };
   },
   computed: {
@@ -281,7 +293,7 @@ export default {
     }
   },
   watch: {
-    complete(val) {
+    completed(val) {
       if (val) {
         this.timer && clearInterval(this.timer)
         this.percentage = 100
@@ -352,11 +364,11 @@ export default {
         this.ticket = result.ticket
   
         this.timer = setInterval(async () => {
-          let { complete } = await checkReadyFile(result.ticket)
-          this.complete = complete
+          let { completed } = await checkReadyFile(result.ticket)
+          this.completed = completed
           const randomNum = Math.floor(Math.random() * 4);
 
-          if (!complete) {
+          if (!completed) {
             this.percentage = this.percentage < 95 ? this.percentage + randomNum : 99;
           }
         }, 2000);
@@ -372,7 +384,7 @@ export default {
         return this.$error(res.message)
       }
       downloadFileBlob(res, this.allCategoryText + '.csv');
-      this.complete = false;
+      this.completed = false;
       this.requestIng = false
       setTimeout(() => {
         this.progressVisble = false;

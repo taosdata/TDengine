@@ -9,19 +9,59 @@
       style="width: 100%"
       :max-height="defaultHeight-99"
       ref='table'
-      :data="tableData"
+      :data="tableData.filter(data => (!searchName || data.name.toLowerCase().includes(searchName.toLowerCase())) &&
+      (!searchId || data.id.toLowerCase().includes(searchId.toLowerCase())) &&
+      (!searchEnabled || data.enabled.toLowerCase().includes(searchEnabled.toLowerCase())))"
       size="medium"
     >
       <el-table-column
         prop="id"
         show-overflow-tooltip
         label="id"
-      ></el-table-column>
+      >
+        <template #header>
+          <el-input
+            style="width: 80%"
+            v-model="searchId"
+            size="mini"
+            :placeholder="$t('filter')"
+          >
+            <template slot="prepend">id</template>
+          </el-input>
+        </template>
+      </el-table-column>
       <el-table-column
         prop="name"
         show-overflow-tooltip
         label="name"
-      ></el-table-column>
+      >
+        <template #header>
+          <el-input
+            style="width: 80%"
+            v-model="searchName"
+            size="mini"
+            :placeholder="$t('filter')"
+          >
+            <template slot="prepend">name</template>
+          </el-input>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="enabled"
+        show-overflow-tooltip
+        label="enabled"
+      >
+        <template #header>
+          <el-input
+            style="width: 80%"
+            v-model="searchEnabled"
+            size="mini"
+            :placeholder="$t('filter')"
+          >
+            <template slot="prepend">enabled</template>
+          </el-input>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-pagination
@@ -57,6 +97,9 @@ export default {
       showtable: false,
       defaultHeight: 495,
       defaultTop: '50%',
+      searchName: '',
+      searchId: '',
+      searchEnabled: ''
     };
   },
   mounted() {
