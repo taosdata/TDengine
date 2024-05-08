@@ -32,6 +32,7 @@ static int32_t downloadCheckpointDataByName(const char* id, const char* fname, c
 static int32_t deleteCheckpointFile(const char* id, const char* name);
 static int32_t streamTaskBackupCheckpoint(const char* id, const char* path);
 static int32_t deleteCheckpoint(const char* id);
+static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -444,14 +445,15 @@ int32_t uploadCheckpointData(void* param) {
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", taskStr, arg->chkpId);
   }
+
   if (arg->type == DATA_UPLOAD_S3) {
     if (code == 0 && (code = getCheckpointDataMeta(arg->taskId, path, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", taskStr, arg->chkpId);
+      stError("s-task:%s failed to get checkpointId:%" PRId64 " meta", taskStr, arg->chkpId);
     }
   }
 
   if (code == 0 && (code = streamTaskBackupCheckpoint(arg->taskId, path)) != 0) {
-    stError("s-task:%s failed to upload checkpoint:%" PRId64, taskStr, arg->chkpId);
+    stError("s-task:%s failed to upload checkpointId:%" PRId64, taskStr, arg->chkpId);
   }
 
   taskReleaseDb(arg->dbRefId);
@@ -610,13 +612,19 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
   return 0;
 }
 
-static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
   int32_t code = 0;
   char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  if (buf == NULL) {
+    code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
+  }
+
   sprintf(buf, "%s/%s", id, fname);
   if (s3GetObjectToFile(buf, dstName) != 0) {
-    code = -1;
+    code = errno;
   }
+
   taosMemoryFree(buf);
   return code;
 }
@@ -636,11 +644,13 @@ int32_t streamTaskBackupCheckpoint(const char* id, const char* path) {
     stError("streamTaskBackupCheckpoint parameters invalid");
     return -1;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
     return uploadRsync(id, path);
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
   }
+
   return 0;
 }
 
