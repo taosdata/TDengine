@@ -1090,7 +1090,11 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_ROW_KEY(idxKey->key)) {
-        int32_t cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+        int32_t cmp_res = 1;
+        if (pLastCol) {
+          cmp_res = tRowKeyCompare(&pLastCol->rowKey, pRowKey);
+        }
+
         if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
           char  *value = NULL;
           size_t vlen = 0;
