@@ -1484,10 +1484,16 @@ static int32_t getPageBufIncForRowIdSort(SSDataBlock* pDstBlock, int32_t srcRowI
   int32_t numOfCols = blockDataGetNumOfCols(pDstBlock);
 
   if (pPkCol == NULL) {
-    ASSERT(!pDstBlock->info.hasVarCol);
+    ASSERT((numOfCols == 4) && (!pDstBlock->info.hasVarCol));
+
     size += numOfCols * ((dstRowIndex & 0x7) == 0 ? 1: 0);
     size += blockDataGetRowSize(pDstBlock);
   } else {
+    ASSERT(numOfCols == 5);
+
+    size += (numOfCols - 1) * (((dstRowIndex & 0x7) == 0)? 1:0);
+    size += (8 + 4 + 4 + 4);  // todo refactor later
+
     if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
       if ((pPkCol->varmeta.offset[srcRowIndex] != -1) && (pPkCol->pData)) {
         char* p = colDataGetData(pPkCol, srcRowIndex);
