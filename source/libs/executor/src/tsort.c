@@ -1462,7 +1462,12 @@ static int32_t getPageBufIncForRow(SSDataBlock* pSrcBlock, int32_t srcRowIndex, 
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
         if ((pColInfoData->varmeta.offset[srcRowIndex] != -1) && (pColInfoData->pData)) {
           char* p = colDataGetData(pColInfoData, srcRowIndex);
-          size += varDataTLen(p);
+
+          if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+            size += getJsonValueLen(p);
+          } else {
+            size += varDataTLen(p);
+          }
         }
 
         size += sizeof(pColInfoData->varmeta.offset[0]);
