@@ -1573,7 +1573,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     }
 
     blkPgSz += bufInc;
-    ASSERT(blkPgSz == blockDataGetSize(pHandle->pDataBlock));
+    ASSERT(blkPgSz == blockDataGetSize(pHandle->pDataBlock) + pgHeaderSz);
 
     ++nRows;
 
