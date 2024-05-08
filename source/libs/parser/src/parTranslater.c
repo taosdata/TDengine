@@ -3168,11 +3168,7 @@ static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pF
     if (pSelect->pFromTable &&
         (pSelect->pFromTable->type == QUERY_NODE_REAL_TABLE || pSelect->pFromTable->type == QUERY_NODE_TEMP_TABLE)) {
       STableNode* pTable = (STableNode*)pSelect->pFromTable;
-      if (pVal1) {
-        return strcmp(pTable->tableAlias, pVal1->literal) == 0;
-      } else if (!pVal1) {
-        return strcmp(pTable->tableAlias, pVal2->literal) == 0;
-      }
+      return true;
     } else {
       return false;
     }
