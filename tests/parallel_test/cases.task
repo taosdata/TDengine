@@ -484,6 +484,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
@@ -650,10 +660,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica2.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica2_insertdatas.py -N 4 -M 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica2_insertdatas_querys.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica2_vgroups.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
