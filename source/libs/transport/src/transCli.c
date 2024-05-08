@@ -113,7 +113,6 @@ typedef struct SCliThrd {
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
 
-  int connCount;
   void (*destroyAhandleFp)(void* ahandle);
   SHashObj* fqdn2ipCache;
   SCvtAddr  cvtAddr;
@@ -915,7 +914,6 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   conn->broken = false;
   transRefCliHandle(conn);
 
-  atomic_add_fetch_32(&pThrd->connCount, 1);
   allocConnRef(conn, false);
 
   return conn;
@@ -976,8 +974,6 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->timer->data = NULL;
     conn->timer = NULL;
   }
-
-  atomic_sub_fetch_32(&pThrd->connCount, 1);
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -2002,10 +1998,8 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   taosMemoryFree(pMsg);
 }
 static FORCE_INLINE void destroyCmsgWrapper(void* arg, void* param) {
+  if (arg == NULL) return;
   SCliMsg* pMsg = arg;
-  if (pMsg == NULL) {
-    return;
-  }
 
   SCliThrd* pThrd = param;
   if (pMsg->msg.info.notFreeAhandle == 0 && pThrd != NULL) {
@@ -2335,9 +2329,9 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   // code, msgType
 
-  // A:  epset,   leader, not self
-  // B:  epset,   not know leader
-  // C:  no epset, leader but not serivce
+  // A:  epset,leader, not self
+  // B:  epset,not know leader
+  // C:  noepset,leader but not serivce
 
   bool noDelay = false;
   if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {

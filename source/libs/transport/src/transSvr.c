@@ -676,7 +676,8 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   taosMemoryFree(smsg);
 }
 static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
-static void              destroyAllConn(SWorkThrd* pThrd) {
+
+static void destroyAllConn(SWorkThrd* pThrd) {
   tTrace("thread %p destroy all conn ", pThrd);
   while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
     queue* h = QUEUE_HEAD(&pThrd->conn);
