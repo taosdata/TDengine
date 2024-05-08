@@ -126,7 +126,8 @@ impl Consumer {
             }
             if !rows.is_empty() {
                 // transform to record batch
-                let batch = appender::to_record_batch(rows, self.config.task.time_zone.clone()).await?;
+                let batch =
+                    appender::to_record_batch(rows, self.config.task.time_zone.clone()).await?;
                 // send to IPC
                 tx.send_async(batch.clone()).await?;
                 // stastics

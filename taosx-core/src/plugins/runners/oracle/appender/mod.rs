@@ -161,7 +161,7 @@ pub fn to_record_batches(
                 }
                 OracleType::Timestamp(_) => {
                     let val = col.get::<NaiveDateTime>();
-                    match val { 
+                    match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
