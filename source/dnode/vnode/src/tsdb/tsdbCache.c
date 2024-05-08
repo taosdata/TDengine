@@ -781,7 +781,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
-      if (pLastCol->ts <= keyTs) {
+      if (pLastCol->ts < keyTs || (pLastCol->ts == keyTs && !COL_VAL_IS_NONE(pColVal))) {
         uint8_t *pVal = NULL;
         int      nData = pLastCol->colVal.value.nData;
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
@@ -884,12 +884,11 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     for (int i = 0; i < num_keys; ++i) {
       SIdxKey *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       SColVal *pColVal = (SColVal *)TARRAY_DATA(aColVal) + idxKey->idx;
-      // SColVal *pColVal = (SColVal *)taosArrayGet(aColVal, idxKey->idx);
 
       SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
 
       if (idxKey->key.ltype == 0) {
-        if (NULL == pLastCol || pLastCol->ts <= keyTs) {
+        if (NULL == pLastCol || pLastCol->ts < keyTs || (pLastCol->ts == keyTs && !COL_VAL_IS_NONE(pColVal))) {
           char  *value = NULL;
           size_t vlen = 0;
           tsdbCacheSerialize(&(SLastCol){.ts = keyTs, .colVal = *pColVal}, &value, &vlen);
