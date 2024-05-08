@@ -104,6 +104,7 @@ void metaRefMgtCleanup() {
 
 int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
   taosThreadMutexLock(&gMetaRefMgt.mutex);
+
   void* p = taosHashGet(gMetaRefMgt.pTable, &vgId, sizeof(vgId));
   if (p == NULL) {
     SArray* list = taosArrayInit(8, sizeof(void*));
@@ -113,6 +114,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid) {
     SArray* list = *(SArray**)p;
     taosArrayPush(list, &rid);
   }
+
   taosThreadMutexUnlock(&gMetaRefMgt.mutex);
   return 0;
 }
@@ -284,6 +286,7 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
   return 0;
 }
+
 void streamMetaRemoveDB(void* arg, char* key) {
   if (arg == NULL || key == NULL) return;
 
@@ -766,7 +769,6 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   return code;
 }
 
-// todo add error log
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
     stError("vgId:%d failed to commit stream meta", pMeta->vgId);
@@ -784,6 +786,7 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
     return -1;
   }
 
+  stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
   return 0;
 }
 
