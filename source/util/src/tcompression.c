@@ -347,8 +347,8 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
   char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
   int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
   char    bit_to_selector[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 13,
-                            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-                            15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+                               14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+                               15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
 
   // get the byte limit.
   int32_t word_length = getWordLength(type);
@@ -1070,7 +1070,7 @@ void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int32_t *
 }
 
 int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, char *const output) {
-  float * istream = (float *)input;
+  float  *istream = (float *)input;
   int32_t byte_limit = nelements * FLOAT_BYTES + 1;
   int32_t opos = 1;
 

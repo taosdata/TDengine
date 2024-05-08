@@ -127,7 +127,7 @@ bool    tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char *   tsTelemUri = "/report";
+char    *tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
 bool tsEnableCrashReport = false;
@@ -271,7 +271,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 300;    // 5min by default.
+int32_t tsStreamCheckpointInterval = 300;  // 5min by default.
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 16;
 int32_t tsTtlUnit = 86400;
@@ -1452,7 +1452,7 @@ void taosCleanupCfg() {
 
 typedef struct {
   const char *optionName;
-  void *      optionVar;
+  void       *optionVar;
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
@@ -1465,7 +1465,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
-        bool *  pVar = pOptions[d].optionVar;
+        bool   *pVar = pOptions[d].optionVar;
         uInfo("%s set from %d to %d", optName, *pVar, flag);
         *pVar = flag;
         terrno = TSDB_CODE_SUCCESS;
@@ -1863,7 +1863,7 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
     return;
   }
 
-  SArray *     noNeedToSetVars = NULL;
+  SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
   if (pItem != NULL) {
     pItem->i32 = flag;
