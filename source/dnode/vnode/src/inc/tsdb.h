@@ -895,7 +895,6 @@ typedef enum {
 } EExecMode;
 
 typedef struct {
-  int64_t version;
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
@@ -909,20 +908,20 @@ typedef struct  {
       uint32_t nData;
     };
   };
-} SValueV1;
+} SValueV0;
 
 typedef struct {
   int16_t  cid;
   int8_t   type;
   int8_t   flag;
-  SValueV1 value;
-} SColValV1;
+  SValueV0 value;
+} SColValV0;
 
 typedef struct {
   TSKEY     ts;
   int8_t    dirty;
-  SColValV1 colVal;
-} SLastColV1;
+  SColValV0 colVal;
+} SLastColV0;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
