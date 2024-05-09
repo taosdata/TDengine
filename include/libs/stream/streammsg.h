@@ -16,6 +16,8 @@
 #ifndef TDENGINE_STREAMMSG_H
 #define TDENGINE_STREAMMSG_H
 
+#include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,6 +47,9 @@ typedef struct {
   int64_t expireTime;
 } SStreamCheckpointSourceReq;
 
+int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
+int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
+
 typedef struct {
   int64_t streamId;
   int64_t checkpointId;
@@ -54,9 +59,6 @@ typedef struct {
   int64_t expireTime;
   int8_t  success;
 } SStreamCheckpointSourceRsp;
-
-int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq);
-int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq);
 
 int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp);
 
