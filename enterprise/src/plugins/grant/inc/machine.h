@@ -259,9 +259,11 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  // GRANT_OPT_FUTURE_EXPIRE = 9,
-  // GRANT_OPT_FUTURE_EXPIRE_NUM = 10,
-  GRANT_OPT_DYN_MAX = 9,
+  GRANT_OPT_OBJECT_STORAGE = 9,
+  GRANT_OPT_ACTIVE_ACTIVE = 10,
+  GRANT_OPT_DUAL_REPLICA_HA = 11,
+  GRANT_OPT_DATABASE_ENCRYPTION = 12,
+  GRANT_OPT_DYN_MAX = 13,
 } SGrantOpt;
 
 typedef struct {
@@ -369,7 +371,11 @@ typedef struct {
     struct {
       int64_t multiTierExpireSec : 40;
       int64_t curDnodes : 16;
-      int64_t reserve2 : 8;
+      int64_t objectStorageExpired : 1;
+      int64_t activeActiveExpired : 1;
+      int64_t dualReplicaHAExpired : 1;
+      int64_t dbEncryptionExpired : 1;
+      int64_t reserve2 : 4;
     };
   };
   union {

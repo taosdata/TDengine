@@ -164,10 +164,22 @@ static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
     "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "basic", "service", "stream", "subscription", "audit", "csv", "view", "storage", "backup_restore"};
+    "basic",   "service",        "stream",         "subscription",  "audit",        "csv",          "view",
+    "storage", "backup_restore", "object_storage", "active_active", "dual_replica", "db_encryption"};
 
-static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
-    "basic", "service_time", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
+static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
+                                                       "Service Time",
+                                                       "Stream",
+                                                       "Subscription",
+                                                       "Audit",
+                                                       "CSV",
+                                                       "View",
+                                                       "Multi-Tier Storage",
+                                                       "Backup Restore",
+                                                       "Object Storage",
+                                                       "Active-Active",
+                                                       "Dual-Replica HA",
+                                                       "Database Encryption"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
