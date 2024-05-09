@@ -903,6 +903,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (createReq.replications == 2) {
+    if ((terrno = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      code = terrno;
+      goto _OVER;
+    }
+  }
+
   if ((code = mndCheckDbEncryptKey(pMnode, &createReq)) != 0) {
     terrno = code;
     goto _OVER;
@@ -1161,6 +1168,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
     goto _OVER;
+  }
+
+  if (alterReq.replications == 2) {
+    if ((code = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      goto _OVER;
+    }
   }
 
   int32_t numOfTopics = 0;
