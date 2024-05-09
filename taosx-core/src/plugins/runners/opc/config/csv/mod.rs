@@ -77,7 +77,7 @@ impl CsvParser {
                     anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
                 })?;
                 model_config
-                    .append(&csv_header, csv_line, row_index)
+                    .add_csv_row(&csv_header, csv_line, row_index)
                     .await
                     .map_err(|err| {
                         anyhow::anyhow!(

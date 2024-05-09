@@ -5,7 +5,8 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -15,7 +16,7 @@ use tracing::{instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::model::{ColumnConfig, TableConfig};
+use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::OPCConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
@@ -84,10 +85,10 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = OPCConfig::parse_select_all_points(&from)?.unwrap_or(false);
-    if select_all_points {
-        handle_select_all_points(&mut from).await?;
-    }
+    // let select_all_points = OPCConfig::parse_select_all_points(&from)?.unwrap_or(false);
+    // if select_all_points {
+    //     handle_select_all_points(&mut from).await?;
+    // }
 
     // 将文件中的内容写入到临时文件中，然后将文件路径写入到 DSN 中
     let certificate = get_temp_file(&mut from, "certificate");
@@ -243,6 +244,7 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
+/*
 #[instrument(skip(dsn))]
 async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let child_table_expression = dsn.remove("child_table_expression");
@@ -339,8 +341,9 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     );
     Ok(())
 }
+*/
 
-fn csv_string_record_from_iter<'a, I>(iter: I) -> String
+pub fn csv_string_record_from_iter<'a, I>(iter: I) -> String
 where
     I: IntoIterator<Item = String>,
 {
@@ -438,6 +441,7 @@ fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let mut from: Dsn = req.from.parse()?;
+
     let certificate = get_temp_file(&mut from, "certificate");
     let private_key = get_temp_file(&mut from, "private_key");
     let auth_certificate = get_temp_file(&mut from, "auth_certificate");
@@ -447,7 +451,61 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let config = OPCConfig::from_dsn_point_mode(&from)?;
+    let csv_config_file = OPCConfig::parse_csv_config_file(&from);
+    let opc_points = match csv_config_file {
+        Some(_file) => opc_datasets_by_csv(&from).await?,
+        None => opc_datasets_by_command(&from).await?,
+    };
+
+    certificate.map(|f| f.close());
+    private_key.map(|f| f.close());
+    auth_certificate.map(|f| f.close());
+    auth_private_key.map(|f| f.close());
+
+    Ok(opc_points)
+}
+
+async fn opc_datasets_by_csv(dsn: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let parser = CsvParser::from_dsn(dsn).await?;
+    let model_config = parser.get_model_config();
+
+    let mut datasets = vec![];
+    for (point_id, point_config) in model_config.point_config_map.iter() {
+        let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
+        let name = point_config.tag_values.as_ref().and_then(|tag_values| {
+            tag_values.iter().find_map(|(tag_name, tag_value)| {
+                if tag_name == "name" {
+                    Some(tag_value.to_string())
+                } else {
+                    None
+                }
+            })
+        });
+        let table_config = model_config.table_config_map.get(point_id).unwrap();
+        let display = table_config.enabled.unwrap_or(1).to_string();
+        let options = vec![OptionSet {
+            name: "enabled".to_string(),
+            display,
+            description: None,
+            required: false,
+        }];
+
+        let ds = DataSet {
+            id: point_id.clone(),
+            name,
+            category: None,
+            r#type: point_type,
+            options: Some(options),
+            format: None,
+        };
+        datasets.push(ds);
+    }
+
+    Ok(datasets)
+}
+
+async fn opc_datasets_by_command(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let config = OPCConfig::from_dsn_point_mode(from)?;
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -498,12 +556,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             anyhow::bail!("Get OPC datasets error: {}", &error);
         }
     }
-
     temp_path.close()?;
-    certificate.map(|f| f.close());
-    private_key.map(|f| f.close());
-    auth_certificate.map(|f| f.close());
-    auth_private_key.map(|f| f.close());
+
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
     Ok(res)
 }
@@ -599,8 +653,9 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
+
+    use super::*;
 
     #[test]
     fn test_tbname_pattern() {

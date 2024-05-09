@@ -188,23 +188,39 @@ datasets:
             数据点位名称或 id 需要满足设置的正则表达式。
           hint:
             type: str
-        - name: table_primary_key
-          display: 主键列
-          required: true
-          value: original_ts
+        - name: super_table_expression
+          display: 超级表名称
           description: |
-            目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
+            支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。
+          required: true
+          value: opc_{type}
           hint:
             type: str
-            choices:
-              - received_ts
-              - original_ts
         - name: child_table_expression
           display: 表名称
           description: |
-            支持 <child table prefix>_{ns}_{id} 格式，如果 NodeId 中不存在 ns 或 id 将置为空
+            支持 <child table prefix>_{ns}_{id} 格式，{ns} 表示点位的namespace，{id} 为点位的 id。
           required: true
           value: t_{ns}_{id}
+          hint:
+            type: str
+        - name: table_primary_key
+          display: 主键列
+          description: |
+            目标数据表主键将使用选择的值作为时间戳主键列，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
+          required: false
+          value: original_ts
+          hint:
+            type: str
+            choices:
+              - original_ts
+              - received_ts
+        - name: table_primary_key_alias
+          display: 主键别名
+          description: |
+            在目标数据表中的主键列名称。
+          required: false
+          value: ts
           hint:
             type: str
 

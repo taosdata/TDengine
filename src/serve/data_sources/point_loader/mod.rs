@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 use utoipa::*;
 
 use taosx_core::{list_datasets_from, DataSetsReq};
+use taosx_ipc::types::DataSet;
 
 use crate::serve::controller::TaskControllerRef;
 use crate::serve::TaskController;
@@ -116,18 +117,10 @@ impl<T> Pagination<T> {
 pub struct OpcPoint {
     pub id: String,
     pub name: Option<String>,
+    pub enabled: Option<i8>,
 }
 
-impl OpcPoint {
-    pub fn new(id: String, name: String) -> Self {
-        Self {
-            id,
-            name: Some(name),
-        }
-    }
-}
-
-// 同步下载所有数据点位
+/// 同步下载所有数据点位
 pub async fn download_all_point_csv_file(
     controller: Data<TaskControllerRef>,
     // data: Query<DataSetsReq>,
@@ -280,8 +273,14 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                     .map(|record| {
                         let record = record.unwrap();
                         let id = record.get(1).unwrap_or("").to_string();
+                        let enabled = record.get(2).unwrap_or("1").parse::<i8>().unwrap_or(1);
                         let name = record.get(13).unwrap_or("").to_string();
-                        OpcPoint::new(id, name)
+
+                        OpcPoint {
+                            id,
+                            name: Some(name),
+                            enabled: Some(enabled),
+                        }
                     })
                     .collect();
 
@@ -370,10 +369,12 @@ async fn get_all_points(
 
                     let mut i = 1;
                     data.iter().for_each(|item| {
+                        let enabled = get_enabled(item.clone());
                         let point_item = format!(
-                            "{},{},1,opc_{{type}},t_{{tag_name}},val,,,quality,ts,rts,,,{}\n",
+                            "{},{},{},opc_{{type}},t_{{tag_name}},val,,,quality,ts,rts,,,{}\n",
                             i,
                             item.id,
+                            enabled,
                             item.name.clone().unwrap_or("".to_string())
                         );
                         result.push_str(point_item.as_str());
@@ -391,10 +392,10 @@ async fn get_all_points(
                         let safe_id = get_safe_string_for_csv(&item.id);
                         let safe_name =
                             get_safe_string_for_csv(&(item.name.clone().unwrap_or("".to_string())));
-
+                        let enabled = get_enabled(item.clone());
                         let point_item = format!(
-                            "{},{},1,opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
-                            i, safe_id, safe_name
+                            "{},{},{},opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
+                            i, safe_id, enabled, safe_name
                         );
                         result.push_str(point_item.as_str());
                         i += 1;
@@ -411,6 +412,25 @@ async fn get_all_points(
             Err(err)
         }
     }
+}
+
+fn get_enabled(item: DataSet) -> i8 {
+    item.options
+        .map(|o| {
+            if o.is_empty() {
+                return 1;
+            }
+            o.iter()
+                .find(|o| o.name == "enabled")
+                .map(|o| {
+                    if o.display == "0" {
+                        return 0;
+                    }
+                    return 1;
+                })
+                .unwrap_or(1)
+        })
+        .unwrap_or(1)
 }
 
 fn get_opcua_csv_header(_lang: &str, demo: bool) -> String {

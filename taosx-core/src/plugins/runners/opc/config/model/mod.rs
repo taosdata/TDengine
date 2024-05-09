@@ -5,12 +5,14 @@ use anyhow::bail;
 use csv_async::StringRecord;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::Ty;
+use taos::{Dsn, Ty};
 
 use taosx_ipc::prelude::IpcDataType;
+use taosx_ipc::types::DataSet;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
+use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::validate_table_column_name;
 
@@ -31,8 +33,93 @@ impl OpcModelConfig {
         }
     }
 
+    pub fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
+        let stable_expr = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expr = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        let mut index = 0;
+        for p in points {
+            let point_id = p.id;
+            let point_type = p.r#type;
+
+            // point_config
+            let tbname = generate_tbname_from_pattern(&dsn.driver, &tbname_expr, point_id.as_str());
+            let stable = generate_stable_from_pattern(&stable_expr, &point_type);
+            let value_type = point_type
+                .map(|t| {
+                    IpcDataType::from_str(t.as_str())
+                        .map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
+                })
+                .transpose()?;
+            let point_config = PointConfig {
+                row_index: index,
+                code: tbname,
+                stable: Some(stable),
+                tag_values: None,
+                value_type,
+            };
+            self.point_config_map.insert(point_id.clone(), point_config);
+
+            // table_config
+            let mut column_configs = vec![];
+            column_configs.push(ColumnConfig {
+                name: ColumnConfig::VALUE.to_string(),
+                r#type: None,
+                alias: Some(String::from("val")),
+                transform: None,
+                is_primary_key: false,
+            });
+            column_configs.push(ColumnConfig {
+                name: ColumnConfig::QUALITY.to_string(),
+                r#type: Some(Ty::Int),
+                alias: None,
+                transform: None,
+                is_primary_key: false,
+            });
+            match primary_key.as_str() {
+                ColumnConfig::ORIGINAL_TS => {
+                    column_configs.push(ColumnConfig {
+                        name: ColumnConfig::ORIGINAL_TS.to_string(),
+                        r#type: Some(Ty::Timestamp),
+                        alias: Some(primary_key_alias.clone()),
+                        transform: None,
+                        is_primary_key: true,
+                    });
+                }
+                ColumnConfig::RECEIVED_TS => {
+                    column_configs.push(ColumnConfig {
+                        name: ColumnConfig::RECEIVED_TS.to_string(),
+                        r#type: Some(Ty::Timestamp),
+                        alias: Some(primary_key_alias.clone()),
+                        transform: None,
+                        is_primary_key: true,
+                    });
+                }
+                _ => {
+                    bail!("invalid primary key: {}", primary_key);
+                }
+            }
+
+            let table_config = TableConfig {
+                enabled: Some(1),
+                stable_prefix: None,
+                column_configs,
+                tag_configs: None,
+            };
+            self.table_config_map.insert(point_id.clone(), table_config);
+
+            index += 1;
+        }
+
+        Ok(())
+    }
+
     /// parse one row in csv file to a point config
-    pub async fn append(
+    pub async fn add_csv_row(
         &mut self,
         header: &CsvHeader,
         row: StringRecord,
@@ -176,10 +263,77 @@ fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Stri
 
 #[cfg(test)]
 mod model_config_tests {
+    use taos::IntoDsn;
+
     use super::*;
 
+    #[test]
+    fn test_add_points() {
+        // given
+        let dsn = format!(
+            "opcua://?super_table_expression={}&child_table_expression={}",
+            "opc_{type}", "t_{ns}_{id}"
+        )
+        .into_dsn()
+        .unwrap();
+        let points = vec![
+            DataSet {
+                id: "ns=3;i=1001".to_string(),
+                name: Some("Constant".to_string()),
+                category: None,
+                r#type: Some("double".to_string()),
+                options: None,
+                format: None,
+            },
+            DataSet {
+                id: "ns=3;i=1002".to_string(),
+                name: Some("Counter".to_string()),
+                category: None,
+                r#type: Some("int".to_string()),
+                options: None,
+                format: None,
+            },
+        ];
+
+        // when
+        let mut config = OpcModelConfig::new();
+        config.add_points(points, &dsn).unwrap();
+
+        // then
+        assert_eq!(config.point_config_map.len(), 2);
+        config.point_config_map.get("ns=3;i=1001").map(|v| {
+            assert_eq!(v.code, "t_3_1001");
+            assert_eq!(v.stable, Some("opc_double".to_string()));
+            assert_eq!(v.value_type, Some(IpcDataType::Float64));
+        });
+        config.point_config_map.get("ns=3;i=1002").map(|v| {
+            assert_eq!(v.code, "t_3_1002");
+            assert_eq!(v.stable, Some("opc_int".to_string()));
+            assert_eq!(v.value_type, Some(IpcDataType::Int32));
+        });
+
+        assert_eq!(config.table_config_map.len(), 2);
+        config.table_config_map.get("ns=3;i-1001").map(|v| {
+            assert_eq!(v.enabled, Some(1));
+            assert_eq!(v.stable_prefix, None);
+            assert_eq!(v.column_configs.len(), 3);
+
+            assert_eq!(v.column_configs[0].name, ColumnConfig::VALUE);
+            assert_eq!(v.column_configs[0].r#type, None);
+            assert_eq!(v.column_configs[0].alias, Some("val".to_string()));
+
+            assert_eq!(v.column_configs[1].name, ColumnConfig::QUALITY);
+            assert_eq!(v.column_configs[1].r#type, Some(Ty::Int));
+            assert_eq!(v.column_configs[1].alias, None);
+
+            assert_eq!(v.column_configs[2].name, ColumnConfig::ORIGINAL_TS);
+            assert_eq!(v.column_configs[2].r#type, Some(Ty::Timestamp));
+            assert_eq!(v.column_configs[2].alias, Some("ts".to_string()));
+        });
+    }
+
     #[tokio::test]
-    async fn test_append() {
+    async fn test_add_csv_row() {
         let header = CsvHeader::try_new(
             OpcType::OPCUA,
             &StringRecord::from(vec!["point_id", "stable", "tbname", "value_col", "type"]),
@@ -190,10 +344,10 @@ mod model_config_tests {
         let first_line = StringRecord::from(vec!["ns=3;i=1001", "stb1", "tb1", "val", "double"]);
         let second_line = StringRecord::from(vec!["ns=3;i=1002", "stb1", "tb1", "val", "int"]);
 
-        let result = model_config.append(&header, first_line, 1).await;
+        let result = model_config.add_csv_row(&header, first_line, 1).await;
         assert!(result.is_ok());
 
-        let result = model_config.append(&header, second_line, 2).await;
+        let result = model_config.add_csv_row(&header, second_line, 2).await;
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -515,7 +669,7 @@ fn parse_columns(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Vec<C
         (None, None) => {
             // when received_ts and original_ts are both none, add original_ts
             columns.push(ColumnConfig {
-                name: "original_ts".to_string(),
+                name: ColumnConfig::ORIGINAL_TS.to_string(),
                 r#type: Some(Ty::Timestamp),
                 alias: Some("ts".to_string()),
                 transform: None,
