@@ -271,7 +271,7 @@ typedef struct SStoreMeta {
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
 
-  void* (*storeGetIndexInfo)();
+  void* (*storeGetIndexInfo)(void *pVnode);
   void* (*getInvertIndex)(void* pVnode);
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
   int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
