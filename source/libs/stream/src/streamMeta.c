@@ -1381,12 +1381,11 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
 
-    // todo: may be we should find the related fill-history task and set it failed.
     // todo: use hashTable instead
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
-      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, 0, now, false);
+      streamMetaAddFailedTask(pMeta, pTaskId->streamId, pTaskId->taskId);
       continue;
     }
 
@@ -1414,12 +1413,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     if (ret != TSDB_CODE_SUCCESS) {
       stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
       code = ret;
-
-      streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->checkTs, pInfo->readyTs, false);
-      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-        STaskId* pId = &pTask->hTaskInfo.id;
-        streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->checkTs, pInfo->readyTs, false);
-      }
+      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
 
     streamMetaReleaseTask(pMeta, pTask);
@@ -1491,11 +1485,9 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
   if (pTask == NULL) {
     stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, taskId);
-    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, 0, taosGetTimestampMs(), false);
+    streamMetaAddFailedTask(pMeta, streamId, taskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
-
-  // todo: may be we should find the related fill-history task and set it failed.
 
   // fill-history task can only be launched by related stream tasks.
   STaskExecStatisInfo* pInfo = &pTask->execInfo;
@@ -1508,13 +1500,8 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
   int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
   if (ret != TSDB_CODE_SUCCESS) {
-    stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
-
-    streamMetaAddTaskLaunchResult(pMeta, streamId, taskId, pInfo->checkTs, pInfo->readyTs, false);
-    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-      STaskId* pId = &pTask->hTaskInfo.id;
-      streamMetaAddTaskLaunchResult(pMeta, pId->streamId, pId->taskId, pInfo->checkTs, pInfo->readyTs, false);
-    }
+    stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
+    streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
   }
 
   streamMetaReleaseTask(pMeta, pTask);
@@ -1650,6 +1637,17 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
   }
 
   return code;
+}
+
+void streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs) {
+  int32_t startTs = pTask->execInfo.checkTs;
+  streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, failedTs, false);
+
+  // automatically set the related fill-history task to be failed.
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+    STaskId* pId = &pTask->hTaskInfo.id;
+    streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, failedTs, false);
+  }
 }
 
 void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
