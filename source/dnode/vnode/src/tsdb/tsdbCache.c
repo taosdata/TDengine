@@ -1106,7 +1106,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
           char  *value = NULL;
           size_t vlen = 0;
-          tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+          SLastCol lastColTmp = {.rowKey = *pRowKey, .colVal = *pColVal};
+          tsdbCacheSerialize(&lastColTmp, &value, &vlen);
 
           taosThreadMutexLock(&pTsdb->rCache.rMutex);
 
@@ -1114,7 +1115,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
 
           taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
-          pLastCol = (SLastCol *)value;
+          pLastCol = &lastColTmp;
           SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
           *pTmpLastCol = *pLastCol;
           pLastCol = pTmpLastCol;
@@ -1146,7 +1147,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
           if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
             char  *value = NULL;
             size_t vlen = 0;
-            tsdbCacheSerialize(&(SLastCol){.rowKey = *pRowKey, .colVal = *pColVal}, &value, &vlen);
+            SLastCol lastColTmp = {.rowKey = *pRowKey, .colVal = *pColVal};
+            tsdbCacheSerialize(&lastColTmp, &value, &vlen);
 
             taosThreadMutexLock(&pTsdb->rCache.rMutex);
 
@@ -1154,7 +1156,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
 
             taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
-            pLastCol = (SLastCol *)value;
+            pLastCol = &lastColTmp;
             SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
             *pTmpLastCol = *pLastCol;
             pLastCol = pTmpLastCol;
