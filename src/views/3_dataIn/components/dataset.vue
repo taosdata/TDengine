@@ -364,11 +364,11 @@ export default {
         this.ticket = result.ticket
   
         this.timer = setInterval(async () => {
-          let { completed } = await checkReadyFile(result.ticket)
-          this.completed = completed
+          let { complete } = await checkReadyFile(result.ticket)
+          this.completed = complete
           const randomNum = Math.floor(Math.random() * 4);
 
-          if (!completed) {
+          if (!complete) {
             this.percentage = this.percentage < 95 ? this.percentage + randomNum : 99;
           }
         }, 2000);
