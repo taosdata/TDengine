@@ -843,6 +843,13 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
     }
     sdbRelease(pSdb, pDnode);
   }
+
+  if(grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0){
+    code = TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED;
+    errno = code;
+    mError("db:%s, failed to create db since %s", pReq->db, terrstr());
+    goto _exit;
+  }
 #else
   if (pReq->encryptAlgorithm != TSDB_ENCRYPT_ALGO_NONE) {
     code = TSDB_CODE_MND_INVALID_DB_OPTION;
