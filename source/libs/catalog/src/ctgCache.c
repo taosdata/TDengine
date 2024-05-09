@@ -3444,17 +3444,18 @@ static SCtgCacheOperation* createDropAllTbTsmaCtgCacheOp(SCatalog* pCtg, const S
 
 int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   ctgDebug("drop tsma meta for tb: %s.%s", pName->dbname, pName->tname);
-  int32_t code = 0;
-  SCtgDBCache* pDbCache = NULL;
-  SCtgCacheOperation* pOp = NULL;
-  char dbFName[TSDB_DB_FNAME_LEN];
+  int32_t             code = 0;
+  SCtgDBCache        *pDbCache = NULL;
+  SCtgCacheOperation *pOp = NULL;
+  char                dbFName[TSDB_DB_FNAME_LEN];
+  SCtgTSMACache      *pCtgCache = NULL;
   tNameGetFullDbName(pName, dbFName);
   CTG_ERR_JRET(ctgGetDBCache(pCtg, dbFName, &pDbCache));
   if (NULL == pDbCache || !pDbCache->tsmaCache) {
     goto _return;
   }
 
-  SCtgTSMACache *pCtgCache = taosHashGet(pDbCache->tsmaCache, pName->tname, strlen(pName->tname));
+  pCtgCache = taosHashAcquire(pDbCache->tsmaCache, pName->tname, strlen(pName->tname));
   if (!pCtgCache) goto _return;
 
   CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
@@ -3471,10 +3472,11 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   }
   CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
   CTG_ERR_JRET(ctgEnqueue(pCtg, pOp));
-
+  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
   return TSDB_CODE_SUCCESS;
 
 _return:
+  if (pCtgCache) taosHashRelease(pDbCache->tsmaCache, pCtgCache);
   if (pOp) {
     taosMemoryFree(pOp->data);
     taosMemoryFree(pOp);
