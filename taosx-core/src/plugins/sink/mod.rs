@@ -6,10 +6,7 @@ use std::{
     iter::zip,
     net::SocketAddr,
     str::FromStr,
-    sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     time::Duration,
 };
 
@@ -50,24 +47,45 @@ use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
-use futures::TryStreamExt;
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
-    Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
+    Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
+
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
-use tokio_util::sync::CancellationToken;
 use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, Instrument, Span};
+use tracing::{debug, error, info, instrument};
+
+use crate::core_metrics::get_metrics_arc_from_i64;
+use crate::runners::opc::config::model::TableConfig;
+use crate::runners::opc::config::model::TagConfig;
+
+use crate::utils::breakpoints::breakpoints_set;
+use crate::utils::trace::create_data_trace_id;
+use crate::utils::trace::create_stream_trace_id;
+use crate::utils::trace::get_data_trace_id_str;
+use crate::utils::trace::set_data_trace_id_for_current_span;
+use crate::utils::trace::RequestID;
+
+use crate::ConnectorLicense;
+
+use crate::{
+    core_metrics::{CoreMetrics, TaskMetrics},
+    plugins::runners::opc::config::model::ColumnConfig,
+    runners::opc::config::OPCConfig,
+    sink::flat::flat_write_with_sql,
+    utils::trace::get_stream_id_u64,
+    utils::{get_main_version_from_server_version, get_server_version},
+};
 
 use super::super::AGENT_COMPRESSION;
 use super::*;
@@ -180,7 +198,7 @@ async fn ipc_tcp_forward(
                 let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
-                    info!("Send batch {}", data_trace_id_str);
+                    debug!("Send batch {}", data_trace_id_str);
                 });
                 v.map(|message| {
                     message.with_app_metadata(
@@ -469,7 +487,12 @@ async fn consume_lush_record(
                         rs.remove(0);
 
                         for (exist, (tagname, expect)) in rs.iter().zip(tags) {
-                            if exist != expect {
+                            if expect.is_null() {
+                                continue;
+                            }
+                            let exist_value = exist.to_sql_value();
+                            let expect_value = expect.to_sql_value();
+                            if exist_value != expect_value {
                                 tracing::info!(
                                     "table {table_name} tag value not match, new: {}, old:{}",
                                     expect.to_sql_value(),
@@ -490,7 +513,6 @@ async fn consume_lush_record(
                     }
                     Err(err) => {
                         let errstr = format!("{err:#}");
-                        tracing::warn!(sql = query_tags_sql, error = errstr, "query_tags_sql err");
                         if errstr.contains("0x2603") || errstr.contains("0x2662") {
                             // table not exists
                             let table_sql = table.to_sql(None);
@@ -533,6 +555,11 @@ async fn consume_lush_record(
                                 }
                             }
                         } else {
+                            tracing::warn!(
+                                sql = query_tags_sql,
+                                error = errstr,
+                                "query_tags_sql err"
+                            );
                             bail!("lush message table query error: {err:#}");
                         }
                     }
@@ -1051,6 +1078,7 @@ fn to_record_transform_map(
 ) -> HashMap<String, RecordTransform> {
     config_map
         .iter()
+        .filter(|(_, ts_config)| ts_config.transform.is_some())
         .map(|(point_id, ts_config)| {
             let transform = RecordTransform {
                 column_name: ts_config.alias.clone(),
@@ -1306,17 +1334,20 @@ fn get_transform_exprssion_by_id(
 
 #[cfg(test)]
 mod handle_transform_tests {
-    use crate::runners::opc::config::csv::CsvParser;
-    use crate::sink::handle_transform;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
     use arrow::array::{Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
     use arrow_schema::DataType;
     use arrow_schema::Field;
     use arrow_schema::Schema;
-    use std::str::FromStr;
-    use std::sync::Arc;
     use taos::Dsn;
+
     use taosx_ipc::stream::point::RecordMessage;
+
+    use crate::runners::opc::config::csv::CsvParser;
+    use crate::sink::handle_transform;
 
     #[tokio::test]
     async fn test_handle_transform() {
@@ -2221,6 +2252,8 @@ async fn consume_point_record(
                         }
                     }
                 }
+
+                tracing::trace!(retry, "Insert point record success");
             }
         }
 
@@ -3292,7 +3325,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
-    let metrics_arc = get_metrics_arc_from_i64(task_id);
+    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
     let metrics = metrics_arc.ipc();
     if lush_model_config.is_none() {
         if let Some(sql) = metadata.init_sql_string() {

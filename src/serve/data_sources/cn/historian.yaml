@@ -131,7 +131,7 @@ groups:
           type: str
 
 parser:
-  display: 数据映射
+  display: Payload 转换
   description: |
     taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等
   fields:

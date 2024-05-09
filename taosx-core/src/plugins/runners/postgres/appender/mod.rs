@@ -5,7 +5,6 @@ use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::{format, DateTime, Datelike, Timelike, Utc};
 use itertools::Itertools;
 use sqlx::{Column, Row, TypeInfo};
 use sqlx_postgres::types::PgTimeTz;
@@ -759,11 +758,14 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_schema() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from information_schema.tables")
@@ -782,10 +784,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from public.pg_test1")
@@ -797,11 +802,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from information_schema.tables")

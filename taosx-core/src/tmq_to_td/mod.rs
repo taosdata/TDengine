@@ -13,7 +13,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
-use taos::{Consumer, *};
+use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -129,11 +129,12 @@ async fn write_data(
             .table_name()
             .ok_or_else(|| anyhow!("Table name not found while subscribing from source"))?
             .to_string();
+        tracing::trace!("source_table_name: {source_table_name}");
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -150,7 +151,7 @@ async fn write_data(
                 }
                 raw.with_table_name(&name);
                 tracing::debug!(
-                    "[{id}] write into {name} {} rows(total {}) with {} columns",
+                    "Write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
                     raw.ncols()
@@ -176,6 +177,7 @@ async fn write_data(
                 );
             }
         } else {
+            // 会走到这里吗？
             tracing::debug!(
                 "write {} rows(total {}) with {} columns",
                 raw.nrows(),
@@ -607,7 +609,7 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
@@ -914,6 +916,7 @@ pub async fn get_table_progress(
     let (from_db, table) = table
         .split_once('.')
         .ok_or(anyhow!("Invalid table format"))?;
+    from.subject.replace(from_db.to_string());
     let to: Dsn = to.parse()?;
     let to_db = to
         .subject
@@ -922,30 +925,35 @@ pub async fn get_table_progress(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
     let from_taos = from_builder.build().await?;
+    from_taos.use_database(from_db).await?;
     let to_taos = to_builder.build().await?;
 
     let (from_sql, to_sql) = if let Some(start) = start {
         if let Some(end) = end {
-            (format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
-            format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
+            (format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
+            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
         } else {
             (
                 format!(
-                    "SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
                 ),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"
+                ),
             )
         }
     } else {
         if let Some(end) = end {
             (
-                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"
+                ),
+                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
             )
         } else {
             (
-                format!("SELECT last(ts), count(*) FROM `{from_db}`.`{table}`"),
-                format!("SELECT last(ts), count(*) FROM `{to_db}`.`{table}`"),
+                format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
+                format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
             )
         }
     };

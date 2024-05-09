@@ -382,7 +382,6 @@ impl Parse for Regex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::{array::ArrayRef, datatypes::Field};
     #[test]
     fn regex_test() {
         let re = Regex {

@@ -1,6 +1,7 @@
 use std::cmp;
 
 use chrono::{DateTime, Utc};
+use tokio_util::sync::CancellationToken;
 
 use crate::runners::oracle::appender::to_schema;
 use crate::runners::oracle::config::OracleConfig;
@@ -15,7 +16,20 @@ mod producer;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
-pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
+pub async fn migrate_history(
+    mut config: OracleConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    // mark the current time
+    let now = Utc::now();
+
+    // schema
+    let mut query = OracleQuery::try_new(config.connect.clone(), config.task.time_zone.clone())?;
+    let sql = config.task.generate_sql()?;
+    let col_map = query.select_for_schema(&sql)?;
+    let schema = to_schema(col_map)?;
+    tracing::debug!("schema: {:?}", schema);
+
     // get break point
     let breakpoint = get_breakpoint(config.task_id);
     if breakpoint.is_some() {
@@ -23,20 +37,6 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
         tracing::info!("migrate oracle from breakpoint: {}", config.task.start);
     }
     tracing::info!("migrate oracle start, config: {:?}", config);
-
-    // mark the current time
-    let now = Utc::now();
-
-    // schema
-    let mut query = OracleQuery::try_new(config.connect.clone())?;
-
-    // generate sql
-    let sql = config.task.generate_sql()?;
-    tracing::info!("migrate oracle start, sql: {}", sql);
-
-    let col_map = query.select_for_schema(&sql)?;
-    let schema = to_schema(col_map)?;
-    tracing::debug!("schema: {:?}", schema);
 
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
@@ -64,7 +64,8 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
         let tx_live = tx.clone();
         // from 'now' marked by the beginning of the task
         let mut real_start = now - config_live.task.delay;
-        tokio::spawn(async move {
+        // loop to produce task
+        let future_produce = async move {
             loop {
                 let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
@@ -89,18 +90,39 @@ pub async fn migrate_history(mut config: OracleConfig) -> anyhow::Result<()> {
                 // sleep 2 second
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             }
-        });
+        };
+
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        let future_consume = async move {
+            for consumer in consumers {
+                consumer.await??;
+            }
+            anyhow::Ok(())
+        };
+
+        tokio::select! {
+            _ = future_produce => {}
+            res = future_consume => {
+                res?;
+            }
+            _ = cancel.cancelled() => {
+                tracing::info!("Migrate cancelled");
+            }
+        };
+    } else {
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        for consumer in consumers {
+            consumer.await??;
+        }
     }
-
-    // produce task
-    let producer = Producer::new(&config);
-    let _ = producer.produce(tx).await?;
-
-    // consumer join
-    for consumer in consumers {
-        consumer.await??;
-    }
-
     tracing::info!("migrate oracle finished");
     Ok(())
 }
@@ -157,6 +179,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_migrate_history() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();

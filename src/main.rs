@@ -379,7 +379,6 @@ async fn init_tracing_layers(
         log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
         log::LevelFilter::Trace => TracingLevelFilter::TRACE,
     };
-
     fn env_filter_from(tracing_level_filter: &TracingLevelFilter) -> anyhow::Result<EnvFilter> {
         let event_filter = EnvFilter::builder()
             .with_default_directive(tracing_level_filter.clone().into())

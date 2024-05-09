@@ -70,7 +70,7 @@ tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.36.2", features = ["cmake-build"] }
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
@@ -93,7 +93,7 @@ tracing-subscriber = "0.3.17"
 tracing-core = { version = "0.1.32", features = [] }
 
 flume = "0.11.0"
-futures-util = "0.3"
+futures-util = "0.3.30"
 serde_with = "3.3"
 tokio-cron-scheduler = "0.9.4"
 
@@ -133,6 +133,9 @@ oracle = { version = "0.5", features = ["chrono"] }
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
+
+[target.'cfg(not(windows))'.dependencies]
+rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

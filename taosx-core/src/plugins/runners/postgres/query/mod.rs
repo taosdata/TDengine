@@ -2,7 +2,7 @@ use std::pin::Pin;
 
 use futures::stream::IntoStream;
 use futures::{StreamExt, TryStreamExt};
-use sqlx::{Error, Executor, Pool, Row};
+use sqlx::{Error, Executor, Pool};
 use sqlx_postgres::{PgConnectOptions, PgPool, PgRow, Postgres};
 
 use crate::runners::postgres::config::connect::ConnectConfig;
@@ -12,7 +12,7 @@ pub struct PostgresQuery {
 }
 
 impl PostgresQuery {
-    pub async fn try_new(config: ConnectConfig) -> anyhow::Result<Self> {
+    pub async fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
         let pool = Self::connect(
             &config.host,
             config.port,
@@ -24,6 +24,7 @@ impl PostgresQuery {
             &config.ssl_ca,
             &config.ssl_client_cert,
             &config.ssl_client_key,
+            time_zone,
         )
         .await
         .map_err(|err| {
@@ -43,6 +44,7 @@ impl PostgresQuery {
         ssl_ca: &Option<String>,
         ssl_client_cert: &Option<String>,
         ssl_client_key: &Option<String>,
+        _time_zone: String,
     ) -> anyhow::Result<Pool<Postgres>> {
         let mut options = PgConnectOptions::new()
             .host(host)
@@ -71,7 +73,7 @@ impl PostgresQuery {
             "VERIFY_CA" => {
                 options = options.ssl_mode(sqlx_postgres::PgSslMode::VerifyCa);
                 if let Some(ca) = ssl_ca {
-                    options = options.ssl_root_cert(ca.as_str())
+                    options = options.ssl_root_cert(ca.as_str());
                 }
                 Ok(PgPool::connect_with(options).await?)
             }
@@ -90,6 +92,7 @@ impl PostgresQuery {
             }
             _ => Err(anyhow::anyhow!("unsupported ssl mode: {}", ssl_mode)),
         }
+        // TODO timezone
     }
 
     pub async fn select_one_for_schema(&mut self, sql: &str) -> anyhow::Result<Option<PgRow>> {
@@ -103,6 +106,7 @@ impl PostgresQuery {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
         let result = self.pool.fetch_all(sql).await;
         match result {
@@ -131,7 +135,7 @@ impl PostgresQuery {
                     rows.push(row);
                 }
                 Err(e) => {
-                    println!("error: {:?}", e);
+                    anyhow::bail!("error: {:?}", e);
                 }
             }
         }
@@ -142,25 +146,32 @@ impl PostgresQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::Row;
     use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_connect() {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
         dbg!(&config);
 
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_one_for_schema() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from information_schema.tables")
@@ -177,11 +188,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_all() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from information_schema.tables")
@@ -191,11 +205,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_select_by_stream() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let mut stream = query.select_by_stream("select * from information_schema.tables");
         while let Some(result) = stream.next().await {
@@ -211,11 +228,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_top_n() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .top_n("select * from information_schema.tables", 1)
@@ -227,6 +247,7 @@ mod tests {
 
     /// postgres> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_off() {
         // test: ssl_mode=DISABLE
         let dsn = Dsn::from_str(
@@ -235,7 +256,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=ALLOW
@@ -245,7 +268,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=PREFER
@@ -255,7 +280,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=REQUIRE
@@ -265,7 +292,9 @@ mod tests {
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_CA
@@ -274,7 +303,9 @@ mod tests {
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_IDENTITY
@@ -282,12 +313,15 @@ mod tests {
             .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
-        let query = PostgresQuery::try_new(config).await.unwrap();
+        let query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
         assert!(!query.pool.is_closed());
     }
 
     /// postgres> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_on() {
         // // test: ssl_mode=DISABLED
         // let dsn =

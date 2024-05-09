@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
+use chrono::{FixedOffset, NaiveDateTime};
 use itertools::Itertools;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
@@ -24,8 +26,11 @@ pub async fn to_schema(row: MySqlRow) -> anyhow::Result<Schema> {
     Ok(schema)
 }
 
-pub async fn to_record_batch(rows: Vec<MySqlRow>) -> anyhow::Result<RecordBatch> {
-    to_record_batches(rows, usize::MAX)
+pub async fn to_record_batch(
+    rows: Vec<MySqlRow>,
+    time_zone: String,
+) -> anyhow::Result<RecordBatch> {
+    to_record_batches(rows, usize::MAX, time_zone)
         .await
         .map(|batches| batches[0].clone())
 }
@@ -33,6 +38,7 @@ pub async fn to_record_batch(rows: Vec<MySqlRow>) -> anyhow::Result<RecordBatch>
 pub async fn to_record_batches(
     rows: Vec<MySqlRow>,
     batch_size: usize,
+    time_zone: String,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let mut fields = Vec::new();
     let mut builders = Vec::new();
@@ -506,7 +512,38 @@ pub async fn to_record_batches(
                         }
                     }
                 }
-                "DATETIME" | "TIMESTAMP" => {
+                "DATETIME" => {
+                    let val = row.try_get::<Option<NaiveDateTime>, _>(col_cidx);
+                    match val {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'DATETIME' result error: {e:?}"
+                            );
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                    }
+                }
+                "TIMESTAMP" => {
                     let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx);
                     match val {
                         Ok(val) => match val {
@@ -518,16 +555,22 @@ pub async fn to_record_batches(
                                     .append_null();
                             }
                             Some(val) => {
+                                // mysql 的 timestamp 是基于 session 时区的假 UTC 时间，需要转换为真正的 UTC 时间
+                                let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                                let real_timestamp_utc =
+                                    val.naive_utc().and_local_timezone(time_zone).unwrap();
                                 builders[col_cidx]
                                     .as_any_mut()
                                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                                     .unwrap()
-                                    .append_value(val.timestamp_nanos_opt().unwrap());
+                                    .append_value(
+                                        real_timestamp_utc.timestamp_nanos_opt().unwrap(),
+                                    );
                             }
                         },
                         Err(e) => {
                             tracing::warn!(
-                                "migrate mysql, decoding 'DATETIME/TIMESTAMP' result error: {e:?}"
+                                "migrate mysql, decoding 'TIMESTAMP' result error: {e:?}"
                             );
                             builders[col_cidx]
                                 .as_any_mut()
@@ -687,10 +730,13 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_schema() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from t_metric where 1 = 0")
@@ -709,29 +755,37 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query.select_all("select * from t_metric").await.unwrap();
 
-        let batch = to_record_batch(rows).await.unwrap();
+        let batch = to_record_batch(rows, String::from("+08:00")).await.unwrap();
         dbg!(batch);
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let rows = query
             .select_all("select * from t_full_columns")
             .await
             .unwrap();
 
-        let batches = to_record_batches(rows, 3).await.unwrap();
+        let batches = to_record_batches(rows, 3, String::from("+08:00"))
+            .await
+            .unwrap();
         dbg!(batches);
     }
 

@@ -157,7 +157,8 @@ impl Cli {
         debugging_recorder.install()?;
 
         let timer_run = Arc::new(AtomicBool::new(true));
-        let _metrics = init_task_metrics(task_opt.from.clone(), task_opt.to.clone(), -1, None);
+        let _metrics =
+            init_task_metrics(task_opt.from.clone(), task_opt.to.clone(), -1, None).await;
         let port_pool = Default::default();
         tokio::select! {
             res = task_opt.run(&port_pool).in_current_span() => {

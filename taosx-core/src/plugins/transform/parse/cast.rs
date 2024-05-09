@@ -224,8 +224,6 @@ fn parse_str_without_tz(s: &str, fmt: &str, tz: &Tz) -> ParseResult<DateTime<Tz>
 
 #[cfg(test)]
 mod tests {
-    use arrow::{array::ArrayRef, datatypes::Field};
-
     use super::*;
 
     #[test]

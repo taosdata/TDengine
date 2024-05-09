@@ -17,6 +17,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
+use sqlx::ConnectOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
@@ -52,7 +53,7 @@ pub(crate) mod transferred;
 
 mod datetime_format {
     use chrono::{DateTime, SecondsFormat, Utc};
-    use serde::{self, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     type Target = DateTime<Utc>;
 
@@ -589,10 +590,27 @@ impl TaskController {
         }
         let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
-            .busy_timeout(Duration::from_secs(30))
+            .busy_timeout(Duration::from_secs(10))
+            .auto_vacuum(sqlx::sqlite::SqliteAutoVacuum::Incremental)
+            .optimize_on_close(true, None)
+            .log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(2))
             .journal_mode(SqliteJournalMode::Wal);
+
+        // Defaults:
+        // ```
+        //     max_connections: 10,
+        //     min_connections: 0,
+        //     acquire_timeout: Duration::from_secs(30),
+        //     idle_timeout: Some(Duration::from_secs(10 * 60)),
+        //     max_lifetime: Some(Duration::from_secs(30 * 60)),
+        //     fair: true,
+        // ```
         let pool = PoolOptions::new()
-            .min_connections(3)
+            .min_connections(4)
+            .max_connections(128)
+            .acquire_timeout(Duration::from_secs(60))
+            .idle_timeout(Some(Duration::from_secs(60 * 60)))
+            .max_lifetime(Some(Duration::from_secs(60 * 60 * 24)))
             .connect_with(connect_options)
             .await?;
         MIGRATOR.run(&pool).await?;
@@ -1117,10 +1135,13 @@ impl TaskController {
 
                 // breakpoints_clear
                 let task_id = id.to_string();
-                taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
+                tokio::task::spawn_blocking(move || {
+                    taosx_core::utils::breakpoints::breakpoints_clear(&task_id)
+                })
+                .await??;
 
                 // metrics_clear
-                clear_metrics(id);
+                clear_metrics(id).await;
 
                 tracing::info!("successfully deleted task by id {id}");
                 anyhow::Ok(())

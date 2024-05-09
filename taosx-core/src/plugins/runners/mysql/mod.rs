@@ -1,6 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{FixedOffset, NaiveDateTime};
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use sqlx::mysql::MySqlRow;
@@ -41,7 +43,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let result = MySqlQuery::try_new(c).await;
+            let result = MySqlQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     MYSQL_ID.to_string(),
@@ -83,7 +85,8 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mysql query
     let config = MySqlConfig::from_dsn(dsn)?;
-    let mut query = MySqlQuery::try_new(config.connect).await?;
+    let mut query =
+        MySqlQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
@@ -91,6 +94,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // generate sql
     let sql = config.task.generate_sql()?;
+    tracing::info!("get sample data, config: {:?}", &config);
     tracing::info!(
         "get sample data, sql: {}, limit: {}",
         sql,
@@ -110,7 +114,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         for (idx, col) in row.columns().into_iter().enumerate() {
             let col_name = col.name();
             let col_type = col.type_info().name();
-            let col_val = generate_json_value(&row, col_type, idx)?;
+            let col_val = generate_json_value(&row, col_type, idx, config.task.time_zone.clone())?;
             sample_map.insert(col_name.to_string(), col_val);
         }
         input_sample.push(sample_map);
@@ -196,7 +200,7 @@ pub async fn mysql_to_taos(
     .await?;
 
     // create worker
-    let worker = tokio::spawn(migrate_history(config));
+    let worker = tokio::spawn(migrate_history(config, cancel.clone()));
 
     // execute worker
     let port_pool = port_pool.clone();
@@ -258,6 +262,7 @@ fn generate_json_value(
     row: &MySqlRow,
     col_type: &str,
     cidx: usize,
+    time_zone: String,
 ) -> anyhow::Result<serde_json::Value> {
     match col_type {
         // 整型数
@@ -369,14 +374,26 @@ fn generate_json_value(
                 Some(val) => Ok(json!(format!("{:?}", val))),
             }
         }
-        "DATETIME" | "TIMESTAMP" => {
+        "DATETIME" => {
+            let val = row.try_get::<Option<NaiveDateTime>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(format!("{:?}", val))),
+            }
+        }
+        "TIMESTAMP" => {
             let val = row
                 .try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(
                     cidx,
                 )?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(val)),
+                Some(val) => {
+                    // mysql 的 timestamp 是基于 session 时区的假 UTC 时间，需要转换为真正的 UTC 时间
+                    let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                    let real_timestamp_utc = val.naive_utc().and_local_timezone(time_zone).unwrap();
+                    Ok(json!(real_timestamp_utc))
+                }
             }
         }
         "YEAR" => {
@@ -408,9 +425,9 @@ fn generate_json_value(
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         // invalid port
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
@@ -458,6 +475,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
         let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from (select id, concat('${F}', 'T', ts, '+08:00') as ts, current, voltage, phase  from meters_${Ymd}) t where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
@@ -469,6 +487,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_mysql_to_taos() {
         let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
@@ -502,10 +521,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_generate_json_value() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config).await.unwrap();
+        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from t_full_columns")
@@ -515,7 +537,12 @@ mod tests {
         match row {
             Some(row) => {
                 for idx in 0..31 {
-                    let res = generate_json_value(&row, row.column(idx).type_info().name(), idx);
+                    let res = generate_json_value(
+                        &row,
+                        row.column(idx).type_info().name(),
+                        idx,
+                        String::from("+08:00"),
+                    );
                     dbg!(&res);
                 }
             }

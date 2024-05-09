@@ -2,7 +2,6 @@ use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering::SeqCst;
-use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IpcMetrics {

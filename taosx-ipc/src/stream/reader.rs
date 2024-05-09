@@ -610,7 +610,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<bool>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse bool from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -629,7 +629,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u8>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse u8 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -648,7 +648,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u16>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse u16 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -667,7 +667,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u32>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse u32 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -686,7 +686,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<u64>()
                                 .map_err(|err| {
-                                    tracing::warn!("parse u64 from `{}` error: {}", v, err,)
+                                    tracing::trace!("parse u64 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -701,7 +701,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i8>()
                                 .map_err(|err| {
-                                    tracing::warn!("parse i8 from `{}` error: {}", v, err,)
+                                    tracing::trace!("parse i8 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -716,7 +716,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i16>()
                                 .map_err(|err| {
-                                    tracing::warn!("parse i16 from `{}` error: {}", v, err,)
+                                    tracing::trace!("parse i16 from `{}` error: {}", v, err,)
                                 })
                                 .ok()
                         })
@@ -731,7 +731,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i32>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse i32 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -750,7 +750,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<i64>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse i64 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -769,7 +769,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<f32>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse f32 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -788,7 +788,7 @@ mod arrow_to_taos {
                         v.and_then(|v| {
                             v.parse::<f64>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse f64 from `{}` error: {}, fallback to null",
                                         v,
                                         err,
@@ -808,7 +808,7 @@ mod arrow_to_taos {
                             // TODO: support parse timestamp from string
                             v.parse::<i64>()
                                 .map_err(|err| {
-                                    tracing::warn!(
+                                    tracing::trace!(
                                         "parse i64 from `{}` error: {}, fallback to null",
                                         v,
                                         err,

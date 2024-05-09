@@ -3,6 +3,7 @@ use taosx_ipc::stream::writer::IpcDataType;
 
 // use taosx_ipc::prelude::IpcDataType;
 
+#[allow(dead_code)]
 pub struct ColumnMeta {
     pub column_name: String,
     pub type_name: String,
@@ -49,7 +50,7 @@ impl ColumnMeta {
             // 日期时间
             "DATE" => Ok(IpcDataType::NChar(50)),
             "TIME" => Ok(IpcDataType::NChar(50)),
-            "DATETIME" => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
+            "DATETIME" => Ok(IpcDataType::NChar(50)),
             "TIMESTAMP" => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             "YEAR" => Ok(IpcDataType::Int16),
             // 二进制
@@ -93,7 +94,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 日期时间
         "DATE" => Ok(DataType::Utf8),
         "TIME" => Ok(DataType::Utf8),
-        "DATETIME" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
+        "DATETIME" => Ok(DataType::Utf8),
         "TIMESTAMP" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         "YEAR" => Ok(DataType::UInt16),
         // 二进制

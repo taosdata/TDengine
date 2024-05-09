@@ -1520,10 +1520,10 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let task_name = task.task.name.clone();
-    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name);
+    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name).await;
     let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
     if metrics.is_some() {
-        auto_save_task_metrics(task_id, stop_save_metrics_signal);
+        auto_save_task_metrics(task_id, stop_save_metrics_signal).await;
     }
     opts.spawn().await;
 
@@ -1545,6 +1545,6 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
         }
     }
     if metrics.is_some() {
-        save_task_metrics_finally(task.task.id);
+        save_task_metrics_finally(task.task.id).await;
     }
 }

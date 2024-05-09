@@ -16,7 +16,7 @@ options:
   port:
     display: 服务端口
     description: Oracle 的端口
-    placeholder: "3306"
+    placeholder: "1521"
     required: true
   subject:
     display: 数据库
@@ -51,7 +51,7 @@ groups:
         display: SQL 模板
         description: >
           用于查询的 SQL 语句。
-        required: false
+        required: true
         placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
         hint:
           type: str
@@ -76,7 +76,7 @@ groups:
         description: >
           用于分段查询的时间间隔。
         required: false
-        placeholder: 1h
+        placeholder: 1d
         hint:
           type: duration
       - name: delay
@@ -84,7 +84,7 @@ groups:
         description: >
           用于同步未来时刻数据的等待时长。
         required: false
-        placeholder: 0s
+        placeholder: 10s
         hint:
           type: duration
 

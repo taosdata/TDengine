@@ -1,6 +1,7 @@
 use std::cmp;
 
 use chrono::{DateTime, Utc};
+use tokio_util::sync::CancellationToken;
 
 use crate::runners::mysql::appender::to_schema;
 use crate::runners::mysql::config::MySqlConfig;
@@ -15,25 +16,17 @@ mod producer;
 const MIGRATE_TASK_PREFIX: &str = "mig";
 
 /// migrate data
-pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
-    // get break point
-    let breakpoint = get_breakpoint(config.task_id);
-    if breakpoint.is_some() {
-        config.task.start = breakpoint.unwrap();
-        tracing::info!("migrate mysql from breakpoint: {}", config.task.start);
-    }
-    tracing::info!("migrate mysql start, config: {:?}", config);
-
+pub async fn migrate_history(
+    mut config: MySqlConfig,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     // mark the current time
     let now = Utc::now();
 
     // schema
-    let mut query = MySqlQuery::try_new(config.connect.clone()).await?;
-
-    // generate sql
+    let mut query =
+        MySqlQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).await?;
     let sql = config.task.generate_sql()?;
-    tracing::info!("migrate mysql start, sql: {}", sql);
-
     let row = query.select_one_for_schema(&sql).await?;
     let schema = match row {
         Some(row) => to_schema(row).await?,
@@ -42,6 +35,14 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
         }
     };
     tracing::debug!("schema: {:?}", schema);
+
+    // get break point
+    let breakpoint = get_breakpoint(config.task_id);
+    if breakpoint.is_some() {
+        config.task.start = breakpoint.unwrap();
+        tracing::info!("migrate mysql from breakpoint: {}", config.task.start);
+    }
+    tracing::info!("migrate mysql start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
@@ -69,7 +70,8 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
         let tx_live = tx.clone();
         // from 'now' marked by the beginning of the task
         let mut real_start = now - config_live.task.delay;
-        tokio::spawn(async move {
+        // loop to produce task
+        let future_produce = async move {
             loop {
                 let real_end = Utc::now() - config_live.task.delay;
                 // every 10 seconds
@@ -94,18 +96,39 @@ pub async fn migrate_history(mut config: MySqlConfig) -> anyhow::Result<()> {
                 // sleep 2 second
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             }
-        });
+        };
+
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        let future_consume = async move {
+            for consumer in consumers {
+                consumer.await??;
+            }
+            anyhow::Ok(())
+        };
+
+        tokio::select! {
+            _ = future_produce => {}
+            res = future_consume => {
+                res?;
+            }
+            _ = cancel.cancelled() => {
+                tracing::info!("Migrate cancelled");
+            }
+        };
+    } else {
+        // produce task
+        let producer = Producer::new(&config);
+        let _ = producer.produce(tx).await?;
+
+        // consumer join
+        for consumer in consumers {
+            consumer.await??;
+        }
     }
-
-    // produce task
-    let producer = Producer::new(&config);
-    let _ = producer.produce(tx).await?;
-
-    // consumer join
-    for consumer in consumers {
-        consumer.await??;
-    }
-
     tracing::info!("migrate mysql finished");
     Ok(())
 }
@@ -162,6 +185,7 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_migrate_history() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();

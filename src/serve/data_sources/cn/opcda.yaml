@@ -34,104 +34,34 @@ datasets:
     - category: csv_config_file
       display: 上传 CSV 配置文件
       description: |
-        您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
+        OPC 数据写入使用 csv 文件定义每一个数据点位到 TDengine 数据子表的映射规则：
         
-        通过 CSV 文件配置 OPC DA 点位的规则如下：
+        (1) tag_name：必填，数据点位在 OPC DA 服务器上的 id；
         
-        1.文件编码
+        (2) stable：必填，数据点位对应的 TDengine 超级表；
         
-        请上传编码为 UTF-8 或 UTF-8 BOM 的 CSV 文件；
+        (3) tbname：必填，数据点位对应的 TDengine 子表；
         
-        2.Header 的规则
+        (4) enable：可选，默认值 '1'，指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表；
         
-        CSV 文件的第一行为 Header，请按照如下规则配置 Header：
+        (5) value_col：可选，默认值 'val'。数据点位采集值在 TDengine 中对应的列名；
         
-        (1) tag_name：数据点位在 OPC DA 服务器上的 id，必填；
+        (6) value_transform：可选，数据点位采集值在 taosX 中执行的变换函数，目前仅支持数值计算表达式，详见 transform 文档的 expr 表达式说明；
         
-        (2) stable：数据点位在 TDengine 对应的超级表，必填；
+        (7) type：可选，默认值取源数据类型。数据点位采集值的数据类型，可用于替换超级表名称中的占位符 {type}；
         
-        (3) tbname：数据点位在 TDengine 对应的子表，必填；
+        (8) quality_col：可选，数据点位采集值质量在 TDengine 中对应的列名；
         
-        (4) enable：是否采集该点位数据，可选，不配置 enable 列时，使用统一的默认值1作为 enable 的值；
+        (9) ts_col/received_ts_col：必填，TDengine 时间戳主键定义：只存在 ts_col 时使用原始时间戳作为主键，只存在 received_ts_col 时使用采集时间戳作为主键，两列都存在时，居前的时间戳列作为主键；
         
-        (5) value_col：数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值；
+        (10) ts_transform：可选，原始时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；
         
-        (6) value_transform：数据点位采集值在 taosX 中执行的变换函数，可选，不配置 value_transform 列时，统一不进行采集值的 transform；
+        (11) received_ts_transform：可选，采集数据时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；
         
-        (7) type：数据点位采集值的数据类型，可选，不配置 type 列时，统一使用采集值的原始类型作为 TDengine 中的数据类型；
+        (12) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。
         
-        (8) quality_col：数据点位采集值质量在 TDengine 中对应的列名，可选，不配置 quality_col 时，统一不在 TDengine 添加 quality 列；
-        
-        (9) ts_col：数据点位的原始时间戳在 TDengine 中对应的时间戳列，可选，ts_col，received_ts_col 按顺序同时存在，使用 ts_col 作 TDengine 中的时间戳列；ts_col 存在，使用 ts_col 作 TDengine 中的时间戳列；
-        
-        (10) received_ts_col：接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列，可选，received_ts_col，ts_col 按顺序同时存在，使用 received_ts_col 作 TDengine 中的时间戳列；received_ts_col 存在，使用 received_ts_col 作 TDengine 中的时间戳列；
-        
-        (11) ts_col 和 received_ts_col 同时不存在，使用数据点位原始时间戳作 TDengine 中的时间戳列，且列名为默认值ts。
-        
-        (12) ts_transform：数据点位时间戳在 taosX 中执行的变换函数，可选，不配置 ts_transform 列时，统一不进行数据点位原始时间戳的 transform；
-        
-        (13) received_ts_transform：数据点位接收时间戳在 taosX 中执行的变换函数，可选，不配置 received_ts_transform 列时，统一不进行数据点位接收时间戳的 transform；
-        
-        (14) tag::VARCHAR(200)::name：数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的实际名称。
-        
-        (15) tag 列是可选的，当 CSV 中配置 1 个以上的 tag 列，则使用配置的 tag 列；
-        
-        (16) 当没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；
-        
-        (17) 没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name
-        
-        (18) CSV Header 中，不能有重复的列；
-        
-        (19) CSV Header 中，类似 tag::VARCHAR(200)::name 这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。
-        
-        (20) CSV Header 中，列的顺序不影响 CSV 文件校验规则；
-        
-        (21) CSV Header 中，可以配置不在上表中的列，例如：序号，这些列会被自动忽略。
-        
-        3.Row 的规则
-        
-        CSV 文件的第二行开始为数据行，每一行对应一个数据点位的配置信息。请按照下面的规则配置 Row。
-        
-        一个 Row 中，与 Header 列对应的关系如下：
-        
-        (1) tag_name：类似`root.parent.temperature`这样的字符串，必填；
-        
-        (2) stable：符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{type}，则：CSV 文件的 type 不为空，使用 type 的值进行替换；CSV 文件的 type 为空，使用采集值的原始类型进行替换；
-        
-        (3) tbname：符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{tag_name}，使用 tag_name 替换；
-        
-        (4) enable：0，不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1，采集该点位，在 OPC DataIn 任务开始前，不删除子表。
-        
-        (5) value_col：符合 TDengine 命名规范的列名
-        
-        (6) value_transform：符合 Rhai 引擎的计算表达式，例如：(val + 10) / 1000 * 2.0，log(val) + 10等；
-        
-        (7) type：支持类型包括：b/bool，i8/tinyint，i16/smallint，i32/int，i64/bigint，u8/tinyint unsigned，u16/smallint unsigned，u32/int unsigned，u64/bigint unsigned，f32/float，f64/double，timestamp/timestamp(ms)，timestamp(us)，timestamp(ns)，json
-        
-        (8) quality_col：符合 TDengine 命名规范的列名
-        
-        (9) ts_col：符合 TDengine 命名规范的列名
-        
-        (10) received_ts_col：符合 TDengine 命名规范的列名
-        
-        (11) ts_transform 和 received_ts_transform：支持 +、-、*、/、% 操作符，例如：ts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；
-        
-        (12) tag::VARCHAR(200)::name：tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文。
-        
-        同时，多个Row之间还需要满足：
-        
-        (13) tag_name 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；
-        
-        (14) 当 tag_name 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应 “OPC 数据入 TDengine 宽表”的使用场景。
-        
-        4.其他规则
-        
-        (1) 如果 Header 和 Row 的列数不一致，校验失败，提示用户不满足要求的行号；
-        
-        (2) Header 在首行，且不能为空；
-        
-        (3) Row 为 1 行以上；
-
+        更多填写规则请参考<a target="_blank" href="/docs/enterprise/datain/opcda">企业版文档</a>。  
+      
       target:
         name: csv_config_file
         description:
@@ -165,26 +95,41 @@ datasets:
             数据点位 TagName 需要满足设置的正则表达式。
           hint:
             type: str
+        - name: super_table_expression
+          display: 超级表名称
+          description: |
+            支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。
+          required: true
+          value: opc_{type}
+          hint:
+            type: str
+        - name: child_table_expression
+          display: 表名称
+          description: |
+            支持 <child table prefix>_{tagname} 格式，{tagname} 表示点位名称。
+          required: true
+          value: t_{tagname}
+          hint:
+            type: str
         - name: table_primary_key
           display: 主键列
           description: |
-            目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
-          required: true
+            目标数据表主键将使用选择的值作为时间戳主键列，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。
+          required: false
           value: original_ts
           hint:
             type: str
             choices:
-              - received_ts
               - original_ts
-        - name: child_table_expression
-          display: 表名称
-          value: t_{TagName}
+              - received_ts
+        - name: table_primary_key_alias
+          display: 主键别名
           description: |
-            支持 <child table prefix>_{TagName} 的格式
+            在目标数据表中的主键列名称。
+          required: false
+          value: ts
           hint:
             type: str
-          required: true
-
 groups:
   - name: 连接配置
     display_order: 1

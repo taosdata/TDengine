@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use kafka::consumer::GroupOffsetStorage;
 use taos::Dsn;
 
 use crate::plugins::config::AdvancedOptions;
@@ -21,8 +20,6 @@ pub struct KafkaTaskConfig {
     pub fetch_min_bytes: Option<i32>,
     pub fetch_max_bytes_per_partition: Option<i32>,
     pub fetch_crc_validation: Option<bool>,
-    // pub offset_storage: Option<GroupOffsetStorage>,
-    // pub retry_max_bytes_limit: Option<i32>,
     pub connection_idle_timeout: Option<Duration>,
     pub client_id: Option<String>,
 
@@ -33,7 +30,6 @@ impl KafkaTaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         let config = KafkaTaskConfig {
             connect: KafkaConnectConfig::from_dsn(dsn)?,
-
             timeout: Self::parse_timeout(dsn)?,
             group: Self::parse_group(dsn),
             topics: Self::parse_topics(dsn)?,
@@ -42,11 +38,8 @@ impl KafkaTaskConfig {
             fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
             fetch_max_bytes_per_partition: Self::parse_fetch_max_bytes_per_partition(dsn)?,
             fetch_crc_validation: Self::parse_fetch_crc_validation(dsn)?,
-            // offset_storage: Self::parse_offset_storage(dsn)?,
-            // retry_max_bytes_limit: Self::parse_retry_max_bytes_limit(dsn)?,
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
-
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
         };
         Ok(config)
@@ -65,58 +58,11 @@ impl KafkaTaskConfig {
             .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())
             .ok_or(anyhow::anyhow!("topics is required"))?)
     }
-    /*
-        fn parse_topic_partitions(dsn: &Dsn) -> anyhow::Result<Option<HashMap<String, Vec<i32>>>> {
-            let topic_partitions = dsn.params.get("topic_partitions");
-            if topic_partitions.is_none() {
-                return Ok(None);
-            }
 
-            let mut topic_map = HashMap::new();
-
-            for tp in topic_partitions.unwrap().split(",") {
-                if tp.contains(":") {
-                    let topic_partition = tp.split(":").collect::<Vec<&str>>();
-                    let topic = topic_partition[0];
-                    let partition = topic_partition[1];
-                    if partition.contains("..") {
-                        let partition_range = partition.split("..").collect::<Vec<&str>>();
-                        let start = partition_range[0].parse::<i32>()?;
-                        let end = partition_range[1].parse::<i32>()?;
-                        if start > end {
-                            return Err(anyhow::anyhow!("invalid partition range: {}", partition));
-                        }
-                        let partitions = (start..=end).collect::<Vec<i32>>();
-                        topic_map
-                            .entry(topic.to_string())
-                            .or_insert(vec![])
-                            .extend(partitions);
-                    } else {
-                        let partition = partition.parse::<i32>()?;
-                        topic_map
-                            .entry(topic.to_string())
-                            .or_insert(vec![])
-                            .push(partition);
-                    }
-                } else {
-                    let topic = tp;
-                    topic_map.insert(topic.to_string(), vec![]);
-                }
-            }
-
-            Ok(Some(topic_map))
-        }
-    */
     fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
         let fallback_offset = dsn.params.get("fallback_offset").map(String::as_str);
 
         match fallback_offset {
-            // Some("Earliest") | None => Ok(FetchOffset::Earliest),
-            // Some("Latest") => Ok(FetchOffset::Latest),
-            // Some(s) => s
-            //     .parse::<i64>()
-            //     .map(FetchOffset::ByTime)
-            //     .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
             Some("Smallest") => Ok(String::from("smallest")),
             Some("Earliest") => Ok(String::from("earliest")),
             Some("Beginning") => Ok(String::from("beginning")),
@@ -200,39 +146,6 @@ impl KafkaTaskConfig {
             .unwrap_or(Ok(None))
     }
 
-    // fn parse_offset_storage(dsn: &Dsn) -> anyhow::Result<Option<GroupOffsetStorage>> {
-    //     dsn.params.get("offset_storage").map(String::as_str).map(|s| {
-    //         match s {
-    //             "Zookeeper" => Ok(Some(GroupOffsetStorage::Zookeeper)),
-    //             "Kafka" => Ok(Some(GroupOffsetStorage::Kafka)),
-    //             _ => {
-    //                 Err(anyhow::anyhow!(
-    //                     "invalid offset_storage: {}, cause: provided string was not `Zookeeper` or `Kafka`",
-    //                     s
-    //                 ))
-    //             }
-    //         }
-    //     }).unwrap_or(Ok(None))
-    // }
-
-    // fn parse_retry_max_bytes_limit(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
-    //     dsn.params
-    //         .get("retry_max_bytes_limit")
-    //         .map(String::as_str)
-    //         .map(|s| {
-    //             let result = s.parse::<i32>();
-    //             match result {
-    //                 Ok(d) => Ok(Some(d)),
-    //                 Err(e) => Err(anyhow::anyhow!(
-    //                     "invalid retry_max_bytes_limit: {}, cause: {}",
-    //                     s,
-    //                     e
-    //                 )),
-    //             }
-    //         })
-    //         .unwrap_or(Ok(None))
-    // }
-
     fn parse_connection_idle_timeout(dsn: &Dsn) -> anyhow::Result<Option<Duration>> {
         dsn.params
             .get("connection_idle_timeout")
@@ -265,7 +178,7 @@ impl KafkaTaskConfig {
             .unwrap_or(Ok(None))
     }
 
-    pub fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
+    fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
         let timeout = dsn
             .params
             .get("timeout")
@@ -443,43 +356,6 @@ mod tests {
         assert!(result.is_err());
         assert_eq!("invalid fetch_crc_validation: invalid, cause: provided string was not `true` or `false`", result.unwrap_err().to_string());
     }
-
-    // #[test]
-    // fn test_parse_offset_storage() {
-    //     let dsn = Dsn::from_str("kafka://?offset_storage=Kafka").unwrap();
-    //     let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
-    //     assert!(config.is_some());
-    //     assert_eq!("Kafka", format!("{:?}", config.unwrap()));
-
-    //     let dsn = Dsn::from_str("kafka://").unwrap();
-    //     let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
-    //     assert!(config.is_none());
-
-    //     let dsn = Dsn::from_str("kafka://?offset_storage=invalid").unwrap();
-    //     let result = KafkaTaskConfig::parse_offset_storage(&dsn);
-    //     assert!(result.is_err());
-    //     assert_eq!("invalid offset_storage: invalid, cause: provided string was not `Zookeeper` or `Kafka`", result.unwrap_err().to_string());
-    // }
-
-    // #[test]
-    // fn test_parse_retry_max_bytes_limit() {
-    //     let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=100").unwrap();
-    //     let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
-    //     assert!(config.is_some());
-    //     assert_eq!(100, config.unwrap());
-
-    //     let dsn = Dsn::from_str("kafka://").unwrap();
-    //     let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
-    //     assert!(config.is_none());
-
-    //     let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=invalid").unwrap();
-    //     let result = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn);
-    //     assert!(result.is_err());
-    //     assert_eq!(
-    //         "invalid retry_max_bytes_limit: invalid, cause: invalid digit found in string",
-    //         result.unwrap_err().to_string()
-    //     );
-    // }
 
     #[test]
     fn test_parse_connection_idle_timeout() {

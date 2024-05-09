@@ -5,7 +5,6 @@ use flume::Receiver;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::oracle::appender;
 use crate::runners::oracle::config::OracleConfig;
 use crate::runners::oracle::query::OracleQuery;
 use crate::runners::oracle::worker::set_breakpoint;
@@ -23,7 +22,10 @@ impl Consumer {
 
     pub async fn consume(&mut self, receiver: Receiver<OracleConfig>) -> anyhow::Result<()> {
         // connect to database
-        let mut query = OracleQuery::try_new(self.config.connect.clone())?;
+        let mut query = OracleQuery::try_new(
+            self.config.connect.clone(),
+            self.config.task.time_zone.clone(),
+        )?;
 
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
@@ -80,8 +82,9 @@ impl Consumer {
         });
 
         // query database and send to writer
-        let mut batch_count: u64 = 1;
+        let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
+            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
@@ -89,12 +92,7 @@ impl Consumer {
             // set sub task id
             config.sub_task_id = self.config.sub_task_id.clone();
 
-            tracing::debug!(
-                "migrate oracle batch:{}, config:{:?}, sql:{:?}",
-                batch_count,
-                &config,
-                &sql
-            );
+            tracing::debug!("consume task, config:{:?}, sql:{:?}", &config, &sql);
 
             let result = query.select_all_and_to_record_batches(&sql, batch_size);
 
@@ -145,25 +143,35 @@ impl Consumer {
         }
         drop(tx);
 
-        tracing::debug!("migrate oracle query finished");
+        tracing::debug!(
+            "migrate oracle query finished, total batch: {}",
+            batch_count
+        );
         writer_handler.await??;
-        tracing::debug!("migrate oracle writer finished");
+        tracing::debug!(
+            "migrate oracle writer finished, total batch: {}",
+            batch_count
+        );
         ack.await??;
-        tracing::debug!("migrate oracle consumer finished");
+        tracing::debug!(
+            "migrate oracle consumer finished, total batch: {}",
+            batch_count
+        );
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::runners::oracle::worker::producer::Producer;
+    use crate::runners::oracle::{appender::to_schema, worker::producer::Producer};
 
     use super::*;
     use std::str::FromStr;
     use taos::Dsn;
-    use tests::appender::to_schema;
+    // use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_consumer() {
         // config
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
@@ -174,7 +182,8 @@ mod tests {
         config.ipc_port = Some(6666);
 
         // query for schema
-        let mut query = OracleQuery::try_new(config.connect.clone()).unwrap();
+        let mut query =
+            OracleQuery::try_new(config.connect.clone(), config.task.time_zone.clone()).unwrap();
         let col_map = query.select_for_schema("select * from TEST").unwrap();
         let schema = to_schema(col_map.clone()).unwrap();
 

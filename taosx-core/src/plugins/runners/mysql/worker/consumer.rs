@@ -24,7 +24,11 @@ impl Consumer {
 
     pub async fn consume(&mut self, receiver: Receiver<MySqlConfig>) -> anyhow::Result<()> {
         // connect to database
-        let mut query = MySqlQuery::try_new(self.config.connect.clone()).await?;
+        let mut query = MySqlQuery::try_new(
+            self.config.connect.clone(),
+            self.config.task.time_zone.clone(),
+        )
+        .await?;
 
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
@@ -81,8 +85,9 @@ impl Consumer {
         });
 
         // query database and send to writer
-        let mut batch_count: u64 = 1;
+        let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
+            tracing::debug!("consume task, config: {:?}", &config);
             let end = config.task.end.unwrap_or_else(Utc::now);
             let sql = config.task.generate_sql()?;
             let batch_size = config.advanced.batch_size.unwrap_or(10000);
@@ -90,12 +95,7 @@ impl Consumer {
             // set sub task id
             config.sub_task_id = self.config.sub_task_id.clone();
 
-            tracing::debug!(
-                "migrate mysql batch:{}, config:{:?}, sql:{:?}",
-                batch_count,
-                &config,
-                &sql
-            );
+            tracing::debug!("consume task, config:{:?}, sql:{:?}", &config, &sql);
 
             let mut stream = query.select_by_stream(&sql);
             let mut rows = Vec::new();
@@ -113,7 +113,9 @@ impl Consumer {
                     // copy rows
                     let rows_cloned = rows.splice(.., Vec::new()).collect::<Vec<_>>();
                     // transform to record batch
-                    let batch = appender::to_record_batch(rows_cloned).await?;
+                    let batch =
+                        appender::to_record_batch(rows_cloned, self.config.task.time_zone.clone())
+                            .await?;
                     // send to IPC
                     tx.send_async(batch.clone()).await?;
                     // clear rows
@@ -124,7 +126,8 @@ impl Consumer {
             }
             if !rows.is_empty() {
                 // transform to record batch
-                let batch = appender::to_record_batch(rows).await?;
+                let batch =
+                    appender::to_record_batch(rows, self.config.task.time_zone.clone()).await?;
                 // send to IPC
                 tx.send_async(batch.clone()).await?;
                 // stastics
@@ -135,11 +138,17 @@ impl Consumer {
         }
         drop(tx);
 
-        tracing::debug!("migrate mysql query finished");
+        tracing::debug!("migrate mysql query finished, total batch: {}", batch_count);
         writer_handler.await??;
-        tracing::debug!("migrate mysql writer finished");
+        tracing::debug!(
+            "migrate mysql writer finished, total batch: {}",
+            batch_count
+        );
         ack.await??;
-        tracing::debug!("migrate mysql consumer finished");
+        tracing::debug!(
+            "migrate mysql consumer finished, total batch: {}",
+            batch_count
+        );
         Ok(())
     }
 }
@@ -154,6 +163,7 @@ mod tests {
     use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_consumer() {
         // config
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
@@ -164,7 +174,9 @@ mod tests {
         config.ipc_port = Some(6666);
 
         // query for schema
-        let mut query = MySqlQuery::try_new(config.connect.clone()).await.unwrap();
+        let mut query = MySqlQuery::try_new(config.connect.clone(), config.task.time_zone.clone())
+            .await
+            .unwrap();
         let row = query
             .select_one_for_schema("select * from t_metric")
             .await

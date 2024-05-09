@@ -63,7 +63,7 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
+pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
     let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
     if parse_dsn_result.is_err() {
         tracing::error!(
@@ -76,8 +76,8 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
     let dsn = parse_dsn_result.unwrap();
     let task_id = task.task.id;
     match dsn.driver.as_str() {
-        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
-        "tmq" => try_get_metrics::<TmqMetrics>(task_id),
+        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id).await,
+        "tmq" => try_get_metrics::<TmqMetrics>(task_id).await,
         "opc"
         | "opcua"
         | "opcda"
@@ -91,7 +91,7 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
         | "csv"
         | runners::mysql::MYSQL_ID
         | runners::postgres::POSTGRES_ID
-        | runners::oracle::ORACLE_ID => try_get_metrics::<IpcMetrics>(task_id),
+        | runners::oracle::ORACLE_ID => try_get_metrics::<IpcMetrics>(task_id).await,
         _ => None,
     }
 }
@@ -101,9 +101,13 @@ pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> St
     // 这里的 running 更准确的说是任务处于需要被计算运行时间的状态。
     let running =
         status == Status::Running || status == Status::Stopping || status == Status::Waiting;
+    let mut is_tmq = false;
     let (common_metrics, json) = match metrics.as_ref() {
         CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
-        CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),
+        CoreMetrics::TMQ(tmq_metrics) => {
+            is_tmq = true;
+            (tmq_metrics.com(), tmq_metrics.to_json())
+        }
         CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
     };
     let mut map =
@@ -111,8 +115,17 @@ pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> St
     map.remove("task_id");
     map.remove("stable");
     map.remove("task_name");
-    compute_total_avg_speed(common_metrics, &mut map);
-    compute_avg_speed(common_metrics, &mut map, running);
+    if is_tmq {
+        map.remove("written_rows");
+        map.remove("total_written_rows");
+        map.remove("written_points");
+        map.remove("total_written_points");
+        map.remove("success_blocks");
+        map.remove("total_success_blocks");
+    } else {
+        compute_total_avg_speed(common_metrics, &mut map);
+        compute_avg_speed(common_metrics, &mut map, running);
+    }
     let result = split_to_total_and_current(&map);
     serde_json::to_string(&result).unwrap()
 }

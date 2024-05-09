@@ -216,8 +216,6 @@ fn top_n_sql(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Local;
-
     use super::*;
 
     #[test]

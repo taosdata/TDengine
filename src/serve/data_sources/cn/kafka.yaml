@@ -51,19 +51,25 @@ groups:
     params:
       - name: ca
         display: CA
-        description: CA 证书文件
+        description: CA 证书文件(PEM格式), 用于验证 broker 的密钥。
         required: true
         hint:
           type: file
+      - name: ca_password
+        display: CA 密码
+        description: CA 私钥密码
+        required: true
+        hint:
+          type: str
       - name: cert
         display: 客户端证书
-        description: .cert 文件
+        description: 用于身份验证的客户端公钥文件(PEM格式)。
         required: true
         hint:
           type: file
       - name: cert_key
         display: 客户端私钥
-        description: 私钥文件
+        description: 用于身份验证的客户端私钥文件(PEM格式)。
         required: true
         hint:
           type: file
@@ -168,3 +174,12 @@ advanced:
         type: integer
         min: 0
         max: 1000
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 100000

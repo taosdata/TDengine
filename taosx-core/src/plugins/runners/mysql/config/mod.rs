@@ -1,7 +1,9 @@
+use std::str::FromStr;
+
 use crate::plugins::config::AdvancedOptions;
 use crate::runners::mysql::config::connect::ConnectConfig;
 use anyhow::Ok;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, FixedOffset, Utc};
 use taos::Dsn;
 
 pub mod connect;
@@ -56,6 +58,7 @@ pub struct TaskConfig {
     pub sql: String,
     pub start: DateTime<Utc>,
     pub end: Option<DateTime<Utc>>,
+    pub time_zone: String,
     pub interval: Duration,
     pub delay: Duration,
     pub sample_data_limit: u32,
@@ -67,6 +70,7 @@ impl TaskConfig {
             sql: Self::parse_sql(dsn)?,
             start: Self::parse_start(dsn)?,
             end: Self::parse_end(dsn)?,
+            time_zone: Self::parse_time_zone(dsn)?,
             interval: Self::parse_interval(dsn)?,
             delay: Self::parse_delay(dsn)?,
             sample_data_limit: Self::parse_sample_data_limit(dsn)?,
@@ -121,6 +125,31 @@ impl TaskConfig {
             .transpose()?
             .unwrap_or(None);
         Ok(end)
+    }
+
+    fn parse_time_zone(dsn: &Dsn) -> anyhow::Result<String> {
+        // try to parse from start time
+        let start = dsn.params.get("start");
+        let time_zone = match start {
+            Some(start) => {
+                if !start.is_empty() {
+                    let start_time = DateTime::parse_from_rfc3339(start);
+                    match start_time {
+                        Result::Ok(start_time) => start_time.format("%Z").to_string(),
+                        Err(_) => "+00:00".to_string(),
+                    }
+                } else {
+                    "+00:00".to_string()
+                }
+            }
+            None => "+00:00".to_string(),
+        };
+        // get time_zone from params or use the time_zone in start time
+        Ok(dsn
+            .params
+            .get("time_zone")
+            .unwrap_or(&time_zone)
+            .to_string())
     }
 
     fn parse_interval(dsn: &Dsn) -> anyhow::Result<Duration> {
@@ -195,17 +224,21 @@ impl TaskConfig {
         // replace ${start} and ${end} with the actual start and end time
         let start = self.start;
         let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
+        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+
+        let start_tz = start.with_timezone(&time_zone);
+        let end_tz = end.with_timezone(&time_zone);
 
         let mut sql = self.sql.clone();
 
         if sql.contains("${start}") && sql.contains("${end}") {
             let query_start = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-                start.format("%Y-%m-%d %H:%M:%S")
+                start_tz.format("%Y-%m-%d %H:%M:%S")
             );
             let query_end = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-                end.format("%Y-%m-%d %H:%M:%S")
+                end_tz.format("%Y-%m-%d %H:%M:%S")
             );
             sql = sql
                 .replace("${start}", &query_start)
@@ -213,26 +246,28 @@ impl TaskConfig {
         } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
             let query_start = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-                start.format("%Y-%m-%d %H:%M:%S")
+                start_tz.format("%Y-%m-%d %H:%M:%S")
             );
             let query_end = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
-                end.format("%Y-%m-%d %H:%M:%S")
+                end_tz.format("%Y-%m-%d %H:%M:%S")
             );
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);
         } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
-            let query_start = format!("STR_TO_DATE('{}','%Y-%m-%d')", start.format("%Y-%m-%d"));
-            let query_end = format!("STR_TO_DATE('{}','%Y-%m-%d')", end.format("%Y-%m-%d"));
+            let query_start = format!("STR_TO_DATE('{}','%Y-%m-%d')", start_tz.format("%Y-%m-%d"));
+            let query_end = format!("STR_TO_DATE('{}','%Y-%m-%d')", end_tz.format("%Y-%m-%d"));
             sql = sql
                 .replace("${start_date}", &query_start)
                 .replace("${end_date}", &query_end);
         } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
-            let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start.format("%H:%M:%S"));
-            let mut query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end.format("%H:%M:%S"));
+            let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start_tz.format("%H:%M:%S"));
+            let mut query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "STR_TO_DATE('00:00:00','%H:%i:%s')" {
+            if query_end == "STR_TO_DATE('00:00:00','%H:%i:%s')"
+                || end_tz.date_naive() > start_tz.date_naive()
+            {
                 query_end = String::from("'24:00:00'");
             }
             sql = sql
@@ -243,20 +278,20 @@ impl TaskConfig {
         }
 
         // sharding by time
-        sql = sql.replace("${Y}", start.format("%Y").to_string().as_str());
-        sql = sql.replace("${y}", start.format("%y").to_string().as_str());
-        sql = sql.replace("${m}", start.format("%m").to_string().as_str());
-        sql = sql.replace("${b}", start.format("%b").to_string().as_str());
-        sql = sql.replace("${B}", start.format("%B").to_string().as_str());
-        sql = sql.replace("${d}", start.format("%d").to_string().as_str());
-        sql = sql.replace("${j}", start.format("%j").to_string().as_str());
-        sql = sql.replace("${F}", start.format("%F").to_string().as_str());
-        sql = sql.replace("${Ymd}", start.format("%Y%m%d").to_string().as_str());
-        sql = sql.replace("${ymd}", start.format("%y%m%d").to_string().as_str());
-        sql = sql.replace("${md}", start.format("%m%d").to_string().as_str());
-        sql = sql.replace("${dm}", start.format("%d%m").to_string().as_str());
-        sql = sql.replace("${Yj}", start.format("%Y%j").to_string().as_str());
-        sql = sql.replace("${yj}", start.format("%y%j").to_string().as_str());
+        sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
+        sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
+        sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
+        sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
+        sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
+        sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
+        sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
+        sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
+        sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
+        sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
+        sql = sql.replace("${md}", start_tz.format("%m%d").to_string().as_str());
+        sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
+        sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
+        sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
         anyhow::Ok(sql)
     }
 }
@@ -264,7 +299,6 @@ impl TaskConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
 
     #[test]
     fn test_parse_config_invalid_driver() {
@@ -295,18 +329,54 @@ mod tests {
             config.task.end,
             Some("2021-01-02T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
         );
+        assert_eq!(config.task.time_zone, "+00:00");
         assert_eq!(config.task.interval, Duration::try_days(1).unwrap());
         assert_eq!(config.task.delay, Duration::try_seconds(5).unwrap());
     }
 
     #[test]
+    fn test_parse_time_zone() {
+        // time_zone exists
+        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select&time_zone=+02:00&start=2021-01-01T00:00:00Z")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+02:00");
+
+        // time_zone doesn't exists, start exists
+        let dsn = Dsn::from_str(
+            "mysql://root:password@localhost:3306/dbname?sql=select&start=2021-01-01T00:00:00+03:00",
+        )
+        .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+03:00");
+
+        // time_zone doesn't exists, start's time_zone is zero
+        let dsn = Dsn::from_str(
+            "mysql://root:password@localhost:3306/dbname?sql=select&start=2021-01-01T00:00:00Z",
+        )
+        .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+00:00");
+    }
+
+    #[test]
     fn test_generate_sql() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        // with time zone
+        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
         assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
-        assert!(sql.contains("STR_TO_DATE('2021-01-02 00:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
+
+        // use {time} and cross days
+        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+            .unwrap();
+        let config = MySqlConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("STR_TO_DATE('00:00:00','%H:%i:%s')"));
+        assert!(sql.contains("<'24:00:00'"));
     }
 }

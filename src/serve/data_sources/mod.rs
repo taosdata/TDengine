@@ -20,9 +20,7 @@ pub use definition::*;
 pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::{
-    get_data_dir, is_csv_valid, list_datasets_from, plugins, validate_dsn, DataSetsReq,
-};
+use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
 mod definition;
 
@@ -313,7 +311,7 @@ pub struct DsnAgentQuery {
     timeout: Option<u64>,
 }
 
-const DEFAULT_REQUEST_TIMEOUT: u64 = 5; // 5s
+const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
 
 /// check data source validation by dsn
 #[utoipa::path(

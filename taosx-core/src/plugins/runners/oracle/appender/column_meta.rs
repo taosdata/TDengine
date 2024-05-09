@@ -3,6 +3,7 @@ use oracle::sql_type::OracleType;
 use taosx_ipc::stream::writer::IpcDataType;
 
 pub struct ColumnMeta {
+    #[allow(dead_code)]
     pub column_name: String,
     pub column_type: OracleType,
 }
@@ -31,7 +32,7 @@ impl ColumnMeta {
             OracleType::Float(_) => Ok(IpcDataType::NChar(50)),
             // 日期时间
             OracleType::Date => Ok(IpcDataType::NChar(50)),
-            OracleType::Timestamp(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
+            OracleType::Timestamp(_) => Ok(IpcDataType::NChar(50)),
             OracleType::TimestampTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::TimestampLTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::IntervalDS(_, _) => Ok(IpcDataType::NChar(50)),
@@ -51,7 +52,7 @@ impl ColumnMeta {
             OracleType::Int64 => Ok(IpcDataType::Int64),
             OracleType::UInt64 => Ok(IpcDataType::UInt64),
             // 其他
-            _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
+            // _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
         }
     }
 }
@@ -72,7 +73,7 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Float(_) => Ok(DataType::Utf8),
         // 日期时间
         OracleType::Date => Ok(DataType::Utf8),
-        OracleType::Timestamp(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
+        OracleType::Timestamp(_) => Ok(DataType::Utf8),
         OracleType::TimestampTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::TimestampLTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::IntervalDS(_, _) => Ok(DataType::Utf8),
@@ -92,7 +93,7 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Int64 => Ok(DataType::Int64),
         OracleType::UInt64 => Ok(DataType::UInt64),
         // 其他
-        _ => anyhow::bail!("unsupported data type: {:?}", column_type),
+        // _ => anyhow::bail!("unsupported data type: {:?}", column_type),
     }
 }
 
@@ -156,7 +157,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Timestamp(10)).unwrap(),
-            DataType::Timestamp(TimeUnit::Nanosecond, None)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::TimestampTZ(10)).unwrap(),

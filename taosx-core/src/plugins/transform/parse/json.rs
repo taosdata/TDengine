@@ -670,7 +670,7 @@ impl Parse for Json {
 
 #[cfg(test)]
 mod tests {
-    use arrow::{array::ArrayRef, datatypes::Field};
+    use arrow_schema::Field;
 
     use super::*;
 

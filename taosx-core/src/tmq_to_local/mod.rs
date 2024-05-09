@@ -75,6 +75,7 @@ impl ZFileMan {
         }
         Ok(())
     }
+    #[allow(unused /* previous version */)]
     async fn write_vgroup_with_meta(
         &self,
         vgroup: i32,
@@ -88,6 +89,7 @@ impl ZFileMan {
         metrics.add_messages_of_meta(1);
         Ok(())
     }
+    #[allow(unused /* previous version */)]
     async fn write_vgroup_with_data(
         &self,
         vgroup: i32,
@@ -256,7 +258,7 @@ async fn backup(
                                 break;
                             }
                         }
-                        MessageSet::MetaData(meta, data) => {
+                        MessageSet::MetaData(_meta, data) => {
                             let raw = data.as_raw_data().await?;
                             man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
                             man.flush_vgroup(vgroup).await?;
@@ -415,7 +417,7 @@ pub async fn tmq_to_local(
     from.params = from_params;
     to.params = to_params;
 
-    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(config.topics.len() as _, SeqCst);
 

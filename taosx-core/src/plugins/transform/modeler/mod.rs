@@ -228,7 +228,7 @@ pub struct Table {
     pub global: std::sync::OnceLock<Arc<TableOptions>>,
 }
 mod once_lock_serde {
-    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn deserialize<'de, D, T>(deserializer: D) -> Result<std::sync::OnceLock<T>, D::Error>
     where
@@ -434,7 +434,7 @@ mod model_serde {
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{ArrayRef, Float64Array, TimestampMillisecondArray};
+    use arrow::array::{Float64Array, TimestampMillisecondArray};
 
     use super::*;
 
@@ -466,6 +466,7 @@ mod tests {
             "columns": ["ts", "value", "qos"]
         }"#;
         let model: Modeler = serde_json::from_str(model).unwrap();
+        dbg!(&model);
     }
 
     #[test]

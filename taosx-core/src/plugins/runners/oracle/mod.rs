@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
 use oracle::SqlValue;
@@ -42,7 +43,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let result = OracleQuery::try_new(c);
+            let result = OracleQuery::try_new(c, String::from("+08:00"));
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     ORACLE_ID.to_string(),
@@ -71,7 +72,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create oracle query
     let config = OracleConfig::from_dsn(dsn)?;
-    let mut query = OracleQuery::try_new(config.connect)?;
+    let mut query = OracleQuery::try_new(config.connect, config.task.time_zone.clone())?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
@@ -98,7 +99,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         for (col_cidx, col) in row.sql_values().iter().enumerate() {
             let col_name = col_map.iter().nth(col_cidx).map(|(key, _)| key);
             let col_type: &OracleType = col.oracle_type()?;
-            let col_val = generate_json_value(col, col_type)?;
+            let col_val = generate_json_value(col, col_type, config.task.time_zone.clone())?;
             sample_map.insert(col_name.unwrap_or(&"unknown".to_string()).clone(), col_val);
         }
         input_sample.push(sample_map);
@@ -182,7 +183,7 @@ pub async fn oracle_to_taos(
     .await?;
 
     // create worker
-    let worker = tokio::spawn(migrate_history(config));
+    let worker = tokio::spawn(migrate_history(config, cancel.clone()));
 
     // execute worker
     let port_pool = port_pool.clone();
@@ -240,7 +241,11 @@ pub async fn oracle_to_taos(
     Ok(())
 }
 
-fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<serde_json::Value> {
+fn generate_json_value(
+    col: &SqlValue,
+    col_type: &OracleType,
+    time_zone: String,
+) -> anyhow::Result<serde_json::Value> {
     match col_type {
         // 字符串
         OracleType::Varchar2(_)
@@ -285,11 +290,29 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
                 Ok(val) => Ok(json!(val)),
             }
         }
-        OracleType::Timestamp(_) | OracleType::TimestampTZ(_) | OracleType::TimestampLTZ(_) => {
+        OracleType::Timestamp(_) => {
             let val = col.get::<NaiveDateTime>();
             match val {
                 Err(_) => Ok(json!(null)),
+                Ok(val) => Ok(json!(format!("{:?}", val))),
+            }
+        }
+        OracleType::TimestampTZ(_) => {
+            let val = col.get::<DateTime<FixedOffset>>();
+            match val {
+                Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
+            }
+        }
+        OracleType::TimestampLTZ(_) => {
+            let val = col.get::<NaiveDateTime>();
+            match val {
+                Err(_) => Ok(json!(null)),
+                Ok(val) => {
+                    let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                    let val_with_tz = val.and_local_timezone(time_zone).unwrap();
+                    Ok(json!(val_with_tz))
+                }
             }
         }
         OracleType::IntervalDS(_, _) | OracleType::IntervalYM(_) => {
@@ -342,25 +365,17 @@ fn generate_json_value(col: &SqlValue, col_type: &OracleType) -> anyhow::Result<
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
             }
-        }
-        // 其他
-        _ => {
-            let val = col.get::<String>();
-            match val {
-                Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(val)),
-            }
-        }
+        } // 其他
+          // }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1").unwrap();
         let res = is_valid(&dsn).await;
@@ -380,8 +395,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
-        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
@@ -391,6 +407,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_oracle_to_taos() {
         let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
@@ -424,17 +441,18 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_generate_json_value() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (_, rows) = query.select_all("select * from TEST").unwrap();
 
         for row in rows {
             for (_, col) in row.sql_values().iter().enumerate() {
                 let col_type: &OracleType = col.oracle_type().unwrap();
-                let col_val = generate_json_value(col, col_type);
+                let col_val = generate_json_value(col, col_type, String::from("+06:00"));
                 dbg!(&col_val);
             }
         }

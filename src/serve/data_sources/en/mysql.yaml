@@ -86,7 +86,7 @@ groups:
         display: SQL Template
         description: >
           SQL statement used for querying.
-        required: false
+        required: true
         placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
         hint:
           type: str
@@ -111,7 +111,7 @@ groups:
         description: >
           Time interval used for segmented queries.
         required: false
-        placeholder: 1h
+        placeholder: 1d
         hint:
           type: duration
       - name: delay
@@ -119,7 +119,7 @@ groups:
         description: >
           Waiting time for synchronizing future data.
         required: false
-        placeholder: 0s
+        placeholder: 10s
         hint:
           type: duration
 
@@ -151,7 +151,7 @@ advanced:
     - name: batch_size
       display: Batch Size
       description: |
-        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+        The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.
       value: 10000
       hint:
         type: integer

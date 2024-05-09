@@ -21,7 +21,7 @@ use taosx_core::{
     ConnectorLicense, IpcStreamWorker, Parser,
 };
 use tonic::{Status, Streaming};
-use tracing::{debug, instrument, Instrument, Span};
+use tracing::{instrument, Instrument, Span};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
@@ -119,7 +119,7 @@ impl PutStream {
             anyhow::bail!("Invalid IPC stream");
         };
 
-        debug!(schema = ?schema, "parsing put stream schema");
+        tracing::trace!(schema = ?schema, "parsing put stream schema");
         let tx_cloned = Arc::downgrade(&tx);
         let taos = pool.get().await?;
         let from_dsn: Dsn = task.from.parse()?;
@@ -236,7 +236,7 @@ impl PutStream {
                 .map(|v| serde_json::from_value(v.clone()).unwrap())
                 .map(Arc::new);
             let metadata = worker.parser.metadata();
-            let metrics_arc = get_metrics(task.id).expect("metrics not found");
+            let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
             let metrics = metrics_arc.ipc();
             use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
             let lush_parser: Option<ParserImpl> = metadata.init().map(|init| {
@@ -290,7 +290,7 @@ impl PutStream {
                         num.columns = record.num_columns(),
                         "Writing batch {trace_id_str}"
                     );
-                    tracing::debug!(columns = ?record.columns());
+                    tracing::trace!(columns = ?record.columns());
                     anyhow::Ok((
                         record,
                         trace_id,
@@ -433,7 +433,7 @@ impl PutStream {
         }
         let notify_sender = self.notify_sender.clone();
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
-        let metrics_arc = get_metrics(self.task_id).expect("metrics not found");
+        let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
         tokio::spawn(
             async move {
                 let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());

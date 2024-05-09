@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
@@ -23,17 +24,20 @@ pub fn to_schema(col_map: LinkedHashMap<String, OracleType>) -> anyhow::Result<S
     Ok(schema)
 }
 
+#[allow(dead_code)]
 pub fn to_record_batch(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
+    time_zone: String,
 ) -> anyhow::Result<RecordBatch> {
-    to_record_batches(col_map, rows, usize::MAX).map(|batches| batches[0].clone())
+    to_record_batches(col_map, rows, usize::MAX, time_zone).map(|batches| batches[0].clone())
 }
 
 pub fn to_record_batches(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
     batch_size: usize,
+    time_zone: String,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let mut fields = Vec::new();
     let mut builders = Vec::new();
@@ -155,10 +159,27 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::Timestamp(_)
-                | OracleType::TimestampTZ(_)
-                | OracleType::TimestampLTZ(_) => {
+                OracleType::Timestamp(_) => {
                     let val = col.get::<NaiveDateTime>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_value(format!("{:?}", val));
+                        }
+                    }
+                }
+                OracleType::TimestampTZ(_) => {
+                    let val = col.get::<DateTime<FixedOffset>>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
@@ -172,7 +193,28 @@ pub fn to_record_batches(
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
-                                .append_value(val.and_utc().timestamp_nanos_opt().unwrap() as i64);
+                                .append_value(val.timestamp_nanos_opt().unwrap() as i64);
+                        }
+                    }
+                }
+                OracleType::TimestampLTZ(_) => {
+                    let val = col.get::<NaiveDateTime>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                            let val_with_tz = val.and_local_timezone(time_zone).unwrap();
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_value(val_with_tz.timestamp_nanos_opt().unwrap() as i64);
                         }
                     }
                 }
@@ -313,9 +355,8 @@ pub fn to_record_batches(
                                 .append_value(val);
                         }
                     }
-                }
-                // 其他
-                _ => anyhow::bail!("unsupported data type: {:?}", col_type),
+                } // 其他
+                  // _ => anyhow::bail!("unsupported data type: {:?}", col_type),
             }
         }
         // increase row count
@@ -327,7 +368,7 @@ pub fn to_record_batches(
             batches.push(batch);
             // reset builders
             builders = Vec::new();
-            for (col_name, col_type) in col_map.clone() {
+            for (_col_name, col_type) in col_map.clone() {
                 // arrow data type
                 let arrow_type = column_meta::to_arrow_data_type(&col_type)?;
                 builders.push(array::make_builder(&arrow_type, 10));
@@ -373,14 +414,14 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::oracle::{config::connect::ConnectConfig, query::OracleQuery};
-    use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_schema() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let col_map = query.select_for_schema("select * from TEST").unwrap();
         let schema = to_schema(col_map).unwrap();
@@ -388,26 +429,28 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batch() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 
-        let batch = to_record_batch(col_map, rows).unwrap();
+        let batch = to_record_batch(col_map, rows, String::from("+08:00")).unwrap();
         dbg!(batch);
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_to_record_batches() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config).unwrap();
+        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query.select_all("select * from TEST").unwrap();
 
-        let batches = to_record_batches(col_map, rows, 3).unwrap();
+        let batches = to_record_batches(col_map, rows, 3, String::from("+08:00")).unwrap();
         dbg!(batches);
     }
 

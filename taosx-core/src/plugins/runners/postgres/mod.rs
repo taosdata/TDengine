@@ -42,7 +42,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let result = PostgresQuery::try_new(c).await;
+            let result = PostgresQuery::try_new(c, String::from("+08:00")).await;
             match result {
                 Err(err) => DataSourceValidation::invalid(
                     POSTGRES_ID.to_string(),
@@ -84,7 +84,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create postgres query
     let config = PostgresConfig::from_dsn(dsn)?;
-    let mut query = PostgresQuery::try_new(config.connect).await?;
+    let mut query = PostgresQuery::try_new(config.connect, config.task.time_zone.clone()).await?;
 
     // results
     let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
@@ -197,7 +197,7 @@ pub async fn postgres_to_taos(
     .await?;
 
     // create worker
-    let worker = tokio::spawn(migrate_history(config));
+    let worker = tokio::spawn(migrate_history(config, cancel.clone()));
 
     // execute worker
     let port_pool = port_pool.clone();
@@ -442,9 +442,9 @@ fn generate_json_value(
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::Dsn;
 
     #[tokio::test]
+    #[ignore]
     async fn test_is_valid() {
         // invalid port
         let dsn =
@@ -516,6 +516,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_sample() {
         let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test?sql=select * from public.pg_test3 where ttimezone >= ${start} and ttimezone < ${end}&start=2024-01-01T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
@@ -527,6 +528,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_postgres_to_taos() {
         let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
@@ -560,11 +562,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_generate_json_value() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config).await.unwrap();
+        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
 
         let row = query
             .select_one_for_schema("select * from information_schema.tables")

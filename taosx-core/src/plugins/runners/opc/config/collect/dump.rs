@@ -11,7 +11,7 @@ pub struct DumpConfig {
 }
 
 impl DumpConfig {
-    pub fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Option<Self>> {
+    pub fn from_dsn(dsn: &Dsn, task_id: Option<i64>) -> anyhow::Result<Option<Self>> {
         let enable = Self::parse_enable(dsn)?;
         let dump_config = match enable {
             None => None,
@@ -23,7 +23,7 @@ impl DumpConfig {
                         .or(dsn.get("keep_raw_data_dir"))
                         .map(|v| v.to_string())
                         .or_else(|| {
-                            id.map(|id| {
+                            task_id.map(|id| {
                                 let path = get_data_dir()
                                     .join("tasks")
                                     .join(format!("{id}"))

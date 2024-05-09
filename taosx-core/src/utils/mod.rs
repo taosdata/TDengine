@@ -222,28 +222,29 @@ lazy_static::lazy_static! {
     static ref TABLE_COLUMN_NAME_REGEX: regex::Regex = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_]*$").unwrap();
 }
 
-pub fn validate_table_column_name(name_type: &str, name: &str) -> anyhow::Result<()> {
-    if name.len() > 192 {
+pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::Result<()> {
+    if name_value.len() > 192 {
         bail!(
             "The {}: {} is too long, the max length is 192.",
-            name_type,
-            name
+            col_name,
+            name_value
         );
     }
-    if name.contains(".") {
+    if name_value.contains(".") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: .",
-            name_type,
-            name
+            col_name,
+            name_value
         );
     }
-    if name.contains("`") {
+    if name_value.contains("`") {
         bail!(
             "The {}: {} is invalid, it should not contain the character: `",
-            name_type,
-            name
+            col_name,
+            name_value
         );
     }
+
     // if !TABLE_COLUMN_NAME_REGEX.is_match(name) {
     //     bail!(
     //         "The {}: {} is invalid, contains illegal characters.",
