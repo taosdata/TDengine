@@ -285,20 +285,30 @@ impl SubTask {
             })?;
 
         let mut topic_partitions: Vec<String> = Vec::new();
-        metadata
+
+        // filter topics
+        let topics_readable = metadata
             .topics()
             .iter()
             .filter(|tp| !tp.name().starts_with("__"))
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
-            .for_each(|tp| {
-                let topic_name = tp.name();
-                let partitions: Vec<String> = tp
-                    .partitions()
-                    .iter()
-                    .map(|partition| format!("{}:{}", topic_name, partition.id()))
-                    .collect();
-                topic_partitions.extend(partitions);
-            });
+            .collect::<Vec<_>>();
+        if topics_readable.len() != config.topics.len() {
+            tracing::warn!(
+                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                config.topics.len(),
+                topics_readable.len())
+        }
+
+        topics_readable.into_iter().for_each(|tp| {
+            let topic_name = tp.name();
+            let partitions: Vec<String> = tp
+                .partitions()
+                .iter()
+                .map(|partition| format!("{}:{}", topic_name, partition.id()))
+                .collect();
+            topic_partitions.extend(partitions);
+        });
 
         if topic_partitions.is_empty() {
             anyhow::bail!("topics is empty");
@@ -646,5 +656,42 @@ mod tests {
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
             .unwrap();
         dbg!(metadata.topics().len());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_use_sasl() {
+        let dsn = format!(
+            "kafka://{}?sasl_mechanism={}&sasl_username={}&sasl_password={}",
+            "192.168.2.19:9094", "PLAIN", "nick", "nick-sec",
+        )
+        .into_dsn()
+        .unwrap();
+
+        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+        let client_config: ClientConfig = build_client_config(config.clone());
+        // create a base consumer
+        let consumer: BaseConsumer = client_config
+            .create()
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .unwrap();
+        // fetch metadata
+        let metadata = consumer
+            .fetch_metadata(None, Duration::from_secs(5))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .unwrap();
+        dbg!(metadata.topics().len());
+        // filter topics
+        let topics = [String::from("test_taosx_sasl")];
+        let topics_readable = metadata
+            .topics()
+            .iter()
+            .filter(|tp| {
+                println!("{}", tp.name());
+                !tp.name().starts_with("__")
+            })
+            .filter(|tp| topics.contains(&tp.name().to_string()))
+            .collect::<Vec<_>>();
+        dbg!(topics_readable.len());
     }
 }
