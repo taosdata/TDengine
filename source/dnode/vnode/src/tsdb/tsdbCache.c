@@ -438,7 +438,9 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
   pLastColV0->colVal.type = pLastCol->colVal.value.type;
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     pLastColV0->colVal.value.nData = pLastCol->colVal.value.nData;
-    memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
+    if (pLastCol->colVal.value.nData > 0) {
+      memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
+    }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else {
     pLastColV0->colVal.value.val = pLastCol->colVal.value.val;
@@ -479,7 +481,9 @@ static void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
     ((SValue *)(*value + offset))[0] = pLastCol->rowKey.pks[i];
     offset += sizeof(SValue);
     if (IS_VAR_DATA_TYPE(pLastCol->rowKey.pks[i].type)) {
-      memcpy(*value + offset, pLastCol->rowKey.pks[i].pData, pLastCol->rowKey.pks[i].nData);
+      if (pLastCol->rowKey.pks[i].nData > 0) {
+        memcpy(*value + offset, pLastCol->rowKey.pks[i].pData, pLastCol->rowKey.pks[i].nData);
+      }
       offset += pLastCol->rowKey.pks[i].nData;
     }
   }
