@@ -207,7 +207,7 @@ export default {
   hours: 'h ',
   minutes: 'm ',
   seconds: 's ',
-  milliseconds: 'ms',
+  milliseconds: 'ms ',
   microseconds: 'us ',
   nanoseconds: 'ns ',
   systemPrompt: 'System Prompt',
