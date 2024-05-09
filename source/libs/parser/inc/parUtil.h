@@ -175,10 +175,6 @@ SNode*  createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
 int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
-
-//json
-int32_t jsonData2JsonTemplate(const char* json);
-
 /**
  * @brief return a - b with overflow check
  * @retval val range between [INT64_MIN, INT64_MAX]

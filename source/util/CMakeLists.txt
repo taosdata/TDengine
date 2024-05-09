@@ -15,6 +15,7 @@ ENDIF (${ASSERT_NOT_CORE})
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
+    PUBLIC "${TD_CONTRIB_DIR}/avro-c/build/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
@@ -26,6 +27,7 @@ target_include_directories(
 target_link_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
+    PUBLIC "${TD_CONTRIB_DIR}/avro-c/build/lib"
 )
 
 
@@ -34,7 +36,7 @@ if (TD_LINUX)
         util
         PUBLIC os common
         PUBLIC lz4_static fast-lzma2 
-        PUBLIC api cjson geos_c TSZ 
+        PUBLIC api cjson geos_c TSZ avro-static
     
     ) 
 else() 
@@ -42,7 +44,7 @@ else()
     util
     PUBLIC os common
     PUBLIC lz4_static 
-    PUBLIC api cjson geos_c TSZ 
+    PUBLIC api cjson geos_c TSZ avro-static
     ) 
 endif()
 

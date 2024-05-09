@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
       "        }\n"
       "    }\n"
       "}";
-  jsonData2JsonTemplate(json);
+//  encodeJsonData2Avro(json);
   testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
   testing::InitGoogleTest(&argc, argv);
   ParserTest::parseArg(argc, argv);

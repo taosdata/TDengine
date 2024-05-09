@@ -18,6 +18,7 @@
 #include "tjson.h"
 #include "cJSON.h"
 #include "taoserror.h"
+#include "avro.h"
 
 SJson* tjsonCreateObject() {
   SJson* pJson = cJSON_CreateObject();
@@ -379,4 +380,342 @@ const char* tjsonGetError() { return cJSON_GetErrorPtr(); }
 
 void tjsonDeleteItemFromObject(const SJson* pJson, const char* pName) {
   cJSON_DeleteItemFromObject((cJSON*)pJson, pName);
+}
+
+bool isInteger(double value){
+  return value == (int64_t)value;
+}
+
+#define ADD_TYPE_2_OBJECT(t,k,v) cJSON* type = cJSON_CreateString(v);\
+                                 cJSON_AddItemToObject(t, k, type)
+
+#define ADD_TYPE_2_ARRAY(t,v) cJSON* type = cJSON_CreateString(v);\
+                              cJSON_AddItemToArray(t, type)
+
+
+cJSON* transformObject2Object(cJSON* objectSrc);
+
+cJSON* transformValue2Array(cJSON* data){
+  cJSON* arrayDst = cJSON_CreateArray();
+
+  switch ((data->type) & 0xFF)
+  {
+    case cJSON_NULL:{
+      ADD_TYPE_2_ARRAY(arrayDst, "null");
+      break;
+    }
+
+    case cJSON_False:
+    case cJSON_True:{
+      ADD_TYPE_2_ARRAY(arrayDst, "bool");
+      break;
+    }
+
+    case cJSON_Number: {
+      if (isInteger(data->valuedouble)) {
+        ADD_TYPE_2_ARRAY(arrayDst, "bigint");
+      } else {
+        ADD_TYPE_2_ARRAY(arrayDst, "double");
+      }
+      break;
+    }
+
+    case cJSON_Raw:
+    case cJSON_String:
+    {
+      ADD_TYPE_2_ARRAY(arrayDst, "string");
+      break;
+    }
+
+    case cJSON_Array:{
+      cJSON* current_item = data->child;
+      if (current_item){
+        cJSON* arr = transformValue2Array(current_item);
+        cJSON_AddItemToArray(arrayDst, arr);
+      }
+      break;
+    }
+
+    case cJSON_Object:{
+      cJSON* object = transformObject2Object(data);
+      cJSON_AddItemToArray(arrayDst, object);
+      break;
+    }
+
+    default:
+      break;
+  }
+  return arrayDst;
+}
+
+cJSON* transformObject2Object(cJSON* objectSrc){
+  cJSON* object = cJSON_CreateObject();
+  cJSON *data = objectSrc->child;
+  while (data){
+    switch ((data->type) & 0xFF)
+    {
+      case cJSON_NULL:{
+        ADD_TYPE_2_OBJECT(object, data->string, "null");
+        break;
+      }
+
+      case cJSON_False:
+      case cJSON_True:{
+        ADD_TYPE_2_OBJECT(object, data->string, "boolean");
+        break;
+      }
+
+      case cJSON_Number: {
+        if (isInteger(data->valuedouble)) {
+          ADD_TYPE_2_OBJECT(object, data->string, "long");
+        } else {
+          ADD_TYPE_2_OBJECT(object, data->string, "double");
+        }
+        break;
+      }
+
+      case cJSON_Raw:
+      case cJSON_String:
+      {
+        ADD_TYPE_2_OBJECT(object, data->string, "string");
+        break;
+      }
+
+      case cJSON_Array:{
+        cJSON* current_item = data->child;
+        if (current_item){
+          cJSON* arr = transformValue2Array(current_item);
+          cJSON_AddItemToObject(object, data->string, arr);
+        }
+        break;
+      }
+
+      case cJSON_Object:{
+        cJSON* objectDst = transformObject2Object(data);
+        cJSON_AddItemToObject(object, data->string, objectDst);
+        break;
+      }
+
+      default:
+        break;
+    }
+    data = data->next;
+  }
+  return object;
+}
+
+#define ADD_AVRO_TYPE(avro,type,name) cJSON* t = cJSON_CreateString(type);\
+                           cJSON_AddItemToObject(avro, "type", t);\
+                           cJSON* n = cJSON_CreateString(name);\
+                           cJSON_AddItemToObject(avro, "name", n)
+
+cJSON* transformObject2AvroRecord(cJSON* template);
+
+cJSON* json2Avro(cJSON* data){
+  cJSON* avroSchema = cJSON_CreateObject();
+  switch ((data->type) & 0xFF)
+  {
+    case cJSON_String:
+    {
+      ADD_AVRO_TYPE(avroSchema, data->valuestring, data->string);
+      break;
+    }
+
+    case cJSON_Array:{
+      ADD_AVRO_TYPE(avroSchema, "array", data->string);
+
+      cJSON* current_item = data->child;
+      if (current_item){
+        cJSON* avro = json2Avro(current_item);
+        cJSON_AddItemToObject(avroSchema, "items", avro);
+      }
+
+      break;
+    }
+
+    case cJSON_Object:{
+      cJSON* n = cJSON_CreateString(data->string);
+      cJSON_AddItemToObject(avroSchema, "name", n);
+      cJSON* record = transformObject2AvroRecord(data);
+      cJSON_AddItemToObject(avroSchema, "type", record);
+      break;
+    }
+
+    default:{
+      uError("Unsupported avro type:%d", data->type);
+      ASSERTS(0, "Unsupported avro type");
+      break;
+    }
+  }
+  return avroSchema;
+}
+
+cJSON* transformObject2AvroRecord(cJSON* template){
+  cJSON* record = cJSON_CreateObject();
+  ADD_AVRO_TYPE(record, "record", "schema");
+  cJSON* fields = cJSON_CreateArray();
+
+  cJSON *data = template->child;
+  while (data){
+    cJSON* avro = json2Avro(data);
+    cJSON_AddItemToArray(fields, avro);
+    data = data->next;
+  }
+
+  cJSON_AddItemToObject(record, "fields", fields);
+  return record;
+}
+
+int schema_traverse(const avro_schema_t schema, cJSON *json, avro_value_t *current_val) {
+  switch (schema->type) {
+    case AVRO_RECORD:
+    {
+      ASSERT(cJSON_IsObject(json));
+
+      int len = avro_schema_record_size(schema), i;
+      for (i=0; i<len; i++) {
+        const char *name = avro_schema_record_field_name(schema, i);
+        avro_schema_t field_schema = avro_schema_record_field_get_by_index(schema, i);
+
+        cJSON *json_val = cJSON_GetObjectItem(json, name);
+
+        avro_value_t field;
+        avro_value_get_by_index(current_val, i, &field, NULL);
+
+        if (schema_traverse(field_schema, json_val, &field) != 0){
+          return -1;
+        }
+      }
+    } break;
+
+    case AVRO_STRING:
+      ASSERT(cJSON_IsString(json));
+
+      const char *js = cJSON_GetStringValue(json);
+      avro_value_set_string(current_val, js);
+      break;
+
+    case AVRO_INT32:
+      ASSERT(0);
+      break;
+
+    case AVRO_INT64:
+      ASSERT(cJSON_IsNumber(json));
+      avro_value_set_long(current_val, cJSON_GetNumberValue(json));
+      break;
+
+    case AVRO_FLOAT:
+      ASSERT(cJSON_IsNumber(json));
+      avro_value_set_float(current_val, cJSON_GetNumberValue(json));
+      break;
+
+    case AVRO_DOUBLE:
+      ASSERT(cJSON_IsNumber(json));
+      avro_value_set_double(current_val, cJSON_GetNumberValue(json));
+      break;
+
+    case AVRO_BOOLEAN:
+      ASSERT(cJSON_IsBool(json));
+      avro_value_set_boolean(current_val, cJSON_GetNumberValue(json));
+      break;
+
+    case AVRO_NULL:
+      ASSERT(cJSON_IsNull(json));
+      avro_value_set_null(current_val);
+      break;
+
+    case AVRO_ARRAY:
+      ASSERT(cJSON_IsArray(json));
+      int i, len = cJSON_GetArraySize(json);
+      avro_schema_t items = avro_schema_array_items(schema);
+      avro_value_t val;
+      for (i=0; i<len; i++) {
+        avro_value_append(current_val, &val, NULL);
+        if (schema_traverse(items, cJSON_GetArrayItem(json, i), &val)){
+          return -1;
+        }
+      }
+      break;
+
+    case AVRO_BYTES:
+    case AVRO_ENUM:
+    case AVRO_MAP:
+    case AVRO_UNION:
+    case AVRO_FIXED:
+    case AVRO_LINK:
+      ASSERT(0);
+      break;
+
+    default:
+    uError("ERROR: avro Unknown type: %d", schema->type);
+      return -1;
+  }
+  return 0;
+}
+
+int32_t json2avro(cJSON* data, cJSON* avro, void** encodeData, int64_t* len) {
+  avro_file_writer_t db;
+  avro_schema_t schema;
+  char*         shcema_str = cJSON_PrintUnformatted(avro);
+  if (avro_schema_from_json_length(shcema_str, strlen(shcema_str), &schema)) {
+    uError("%s Failed to parse schema", __FUNCTION__);
+    return -1;
+  }
+  int32_t rval = avro_file_writer_create_with_codec("/tmp/avro.db", schema, &db, "deflate", 0);
+  if (rval) {
+    uError("%s There was an error creating writer %s, error message: %s\n", __FUNCTION__, shcema_str, avro_strerror());
+    return -1;
+  }
+
+  avro_value_t        record;
+  avro_value_iface_t* iface = avro_generic_class_from_schema(schema);
+  avro_generic_value_new(iface, &record);
+
+  if (schema_traverse(schema, data, &record) != 0) {
+    uError("%s Failed to process record %s", __FUNCTION__, shcema_str);
+    return -1;
+  }
+
+  avro_file_writer_get_encode_data(db, &record, encodeData, len);
+  avro_value_iface_decref(iface);
+  avro_value_decref(&record);
+
+  avro_file_writer_close(db);
+  return 0;
+}
+
+int32_t encodeJsonData2Avro(const char* json) {
+  if (json == NULL) {
+    return -1;
+  }
+
+  cJSON* root = cJSON_Parse(json);
+  if (root == NULL) {
+    return -1;
+  }
+
+  if (!cJSON_IsObject(root)) {
+    return -1;
+  }
+  cJSON* object = transformObject2Object(root);
+  cJSON* avro = transformObject2AvroRecord(object);
+//  char* in = cJSON_PrintUnformatted(root);
+//  char* out = cJSON_PrintUnformatted(object);
+
+  char* in = cJSON_Print(root);
+  char* out = cJSON_Print(object);
+  char* avroout = cJSON_Print(avro);
+
+
+  printf("%s\n\n\n%s\n\n\n%s", in, out, avroout);
+
+  void** encodeData = NULL;
+  int64_t len = 0;
+  json2avro(root, avro, encodeData, &len);
+
+
+  taosMemoryFree(out);
+  cJSON_Delete(root);
+  cJSON_Delete(object);
+  return 0;
 }
