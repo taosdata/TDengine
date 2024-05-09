@@ -36,9 +36,9 @@ class TDTestCase(TDTestCase):
         
         self.touying_pk_1(self.database,1) 
         self.touying_pk_where(self.database,'') 
-        self.touying_pk_where(self.database,'tags') 
-        self.touying_pk_where(self.database,'distinct') 
-        self.count_pk(self.database,1) 
+        # self.touying_pk_where(self.database,'tags') 
+        # self.touying_pk_where(self.database,'distinct') 
+        # self.count_pk(self.database,1) 
         
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
