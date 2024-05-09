@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "tgrant.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -150,6 +151,7 @@ static bool dmCheckDataDirVersion() {
 
 extern int32_t s3Begin();
 extern void    s3End();
+extern int8_t  tsS3Enabled;
 
 #endif
 
@@ -164,6 +166,12 @@ int32_t dmInit() {
   if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
 #if defined(USE_S3)
+  int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
+  if (expired && tsS3Enabled) {
+    dWarn("s3 grant expired: %d", expired);
+    tsS3Enabled = false;
+  }
+
   if (s3Begin() != 0) return -1;
 #endif
 

@@ -16,9 +16,10 @@ IF (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 ENDIF()
 
-IF (DEFINED GRANT_CFG_INCLUDE_DIR)
-  add_definitions(-DGRANTS_CFG)
-ENDIF()
+IF (TD_GRANT)
+  ADD_DEFINITIONS(-D_GRANT)
+  TARGET_LINK_LIBRARIES(dnode grant)
+ENDIF ()
 
 target_include_directories(
     dnode
