@@ -204,6 +204,15 @@ static const char *tGetConnDisplay(const char *name) {
   return name;
 }
 
+static int32_t tGetGrantIndex(const char *name) {
+  for (int32_t i = GRANT_OPT_MAX; i < GRANT_OPT_DYN_MAX; ++i) {
+    if (strncasecmp(gGrantName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static const char *tGetGrantDisplay(const char *name) {
   for (int32_t i = GRANT_OPT_MAX; i < GRANT_OPT_DYN_MAX; ++i) {
     if (strncasecmp(gGrantName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
@@ -707,6 +716,17 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
       GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+    }
+  }
+
+  // check dynamic grant items
+  int32_t nDynGrantItems = taosArrayGetSize(pObj->pItem64);
+  if (nDynGrantItems > 0) {
+    for (int32_t i = 0; i < nDynGrantItems; ++i) {
+      SGrantItem64 *pItem64 = TARRAY_GET_ELEM(pObj->pItem64, i);
+      int32_t       j = tGetConnIndex(pItem64->name);
+      if (j >= CONN_TYPE_MAX && j < CONN_TYPE_DYN_MAX) {
+      }
     }
   }
 
@@ -2118,11 +2138,11 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     // with expire and limits
     int64_t basicExpireSec =
         pStatus->grantState == GRANT_STATE_REVOKED ? pStatus->revokedExpireSec : pStatus->basicExpireSec;
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "timeseries", basicExpireSec, pStatus->curTimeSeries,
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "Timeseries", basicExpireSec, pStatus->curTimeSeries,
                              pStatus->limitTimeSeries, false);
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "dnodes", basicExpireSec, pStatus->curDnodes,
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "Dnodes", basicExpireSec, pStatus->curDnodes,
                              pStatus->limitDnodes, false);
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "cpu_cores", basicExpireSec, pStatus->curCpuCores,
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "CPU Cores", basicExpireSec, pStatus->curCpuCores,
                              pStatus->limitCpuCores, false);
 
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
