@@ -894,13 +894,16 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
+#define LAST_COL_VERSION (0x1)
+
 typedef struct {
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
+  int8_t  version;
 } SLastCol;
 
-typedef struct  {
+typedef struct {
   union {
     int64_t val;
     struct {
