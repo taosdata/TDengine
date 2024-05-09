@@ -168,6 +168,26 @@ groups:
           min: 1
           max: 60
         value: 1
+      - name: update_mode
+        display: 点位更新模式
+        description: |
+          点位更新模式，在使用“选择数据点位”时，可以开启动态点位更新。none：不开启动态点位更新；append：开启动态点位更新，但只追加；update：开启动态点位更新，追加或删除。
+        value: none
+        hint:
+          type: str
+          choices:
+            - none
+            - append
+            - update
+      - name: update_interval
+        display: 点位更新间隔
+        description: |
+          动态点位更新间隔，在“点位更新模式”为 append 和 update 时生效，以秒为单位。
+        value: 600
+        hint:
+          type: integer
+          min: 60
+          max: 2147483647
 
 advanced:
   name: 高级选项
