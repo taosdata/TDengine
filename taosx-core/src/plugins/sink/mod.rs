@@ -65,28 +65,6 @@ use tokio::sync::{Mutex, Notify, OnceCell};
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument};
 
-use crate::core_metrics::get_metrics_arc_from_i64;
-use crate::runners::opc::config::model::TableConfig;
-use crate::runners::opc::config::model::TagConfig;
-
-use crate::utils::breakpoints::breakpoints_set;
-use crate::utils::trace::create_data_trace_id;
-use crate::utils::trace::create_stream_trace_id;
-use crate::utils::trace::get_data_trace_id_str;
-use crate::utils::trace::set_data_trace_id_for_current_span;
-use crate::utils::trace::RequestID;
-
-use crate::ConnectorLicense;
-
-use crate::{
-    core_metrics::{CoreMetrics, TaskMetrics},
-    plugins::runners::opc::config::model::ColumnConfig,
-    runners::opc::config::OPCConfig,
-    sink::flat::flat_write_with_sql,
-    utils::trace::get_stream_id_u64,
-    utils::{get_main_version_from_server_version, get_server_version},
-};
-
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
