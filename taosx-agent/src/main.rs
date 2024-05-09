@@ -655,7 +655,8 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         cfg_if::cfg_if! {
             if #[cfg(windows)] {
-               let ansi = true;
+                // Windows powershell or cmd not support ansi color.
+               let ansi = false;
             } else {
                let ansi = true;
             }

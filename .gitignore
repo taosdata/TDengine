@@ -34,3 +34,4 @@ plugins/opc/taosx-opc
 targets
 *.csv
 .DS_Store
+tmp.*
