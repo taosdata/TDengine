@@ -38,6 +38,56 @@ static void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfR
 static int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId);
 static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId);
 
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
+                              int64_t* oldStage) {
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  ASSERT(pInfo != NULL);
+
+  *oldStage = pInfo->stage;
+  const char* id = pTask->id.idStr;
+  if (stage == -1) {
+    stDebug("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), invalid stageId:%" PRId64 ", not ready", id,
+            upstreamTaskId, vgId, stage);
+    return 0;
+  }
+
+  if (pInfo->stage == -1) {
+    pInfo->stage = stage;
+    stDebug("s-task:%s receive check msg from upstream task:0x%x(vgId:%d) first time, init stage value:%" PRId64, id,
+            upstreamTaskId, vgId, stage);
+  }
+
+  if (pInfo->stage < stage) {
+    stError("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64
+                ", prev:%" PRId64,
+            id, upstreamTaskId, vgId, stage, pInfo->stage);
+    // record the checkpoint failure id and sent to mnode
+    taosThreadMutexLock(&pTask->lock);
+    ETaskStatus status = streamTaskGetStatus(pTask)->state;
+    if (status == TASK_STATUS__CK) {
+      streamTaskSetFailedCheckpointId(pTask);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
+  }
+
+  if (pInfo->stage != stage) {
+
+    taosThreadMutexLock(&pTask->lock);
+    ETaskStatus status = streamTaskGetStatus(pTask)->state;
+    if (status == TASK_STATUS__CK) {
+      streamTaskSetFailedCheckpointId(pTask);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
+
+    return TASK_UPSTREAM_NEW_STAGE;
+  } else if (pTask->status.downstreamReady != 1) {
+    stDebug("s-task:%s vgId:%d leader:%d, downstream not ready", id, vgId, (pTask->pMeta->role == NODE_ROLE_LEADER));
+    return TASK_DOWNSTREAM_NOT_READY;
+  } else {
+    return TASK_DOWNSTREAM_READY;
+  }
+}
+
 // check status
 void streamTaskSendCheckMsg(SStreamTask* pTask) {
   SDataRange*  pRange = &pTask->dataRange;
@@ -184,14 +234,7 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      int32_t startTs = pTask->execInfo.checkTs;
-      streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, now, false);
-
-      // automatically set the related fill-history task to be failed.
-      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-        STaskId* pId = &pTask->hTaskInfo.id;
-        streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
-      }
+      streamMetaAddFailedTaskSelf(pTask, now);
     } else {  // TASK_DOWNSTREAM_NOT_READY, rsp-check monitor will retry in 300 ms
       ASSERT(left > 0);
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
