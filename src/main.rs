@@ -2,6 +2,7 @@ use std::backtrace::Backtrace;
 use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
+use tracing::debug;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use anyhow::Result;
@@ -617,9 +618,11 @@ fn main() -> Result<()> {
             let addr = serve.get_listen_address();
             let port = addr.split(':').last().unwrap();
             let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
+            debug!("Prepare channels");
             let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
                 scheduler_rt.block_on(serve.channels());
 
+            debug!("Starting scheduler");
             let scheduler = scheduler_rt
                 .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
@@ -628,12 +631,16 @@ fn main() -> Result<()> {
             // let api_rt = build_runtime(worker_threads)?;
             let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
 
+            debug!("Starting controller");
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
             let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
+
+            debug!("Starting gRPC server");
             let grpc_handle =
                 grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
+            debug!("Starting REST API server");
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle, monitor).await
