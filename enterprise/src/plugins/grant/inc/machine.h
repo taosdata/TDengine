@@ -292,6 +292,12 @@ typedef struct {
 } SGrantItem64;
 
 typedef struct {
+  int16_t index;
+  int32_t expire;
+  int64_t number;
+} SGrantItemI64;
+
+typedef struct {
   char    *active;
   char    *historicalActive;  // fixed len: GRANT_ACTIVE_HEAD_LEN + 1
   SArray  *pMachines;         // 24 bits string
@@ -324,6 +330,7 @@ typedef struct {
   // variant fields
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
+  SArray *pItemI64;  // SGrantItemI64
 
   // extension
   char *encrypt;
@@ -372,10 +379,9 @@ typedef struct {
       int64_t multiTierExpireSec : 40;
       int64_t curDnodes : 16;
       int64_t objectStorageExpired : 1;
-      int64_t activeActiveExpired : 1;
       int64_t dualReplicaHAExpired : 1;
       int64_t dbEncryptionExpired : 1;
-      int64_t reserve2 : 4;
+      int64_t reserve2 : 5;
     };
   };
   union {
@@ -415,6 +421,34 @@ typedef struct {
       int64_t nDiskCfg : 24;
     };
   };
+  union {
+    int64_t p10;  // since 3.3.0.0
+    struct {
+      int64_t objectStorageExpireSec : 40;
+      int64_t reserve7 : 24;
+    };
+  };
+  union {
+    int64_t p11;  // since 3.3.0.0
+    struct {
+      int64_t activeActiveExpireSec : 40;
+      int64_t reserve8 : 24;
+    };
+  };
+  union {
+    int64_t p12;  // since 3.3.0.0
+    struct {
+      int64_t dualReplicaHAExpireSec : 40;
+      int64_t reserve9 : 24;
+    };
+  };
+  union {
+    int64_t p13;  // since 3.3.0.0
+    struct {
+      int64_t dbEncryptionExpireSec : 40;
+      int64_t reserve10 : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
@@ -426,7 +460,7 @@ typedef struct {
   SGrantDataIn dataIns[CONN_TYPE_DYN_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem64;   // SGrantItem64
+  SArray *pItem64;   // SGrantItem64, deprecated
 } SGrantStatus;
 
 typedef struct {
