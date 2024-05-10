@@ -767,12 +767,11 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
-            // tracing::debug!("Received LushInsertAttrs size {}", tables.len()); // debug
+            tracing::debug!("Received tables message size {}", tables.len());
             let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
             for table in tables {
                 table_cache.insert(table.table_name().to_string(), table);
             }
-            // tracing::debug!(?table_cache, "table_cache_1"); // debug
         }
         LushMessage::Insert(record) => {
             // tracing::debug!(?record, "Received LushMessageInsert"); // debug

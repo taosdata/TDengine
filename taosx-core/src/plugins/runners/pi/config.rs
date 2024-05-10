@@ -108,15 +108,7 @@ impl PiConfig {
         let update_interval = Self::parse_update_interval(&dsn)?;
         let max_backfill_range_days = Self::parse_max_backfill_range_days(&dsn)?;
 
-        let (element_id_list, point_list) = if let Some(point_list) = dsn.params.get("point_list") {
-            let point_list = point_list.to_string();
-            let point_list = point_list.split(',').map(|s| s.to_string()).collect();
-            (Vec::new(), point_list)
-        } else if let Some(element_id_list) = dsn.params.get("element_id_list") {
-            let element_id_list = element_id_list.to_string();
-            let element_id_list = element_id_list.split(',').map(|s| s.to_string()).collect();
-            (element_id_list, Vec::new())
-        } else {
+        let (element_id_list, point_list) = {
             let transform_config_file = dsn
                 .params
                 .get("transform_config_file")
