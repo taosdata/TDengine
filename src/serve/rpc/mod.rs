@@ -1051,16 +1051,16 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
                 new_value.pop();
             }
         } else if k == "transform_config_file" {
-            let (element_id_list, point_list) =
-                PiConfig::get_points_from_transform_config_file(v.as_str()).with_context(|| {
-                    anyhow::format_err!("Modify task dsn error, failed to parse file:{}", v)
-                })?;
-            if !element_id_list.is_empty() {
-                map.insert("element_id_list".to_string(), element_id_list.join(","));
-            }
-            if !point_list.is_empty() {
-                map.insert("point_list".to_string(), point_list.join(","));
-            }
+            // let (element_id_list, point_list) =
+            //     PiConfig::get_points_from_transform_config_file(v.as_str()).with_context(|| {
+            //         anyhow::format_err!("Modify task dsn error, failed to parse file:{}", v)
+            //     })?;
+            // if !element_id_list.is_empty() {
+            //     map.insert("element_id_list".to_string(), element_id_list.join(","));
+            // }
+            // if !point_list.is_empty() {
+            //     map.insert("point_list".to_string(), point_list.join(","));
+            // }
             continue;
         } else if v.contains("@") {
             new_value.push_str(

@@ -464,9 +464,8 @@ impl AgentWorker {
         data: Vec<u8>,
     ) -> anyhow::Result<()> {
         check_agent_exists!(self, agent_id);
-
         let (sender, receiver) = flume::bounded(1);
-        let req = PutFileReq { path, data };
+        let req = PutFileReq { path: path.to_string(), data };
         if let Err(err) = self
             .agent_activity_sender
             .send((agent_id, AgentAction::PutFile(req, sender)))

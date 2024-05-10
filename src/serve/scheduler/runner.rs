@@ -236,6 +236,20 @@ impl AgentRuntimeRef {
         }
     }
 
+    pub async fn put_file_to_agent(
+        &self,
+        agent_id: i64,
+        path: String,
+        content: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        match self {
+            Self::Server(rt) => rt.put_file_to_agent(agent_id, path, content).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
     async fn insert(&self, task: AgentTask) {
         match self {
             Self::Server(rt) => {

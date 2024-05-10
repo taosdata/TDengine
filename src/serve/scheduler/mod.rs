@@ -544,6 +544,18 @@ impl TaskScheduler {
         self.global_state.agent_runtime.get_sample(agent, dsn).await
     }
 
+    pub async fn put_file_to_agent(
+        &self,
+        agent: i64,
+        path: String,
+        content: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        self.global_state
+            .agent_runtime
+            .put_file_to_agent(agent, path, content)
+            .await
+    }
+
     pub(crate) async fn suspend_all(&self) {
         let tasks = self
             .tasks

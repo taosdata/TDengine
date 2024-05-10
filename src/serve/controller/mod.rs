@@ -698,16 +698,22 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
-        if let Some(via) = task.via {
-            if !self.agent_alive(via).await {
-                bail!("Agent {} is not alive", via);
-            }
-        }
         let from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
 
+        if let Some(via) = task.via {
+            if !self.agent_alive(via).await {
+                bail!("Agent {} is not alive", via);
+            }
+            // 检查是否有需要发送到 agent 的文件
+            let file_to_send = from.params.get("transform_config_file");
+            if let Some(path) = file_to_send {
+                tracing::info!("Put file to agent {}: {}", via, path);
+                self.put_file_to_agent(via, path.clone()).await?;
+            }
+        }
         let to: Dsn = task
             .to
             .parse()
@@ -1548,6 +1554,30 @@ impl TaskController {
                 Err(err).context("Retrieve datasets result timeout from agent")
             }
         }
+    }
+
+    pub async fn put_file_to_agent(&self, agent_id: i64, path: String) -> anyhow::Result<()> {
+        let scheduler = self.scheduler.clone();
+        let handle = tokio::spawn(async move {
+            let data = tokio::fs::read(&path).await;
+            match data {
+                Ok(data) => {
+                    let res = scheduler.put_file_to_agent(agent_id, path, data).await;
+                    match res {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            tracing::error!("Put file error: {err}");
+                            bail!("Put file error: {err}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("Read file error: {err}");
+                    bail!("Read file error: {err}");
+                }
+            }
+        });
+        handle.await?
     }
 
     pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
