@@ -20,8 +20,9 @@ use tonic::transport::Endpoint;
 use tracing::info;
 
 use taosx_core::{
-    list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, RespAction, Response, SampleResponse,
+    get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq,
+    Fail, HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, RespAction, Response,
+    SampleResponse,
 };
 
 use crate::runner::Action;
@@ -350,6 +351,26 @@ impl Client {
                     ]);
                     item
                 }
+                RespAction::PutFileOk(resp) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["put-file".to_string()]));
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &resp,
+                        )
+                        .unwrap()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
                 RespAction::AgentActivity(activity) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                         Utc::now().timestamp_millis()
@@ -553,6 +574,38 @@ impl Client {
                                 .await;
                             if let Err(err) = send_ok {
                                 tracing::error!("Can't send GetSample response to server: {err:#}");
+                            }
+                        });
+                    }
+                    "put-file" => {
+                        let req: PutFileReq = serde_json::from_str(&context).unwrap();
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let data_dir = get_data_dir();
+                            let path = data_dir.join(req.path);
+                            tracing::info!("[put-file] Write file to {}", path.display());
+                            // write data to path
+                            let result = tokio::fs::write(&path, &req.data).await;
+                            match result {
+                                Ok(_) => {
+                                    let _send_ok = resp_tx
+                                        .send_async(RespAction::PutFileOk(PutFileResp {
+                                            req_id,
+                                            path: path.display().to_string(),
+                                            res: Response::Ok("Ok".to_string()),
+                                        }))
+                                        .await;
+                                }
+                                Err(err) => {
+                                    tracing::error!("[put-file] Write file error: {err:#}");
+                                    let _send_ok = resp_tx
+                                        .send_async(RespAction::PutFileOk(PutFileResp {
+                                            req_id,
+                                            path: path.display().to_string(),
+                                            res: Response::Err(Fail::new(err)),
+                                        }))
+                                        .await;
+                                }
                             }
                         });
                     }

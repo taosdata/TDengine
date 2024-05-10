@@ -32,7 +32,9 @@ use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{
+    get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
+};
 
 use crate::serve::controller::agent::Activity;
 
@@ -144,6 +146,7 @@ pub enum AgentAction {
     Check(String, DsvSender),
     /// get sample data
     GetSample(String, StringSender),
+    PutFile(PutFileReq, StringSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;

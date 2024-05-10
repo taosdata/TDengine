@@ -5,11 +5,12 @@ use anyhow::bail;
 use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::DataSet;
+use taosx_core::{DataSet, PutFileReq};
 use tokio::{
     runtime::Handle,
     sync::{broadcast::error::RecvError, RwLock},
 };
+use utoipa::openapi::path;
 use uuid::Uuid;
 
 use crate::serve::controller::agent::Activity;
@@ -88,6 +89,15 @@ pub struct AgentWorker {
     agent_tasks_sender: Arc<RwLock<MultiIndexAgentTaskMap>>,
     agent_activity_sender: AgentActionsSender,
     // agent_notify_receiver: tokio::sync::mpsc::Receiver<(AgentId, AgentAction)>,
+}
+
+macro_rules! check_agent_exists {
+    ($self:expr, $agent_id:expr) => {{
+        let agent_states = $self.agent_states.read().await;
+        if !agent_states.contains_key(&$agent_id) {
+            return Err(anyhow::anyhow!("Agent not found: {}", $agent_id));
+        }
+    }};
 }
 
 impl AgentWorker {
@@ -439,5 +449,40 @@ impl AgentWorker {
             .write()
             .await
             .remove_by_task_id(&task_id);
+    }
+
+    /// Put file to agent.
+    /// 
+    /// Arguments:
+    /// - `agent_id`: Agent id.
+    /// - `path`: File path including file name relative to $DATA_HOME.
+    /// - `data`: File data.
+    pub(crate) async fn put_file_to_agent(
+        &self,
+        agent_id: i64,
+        path: String,
+        data: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        check_agent_exists!(self, agent_id);
+
+        let (sender, receiver) = flume::bounded(1);
+        let req = PutFileReq { path, data };
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::PutFile(req, sender)))
+        {
+            bail!("failed to send PutFile action, cause: {:?}", err);
+        }
+        let res = receiver
+            .recv_async()
+            .await
+            .map_err(|err| anyhow::anyhow!("failed to get PutFile result, cause: {:#}", err))?;
+        match res {
+            Ok(path) => {
+                tracing::info!("PutFile success: {}", path);
+                Ok(())
+            }
+            Err(err) => Err(anyhow::anyhow!("failed to PutFile, cause: {:#}", err)),
+        }
     }
 }

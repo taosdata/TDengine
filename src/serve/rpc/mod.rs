@@ -239,9 +239,8 @@ async fn action_to_arrow(
 
             let datasets_senders = datasets_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = datasets_senders.write().await;
-
-                receiver.insert(req_id, sender);
+                let mut senders = datasets_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
@@ -261,9 +260,8 @@ async fn action_to_arrow(
 
             let dsv_senders = dsv_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = dsv_senders.write().await;
-
-                receiver.insert(req_id, sender);
+                let mut senders = dsv_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
@@ -283,8 +281,31 @@ async fn action_to_arrow(
 
             let string_senders = string_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = string_senders.write().await;
-                receiver.insert(req_id, sender);
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::PutFile(put_file_req, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &put_file_req,
+                )
+                .unwrap()]));
+            let action: ArrayRef =
+                Arc::new(StringArray::from_iter_values(["put-file".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+            let string_senders = string_senders.clone();
+            tokio::spawn(async move {
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
