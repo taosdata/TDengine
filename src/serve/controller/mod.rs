@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -556,21 +555,6 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
         .execute(pool)
         .await?;
     Ok(())
-}
-
-#[allow(dead_code)]
-fn set_file_content(dsn: &mut Dsn, key: &str) {
-    let content = dsn.get(key).map(|v| {
-        if v.starts_with('@') {
-            // let v = v.trim_start_matches('@');
-            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
-        } else {
-            v.to_string()
-        }
-    });
-    if content.is_some() {
-        dsn.set(key, content.unwrap());
-    }
 }
 
 use taosx_core::utils::get_string_content_from_param_value;
@@ -1528,10 +1512,6 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        // set_file_content(dsn, "certificate");
-        // set_file_content(dsn, "private_key");
-        // set_file_content(dsn, "auth_certificate");
-        // set_file_content(dsn, "auth_private_key");
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
@@ -1580,10 +1560,6 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
-        // set_file_content(&mut dsn_agent, "certificate");
-        // set_file_content(&mut dsn_agent, "private_key");
-        // set_file_content(&mut dsn_agent, "auth_certificate");
-        // set_file_content(&mut dsn_agent, "auth_private_key");
         let result = set_file_contents(&mut dsn_agent).await;
         if let Err(err) = result {
             return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
