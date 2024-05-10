@@ -21,7 +21,7 @@ use sqlx::ConnectOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -558,6 +558,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn set_file_content(dsn: &mut Dsn, key: &str) {
     let content = dsn.get(key).map(|v| {
         if v.starts_with('@') {
@@ -570,6 +571,27 @@ fn set_file_content(dsn: &mut Dsn, key: &str) {
     if content.is_some() {
         dsn.set(key, content.unwrap());
     }
+}
+
+use taosx_core::utils::get_string_content_from_param_value;
+
+async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone().into_dsn()?;
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        let mut new_value = String::new();
+        if v.contains("@") {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
+        }
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
+    }
+    dsn.params = map;
+    Ok(())
 }
 
 impl TaskController {
@@ -1506,10 +1528,11 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        set_file_content(dsn, "certificate");
-        set_file_content(dsn, "private_key");
-        set_file_content(dsn, "auth_certificate");
-        set_file_content(dsn, "auth_private_key");
+        // set_file_content(dsn, "certificate");
+        // set_file_content(dsn, "private_key");
+        // set_file_content(dsn, "auth_certificate");
+        // set_file_content(dsn, "auth_private_key");
+        set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
             from: dsn.to_string(),
@@ -1557,10 +1580,14 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
-        set_file_content(&mut dsn_agent, "certificate");
-        set_file_content(&mut dsn_agent, "private_key");
-        set_file_content(&mut dsn_agent, "auth_certificate");
-        set_file_content(&mut dsn_agent, "auth_private_key");
+        // set_file_content(&mut dsn_agent, "certificate");
+        // set_file_content(&mut dsn_agent, "private_key");
+        // set_file_content(&mut dsn_agent, "auth_certificate");
+        // set_file_content(&mut dsn_agent, "auth_private_key");
+        let result = set_file_contents(&mut dsn_agent).await;
+        if let Err(err) = result {
+            return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
+        }
 
         let result = tokio::time::timeout(
             Duration::from_secs(600),
