@@ -1707,6 +1707,12 @@ int32_t grantCheck(EGrantType grant) {
       return GRANT_EXPIRED(gStatus.expired || gStatus.csvExpired);
     case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED(gStatus.expired || gStatus.multiTierExpired);
+    case TSDB_GRANT_OBJECT_STORAGE:
+      return GRANT_EXPIRED(gStatus.expired || gStatus.objectStorageExpired);
+    case TSDB_GRANT_DUAL_REPLICA_HA:
+      return GRANT_EXPIRED(gStatus.expired || gStatus.dualReplicaHAExpired);
+    case TSDB_GRANT_DB_ENCRYPTION:
+      return GRANT_EXPIRED(gStatus.expired || gStatus.dbEncryptionExpired);
     default:
       break;
   }
