@@ -231,6 +231,9 @@ impl TaskConfig {
 
         let mut sql = self.sql.clone();
 
+        // whether the sql contains time range
+        let mut time_range_exist = false;
+
         if sql.contains("${start}") && sql.contains("${end}") {
             let query_start = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
@@ -243,7 +246,9 @@ impl TaskConfig {
             sql = sql
                 .replace("${start}", &query_start)
                 .replace("${end}", &query_end);
-        } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
             let query_start = format!(
                 "STR_TO_DATE('{}','%Y-%m-%d %H:%i:%s')",
                 start_tz.format("%Y-%m-%d %H:%M:%S")
@@ -255,13 +260,17 @@ impl TaskConfig {
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);
-        } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_date}") && sql.contains("${end_date}") {
             let query_start = format!("STR_TO_DATE('{}','%Y-%m-%d')", start_tz.format("%Y-%m-%d"));
             let query_end = format!("STR_TO_DATE('{}','%Y-%m-%d')", end_tz.format("%Y-%m-%d"));
             sql = sql
                 .replace("${start_date}", &query_start)
                 .replace("${end_date}", &query_end);
-        } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("STR_TO_DATE('{}','%H:%i:%s')", start_tz.format("%H:%M:%S"));
             let mut query_end = format!("STR_TO_DATE('{}','%H:%i:%s')", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
@@ -273,7 +282,9 @@ impl TaskConfig {
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
-        } else {
+            time_range_exist = true;
+        }
+        if !time_range_exist {
             anyhow::bail!("invalid sql template, missing start and end");
         }
 
