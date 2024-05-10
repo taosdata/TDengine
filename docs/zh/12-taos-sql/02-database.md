@@ -60,7 +60,7 @@ database_option: {
 - PAGES：一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE \* PAGES，默认情况下为 1MB 内存。
 - PAGESIZE：一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。
 - PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。
-- REPLICA：表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。
+- REPLICA：表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在企业版中可用。在集群中使用，副本数必须小于或等于 DNODE 的数目。
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。
