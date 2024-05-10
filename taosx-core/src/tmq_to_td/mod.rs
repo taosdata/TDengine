@@ -5,7 +5,7 @@ use crate::{
     legacy_metric::LegacyToTaosMetrics,
     sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
-    utils::constants::VERSION_3_3_0,
+    utils::{constants::VERSION_3_3_0, interval::IntervalLimit},
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -489,20 +489,116 @@ async fn write_meta(
     Ok(())
 }
 
+async fn sync_msg(
+    consumer: &Consumer,
+    id: usize,
+    offset: Offset,
+    message: MessageSet<Meta, Data>,
+    messages: &mut usize,
+    rows: &mut usize,
+    metrics: &TmqMetrics,
+    source_pool: &TaosPool,
+    taos: &Taos,
+    table: Option<&str>,
+    actions: &[Action],
+    with_meta_delete: bool,
+    with_meta_drop: bool,
+    target_is_v3: bool,
+) -> Result<()> {
+    metrics.add_messages(1);
+    let total = metrics.messages.load(SeqCst);
+    *messages += 1;
+    if *messages % 2000 == 0 {
+        tracing::info!(
+            "Received {messages} messages ({:.2})",
+            *messages as f64 / total as f64
+        );
+    }
+    match message {
+        MessageSet::Meta(meta) => {
+            let write_meta_result = write_meta(
+                id,
+                &source_pool,
+                taos,
+                &actions,
+                &meta,
+                target_is_v3,
+                metrics,
+                with_meta_delete,
+                with_meta_drop,
+            )
+            .await;
+            if let Err(err) = write_meta_result {
+                tracing::warn!("Ignore error: {}", err);
+            }
+        }
+        MessageSet::Data(data) => {
+            write_data(
+                id,
+                rows,
+                &source_pool,
+                taos,
+                table.as_deref(),
+                &actions,
+                &data,
+                target_is_v3,
+                metrics,
+            )
+            .await
+            .with_context(|| format!("[{id}] writing data message error"))?;
+        }
+        MessageSet::MetaData(meta, data) => {
+            let write_meta_result = write_meta(
+                id,
+                &source_pool,
+                taos,
+                &actions,
+                &meta,
+                target_is_v3,
+                metrics,
+                with_meta_delete,
+                with_meta_drop,
+            )
+            .await;
+            if let Err(err) = write_meta_result {
+                tracing::warn!("Ignore error: {}", err);
+            }
+            if !actions.is_empty() {
+                write_data(
+                    id,
+                    rows,
+                    &source_pool,
+                    taos,
+                    table,
+                    &actions,
+                    &data,
+                    target_is_v3,
+                    metrics,
+                )
+                .await
+                .with_context(|| format!("[{id}] writing metadata message error"))?;
+            }
+        }
+    }
+    if let Err(err) = consumer.commit(offset).await {
+        tracing::warn!("Commit error: {err:?}");
+    }
+    anyhow::Ok(())
+}
+
 #[instrument(skip_all, fields(consumer.id = id, table))]
 async fn sync(
     id: usize,
-    sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
     consumer: Consumer,
     source_pool: TaosPool,
     taos: &Taos,
-    table: Option<String>,
-    actions: Vec<Action>,
+    table: Option<&str>,
+    actions: &[Action],
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     with_meta_delete: bool,
     with_meta_drop: bool,
-) -> Result<()> {
+) -> Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -514,6 +610,7 @@ async fn sync(
     let metrics = metrics_arc.tmq();
     let refresh_progress_interval =
         crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
+
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -522,39 +619,26 @@ async fn sync(
             }
             next = stream.try_next() => {
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
-                    metrics.add_messages(1);
-                    let total = metrics.messages.load(SeqCst);
-                    messages += 1;
-                    if messages % 2000 == 0 {
-                        tracing::info!("Received {messages} messages ({:.2})", messages as f64 / total as f64);
+                    sync_msg(
+                        &consumer,
+                        id,
+                        offset,
+                        message,
+                        &mut messages,
+                        &mut rows,
+                        metrics,
+                        &source_pool,
+                        taos,
+                        table,
+                        actions,
+                        with_meta_delete,
+                        with_meta_drop,
+                        target_is_v3
+                    ).await?;
+                    if refresh_progress_interval.ticked() {
+                        update_progress(&consumer, &metrics).await;
                     }
-                    match message {
-                        MessageSet::Meta(meta) => {
-                            let write_meta_result = write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await;
-                            if let Err(err) = write_meta_result {
-                                tracing::warn!("Ignore error: {}", err);
-                            }
-                        }
-                        MessageSet::Data(data) => {
-                            write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
-                        }
-                        MessageSet::MetaData(meta, data) => {
-                            let write_meta_result = write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics, with_meta_delete, with_meta_drop).await;
-                            if let Err(err) = write_meta_result {
-                                tracing::warn!("Ignore error: {}", err);
-                            }
-                            if !actions.is_empty() {
-                                write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
-                            }
-                        }
-                    }
-                    if let Err(err) = consumer.commit(offset).await {
-                        tracing::warn!("Commit error: {err:?}");
-                    } else {
-                        if refresh_progress_interval.ticked() {
-                            update_progress(&consumer, &metrics).await;
-                        }
-                    }
+
                 } else {
                     break;
                 }
@@ -566,8 +650,8 @@ async fn sync(
 
     // do not drop consumer when single task done.
     drop(stream);
-    let _ = sender.send(consumer); // tokio send
-    Ok(())
+    // let _ = sender.send(consumer); // tokio send
+    Ok(consumer)
 }
 
 async fn update_progress(consumer: &Consumer, metrics: &TmqMetrics) {
@@ -592,6 +676,7 @@ pub async fn tmq_to_td(
     jobs: usize,
     cancel: CancellationToken,
     task_id: Option<String>,
+    notify: crate::TaskNotifySender,
 ) -> Result<()> {
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
     let version = builder.server_version().await?.to_owned();
@@ -805,9 +890,12 @@ pub async fn tmq_to_td(
         let duration = consumer_timer.elapsed();
         tracing::info!("Setup {} consumers in {:?}", jobs, duration);
 
+        let tmq = Arc::new(tmq);
+        let topic = Arc::new(topic);
         for _ in 0..jobs {
+            let tmq = tmq.clone();
+            let topic = topic.clone();
             let consumer = consumers.pop().unwrap();
-            let taos = target.get().await?;
             // taos.exec(format!("use `{target_database}`")).await?;
             let mut table = topic.table.as_ref().map(|t| t.table.clone());
             if topic.is_query() {
@@ -822,22 +910,66 @@ pub async fn tmq_to_td(
             let sender = consumers_sender.clone();
             let source_pool = source_pool.clone();
             let metrics_arc = metrics_arc.clone();
+            let notify = notify.clone();
+            let target = target.clone();
             join_set.spawn(
                 async move {
-                    sync(
-                        consumer_task_id,
-                        sender,
-                        consumer,
-                        source_pool,
-                        &taos,
-                        table,
-                        actions,
-                        cancellation,
-                        metrics_arc.clone(),
-                        with_meta_delete,
-                        with_meta_drop,
-                    )
-                    .await
+                    let mut consumer = consumer;
+                    let mut retries = 0;
+                    let max_retries = 5; // max retries in 1m
+                    let tick = IntervalLimit::new(Duration::from_secs(60));
+                    loop {
+                        let taos = target.get().await?;
+                        match sync(
+                            consumer_task_id,
+                            consumer,
+                            source_pool.clone(),
+                            &taos,
+                            table.as_deref(),
+                            &actions,
+                            cancellation.clone(),
+                            metrics_arc.clone(),
+                            with_meta_delete,
+                            with_meta_drop,
+                        )
+                        .await
+                        {
+                            Ok(consumer) => {
+                                let _ = sender.send(consumer);
+                                break;
+                            }
+                            Err(err) => {
+                                let err_str = format!("{err:#}");
+                                if !(err_str.contains("0xE001")
+                                    || err_str.contains("0xE002")
+                                    || err_str.contains("0xE003"))
+                                {
+                                    // 0xE001 is the error code for "Connection refused"
+                                    // 0xE002 is the error code for "Connection reset without closing handshake"
+                                    return Err(err);
+                                }
+                                if retries > max_retries {
+                                    tracing::error!("Consumer error: {err:#}");
+                                    return Err(err);
+                                }
+                                let _ = notify
+                                    .send_async(crate::TaskNotify::Warn(format!(
+                                        "Consuming task {consumer_task_id} error: {err:#}"
+                                    )))
+                                    .await;
+                                consumer = tmq.build().await?;
+                                consumer.subscribe([topic.name.as_str()]).await?;
+                                tokio::time::sleep(Duration::from_secs(retries * 2)).await;
+                                tracing::warn!(retries, "Consumer error: {err:#}, retrying...");
+                                if tick.ticked() {
+                                    retries = 0;
+                                } else {
+                                    retries += 1;
+                                }
+                            }
+                        }
+                    }
+                    anyhow::Ok(())
                 }
                 .in_current_span(),
             );

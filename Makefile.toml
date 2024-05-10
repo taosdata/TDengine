@@ -115,6 +115,13 @@ tar cavf ../taosx-$version.tar.gz ./*
 ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
 """
 
+[tasks.dev-install-taosx]
+script = """
+sudo systemctl stop taosx || true
+sudo install target/release/taosx /usr/local/taos/bin/
+sudo systemctl start taosx
+"""
+
 [tasks.dev-install-plugins]
 script = """
 plugins=/usr/local/taos/plugins

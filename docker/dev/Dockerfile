@@ -58,7 +58,8 @@ ENV RUSTC_WRAPPER=/usr/bin/sccache
 
 WORKDIR /app
 RUN git config --global --add safe.directory /app
-RUN ln -s /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
+RUN ln -sf /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
+RUN ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
 ADD docker/dev/entrypoint.sh /sbin/entrypoint.sh
 ADD docker/dev/cargo.toml /root/.cargo/config
