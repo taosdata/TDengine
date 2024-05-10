@@ -584,8 +584,22 @@ impl Client {
                             let data_dir = get_data_dir();
                             let path = data_dir.join(req.path);
                             tracing::info!("[put-file] Write file to {}", path.display());
-                            // write data to path
+                            // If parent folders not exists, try to create them
+                            if let Some(parent) = path.parent() {
+                                if !parent.exists() {
+                                    match tokio::fs::create_dir_all(&parent).await {
+                                        Ok(_) => tracing::info!(
+                                            "[put-file] Directory created successfully"
+                                        ),
+                                        Err(e) => tracing::error!(
+                                            "[put-file] Failed to create directory: {}",
+                                            e
+                                        ),
+                                    }
+                                }
+                            }
                             let result = tokio::fs::write(&path, &req.data).await;
+
                             match result {
                                 Ok(_) => {
                                     let _send_ok = resp_tx
