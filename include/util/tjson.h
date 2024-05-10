@@ -105,7 +105,7 @@ bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
 void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
-int32_t     encodeJsonData2Avro(const char* json);
+int32_t     testJsonAvro(const char* json);
 
 #ifdef __cplusplus
 }

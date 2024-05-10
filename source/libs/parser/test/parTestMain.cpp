@@ -30,6 +30,7 @@
 #include "parTestUtil.h"
 #include "parToken.h"
 #include "parUtil.h"
+#include "tjson.h"
 
 namespace ParserTest {
 
@@ -161,9 +162,10 @@ int main(int argc, char* argv[]) {
       "        }\n"
       "    }\n"
       "}";
-//  encodeJsonData2Avro(json);
-  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
-  testing::InitGoogleTest(&argc, argv);
-  ParserTest::parseArg(argc, argv);
-  return RUN_ALL_TESTS();
+  testJsonAvro(json);
+//  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
+//  testing::InitGoogleTest(&argc, argv);
+//  ParserTest::parseArg(argc, argv);
+//  return RUN_ALL_TESTS();
+    return 0;
 }

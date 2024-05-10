@@ -121,6 +121,7 @@ typedef struct STableMeta {
   SHashObj*     pHashJsonTemplate;
   SSchemaExt*   schemaExt; // There is no additional memory allocation, and the pointer is fixed to the next address of the schema content.
   SSchema       schema[];
+
 } STableMeta;
 #pragma pack(pop)
 

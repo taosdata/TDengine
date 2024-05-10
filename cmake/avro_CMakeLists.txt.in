@@ -6,12 +6,13 @@ ExternalProject_Add(avro-c
         GIT_TAG main
         SOURCE_DIR "${TD_CONTRIB_DIR}/avro-c"
         UPDATE_COMMAND git -C ${TD_CONTRIB_DIR}/avro-c pull origin main
-        COMMAND cmake -E make_directory ${TD_CONTRIB_DIR}/avro-c/build
+        #COMMAND cmake -E make_directory ${TD_CONTRIB_DIR}/avro-c/build
 
-        BINARY_DIR "${TD_CONTRIB_DIR}/avro-c/build"
+        #BINARY_DIR "${TD_CONTRIB_DIR}/avro-c/build"
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND cmake .. && make -j16
+        #BUILD_COMMAND cmake .. && make -j16
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
 )

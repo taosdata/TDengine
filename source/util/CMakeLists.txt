@@ -27,7 +27,7 @@ target_include_directories(
 target_link_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-    PUBLIC "${TD_CONTRIB_DIR}/avro-c/build/lib"
+    PUBLIC "${TD_CONTRIB_DIR}/avro-c/contrib/jansson/build/lib"
 )
 
 
@@ -36,7 +36,7 @@ if (TD_LINUX)
         util
         PUBLIC os common
         PUBLIC lz4_static fast-lzma2 
-        PUBLIC api cjson geos_c TSZ avro-static
+        PUBLIC api cjson geos_c TSZ avro-static jansson
     
     ) 
 else() 
@@ -44,7 +44,7 @@ else()
     util
     PUBLIC os common
     PUBLIC lz4_static 
-    PUBLIC api cjson geos_c TSZ avro-static
+    PUBLIC api cjson geos_c TSZ avro-static jansson
     ) 
 endif()
 

@@ -604,6 +604,12 @@ if(${BUILD_GEOS})
     )
 endif(${BUILD_GEOS})
 
+add_subdirectory(avro-c EXCLUDE_FROM_ALL)
+target_include_directories(
+        avro-static
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/avro-c/src>
+)
+
 # ================================================================================================
 # Build test
 # ================================================================================================
