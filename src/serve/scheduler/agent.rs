@@ -460,7 +460,7 @@ impl AgentWorker {
     pub(crate) async fn put_file_to_agent(
         &self,
         agent_id: i64,
-        path: String,
+        path: &str,
         data: Vec<u8>,
     ) -> anyhow::Result<()> {
         check_agent_exists!(self, agent_id);

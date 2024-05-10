@@ -1559,7 +1559,8 @@ impl TaskController {
     pub async fn put_file_to_agent(&self, agent_id: i64, path: String) -> anyhow::Result<()> {
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(async move {
-            let data = tokio::fs::read(&path).await;
+            let path = path.trim_start_matches("@");
+            let data = tokio::fs::read(path).await;
             match data {
                 Ok(data) => {
                     let res = scheduler.put_file_to_agent(agent_id, path, data).await;
@@ -1572,8 +1573,8 @@ impl TaskController {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("Read file error: {err}");
-                    bail!("Read file error: {err}");
+                    tracing::error!("Read file {path} error: {err}");
+                    bail!("Read file {path} error: {err}");
                 }
             }
         });

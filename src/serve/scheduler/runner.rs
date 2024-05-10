@@ -239,7 +239,7 @@ impl AgentRuntimeRef {
     pub async fn put_file_to_agent(
         &self,
         agent_id: i64,
-        path: String,
+        path: &str,
         content: Vec<u8>,
     ) -> anyhow::Result<()> {
         match self {

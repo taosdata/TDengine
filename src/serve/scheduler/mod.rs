@@ -547,7 +547,7 @@ impl TaskScheduler {
     pub async fn put_file_to_agent(
         &self,
         agent: i64,
-        path: String,
+        path: &str,
         content: Vec<u8>,
     ) -> anyhow::Result<()> {
         self.global_state
