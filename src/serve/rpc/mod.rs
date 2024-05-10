@@ -22,7 +22,7 @@ use std::{
 };
 use taos::IntoDsn;
 use taosx_core::{
-    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse,
+    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp,
 };
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -764,6 +764,30 @@ impl FlightService for FlightServiceImpl {
                                                     "get sample request id has no receiver"
                                                 );
                                             }
+                                        });
+                                    }
+                                    "put-file" => {
+                                        let resp: PutFileResp = serde_json::from_str(&context).unwrap();
+                                        let string_senders = string_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) = string_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    warn!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "Send PutFileResp failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                warn!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "PutFileResp has no receiver"
+                                                );
+                                            }
+                                        
                                         });
                                     }
                                     "agent-activity" => {

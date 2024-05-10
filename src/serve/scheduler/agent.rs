@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 use std::{collections::HashMap, fmt::Debug};
 
 use anyhow::bail;
@@ -452,7 +453,7 @@ impl AgentWorker {
     }
 
     /// Put file to agent.
-    /// 
+    ///
     /// Arguments:
     /// - `agent_id`: Agent id.
     /// - `path`: File path including file name relative to $DATA_HOME.
@@ -465,23 +466,32 @@ impl AgentWorker {
     ) -> anyhow::Result<()> {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
-        let req = PutFileReq { path: path.to_string(), data };
+        let req = PutFileReq {
+            path: path.to_string(),
+            data,
+        };
         if let Err(err) = self
             .agent_activity_sender
             .send((agent_id, AgentAction::PutFile(req, sender)))
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
         }
-        let res = receiver
-            .recv_async()
-            .await
-            .map_err(|err| anyhow::anyhow!("failed to get PutFile result, cause: {:#}", err))?;
-        match res {
-            Ok(path) => {
-                tracing::info!("PutFile success: {}", path);
-                Ok(())
-            }
-            Err(err) => Err(anyhow::anyhow!("failed to PutFile, cause: {:#}", err)),
+        let timeout = Duration::from_secs(10);
+        match tokio::time::timeout(timeout, receiver.recv_async()).await {
+            Ok(result) => match result {
+                Ok(res) => match res {
+                    Ok(path) => {
+                        tracing::info!("PutFile success: {}", path);
+                        Ok(())
+                    }
+                    Err(err) => Err(anyhow::anyhow!("failed to PutFile, cause: {:#}", err)),
+                },
+                Err(err) => Err(anyhow::anyhow!(
+                    "failed to get PutFile response, cause: {:#}",
+                    err
+                )),
+            },
+            Err(_) => Err(anyhow::anyhow!("PutFile timed out")),
         }
     }
 }
