@@ -6,10 +6,7 @@ use std::{
     num::NonZeroUsize,
     path::Path,
     str::FromStr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::Ordering, Arc},
     time::Duration,
 };
 
@@ -21,7 +18,7 @@ use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
@@ -228,9 +225,11 @@ impl Debug for TimeRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.start, self.end) {
             (None, None) => f.write_str(".."),
-            (Some(start), None) => f.write_fmt(format_args!("{start}..")),
-            (None, Some(end)) => f.write_fmt(format_args!("..{end}")),
-            (Some(start), Some(end)) => f.write_fmt(format_args!("{start}..{end}")),
+            (Some(start), None) => f.write_fmt(format_args!("{}..", start.to_rfc3339())),
+            (None, Some(end)) => f.write_fmt(format_args!("..{}", end.to_rfc3339())),
+            (Some(start), Some(end)) => {
+                f.write_fmt(format_args!("{}..{}", start.to_rfc3339(), end.to_rfc3339()))
+            }
         }
     }
 }
@@ -292,6 +291,7 @@ impl QueryOpts {
     }
 }
 
+#[instrument(skip_all)]
 #[async_backtrace::framed]
 async fn split_table_into_time_range_chunks(
     from: &Taos,
@@ -571,7 +571,7 @@ async fn sync_single_table_partial(
     target_is_v3: bool,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
-    tracing::info!("Syncing table {table} with range: {}", opts.time_range);
+    tracing::debug!("Syncing table {table} with range: {}", opts.time_range);
     let metrics = metrics_arc.legacy();
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
@@ -1680,6 +1680,7 @@ async fn sync_specified_tables_with_workers(
         }
     }
     drop(tx); // drop tx to close rx
+    drop(items_rx); // drop items_rx to close items_tx
     handle.await??; // wait for rx handle
     Ok(())
 }
@@ -2219,13 +2220,13 @@ pub async fn update_todo_list(
     opts: &SourceOpts,
     todo: TodoListRef,
 ) -> anyhow::Result<LegacyTodo> {
-    fn tables_from_vec<T>(tables: Vec<T>) -> scc::HashSet<T>
+    async fn tables_from_vec<T>(tables: Vec<T>) -> scc::HashSet<T>
     where
         T: std::hash::Hash + Eq,
     {
         let set = scc::HashSet::with_capacity(tables.len());
         for item in tables {
-            let _ = set.insert(item);
+            let _ = set.insert_async(item).await;
         }
         set
     }
@@ -2236,7 +2237,7 @@ pub async fn update_todo_list(
         .context("Connect to data source error with timeout")?;
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
-    info!(version = version.as_ref(), "updating table list...");
+    debug!(version = version.as_ref(), "updating table list...");
     // dbg!(&opts.stables);
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
@@ -2261,16 +2262,19 @@ pub async fn update_todo_list(
         if opts.sparse {
             // Sparse mode only need to sync the stables.
             for stable in &stables {
-                if !todo.stables.contains(stable) {
-                    let _ = todo.stables.insert(stable.clone());
+                if !todo.stables.contains_async(stable).await {
+                    let _ = todo.stables.insert_async(stable.clone()).await;
                     let _ = todo
                         .tables
-                        .insert(LegacyTableItem::new_mtlf(0, stable.clone()));
-                    let _ = tables.insert(LegacyTableItem::new_mtlf(0, stable.clone()));
+                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .await;
+                    let _ = tables
+                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .await;
                 }
             }
             return Ok(LegacyTodo {
-                stables: tables_from_vec(stables),
+                stables: tables_from_vec(stables).await,
                 tables,
             });
         }
@@ -2279,18 +2283,16 @@ pub async fn update_todo_list(
                 let mut res = taos
                     .query(format!("select tbname from `{}`", stable))
                     .await?;
-                res.deserialize()
-                    .map_ok(|table_name| {
-                        LegacyTableItem::new(0, Some(stable.clone()), Arc::new(table_name))
-                    })
-                    .try_for_each(|table| {
-                        if !todo.tables.contains(&table) {
-                            let _ = tables.insert(table.clone());
-                            let _ = todo.tables.insert(table);
-                        }
-                        std::future::ready(Ok(()))
-                    })
-                    .await?;
+                let mut stream = res.deserialize().map_ok(|table_name| {
+                    LegacyTableItem::new(0, Some(stable.clone()), Arc::new(table_name))
+                });
+
+                while let Some(table) = stream.try_next().await? {
+                    if !todo.tables.contains_async(&table).await {
+                        let _ = tables.insert_async(table.clone()).await;
+                        let _ = todo.tables.insert_async(table).await;
+                    }
+                }
             }
         } else {
             // is v3
@@ -2299,20 +2301,17 @@ pub async fn update_todo_list(
             taos.exec("use information_schema").await?;
             taos.exec(format!("use `{database}`")).await?;
             for stable in &stables {
-                taos
-                    .query(format!("select vgroup_id, table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await?
-                    .deserialize()
-                    .map_ok(|(vgroup_id, name)| {
-                        LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(name))
-                    })
-                    .try_for_each(|table| {
-                        if !todo.tables.contains(&table) {
-                            let _ = tables.insert(table.clone());
-                            let _ = todo.tables.insert(table);
-                        }
-                        std::future::ready(Ok(()))
-                    })
-                    .await?;
+                let mut set = taos
+                    .query(format!("select vgroup_id, table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await?;
+                let mut stream = set.deserialize().map_ok(|(vgroup_id, name)| {
+                    LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(name))
+                });
+                while let Some(table) = stream.try_next().await? {
+                    if !todo.tables.contains_async(&table).await {
+                        let _ = tables.insert_async(table.clone()).await;
+                        let _ = todo.tables.insert_async(table).await;
+                    }
+                }
             }
         }
         tracing::info!(
@@ -2322,7 +2321,7 @@ pub async fn update_todo_list(
         );
 
         Ok(LegacyTodo {
-            stables: tables_from_vec(stables),
+            stables: tables_from_vec(stables).await,
             tables,
         })
     } else if let Some(tables) = opts.tables.as_ref() {
@@ -2386,7 +2385,7 @@ pub async fn update_todo_list(
         );
         Ok(LegacyTodo {
             stables,
-            tables: tables_from_vec(tables),
+            tables: tables_from_vec(tables).await,
         })
     } else {
         if version.starts_with('2') {
@@ -2409,81 +2408,77 @@ pub async fn update_todo_list(
                     .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
                     .collect_vec();
                 for table in show {
-                    if !todo.tables.contains(&table) {
+                    if !todo.tables.contains_async(&table).await {
                         tables.push(table.clone());
                         let _ = todo.tables.insert_async(table).await;
                     }
                 }
 
                 // Ordinary tables
-                taos.query("show tables")
-                    .await?
-                    .deserialize::<TableRecord>()
-                    .try_filter_map(
-                        |TableRecord {
-                             table_name,
-                             stable_name,
-                             vgroup_id,
-                         }| {
-                            let filter = if stable_name.is_some() {
-                                None
-                            } else {
-                                Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table_name)))
-                            };
-                            futures::future::ready(Ok(filter))
-                        },
-                    )
-                    .try_for_each(|table| {
-                        if !todo.tables.contains(&table) {
-                            tables.push(table.clone());
-                            let _ = todo.tables.insert(table);
-                        }
-                        std::future::ready(Ok(()))
-                    })
+                let mut set = taos
+                    .query("show tables")
                     .await
-                    .context("Deserialize stable list from source error")?;
+                    .context("Show tables error in sparse mode")?;
+                let mut stream = set.deserialize::<TableRecord>().try_filter_map(
+                    |TableRecord {
+                         table_name,
+                         stable_name,
+                         vgroup_id,
+                     }| {
+                        let filter = if stable_name.is_some() {
+                            None
+                        } else {
+                            Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table_name)))
+                        };
+                        futures::future::ready(Ok(filter))
+                    },
+                );
+                while let Some(table) = stream
+                    .try_next()
+                    .await
+                    .context("Deserialize stable list from source error")?
+                {
+                    if !todo.tables.contains_async(&table).await {
+                        tables.push(table.clone());
+                        let _ = todo.tables.insert(table);
+                    }
+                }
             } else {
-                taos.query("show tables")
-                    .await?
-                    .deserialize::<TableRecord>()
-                    .map_ok(
-                        |TableRecord {
-                             table_name,
-                             stable_name,
-                             vgroup_id,
-                         }| {
-                            if let Some(stable_name) = stable_name {
-                                if let Some(stable) = todo.stables.read(&stable_name, |s| s.clone())
-                                {
-                                    LegacyTableItem::new(
-                                        vgroup_id,
-                                        Some(stable),
-                                        Arc::new(table_name),
-                                    )
-                                } else {
-                                    let stable = Arc::new(stable_name.clone());
-                                    // stables.push(stable.clone());
-                                    todo.stables.insert(stable.clone()).unwrap();
-                                    LegacyTableItem::new(
-                                        vgroup_id,
-                                        Some(stable),
-                                        Arc::new(table_name),
-                                    )
-                                }
-                            } else {
-                                LegacyTableItem::new(vgroup_id, None, Arc::new(table_name))
-                            }
-                        },
-                    )
-                    .try_for_each(|table| {
-                        if !todo.tables.contains(&table) {
-                            tables.push(table.clone());
-                            let _ = todo.tables.insert(table);
-                        }
-                        std::future::ready(Ok(()))
-                    })
+                let mut set = taos
+                    .query("show tables")
                     .await
-                    .context("Deserialize stable list from source error")?;
+                    .context("Show tables error")?;
+                let mut stream = set.deserialize::<TableRecord>().map_ok(
+                    |TableRecord {
+                         table_name,
+                         stable_name,
+                         vgroup_id,
+                     }| {
+                        if let Some(stable_name) = stable_name {
+                            if let Some(stable) = todo.stables.read(&stable_name, |s| s.clone()) {
+                                LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table_name))
+                            } else {
+                                let stable = Arc::new(stable_name.clone());
+                                // stables.push(stable.clone());
+                                todo.stables.insert(stable.clone()).unwrap();
+                                LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table_name))
+                            }
+                        } else {
+                            LegacyTableItem::new(vgroup_id, None, Arc::new(table_name))
+                        }
+                    },
+                );
+
+                while let Some(table) = stream
+                    .try_next()
+                    .await
+                    .context("Deserialize stable list from source error")?
+                {
+                    if !todo.tables.contains_async(&table).await {
+                        tables.push(table.clone());
+                        let _ = todo.tables.insert_async(table).await;
+                    }
+                }
             };
 
             if opts.shuffle {
@@ -2500,8 +2495,8 @@ pub async fn update_todo_list(
                 0
             );
             Ok(LegacyTodo {
-                stables: tables_from_vec(stables),
-                tables: tables_from_vec(tables),
+                stables: tables_from_vec(stables).await,
+                tables: tables_from_vec(tables).await,
             })
         } else {
             let database: String = taos.query_one("SELECT database()").await?.unwrap();
@@ -2509,64 +2504,68 @@ pub async fn update_todo_list(
             // note!: to make sure the information_schema is updated.
             taos.exec("use information_schema").await?;
             taos.exec(format!("use `{database}`")).await?;
-            taos.query("show stables")
-                .await?
-                .deserialize()
-                .try_for_each(|stable: String| {
-                    if !todo.stables.contains(&stable) {
-                        let stable = Arc::new(stable);
-                        stables.push(stable.clone());
-                        let _ = todo.stables.insert(stable);
-                    }
-                    std::future::ready(Ok(()))
-                })
-                .await?;
+            let mut set = taos.query("show stables").await?;
+            let mut stream = set.deserialize::<String>();
+
+            while let Some(stable) = stream
+                .try_next()
+                .await
+                .context("Deserialize stable list from source error")?
+            {
+                if !todo.stables.contains_async(&stable).await {
+                    let stable = Arc::new(stable.clone());
+                    stables.push(stable.clone());
+                    let _ = todo.stables.insert_async(stable).await;
+                }
+            }
 
             let mut tables = Vec::new();
             if opts.sparse {
                 // Sparse stables
-                todo.stables.scan(|stable| {
-                    let stable = stable.clone();
-                    let table = LegacyTableItem::new_mtlf(0, stable);
-                    if !todo.tables.contains(&table) {
-                        tables.push(table.clone());
-                        let _ = todo.tables.insert(table.clone());
-                    }
-                });
-
-                // Ordinary tables
-                taos
-                .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
-                .await
-                .context("Get stable list from source error")?
-                    .deserialize::<(u32, Option<String>, String)>()
-                    .try_filter_map(
-                        |(vgroup_id, stable, table)| {
-                            let filter = if stable.is_some() {
-                                None
-                            } else {
-                                Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table)))
-                            };
-                            futures::future::ready(Ok(filter))
-                        },
-                    )
-                    .try_for_each(|table| {
+                todo.stables
+                    .scan_async(|stable| {
+                        let stable = stable.clone();
+                        let table = LegacyTableItem::new_mtlf(0, stable);
                         if !todo.tables.contains(&table) {
                             tables.push(table.clone());
-                            let _ = todo.tables.insert(table);
+                            let _ = todo.tables.insert(table.clone());
                         }
-                        std::future::ready(Ok(()))
                     })
+                    .await;
+
+                // Ordinary tables
+                let mut set = taos
+                .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                .await
+                .context("Get stable list from source error")?;
+                let mut stream = set
+                    .deserialize::<(u32, Option<String>, String)>()
+                    .try_filter_map(|(vgroup_id, stable, table)| {
+                        let filter = if stable.is_some() {
+                            None
+                        } else {
+                            Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table)))
+                        };
+                        futures::future::ready(Ok(filter))
+                    });
+                while let Some(table) = stream
+                    .try_next()
                     .await
-                    .context("Deserialize stable list from source error")?;
+                    .context("Deserialize stable list from source error")?
+                {
+                    if !todo.tables.contains_async(&table).await {
+                        tables.push(table.clone());
+                        let _ = todo.tables.insert_async(table).await;
+                    }
+                }
             } else {
                 // get stable list.
                 let mut res = taos
                 .query(&format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                 .await
                 .context("Get stable list from source error")?;
-                res.deserialize::<(u32, Option<String>, String)>()
-                    .map_ok(|(vgroup_id, stable, table)| {
+                let mut stream = res.deserialize::<(u32, Option<String>, String)>().map_ok(
+                    |(vgroup_id, stable, table)| {
                         if let Some(stable_name) = stable {
                             if let Some(stable) = todo.stables.read(&stable_name, Clone::clone) {
                                 LegacyTableItem::new(
@@ -2582,16 +2581,18 @@ pub async fn update_todo_list(
                         } else {
                             LegacyTableItem::new(vgroup_id, None, Arc::new(table))
                         }
-                    })
-                    .try_for_each(|table| {
-                        if !todo.tables.contains(&table) {
-                            tables.push(table.clone());
-                            let _ = todo.tables.insert(table);
-                        }
-                        std::future::ready(Ok(()))
-                    })
+                    },
+                );
+                while let Some(table) = stream
+                    .try_next()
                     .await
-                    .context("Deserialize stable list from source error")?;
+                    .context("Deserialize stable list from source error")?
+                {
+                    if !todo.tables.contains_async(&table).await {
+                        tables.push(table.clone());
+                        let _ = todo.tables.insert_async(table).await;
+                    }
+                }
             };
             if opts.shuffle {
                 tables.shuffle(&mut rand::thread_rng());
@@ -2600,8 +2601,8 @@ pub async fn update_todo_list(
                 tracing::info!("Try to synchronize {} tables in {} tables", tables.len(), 0);
             }
             Ok(LegacyTodo {
-                stables: tables_from_vec(stables),
-                tables: tables_from_vec(tables),
+                stables: tables_from_vec(stables).await,
+                tables: tables_from_vec(tables).await,
             })
         }
     }
@@ -2756,6 +2757,8 @@ async fn legacy_to_taos_impl(
     task_id: Option<String>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
+    let cancel = cancel.child_token();
+    let guard = cancel.clone().drop_guard();
 
     let _ = tracing::info_span!("check parameters").entered();
     // let span = span.entered();
@@ -2938,15 +2941,12 @@ async fn legacy_to_taos_impl(
     .await;
     let scheduler = Arc::new(scheduler);
 
-    let task_done = AtomicBool::new(false);
-    let rc = Arc::new(task_done);
-    let task_done_clone = rc.clone();
     let metrics_arc_clone = metrics_arc.clone();
     let cancel_clone = cancel.clone();
     let scheduler_clone = scheduler.clone();
     std::thread::spawn(move || loop {
         let metrics = metrics_arc_clone.as_ref().legacy();
-        if task_done_clone.load(Ordering::Relaxed) || cancel_clone.is_cancelled() {
+        if cancel_clone.is_cancelled() {
             tracing::info!("abort handles");
             scheduler_clone.abort();
             tracing::info!("stop timer");
@@ -3176,11 +3176,11 @@ async fn legacy_to_taos_impl(
     if let Some(duration) = source_opts.schema_polling_wait_before_end {
         tokio::time::sleep(duration).await;
     }
+    drop(guard);
     let _ = schema_polling_done.send(());
     schema_polling_task.await??;
 
     info!("syncing done, wait to release resources");
-    rc.store(true, Ordering::Relaxed);
     println!("{}", metrics);
     Ok(())
 }

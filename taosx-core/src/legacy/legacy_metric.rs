@@ -71,6 +71,14 @@ impl LegacyToTaosMetrics {
         self.total_finished_tables.fetch_add(n, SeqCst);
         self.finished_tables.fetch_add(n, SeqCst);
     }
+
+    pub fn finished_tables(&self) -> u32 {
+        self.finished_tables.load(SeqCst)
+    }
+
+    pub fn total_tables(&self) -> u32 {
+        self.total_tables.load(SeqCst)
+    }
 }
 
 impl Default for LegacyToTaosMetrics {
