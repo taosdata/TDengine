@@ -311,7 +311,10 @@ impl SubTask {
         });
 
         if topic_partitions.is_empty() {
-            anyhow::bail!("topics is empty");
+            tracing::error!(
+                "topics is empty, expected: {:?}, please check your topic authorization",
+                config.topics
+            );
         }
 
         let mut concurrency = config
@@ -419,7 +422,7 @@ async fn poll_message(
                 }
             }
             Err(err) => {
-                anyhow::bail!("failed to polling from kafka, cause: {}", err.to_string());
+                tracing::error!("failed to polling from kafka, cause: {}", err.to_string());
             }
         };
 
