@@ -2496,7 +2496,6 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   if (tEncodeI64v(&encoder, pStatus->p13) < 0) goto _exit;
 
   // for future grantItems
-  
 
   tEndEncode(&encoder);
 
