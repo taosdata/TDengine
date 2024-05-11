@@ -196,10 +196,14 @@ int32_t uploadRsync(const char* id, const char* path) {
 }
 
 int32_t downloadRsync(const char* id, const char* path) {
+  int64_t st = taosGetTimestampMs();
+  uDebug("[rsync] %s start to sync data from remote to local:%s", id, path);
+
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
   changeDirFromWindowsToLinux(path, pathTransform);
 #endif
+
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX, "rsync -av --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
            tsSnodeAddress, id,
@@ -211,13 +215,15 @@ int32_t downloadRsync(const char* id, const char* path) {
            );
 
   int32_t code = execCommand(command);
+
+  int32_t el = taosGetTimestampMs() - st;
   if (code != 0) {
-    uError("[rsync] download checkpoint data failed, code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
-    return -1;
+    uError("[rsync] %s download checkpoint data:%s failed, code:%d," ERRNO_ERR_FORMAT, id, path, code, ERRNO_ERR_DATA);
+  } else {
+    uDebug("[rsync] %s download checkpoint data:%s successfully, elapsed time:%dms", id, path, el);
   }
 
-  uDebug("[rsync] download checkpoint data:%s successfully", id);
-  return 0;
+  return code;
 }
 
 int32_t deleteRsync(const char* id) {
