@@ -34,7 +34,7 @@ RUN wget -c https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.75.0
+ENV RUST_VERSION=1.78.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --default-toolchain nightly
 ENV PATH=/root/.cargo/bin:$PATH
 
