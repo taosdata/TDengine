@@ -686,16 +686,47 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
-  pReq->resetRelHalt = resetRelHalt;
+  pReq->resetRelHalt = resetRelHalt;  // todo: remove this attribute
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d failed to send drop task:0x%x msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
-    return code;
+  } else {
+    stDebug("vgId:%d build and send drop task:0x%x msg", vgId, pTaskId->taskId);
   }
 
-  stDebug("vgId:%d build and send drop task:0x%x msg", vgId, pTaskId->taskId);
+  return code;
+}
+
+int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, STaskId* pHTaskId,
+                                              SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
+  SVUpdateCheckpointInfoReq* pReq = rpcMallocCont(sizeof(SVUpdateCheckpointInfoReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pReq->head.vgId = vgId;
+  pReq->taskId = pTaskId->taskId;
+  pReq->streamId = pTaskId->streamId;
+  pReq->dropRelHTask = dropRelHTask;
+  pReq->hStreamId = pHTaskId->streamId;
+  pReq->hTaskId = pHTaskId->taskId;
+  pReq->transId = pCheckpointInfo->transId;
+
+  pReq->checkpointId = pCheckpointInfo->checkpointingId;
+  pReq->checkpointVer = pCheckpointInfo->processedVer;
+  pReq->checkpointTs = pCheckpointInfo->startTs;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_UPDATE_CHKPT, .pCont = pReq, .contLen = sizeof(SVUpdateCheckpointInfoReq)};
+  int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("vgId:%d task:0x%x failed to send update checkpoint info msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
+  } else {
+    stDebug("vgId:%d task:0x%x build and send update checkpoint info msg msg", vgId, pTaskId->taskId);
+  }
   return code;
 }
 

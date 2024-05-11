@@ -556,19 +556,22 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER){
     pTask->ver = SSTREAM_TASK_VER;
   }
+
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
   int64_t id[2] = {pTask->id.streamId, pTask->id.taskId};
-  if (tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn) < 0) {
+  code = tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn);
+  if (code < 0) {
     stError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
-    return -1;
+  } else {
+    stDebug("s-task:%s vgId:%d stream task write to meta file", pTask->id.idStr, pTask->pMeta->vgId);
   }
 
   taosMemoryFree(buf);
-  return 0;
+  return code;
 }
 
 int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {

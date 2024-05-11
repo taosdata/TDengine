@@ -208,11 +208,11 @@ int32_t downloadRsync(const char* id, const char* path) {
 
   int32_t code = execCommand(command);
   if (code != 0) {
-    uError("[rsync] get failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
+    uError("[rsync] download checkpoint data failed, code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
     return -1;
   }
 
-  uDebug("[rsync] down data:%s successful", id);
+  uDebug("[rsync] download checkpoint data:%s successfully", id);
   return 0;
 }
 

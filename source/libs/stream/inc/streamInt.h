@@ -113,7 +113,7 @@ void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
 int32_t getNumOfDispatchBranch(SStreamTask* pTask);
 void    clearBufferedDispatchMsg(SStreamTask* pTask);
 
-int32_t           streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t           streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
 SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
                                                SArray* pRes);
@@ -122,7 +122,6 @@ void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
 int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock);
 
-int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);

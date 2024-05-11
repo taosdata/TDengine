@@ -341,7 +341,7 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
     SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
     int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
 
-    stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), id:%d", id,
+    stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d", id,
             pTask->info.selfChildId, 1, downstreamTaskId, vgId, msgId);
 
     code = doSendDispatchMsg(pTask, pDispatchMsg, vgId, pEpSet);
@@ -432,7 +432,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
       SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
       int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
 
-      stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), id:%d", id,
+      stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d", id,
               pTask->info.selfChildId, 1, downstreamTaskId, vgId, msgId);
 
       code = doSendDispatchMsg(pTask, pReq, vgId, pEpSet);

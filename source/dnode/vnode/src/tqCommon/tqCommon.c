@@ -65,6 +65,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
   };
+
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     handle.vnode = pVnode;
     handle.initTqReader = 1;
@@ -577,22 +578,23 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
-void tqStreamRmTaskBackend(SStreamMeta* pMeta, STaskId* id) {
+static void tqStreamRemoveTaskBackend(SStreamMeta* pMeta, const STaskId* pId) {
   char taskKey[128] = {0};
-  sprintf(taskKey, "0x%" PRIx64 "-0x%x", id->streamId, (int32_t)id->taskId);
+  sprintf(taskKey, "0x%" PRIx64 "-0x%x", pId->streamId, (int32_t)pId->taskId);
 
   char* path = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
   sprintf(path, "%s%s%s", pMeta->path, TD_DIRSEP, taskKey);
   taosRemoveDir(path);
+
+  tqInfo("vgId:%d drop stream task:0x%x file:%s", pMeta->vgId, (int32_t)pId->taskId, path);
   taosMemoryFree(path);
-  // do nothing
 }
 
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
-  int32_t              vgId = pMeta->vgId;
-  STaskId              hTaskId = {0};
 
+  int32_t vgId = pMeta->vgId;
+  STaskId hTaskId = {0};
   tqDebug("vgId:%d receive msg to drop s-task:0x%x", vgId, pReq->taskId);
 
   streamMetaWLock(pMeta);
@@ -634,8 +636,30 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
 
   streamMetaWUnLock(pMeta);
 
-  tqStreamRmTaskBackend(pMeta, &id);
+  tqStreamRemoveTaskBackend(pMeta, &id);
   return 0;
+}
+
+int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
+  SVUpdateCheckpointInfoReq* pReq = (SVUpdateCheckpointInfoReq*)msg;
+
+  int32_t vgId = pMeta->vgId;
+  tqDebug("vgId:%d receive msg to update-checkpoint-info for s-task:0x%x", vgId, pReq->taskId);
+
+  streamMetaWLock(pMeta);
+
+  STaskId       id = {.streamId = pReq->streamId, .taskId = pReq->taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+
+  if (ppTask != NULL && (*ppTask) != NULL) {
+    streamTaskUpdateTaskCheckpointInfo(*ppTask, pReq);
+  } else {  // failed to get the task.
+    tqError("vgId:%d failed to locate the s-task:0x%x to update the checkpoint info, it may have been dropped already",
+            vgId, pReq->taskId);
+  }
+
+  streamMetaWUnLock(pMeta);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
@@ -927,9 +951,10 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
 
 int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* msg, bool fromVnode) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-  SStreamMeta*           pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
-  SStreamTask*           pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  int32_t                code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
+
+  SStreamMeta* pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  int32_t      code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     return code;
   }
