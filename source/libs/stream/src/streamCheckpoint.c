@@ -368,8 +368,7 @@ int32_t uploadCheckpointData(void* param) {
   }
 
   if ((code = taskDbGenChkpUploadData(pParam->pTask->pBackend, ((SStreamMeta*)pParam->pMeta)->bkdChkptMgt,
-                                      pParam->chkpId,
-                                      (int8_t)(pParam->type), &path, toDelFiles)) != 0) {
+                                      pParam->chkpId, (int8_t)(pParam->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64, taskStr, pParam->chkpId);
   }
 
