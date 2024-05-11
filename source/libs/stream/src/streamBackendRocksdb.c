@@ -1209,6 +1209,7 @@ _EXIT:
   taosMemoryFree(ppCf);
   return code;
 }
+
 int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskDbDoCheckpoint(arg, chkpId); }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
