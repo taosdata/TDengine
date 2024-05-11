@@ -184,8 +184,8 @@ int32_t uploadRsync(const char* id, const char* path) {
 
   int32_t code = execCommand(command);
   if (code != 0) {
-    uError("[rsync] s-task:%s upload checkpoint data in:%s to %s failed, code:%d", id, path, tsSnodeAddress,
-           ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
+    uError("[rsync] s-task:%s upload checkpoint data in %s to %s failed, code:%d," ERRNO_ERR_FORMAT, id, path,
+           tsSnodeAddress, code, ERRNO_ERR_DATA);
     return -1;
   }
 

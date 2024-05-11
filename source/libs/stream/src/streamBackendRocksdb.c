@@ -539,7 +539,7 @@ int32_t rebuildDirFormCheckpoint(const char* path, char* key, int64_t chkptId, c
     taosMulMkDir(defaultPath);
   }
 
-  stDebug("prepare local dir:%s, checkpointId:%d, key:%s succ", defaultPath, chkptId, key);
+  stDebug("prepare local dir:%s, checkpointId:%" PRId64 ", key:%s succ", defaultPath, chkptId, key);
 
   char* chkptPath = taosMemoryCalloc(1, strlen(path) + 256);
   if (chkptId != 0) {
