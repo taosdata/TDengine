@@ -287,7 +287,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
@@ -303,9 +303,9 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **insert_rows** : 每个子表插入的记录数，默认为 0 。
 
-- **childtable_offset** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
+- **childtable_offset** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
 
-- **childtable_limit** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
+- **childtable_limit** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
 - **interlace_rows** : 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
