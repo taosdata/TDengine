@@ -355,12 +355,7 @@ impl AgentWorker {
         agent_id: i64,
         req: taosx_core::DataSetsReq,
     ) -> anyhow::Result<Vec<DataSet>> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
@@ -384,12 +379,7 @@ impl AgentWorker {
         agent_id: i64,
         dsn: String,
     ) -> anyhow::Result<DataSourceValidation> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
@@ -410,13 +400,7 @@ impl AgentWorker {
         agent_id: i64,
         dsn: String,
     ) -> anyhow::Result<DsSampleIn> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
-
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
