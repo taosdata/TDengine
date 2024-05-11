@@ -359,7 +359,10 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
 
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     pLastCol->colVal.value.nData = pLastColV0->colVal.value.nData;
-    pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
+    pLastCol->colVal.value.pData = NULL;
+    if (pLastCol->colVal.value.nData > 0) {
+      pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
+    }
     return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
   } else {
     pLastCol->colVal.value.val = pLastColV0->colVal.value.val;
@@ -401,8 +404,11 @@ static SLastCol *tsdbCacheDeserialize(char const *value, size_t size) {
     offset += sizeof(SValue);
 
     if (IS_VAR_DATA_TYPE(pLastCol->rowKey.pks[i].type)) {
-      pLastCol->rowKey.pks[i].pData = (uint8_t *)value + offset;
-      offset += pLastCol->rowKey.pks[i].nData;
+      pLastCol->rowKey.pks[i].pData = NULL;
+      if (pLastCol->rowKey.pks[i].nData > 0) {
+        pLastCol->rowKey.pks[i].pData = (uint8_t *)value + offset;
+        offset += pLastCol->rowKey.pks[i].nData;
+      }
     }
   }
 
@@ -940,10 +946,37 @@ typedef struct {
   SLastKey key;
 } SIdxKey;
 
-static void tsdbCacheUpdateLastCol(SLastCol *pLastCol, SRowKey *pRowKey, SColVal *pColVal) {
-  uint8_t *pVal = NULL;
+static int32_t tsdbCacheUpdateValue(SValue *pOld, SValue *pNew) {
+  uint8_t *pFree = NULL;
   int      nData = 0;
 
+  if (IS_VAR_DATA_TYPE(pOld->type)) {
+    pFree = pOld->pData;
+    nData = pOld->nData;
+  }
+
+  *pOld = *pNew;
+  if (IS_VAR_DATA_TYPE(pNew->type)) {
+    if (nData < pNew->nData) {
+      pOld->pData = taosMemoryCalloc(1, pNew->nData);
+    } else {
+      pOld->pData = pFree;
+      pFree = NULL;
+    }
+
+    if (pNew->nData) {
+      memcpy(pOld->pData, pNew->pData, pNew->nData);
+    } else {
+      pFree = pOld->pData;
+      pOld->pData = NULL;
+    }
+  }
+
+  taosMemoryFreeClear(pFree);
+  return 0;
+}
+
+static void tsdbCacheUpdateLastCol(SLastCol *pLastCol, SRowKey *pRowKey, SColVal *pColVal) {
   // update rowkey
   pLastCol->rowKey.ts = pRowKey->ts;
   pLastCol->rowKey.numOfPKs = pRowKey->numOfPKs;
@@ -951,41 +984,13 @@ static void tsdbCacheUpdateLastCol(SLastCol *pLastCol, SRowKey *pRowKey, SColVal
     SValue *pPKValue = &pLastCol->rowKey.pks[i];
     SValue *pNewPKValue = &pRowKey->pks[i];
 
-    if (IS_VAR_DATA_TYPE(pPKValue->type)) {
-      pVal = pPKValue->pData;
-      nData = pPKValue->nData;
-    }
-    *pPKValue = *pNewPKValue;
-    if (IS_VAR_DATA_TYPE(pPKValue->type)) {
-      if (nData < pPKValue->nData) {
-        taosMemoryFree(pVal);
-        pPKValue->pData = taosMemoryCalloc(1, pNewPKValue->nData);
-      } else {
-        pPKValue->pData = pVal;
-      }
-      if (pNewPKValue->nData) {
-        memcpy(pPKValue->pData, pNewPKValue->pData, pNewPKValue->nData);
-      }
-    }
+    (void)tsdbCacheUpdateValue(pPKValue, pNewPKValue);
   }
 
   // update colval
-  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
-    nData = pLastCol->colVal.value.nData;
-    pVal = pLastCol->colVal.value.pData;
-  }
-  pLastCol->colVal = *pColVal;
-  if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
-    if (nData < pColVal->value.nData) {
-      taosMemoryFree(pVal);
-      pLastCol->colVal.value.pData = taosMemoryCalloc(1, pColVal->value.nData);
-    } else {
-      pLastCol->colVal.value.pData = pVal;
-    }
-    if (pColVal->value.nData) {
-      memcpy(pLastCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-    }
-  }
+  pLastCol->colVal.cid = pColVal->cid;
+  pLastCol->colVal.flag = pColVal->flag;
+  (void)tsdbCacheUpdateValue(&pLastCol->colVal.value, &pColVal->value);
 
   if (!pLastCol->dirty) {
     pLastCol->dirty = 1;
