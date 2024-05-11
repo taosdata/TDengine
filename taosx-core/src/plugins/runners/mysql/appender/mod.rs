@@ -726,7 +726,6 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::mysql::{config::connect::ConnectConfig, query::MySqlQuery};
-    use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test]

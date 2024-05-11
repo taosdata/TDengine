@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
     io::Write,
     pin::Pin,
-    sync::{atomic::Ordering, Arc},
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -289,6 +289,9 @@ async fn worker(
                 }
             }
             Todo::Data(stable, table, mut time_range, sender) => {
+                let span =
+                    tracing::info_span!("sync_data", table = table.as_str(), range = ?time_range);
+                let _entered = span.enter();
                 // get breakpoints use breakpoints_get
                 if let Some(task_id) = task_id.clone() {
                     const MAX_RETRIES: usize = 5;
@@ -348,11 +351,15 @@ async fn worker(
                 });
 
                 let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
+                let _entered = span.enter();
                 match chunks {
                     Ok(chunks) => {
+                        let chunks_len = chunks.len();
+                        span.record("chunks", &chunks_len);
+                        tracing::info!("Syncing start with {} chunks", chunks_len);
                         let mut chunk_err: Option<String> = None;
                         // chunks
-                        'chunks: for chunk in chunks {
+                        'chunks: for (idx, chunk) in chunks.into_iter().enumerate() {
                             let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();
@@ -371,10 +378,14 @@ async fn worker(
                                     target_is_v3,
                                     metrics_arc.clone(),
                                 )
+                                .in_current_span()
                                 .await
                                 {
                                     Ok(_) => {
+                                        let _entered = span.enter();
                                         tracing::debug!(
+                                            chunk.id = idx,
+                                            chunk.range = ?chunk,
                                             "synced table {table} time_range {time_range}",
                                             table = table.as_str(),
                                             time_range = query.time_range,
@@ -385,20 +396,30 @@ async fn worker(
                                                 let breakpoint = end.to_string();
                                                 // dbg!(&breakpoint);
                                                 tokio::task::spawn_blocking(move || {
-                                                    if let Err(err) = breakpoints::breakpoints_set(
-                                                        &task_id,
-                                                        &table_inner,
-                                                        &breakpoint,
-                                                    ) {
-                                                        tracing::warn!(
-                                                            task.id = task_id.as_str(),
-                                                            breakpoints.key = table_inner.as_str(),
-                                                            breakpoints.value = breakpoint.as_str(),
-                                                            "set breakpoint failed, err: {err:#}"
-                                                        );
-                                                    };
+                                                    let max_retries = 5;
+                                                    let mut retries = 0;
+                                                    loop {
+                                                        if let Err(err) =
+                                                            breakpoints::breakpoints_set(
+                                                                &task_id,
+                                                                &table_inner,
+                                                                &breakpoint,
+                                                            )
+                                                        {
+                                                            retries += 1;
+                                                            if retries >= max_retries {
+                                                                tracing::warn!(
+                                                                    task.id = task_id.as_str(),
+                                                                    breakpoints.key = table_inner.as_str(),
+                                                                    breakpoints.value = breakpoint.as_str(),
+                                                                    "set breakpoint failed, err: {err:#}"
+                                                                );
+                                                            }
+                                                        };
+                                                    }
                                                 })
-                                                .in_current_span()
+                                                .instrument(
+                                                    tracing::info_span!("set_breakpoint", chunk.id = idx, chunk.range = ?chunk))
                                                 .await?;
                                             }
                                         }
@@ -456,6 +477,7 @@ async fn worker(
                             }
                         }
 
+                        let _entered = span.enter();
                         match chunk_err {
                             Some(err) => {
                                 if let Some(sender) = sender {
@@ -465,8 +487,12 @@ async fn worker(
                                 }
                             }
                             None => {
-                                metrics.total_finished_tables.fetch_add(1, Ordering::SeqCst);
-                                metrics.finished_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.add_finished_tables(1);
+                                tracing::info!(
+                                    finished = metrics.finished_tables(),
+                                    total = metrics.total_tables(),
+                                    "Syncing partially done with table {table}"
+                                );
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
                                 }

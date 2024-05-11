@@ -20,7 +20,7 @@ use sqlx::ConnectOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -560,7 +560,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
 use taosx_core::utils::get_string_content_from_param_value;
 
 async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
-    let dsn_clone = dsn.clone().into_dsn()?;
+    let dsn_clone = dsn.clone();
     let mut map = BTreeMap::new();
     for (k, v) in dsn_clone.params {
         let mut new_value = String::new();

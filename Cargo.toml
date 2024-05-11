@@ -17,11 +17,11 @@ metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
 metrics-tracing-context = "0.15.0"
 tonic = "0.10"
 
-taos = { version = "0.11.13", default-features = false, features = [
+taos = { version = "0.11.15", default-features = false, features = [
     "ws",
     "deadpool",
 ] }
-taos-query = { version = "0.11.13", default-features = false, features = [
+taos-query = { version = "0.11.15", default-features = false, features = [
     "deadpool",
 ] }
 
@@ -32,7 +32,7 @@ sysinfo = "0.30.5"
 
 [workspace.package]
 version = "1.6.0"
-rust-version = "1.75.0"
+rust-version = "1.78.0"
 
 [package]
 name = "taosx"

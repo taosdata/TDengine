@@ -291,6 +291,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         task_id.clone(),
+                        notify.clone(),
                     )
                     .in_current_span()
                     .await?;
