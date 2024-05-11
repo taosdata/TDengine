@@ -257,6 +257,10 @@ target_include_directories(
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
+if(${TD_DARWIN})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
+endif(${TD_DARWIN})
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
 target_include_directories(
     zlibstatic
