@@ -549,7 +549,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   if (!pInfo->pCur || !pInfo->pSchema) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    qError("sysTableScanUserCols failed since %s", terrstr(terrno));
+    qError("sysTableScanUserCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
     return NULL;
