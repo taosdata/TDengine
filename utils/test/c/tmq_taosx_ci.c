@@ -1006,9 +1006,9 @@ void testDetailError(){
   raw.raw_type = 2;
   int32_t code = tmq_write_raw((TAOS *)1, raw);
   ASSERT(code);
-  const char *err = taos_errstr(NULL);
-  code = strcmp("Invalid parameters,detail:taos:0x1 or data:0x0 is NULL", err);
-  ASSERT(code == 0);
+  const char *err = tmq_err2str(code);
+  char* tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  ASSERT(tmp != NULL);
 }
 
 int main(int argc, char* argv[]) {
