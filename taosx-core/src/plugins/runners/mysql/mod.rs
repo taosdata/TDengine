@@ -423,7 +423,6 @@ fn generate_json_value(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
 
     #[tokio::test]
     #[ignore]

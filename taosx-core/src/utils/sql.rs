@@ -91,23 +91,28 @@ pub fn sql_max_var_length(batch: &RecordBatch) -> Vec<usize> {
 
 pub fn sql_values_from_record_batch(
     batch: &RecordBatch,
-    target_precision: taos::Precision,
-) -> Result<Option<String>, arrow::error::ArrowError> {
+    precision: taos::Precision,
+    with_field_names: bool,
+) -> Result<Vec<(String, usize)>, arrow::error::ArrowError> {
     if batch.num_rows() == 0 {
-        return Ok(None);
+        return Ok(vec![]);
     }
     let schema = batch.schema();
-
     let names = schema
         .fields()
         .iter()
         .map(|f| format!("`{}`", f.name()))
         .join(",");
-
-    let mut values = String::with_capacity(names.len() * 2);
-    values.push('(');
-    values.push_str(&names);
-    values.push_str(") values");
+    let mut vec = Vec::with_capacity(1);
+    let mut rows = 0;
+    let mut values = String::with_capacity(256);
+    if with_field_names {
+        values.push('(');
+        values.push_str(&names);
+        values.push_str(") values");
+    } else {
+        values.push_str("values");
+    }
     let columns = batch.columns();
 
     for row in 0..batch.num_rows() {
@@ -218,7 +223,7 @@ pub fn sql_values_from_record_batch(
                             .as_any()
                             .downcast_ref::<arrow::array::TimestampSecondArray>()
                             .unwrap();
-                        match target_precision {
+                        match precision {
                             taos::Precision::Millisecond => {
                                 values.push_str(&(array.value(row) * 1000).to_string());
                             }
@@ -236,7 +241,7 @@ pub fn sql_values_from_record_batch(
                             .downcast_ref::<arrow::array::TimestampMillisecondArray>()
                             .unwrap();
 
-                        match target_precision {
+                        match precision {
                             taos::Precision::Millisecond => {
                                 values.push_str(&(array.value(row)).to_string());
                             }
@@ -254,7 +259,7 @@ pub fn sql_values_from_record_batch(
                             .downcast_ref::<arrow::array::TimestampMicrosecondArray>()
                             .unwrap();
 
-                        match target_precision {
+                        match precision {
                             taos::Precision::Millisecond => {
                                 values.push_str(&(array.value(row) / 1000).to_string());
                             }
@@ -272,7 +277,7 @@ pub fn sql_values_from_record_batch(
                             .downcast_ref::<arrow::array::TimestampNanosecondArray>()
                             .unwrap();
 
-                        match target_precision {
+                        match precision {
                             taos::Precision::Millisecond => {
                                 values.push_str(&(array.value(row) / 1000_000).to_string());
                             }
@@ -334,9 +339,27 @@ pub fn sql_values_from_record_batch(
             }
         }
         values.push(')');
+        rows += 1;
+
+        if values.len() > 900_000 {
+            vec.push((values, rows));
+            rows = 0;
+            values = String::with_capacity(256);
+            if with_field_names {
+                values.push('(');
+                values.push_str(&names);
+                values.push_str(") values");
+            } else {
+                values.push_str("values");
+            }
+        }
     }
 
-    Ok(Some(values))
+    if rows > 0 {
+        vec.push((values, rows));
+    }
+
+    Ok(vec)
 }
 
 #[cfg(test)]
@@ -438,10 +461,6 @@ mod tests {
             taos::Precision::Microsecond,
             taos::Precision::Nanosecond,
         ] {
-            let values = sql_values_from_record_batch(&batch, precision)
-                .unwrap()
-                .unwrap();
-
             let db = format!("precision_{precision}");
             taos.exec_many([
                 format!("drop database if exists {db}"),
@@ -466,6 +485,8 @@ mod tests {
             let table_prefix = "tb";
             let tables = 100;
 
+            let (values, _size) =
+                &sql_values_from_record_batch(&batch, precision, true).unwrap()[0];
             let mut sql = String::new();
             sql.push_str("insert into ");
             for i in 0..tables {

@@ -226,6 +226,15 @@ pub enum AckWriterError {
     ArrowError(#[from] ArrowError),
 }
 
+impl From<AckWriterError> for ArrowError {
+    fn from(e: AckWriterError) -> Self {
+        match e {
+            AckWriterError::IoError(e) => ArrowError::IoError("ACK writer error".to_string(), e),
+            AckWriterError::ArrowError(e) => e,
+        }
+    }
+}
+
 impl<W: Write> AckWriter<W> {
     pub fn write_ok(&mut self) -> Result<(), AckWriterError> {
         self.ack(LushAck::ok())

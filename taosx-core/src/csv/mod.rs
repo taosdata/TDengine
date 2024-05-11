@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::fs::File;
-use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,23 +6,30 @@ use std::vec;
 
 use anyhow::{anyhow, bail, Context, Result};
 use arrow::array::{ArrayRef, StringArray};
-use arrow::datatypes::{Field, Schema};
-use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
+use arrow_schema::ArrowError;
+use bytes::Bytes;
 use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use futures_util::stream::FuturesUnordered;
-use futures_util::TryStreamExt;
+use futures_util::{Stream, StreamExt, TryStreamExt};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
+use taosx_ipc::stream::flat::FlatMessage;
+use taosx_ipc::stream::reader::IpcMessage;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
-use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, warn, Instrument, Span};
+use tracing::{info, instrument, warn, Instrument, Span};
 
+use crate::sink::channel_based_transformer;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, utils, Parser, Transferred};
+use crate::{utils, Parser, Transferred};
+
+type MsgSender = flume::Sender<std::result::Result<Box<dyn IpcMessage>, ArrowError>>;
+trait CsvReaderExt: Send + Sync + std::io::Read {}
+
+impl<T: Send + Sync + std::io::Read> CsvReaderExt for T {}
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
@@ -69,14 +74,24 @@ pub async fn csv_header(
     sample: usize,
 ) -> Result<CsvHeader> {
     let mut header = Vec::new();
+    let option = CsvOption {
+        has_header,
+        headers: vec![],
+        skip: Some(skip),
+        delimiter: delimiter.unwrap_or(b','),
+        quote,
+        comment,
+        batch_size: 1000,
+        skip_error: false,
+        null_pattern: None,
+        concurrent: 16,
+    };
     for path in &paths {
-        let path_header = tokio::time::timeout(
-            Duration::from_secs(60),
-            CsvSource::read_header(path.as_ref(), has_header, delimiter, quote, comment),
-        )
-        .await
-        .context("Reading CSV header timeout(60s)")?
-        .context("Failed to read CSV header")?;
+        let path_header =
+            tokio::time::timeout(Duration::from_secs(60), option.read_header(path.as_ref()))
+                .await
+                .context("Reading CSV header timeout(60s)")?
+                .context("Failed to read CSV header")?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
             bail!(
                 "CSV file \"{}\" format is different from others",
@@ -114,40 +129,38 @@ pub const METRIC_CSV_FILES: &str = "metrics.csv.files";
 pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
 pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
 
-#[instrument(skip_all)]
-pub async fn csv_to_taos(
+async fn csv_to_taos_with_channel(
     mut from: Dsn,
     parser: Option<Parser>,
     to: Dsn,
-    port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
-    let port = port_pool
-        .get()
-        .await
-        .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
-    let socket = format!("127.0.0.1:{}", port);
-    let mut ipc_handler = build_ipc(
-        &socket,
+    let builder = taos::TaosBuilder::from_dsn(to)?;
+    let pool = builder.pool()?;
+    let worker_cancel = cancel.child_token();
+    let (msg, ack) = channel_based_transformer(
+        pool,
+        worker_cancel,
         parser,
-        &to,
         Some("csv"),
-        None,
-        &cancel,
-        with_agent,
-        transferred,
-        span,
-        task_id.clone(),
+        span.clone(),
+        task_id,
         notify,
     )
     .await?;
 
-    let mut source = CsvSource::new(&mut from, port)?;
+    let ack_handler = tokio::spawn(async move {
+        let mut count = 0;
+        while let Ok(_ack) = ack.recv_async().await {
+            count += 1;
+        }
+        info!("CSV worker finished, total record batches: {}", count);
+    });
+
+    let mut source = CsvSource::new(&mut from, msg)?;
     // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(
@@ -168,8 +181,6 @@ pub async fn csv_to_taos(
     info!("CSV worker spawned");
     let abort_handle = worker.abort_handle();
 
-    let port_pool = port_pool.clone();
-
     info!("Spawn task handler");
     tokio::spawn(async move {
         info!("Spawned task handler");
@@ -178,32 +189,13 @@ pub async fn csv_to_taos(
             status = worker => {
                 match status? {
                     Ok(_) => {
-                        match ipc_handler.try_recv_error() {
-                            Ok(res) => {
-                                tracing::error!("IPC Error: {res}");
-                                tokio::time::sleep(Duration::from_millis(100)).await;
-                                port_pool.put(port).await;
-                                anyhow::bail!("CSV exit with IPC error: {res}");
-                            }
-                            Err(err) => {
-                                tracing::debug!("CSV worker done, cause: {:#}", err);
-                            }
-                        }
+                        tracing::info!("CSV worker done, wait for writer");
+                        let _ = ack_handler.await;
                     }
                     Err(err) => {
-                        let _ = ipc_handler.close().await;
-                        port_pool.put(port).await;
+                        ack_handler.abort();
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
-                }
-            },
-            err = ipc_handler.recv_error() => {
-                tracing::info!("have received worker thread panicked message, terminate child process");
-                abort_handle.abort();
-                if let Some(err) = err {
-                    let _ = ipc_handler.close().await;
-                    port_pool.put(port).await;
-                    anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
@@ -215,15 +207,125 @@ pub async fn csv_to_taos(
         tokio::time::sleep(Duration::from_millis(100)).await;
         // stop the connector
         tracing::info!("CSV task finished");
-        // wait for handler closed
-        let _ = ipc_handler.close().await;
-        // put ipc port back to port pool.
-        port_pool.put(port).await;
         Ok(())
     })
     .await??;
 
     Ok(())
+}
+
+#[instrument(skip_all)]
+pub async fn csv_to_taos(
+    from: Dsn,
+    parser: Option<Parser>,
+    to: Dsn,
+    _: &PortPool,
+    cancel: CancellationToken,
+    _with_agent: Option<(i64, String, String)>,
+    _transferred: Option<Arc<Transferred>>,
+    span: Span,
+    task_id: Option<i64>,
+    notify: crate::TaskNotifySender,
+) -> Result<()> {
+    csv_to_taos_with_channel(from, parser, to, cancel, span, task_id, notify).await
+
+    // let port = port_pool
+    //     .get()
+    //     .await
+    //     .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
+    // let socket = format!("127.0.0.1:{}", port);
+    // let mut ipc_handler = build_ipc(
+    //     &socket,
+    //     parser,
+    //     &to,
+    //     Some("csv"),
+    //     None,
+    //     &cancel,
+    //     with_agent,
+    //     transferred,
+    //     span,
+    //     task_id.clone(),
+    //     notify,
+    // )
+    // .await?;
+
+    // let mut source = CsvSource::new(&mut from, port)?;
+    // // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
+    // info!("spawn CSV worker");
+    // let worker = tokio::spawn(
+    //     async move {
+    //         info!(
+    //             "Reading CSV with config(concurrent: {}, batch_size: {})",
+    //             source.concurrent, source.batch_size
+    //         );
+    //         let handlers = source.read().await?;
+    //         for handler in handlers {
+    //             tokio::task::yield_now().await;
+    //             handler.await??;
+    //         }
+    //         Ok::<_, anyhow::Error>(())
+    //     }
+    //     .instrument(Span::current()),
+    // );
+    // info!("CSV worker spawned");
+    // let abort_handle = worker.abort_handle();
+
+    // let port_pool = port_pool.clone();
+
+    // info!("Spawn task handler");
+    // tokio::spawn(async move {
+    //     info!("Spawned task handler");
+    //     tokio::select! {
+    //         // application exit with error code
+    //         status = worker => {
+    //             match status? {
+    //                 Ok(_) => {
+    //                     match ipc_handler.try_recv_error() {
+    //                         Ok(res) => {
+    //                             tracing::error!("IPC Error: {res}");
+    //                             tokio::time::sleep(Duration::from_millis(100)).await;
+    //                             port_pool.put(port).await;
+    //                             anyhow::bail!("CSV exit with IPC error: {res}");
+    //                         }
+    //                         Err(err) => {
+    //                             tracing::debug!("CSV worker done, cause: {:#}", err);
+    //                         }
+    //                     }
+    //                 }
+    //                 Err(err) => {
+    //                     let _ = ipc_handler.close().await;
+    //                     port_pool.put(port).await;
+    //                     anyhow::bail!("CSV exit with error: {:#}", err);
+    //                 }
+    //             }
+    //         },
+    //         err = ipc_handler.recv_error() => {
+    //             tracing::info!("have received worker thread panicked message, terminate child process");
+    //             abort_handle.abort();
+    //             if let Some(err) = err {
+    //                 let _ = ipc_handler.close().await;
+    //                 port_pool.put(port).await;
+    //                 anyhow::bail!("CSV writer error: {err:#}");
+    //             }
+    //         },
+    //         _ = cancel.cancelled() => {
+    //             tracing::info!("CSV task cancelled");
+    //             abort_handle.abort();
+    //         }
+    //     };
+    //     // wait for completion
+    //     tokio::time::sleep(Duration::from_millis(100)).await;
+    //     // stop the connector
+    //     tracing::info!("CSV task finished");
+    //     // wait for handler closed
+    //     let _ = ipc_handler.close().await;
+    //     // put ipc port back to port pool.
+    //     port_pool.put(port).await;
+    //     Ok(())
+    // })
+    // .await??;
+
+    // Ok(())
 }
 
 pub struct CsvHeader {
@@ -232,18 +334,333 @@ pub struct CsvHeader {
     pub values: Vec<Vec<String>>,
 }
 
+#[derive(Debug, Clone)]
+pub struct CsvOption {
+    pub has_header: bool,
+    pub headers: Vec<String>,
+    pub skip: Option<usize>,
+    pub delimiter: u8,
+    pub quote: Option<u8>,
+    pub comment: Option<u8>,
+    pub batch_size: usize,
+    pub skip_error: bool,
+    pub null_pattern: Option<Arc<Vec<Bytes>>>,
+    pub concurrent: usize,
+}
+
+impl Default for CsvOption {
+    fn default() -> Self {
+        Self {
+            has_header: true,
+            headers: vec![],
+            skip: None,
+            delimiter: b',',
+            quote: None,
+            comment: None,
+            batch_size: 1000,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 16,
+        }
+    }
+}
+
+type CsvReader = Reader<Box<dyn CsvReaderExt>>;
+
+impl CsvOption {
+    fn builder(&self) -> ReaderBuilder {
+        let mut builder = ReaderBuilder::new();
+        builder
+            .delimiter(self.delimiter)
+            .quote(match self.quote {
+                Some(quote) => quote,
+                _ => b'"',
+            })
+            .comment(self.comment)
+            .has_headers(true)
+            .flexible(self.skip_error);
+        builder
+    }
+    fn open(&self, path: impl AsRef<Path>) -> anyhow::Result<CsvReader> {
+        let path = path.as_ref();
+        let builder = self.builder();
+        let gz = path.extension().map_or(false, |ext| ext == "gz");
+        let mut reader = if gz {
+            let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+            tracing::info!(
+                decoder = "gz",
+                "Open file {} with gz decoder",
+                path.display()
+            );
+            let gz = flate2::read::GzDecoder::new(file);
+            let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
+            builder.from_reader(reader)
+        } else {
+            let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+            let reader = Box::new(file) as Box<dyn CsvReaderExt>;
+            builder.from_reader(reader)
+        };
+
+        if !self.headers.is_empty() {
+            reader.set_headers(StringRecord::from(self.headers.as_slice()));
+        }
+        // should first fetch headers record in case it has headers.
+        if !self.has_header && self.headers.is_empty() {
+            let mut reader2 = if gz {
+                let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+                let gz = flate2::read::GzDecoder::new(file);
+                let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
+                builder.from_reader(reader)
+            } else {
+                let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+                let reader = Box::new(file) as Box<dyn CsvReaderExt>;
+                builder.from_reader(reader)
+            };
+            let headers = reader2.byte_headers()?;
+            let mut column_names = vec![];
+            for n in 0..(headers.len()) {
+                column_names.push(format!("c{n}"));
+            }
+            reader.set_headers(StringRecord::from(column_names));
+        }
+        // let _ = dbg!(reader.headers());
+        let _ = reader.headers()?;
+
+        if let Some(skip) = self.skip {
+            let mut record = ByteRecord::new();
+            for _ in 0..skip {
+                let _ = reader.read_byte_record(&mut record);
+            }
+            let pos = reader.position();
+            info!(
+                skip,
+                "Start reading csv from line {}, byte: {}",
+                pos.line(),
+                pos.byte(),
+            );
+        }
+        Ok(reader)
+    }
+
+    fn open_many(&self, paths: &[impl AsRef<Path>]) -> anyhow::Result<Vec<CsvReader>> {
+        let mut readers = Vec::with_capacity(paths.len());
+        for path in paths {
+            readers.push(self.open(path)?);
+        }
+        Ok(readers)
+    }
+
+    pub async fn read_header(&self, read_path: &str) -> Result<Vec<String>> {
+        let clone_read_path = read_path.to_string();
+        let paths =
+            tokio::task::spawn_blocking(move || CsvSource::csv_path(clone_read_path.as_ref()))
+                .await?
+                .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
+        if paths.is_empty() {
+            return Err(anyhow!(format!("there are not csv file is {}", read_path)));
+        }
+
+        let mut headers: Vec<String> = Vec::new();
+        let mut readers = self.open_many(paths.as_slice())?;
+
+        for (i, reader) in readers.iter_mut().enumerate() {
+            tokio::task::yield_now().await;
+            let file_headers = reader
+                .headers()?
+                .iter()
+                .map(String::from)
+                .collect::<Vec<String>>();
+            if headers.is_empty() {
+                headers = file_headers;
+                continue;
+            }
+            if !CsvSource::is_same_header(&headers, &file_headers, true) {
+                return Err(anyhow!(format!(
+                    "header of files {} is different with others",
+                    &paths[i]
+                )));
+            }
+
+            headers = file_headers;
+        }
+
+        Ok(headers)
+    }
+
+    pub fn validate(&self, paths: &[impl AsRef<Path>]) -> Result<()> {
+        const MAX_VALIDATE_LINES: usize = 10;
+        let mut cols = 0;
+        for path in paths {
+            let path = path.as_ref();
+            let mut reader = self.open(path)?;
+            let headers = reader
+                .headers()
+                .with_context(|| format!("Reading file {} header error", path.display()))?;
+            if headers.len() <= 1 {
+                bail!("CSV fields number should greater than 1.")
+            }
+
+            if self.skip_error {
+                continue;
+            }
+
+            if cols == 0 {
+                cols = headers.len();
+            }
+            let mut record = StringRecord::new();
+            for _ in 0..MAX_VALIDATE_LINES {
+                let ok = reader
+                    .read_record(&mut record)
+                    .with_context(|| format!("Reading file {} record error", path.display()))?;
+                if !ok {
+                    break;
+                }
+                let len = record.len();
+                let line = reader.position().line();
+                if len == 0 {
+                    continue;
+                }
+                if cols != len {
+                    bail!(
+                        "CSV file {} line {line} expect {cols} columns but has {len}",
+                        path.display()
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[instrument(skip(self), fields(path = %path.as_ref().display()))]
+    fn open_path_into_stream(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<impl Stream<Item = Result<RecordBatch>>> {
+        let reader = self.open(path)?;
+        Ok(self.open_reader_into_stream(reader))
+    }
+
+    fn open_reader_into_stream(
+        &self,
+        mut reader: CsvReader,
+    ) -> impl Stream<Item = Result<RecordBatch>> {
+        let headers = reader
+            .headers()
+            .unwrap()
+            .iter()
+            .map(String::from)
+            .collect::<Vec<String>>();
+
+        info!("CSV stream reading...");
+
+        let batch_size = self.batch_size;
+        let skip_error = self.skip_error;
+        let null_pattern = self.null_pattern.clone();
+
+        let (tx, rx) = flume::bounded(256);
+
+        tokio::task::spawn_blocking(move || {
+            let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
+            let mut count = 0usize;
+            let mut errors = 0usize;
+
+            for record in reader.byte_records() {
+                let record = match record {
+                    Ok(record) => record,
+                    Err(err) => {
+                        if !skip_error {
+                            tx.send(Err(err).context("Reading csv records error"))?;
+                            break;
+                        } else {
+                            warn!("skip error is enabled, ignore error: {:#}", err);
+                            errors += 1;
+                        }
+                        continue;
+                    }
+                };
+
+                if record.is_empty() {
+                    continue;
+                }
+                for i in 0..headers.len() {
+                    match record.get(i) {
+                        Some(s) => {
+                            if let Some(null_pattern) = &null_pattern {
+                                if null_pattern.iter().any(|p| p == s) {
+                                    records[i].push(None);
+                                    continue;
+                                }
+                            }
+                            let s = String::from_utf8_lossy(s);
+                            let s = s.trim();
+                            records[i].push(if !s.is_empty() {
+                                Some(s.replace('\0', "").to_string())
+                            } else {
+                                None
+                            });
+                        }
+                        None => records[i].push(None),
+                    }
+                }
+                if records[0].len() >= batch_size {
+                    count += batch_size;
+                    let record_batch = RecordBatch::try_from_iter(
+                        headers.iter().zip(
+                            records
+                                .iter()
+                                .map(|s| Arc::new(StringArray::from_iter(s)) as ArrayRef),
+                        ),
+                    )?;
+                    tx.send(Ok(record_batch))?;
+                    records.iter_mut().for_each(|r| r.clear());
+                }
+            }
+
+            if records[0].len() > 0 {
+                count += records[0].len();
+                let record_batch = RecordBatch::try_from_iter(
+                    headers.iter().zip(
+                        records
+                            .iter()
+                            .map(|s| Arc::new(StringArray::from_iter(s)) as ArrayRef),
+                    ),
+                )?;
+                tx.send(Ok(record_batch))?; // send last batch
+            }
+            info!(count, errors, "CSV stream finished");
+            anyhow::Ok(())
+        });
+
+        rx.into_stream()
+    }
+}
+
 // CsvSource read csv file and send data to Sender
-#[derive(Debug)]
 struct CsvSource {
-    readers: Vec<Reader<File>>,
+    readers: Vec<Reader<Box<dyn CsvReaderExt>>>,
+    paths: Vec<String>,
+    option: CsvOption,
+    sender: MsgSender,
     concurrent: usize,
     batch_size: usize,
     skip_error: bool,
-    port: u16,
 }
-
+unsafe impl Send for CsvSource {}
+unsafe impl Sync for CsvSource {}
+impl std::fmt::Debug for CsvSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CsvSource")
+            .field("readers", &self.readers.len())
+            .field("paths", &self.paths)
+            .field("option", &self.option)
+            .field("concurrent", &self.concurrent)
+            .field("batch_size", &self.batch_size)
+            .field("skip_error", &self.skip_error)
+            .finish()
+    }
+}
 impl CsvSource {
-    fn new(dsn: &mut Dsn, port: u16) -> Result<CsvSource> {
+    fn new(dsn: &mut Dsn, sender: MsgSender) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
         //  ?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
@@ -353,6 +770,28 @@ impl CsvSource {
             })
             .unwrap_or(false);
 
+        let null_pattern = dsn.remove("null_pattern").map(|v| {
+            Arc::new(
+                v.trim()
+                    .split(',')
+                    .map(|s| Bytes::copy_from_slice(s.as_bytes()))
+                    .collect_vec(),
+            )
+        });
+
+        let option = CsvOption {
+            has_header,
+            headers,
+            skip,
+            delimiter,
+            quote,
+            comment,
+            batch_size,
+            skip_error,
+            null_pattern,
+            concurrent,
+        };
+
         // if !has_header && headers.len() == 0 {
         //     return Err(anyhow!("csv header is null"));
         // }
@@ -367,73 +806,19 @@ impl CsvSource {
             })
             .unwrap_or(false);
         if !skip_validate {
-            CsvSource::validate(
-                &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
-            )?;
+            option.validate(&paths)?;
         }
 
-        let readers = CsvSource::csv_readers(
-            &paths, has_header, &headers, skip, delimiter, quote, comment, skip_error,
-        )?;
-
+        let readers = option.open_many(paths.as_slice())?;
         Ok(CsvSource {
             readers,
+            paths,
+            sender,
+            option,
             concurrent,
             batch_size,
             skip_error,
-            port,
         })
-    }
-
-    async fn read_header(
-        read_path: &str,
-        has_header: bool,
-        delimiter: Option<u8>,
-        quote: Option<u8>,
-        comment: Option<u8>,
-    ) -> Result<Vec<String>> {
-        let clone_read_path = read_path.to_string();
-        let paths =
-            tokio::task::spawn_blocking(move || CsvSource::csv_path(clone_read_path.as_ref()))
-                .await?
-                .with_context(|| format!("Reading CSV file {read_path:?} error"))?;
-        if paths.is_empty() {
-            return Err(anyhow!(format!("there are not csv file is {}", read_path)));
-        }
-
-        let mut headers: Vec<String> = Vec::new();
-
-        for path in paths {
-            tokio::task::yield_now().await;
-            let mut reader = ReaderBuilder::new()
-                .delimiter(match delimiter {
-                    Some(delimiter) => delimiter,
-                    _ => b',',
-                })
-                .quote(match quote {
-                    Some(quote) => quote,
-                    _ => b'"',
-                })
-                .comment(comment)
-                // .has_headers(has_header)
-                .from_path(&path)
-                .with_context(|| format!("Reading CSV file {path:?} error"))?;
-            let file_headers = reader
-                .headers()?
-                .iter()
-                .map(String::from)
-                .collect::<Vec<String>>();
-            if !CsvSource::is_same_header(&headers, &file_headers, has_header) {
-                return Err(anyhow!(format!(
-                    "header of files {} is different with others",
-                    &path
-                )));
-            }
-
-            headers = file_headers;
-        }
-
-        Ok(headers)
     }
 
     async fn sample(
@@ -453,30 +838,16 @@ impl CsvSource {
         let mut samples: Vec<_> = Vec::new();
 
         for path in paths {
-            let mut reader = ReaderBuilder::new()
-                .delimiter(match delimiter {
-                    Some(delimiter) => delimiter,
-                    _ => b',',
-                })
-                .quote(match quote {
-                    Some(quote) => quote,
-                    _ => b'"',
-                })
-                .comment(comment)
-                .has_headers(has_header)
-                .from_path(&path)
-                .with_context(|| format!("Reading CSV file {path:?} error"))?;
-            if skip > 0 {
-                let mut record = StringRecord::new();
-                for _ in 0..skip {
-                    let _ = reader.read_record(&mut record);
-                }
-                info!(
-                    skip,
-                    "Start reading csv from line {}",
-                    reader.position().line()
-                );
-            }
+            let mut reader = CsvSource::csv_reader_of(
+                &path,
+                has_header,
+                &[],
+                Some(skip as u64),
+                delimiter.unwrap_or(b','),
+                quote,
+                comment,
+                false,
+            )?;
 
             loop {
                 let mut record = StringRecord::new();
@@ -508,23 +879,38 @@ impl CsvSource {
     }
 
     async fn read(&mut self) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
-        let port = self.port;
         let batch_size = self.batch_size;
-        let skip_error = self.skip_error;
+        // let skip_error = self.skip_error;
         tracing::info!("reading csv files with batch size: {batch_size}");
         let futures = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(self.concurrent));
+        // let total = Arc::new(AtomicU64::new(0));
 
-        while let Some(reader) = self.readers.pop() {
+        for (_, (reader, path)) in self.readers.drain(..).zip(self.paths.drain(..)).enumerate() {
             let permit = semaphore.clone().acquire_owned().await?;
-
+            let option = self.option.clone();
+            let sender = self.sender.clone();
+            // let total = total.clone();
             let future = tokio::spawn(
                 async move {
                     info!("Deal with csv reader");
-                    let res = CsvSource::deal_file(reader, port, batch_size, skip_error).await?;
+                    // let res =
+                    //     CsvSource::deal_file(reader, port, batch_size, skip_error, null_pattern)
+                    //         .await?;
+                    let stream = option.open_reader_into_stream(reader);
+                    tokio::pin!(stream);
+                    let mut count = 0;
+                    while let Some(batch) = stream.next().await {
+                        let batch = batch?;
+                        count += batch.num_rows();
+                        let msg =
+                            Box::new(FlatMessage::new(vec![batch.into()])) as Box<dyn IpcMessage>;
+                        sender.send_async(Ok(msg)).await?;
+                        tracing::debug!(path, count, "send batches to writer");
+                    }
 
                     drop(permit);
-                    Ok(res)
+                    Ok(())
                 }
                 .instrument(Span::current()),
             );
@@ -533,167 +919,6 @@ impl CsvSource {
         }
 
         Ok(futures)
-    }
-
-    async fn deal_file(
-        mut reader: Reader<File>,
-        port: u16,
-        batch_size: usize,
-        skip_error: bool,
-    ) -> Result<()> {
-        debug!("Deal with file by IPC port: {port}");
-        let stream = std::net::TcpStream::connect(format!("localhost:{}", port));
-        debug!("Connected to IPC stream");
-        let stream = stream.unwrap();
-
-        let headers = reader
-            .headers()?
-            .iter()
-            .map(String::from)
-            .collect::<Vec<String>>();
-        let schema = CsvSource::stream_schema(&headers);
-        stream.set_nonblocking(false)?;
-        let ack_stream = stream.try_clone()?;
-
-        info!("CSV stream reading...");
-        let ack = tokio::task::spawn_blocking(move || {
-            let ack_reader =
-                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
-            let (mut total, mut ok) = (0usize, 0usize);
-            for ack in ack_reader {
-                total += 1;
-                if !ack.success() {
-                    warn!(
-                        source = "csv",
-                        batch = batch_size,
-                        "write {batch_size} records error: {ack:?}",
-                    );
-                    if let Some(message) = ack.message() {
-                        bail!("IPC writer error: {message}")
-                    }
-                } else {
-                    ok += 1;
-                }
-            }
-            info!("ACK reader finished");
-            Ok((total, ok))
-        });
-        let wrt = tokio::task::spawn_blocking(move || {
-            let stream = stream;
-
-            let mut writer: StreamWriter<_> = StreamWriter::try_new(&stream, &schema)?;
-
-            let mut records = vec![Vec::with_capacity(batch_size); headers.len()];
-            let mut batches = 0usize;
-            let mut errors = 0usize;
-
-            for record in reader.byte_records() {
-                let record = match record {
-                    Ok(record) => record,
-                    Err(err) => {
-                        if !skip_error {
-                            Err(err).context("Reading csv records error")?;
-                        } else {
-                            warn!("skip error is enabled, ignore error: {:#}", err);
-                            errors += 1;
-                        }
-                        continue;
-                    }
-                };
-
-                if record.is_empty() {
-                    continue;
-                }
-                for i in 0..headers.len() {
-                    match record.get(i) {
-                        Some(s) => {
-                            let s = String::from_utf8_lossy(s);
-                            let s = s.trim();
-                            records[i].push(if !s.is_empty() {
-                                Some(s.replace('\0', "").to_string())
-                            } else {
-                                None
-                            });
-                        }
-                        None => records[i].push(None),
-                    }
-                }
-                if records[0].len() >= batch_size {
-                    CsvSource::write_to_stream(&headers, &mut writer, &records)?;
-                    records.iter_mut().for_each(Vec::clear);
-                    batches += 1;
-                    // metrics::counter!(CSV_READ_RECORDS, batch_size as u64);
-                    // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
-                }
-            }
-
-            if records[0].len() > 0 {
-                CsvSource::write_to_stream(&headers, &mut writer, &records)?;
-                batches += 1;
-                // metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
-                // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
-            }
-            if errors > 0 {
-                warn!("There are {} errors while reading csv records", errors);
-            }
-
-            info!("CSV stream finished");
-            let _ = writer.finish();
-            anyhow::Ok(batches)
-        });
-        let batches = wrt.await?.context("CSV writing error")?;
-        let (total, ok) = ack.await??;
-        if batches == total {
-            if total == ok {
-                tracing::info!("Current CSV stream completed");
-            } else {
-                tracing::info!(
-                    "Current CSV stream is finished, but there's some failed batches ({})",
-                    total - ok
-                );
-            }
-        } else {
-            tracing::error!(
-                csv.total = batches,
-                csv.ok = ok,
-                "Current CSV stream seems finished"
-            );
-        }
-
-        Ok(())
-    }
-
-    fn write_to_stream(
-        headers: &Vec<String>,
-        writer: &mut StreamWriter<&TcpStream>,
-        // ack: &mut StreamReader<&TcpStream>,
-        records: &Vec<Vec<Option<String>>>,
-    ) -> Result<()> {
-        let record_batch = RecordBatch::try_from_iter(
-            headers.iter().zip(
-                records
-                    .iter()
-                    .map(|s| Arc::new(StringArray::from_iter(s)) as ArrayRef),
-            ),
-        )?;
-        writer.write(&record_batch)?;
-        // let _ = ack.next();
-        // dbg!(ack.next());
-        Ok(())
-    }
-
-    fn stream_schema(headers: &Vec<String>) -> Schema {
-        let mut metadata = HashMap::new();
-        metadata.insert(String::from("version"), String::from("1.0"));
-        metadata.insert(String::from("stream"), String::from("flat"));
-        metadata.insert(String::from("ack"), String::from("lush"));
-
-        let columns = headers
-            .iter()
-            .map(|header| Field::new(header, ArrowDataType::Utf8, true))
-            .collect::<Vec<Field>>();
-
-        Schema::new(columns).with_metadata(metadata)
     }
 
     fn csv_path(path: &str) -> Result<Vec<String>> {
@@ -729,8 +954,8 @@ impl CsvSource {
         }
     }
 
-    fn csv_readers(
-        paths: &[impl AsRef<Path>],
+    fn csv_reader_of(
+        path: impl AsRef<Path>,
         has_header: bool,
         headers: &[String],
         skip: Option<u64>,
@@ -738,10 +963,19 @@ impl CsvSource {
         quote: Option<u8>,
         comment: Option<u8>,
         skip_error: bool,
-    ) -> Result<Vec<Reader<File>>> {
-        let mut readers = Vec::new();
-        for path in paths {
-            let mut reader = ReaderBuilder::new()
+    ) -> Result<Reader<Box<dyn CsvReaderExt>>> {
+        let path = path.as_ref();
+        let gz = path.extension().map_or(false, |ext| ext == "gz");
+        let mut reader = if gz {
+            let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+            tracing::info!(
+                decoder = "gz",
+                "Open file {} with gz decoder",
+                path.display()
+            );
+            let gz = flate2::read::GzDecoder::new(file);
+            let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
+            ReaderBuilder::new()
                 .delimiter(delimiter)
                 .quote(match quote {
                     Some(quote) => quote,
@@ -750,64 +984,11 @@ impl CsvSource {
                 .comment(comment)
                 .has_headers(true)
                 .flexible(skip_error)
-                .from_path(path)
-                .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
-            // should first fetch headers record in case it has headers.
-            if !headers.is_empty() {
-                reader.set_headers(StringRecord::from(headers));
-            }
-            if !has_header && headers.is_empty() {
-                let mut reader_tmp = ReaderBuilder::new()
-                    .delimiter(delimiter)
-                    .quote(match quote {
-                        Some(quote) => quote,
-                        _ => b'"',
-                    })
-                    .comment(comment)
-                    .flexible(false)
-                    .from_path(path)
-                    .with_context(|| format!("Open file {} error", path.as_ref().display()))?;
-                let headers = reader_tmp.headers()?;
-                let mut column_names = vec![];
-                for n in 0..(headers.len()) {
-                    column_names.push(format!("c{n}"));
-                }
-                reader.set_headers(StringRecord::from(column_names));
-            }
-            let _ = reader.headers();
-            if let Some(skip) = skip {
-                let mut record = ByteRecord::new();
-                for _ in 0..skip {
-                    let _ = reader.read_byte_record(&mut record);
-                }
-                let pos = reader.position();
-                info!(
-                    skip,
-                    "Start reading csv from line {}, byte: {}",
-                    pos.line(),
-                    pos.byte(),
-                );
-            }
-            readers.push(reader);
-        }
-        Ok(readers)
-    }
-
-    fn validate(
-        paths: &[impl AsRef<Path>],
-        has_header: bool,
-        headers: &[String],
-        skip: Option<u64>,
-        delimiter: u8,
-        quote: Option<u8>,
-        comment: Option<u8>,
-        skip_error: bool,
-    ) -> Result<()> {
-        const MAX_VALIDATE_LINES: usize = 5;
-        let mut cols = 0;
-        for path in paths {
-            let path = path.as_ref();
-            let mut reader = ReaderBuilder::new()
+                .from_reader(reader)
+        } else {
+            let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+            let reader = Box::new(file) as Box<dyn CsvReaderExt>;
+            ReaderBuilder::new()
                 .delimiter(delimiter)
                 .quote(match quote {
                     Some(quote) => quote,
@@ -815,82 +996,67 @@ impl CsvSource {
                 })
                 .comment(comment)
                 .has_headers(true)
-                .flexible(false)
-                .from_path(path)
-                .with_context(|| format!("Open file {} error", path.display()))?;
-            // should first fetch headers record in case it has headers.
-            if !headers.is_empty() {
-                reader.set_headers(StringRecord::from(headers));
-            }
-            if !has_header && headers.is_empty() {
-                let mut reader_tmp = ReaderBuilder::new()
+                .flexible(skip_error)
+                .from_reader(reader)
+        };
+
+        if !headers.is_empty() {
+            reader.set_headers(StringRecord::from(headers));
+        }
+        // should first fetch headers record in case it has headers.
+        if !has_header && headers.is_empty() {
+            let mut reader2 = if gz {
+                let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+                let gz = flate2::read::GzDecoder::new(file);
+                let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
+                ReaderBuilder::new()
                     .delimiter(delimiter)
                     .quote(match quote {
                         Some(quote) => quote,
                         _ => b'"',
                     })
                     .comment(comment)
-                    .flexible(false)
-                    .from_path(path)
-                    .with_context(|| format!("Open file {} error", path.display()))?;
-                let headers = reader_tmp.headers()?;
-                let mut column_names = vec![];
-                for n in 0..(headers.len()) {
-                    column_names.push(format!("c{n}"));
-                }
-                reader.set_headers(StringRecord::from(column_names));
+                    .has_headers(true)
+                    .flexible(skip_error)
+                    .from_reader(reader)
+            } else {
+                let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
+                let reader = Box::new(file) as Box<dyn CsvReaderExt>;
+                ReaderBuilder::new()
+                    .delimiter(delimiter)
+                    .quote(match quote {
+                        Some(quote) => quote,
+                        _ => b'"',
+                    })
+                    .comment(comment)
+                    .has_headers(true)
+                    .flexible(skip_error)
+                    .from_reader(reader)
+            };
+            let headers = reader2.byte_headers()?;
+            let mut column_names = vec![];
+            for n in 0..(headers.len()) {
+                column_names.push(format!("c{n}"));
             }
-            let _ = reader.headers();
-            debug!(
-                path = %path.display(),
-                "Using headers: \"{}\"",
-                reader.headers()?.iter().join(",")
-            );
-            if let Some(skip) = skip {
-                let mut record = StringRecord::new();
-                for _ in 0..skip {
-                    let _ = reader.read_record(&mut record);
-                }
-                debug!(
-                    skip,
-                    "Start reading csv from line {}",
-                    reader.position().line()
-                );
-            }
-            let headers = reader.headers()?;
-            if headers.len() <= 1 {
-                bail!("CSV fields number should greater than 1.")
-            }
-
-            if skip_error {
-                continue;
-            }
-
-            if cols == 0 {
-                cols = headers.len();
-            }
-            let mut record = StringRecord::new();
-            for _ in 0..MAX_VALIDATE_LINES {
-                let ok = reader
-                    .read_record(&mut record)
-                    .with_context(|| format!("Reading file {} record error", path.display()))?;
-                if !ok {
-                    break;
-                }
-                let len = record.len();
-                let line = reader.position().line();
-                if len == 0 {
-                    continue;
-                }
-                if cols != len {
-                    bail!(
-                        "CSV file {} line {line} expect {cols} columns but has {len}",
-                        path.display()
-                    );
-                }
-            }
+            reader.set_headers(StringRecord::from(column_names));
         }
-        Ok(())
+        // let _ = dbg!(reader.headers());
+        let _ = reader.headers();
+
+        if let Some(skip) = skip {
+            let mut record = ByteRecord::new();
+            for _ in 0..skip {
+                let _ = reader.read_byte_record(&mut record);
+            }
+            let pos = reader.position();
+            info!(
+                skip,
+                "Start reading csv from line {}, byte: {}",
+                pos.line(),
+                pos.byte(),
+            );
+        }
+        Ok(reader)
     }
 }
 
@@ -941,7 +1107,8 @@ async fn test_csv_source() -> anyhow::Result<()> {
 */
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
-    return if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
+    let (sender, _) = flume::bounded(0);
+    return if let Err(err) = CsvSource::new(&mut from.clone(), sender) {
         DataSourceValidation::invalid("csv".to_string(), err.to_string())
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
@@ -957,10 +1124,8 @@ mod tests {
         let path = "test.csv".to_string();
         create_csv_file(&path).await.unwrap();
 
-        let header =
-            CsvSource::read_header(path.as_ref(), true, Some(b','), Some(b'"'), Some(b'#'))
-                .await
-                .unwrap();
+        let option = CsvOption::default();
+        let header = option.read_header(path.as_ref()).await.unwrap();
 
         assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
         delete_csv_file(&path).unwrap();
@@ -971,10 +1136,10 @@ mod tests {
     async fn test_read_header_timeout() {
         let path = "/".to_string();
 
-        let result = tokio::time::timeout(
-            Duration::from_secs(5),
-            CsvSource::read_header(path.as_ref(), true, Some(b','), Some(b'"'), Some(b'#')),
-        )
+        let option = CsvOption::default();
+        let result = tokio::time::timeout(Duration::from_secs(5), async move {
+            option.read_header(path.as_ref()).await
+        })
         .await
         .context("Reading CSV header timeout(5s)");
         dbg!(&result);
@@ -1015,10 +1180,20 @@ mod tests {
             let _ = create_csv_file(path).await.unwrap();
         }
 
+        let option = CsvOption {
+            has_header: true,
+            headers: vec![],
+            skip: None,
+            delimiter: b',',
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 1,
+        };
         // has header
-        let mut readers =
-            CsvSource::csv_readers(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
-                .unwrap();
+        let mut readers = option.open_many(&paths).unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -1038,18 +1213,19 @@ mod tests {
             );
         }
 
-        // does not has header
-        let mut readers = CsvSource::csv_readers(
-            &paths,
-            false,
-            &[],
-            None,
-            b',',
-            Some(b'"'),
-            Some(b'#'),
-            false,
-        )
-        .unwrap();
+        let option = CsvOption {
+            has_header: false,
+            headers: vec![],
+            skip: None,
+            delimiter: b',',
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 1,
+        };
+        let mut readers = option.open_many(&paths).unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -1071,18 +1247,20 @@ mod tests {
             );
         }
 
+        let option = CsvOption {
+            has_header: false,
+            headers: vec!["ts".to_string(), "payload".to_string()],
+            skip: None,
+            delimiter: b',',
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 1,
+        };
         // does not has header, but with custom headers
-        let mut readers = CsvSource::csv_readers(
-            &paths,
-            false,
-            &["ts".to_string(), "payload".to_string()],
-            None,
-            b',',
-            Some(b'"'),
-            Some(b'#'),
-            false,
-        )
-        .unwrap();
+        let mut readers = option.open_many(&paths).unwrap();
         while let Some(mut reader) = readers.pop() {
             let headers = reader
                 .headers()
@@ -1115,23 +1293,75 @@ mod tests {
             let _ = create_csv_file(path).await.unwrap();
         }
 
-        let _ = CsvSource::validate(&paths, true, &[], None, b',', Some(b'"'), Some(b'#'), false)
-            .unwrap();
+        let option = CsvOption {
+            has_header: true,
+            headers: vec![],
+            skip: None,
+            delimiter: b',',
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 1,
+        };
+        let _ = option.validate(&paths).unwrap();
 
         for path in &paths {
             let _ = delete_csv_file(path);
         }
     }
 
-    async fn create_csv_file(path: impl AsRef<Path>) -> Result<(), csv_async::Error> {
-        let file = tokio::fs::File::create(path).await?;
-        let mut csv = csv_async::AsyncWriter::from_writer(file);
-        csv.write_record(&["ts", "payload"]).await?;
-        csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])
-            .await?;
-        csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])
-            .await?;
-        csv.flush().await?;
+    #[tokio::test]
+    async fn test_gzipped_csv() {
+        let path = "test.csv.gz".to_string();
+        create_csv_file(&path).await.unwrap();
+
+        let option = CsvOption {
+            has_header: true,
+            headers: vec![],
+            skip: None,
+            delimiter: b',',
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            skip_error: false,
+            null_pattern: None,
+            concurrent: 1,
+        };
+        let header = option.read_header(path.as_ref()).await.unwrap();
+
+        assert_eq!(header, vec!["ts".to_string(), "payload".to_string()]);
+
+        let (tx, _) = flume::bounded(0);
+        let csv = CsvSource::new(&mut "csv:./test.csv.gz".parse().unwrap(), tx);
+        assert!(csv.is_ok(), "{csv:?}");
+        delete_csv_file(&path).unwrap();
+    }
+
+    async fn create_csv_file(path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let path = path.as_ref();
+        // let csv;
+        if path.extension().map_or(false, |ext| ext == "gz") {
+            let file = std::fs::File::create(path)?;
+            let gz = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            let mut csv = csv_lib::Writer::from_writer(gz);
+
+            csv.write_record(&["ts", "payload"])?;
+            csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])?;
+            csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])?;
+            csv.flush()?;
+        } else {
+            let file = tokio::fs::File::create(path).await?;
+            let mut csv = csv_async::AsyncWriter::from_writer(file);
+
+            csv.write_record(&["ts", "payload"]).await?;
+            csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])
+                .await?;
+            csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])
+                .await?;
+            csv.flush().await?;
+        }
         Ok(())
     }
 
