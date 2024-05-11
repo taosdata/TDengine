@@ -218,6 +218,19 @@ impl AgentRuntimeRef {
         }
     }
 
+    pub(crate) async fn query_data_source(
+        &self,
+        agent_id: i64,
+        req: taosx_core::QueryDataSourceReq,
+    ) -> anyhow::Result<String> {
+        match self {
+            Self::Server(rt) => rt.query_data_source(agent_id, req).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
     pub async fn check(&self, agent_id: i64, req: String) -> anyhow::Result<DataSourceValidation> {
         match self {
             Self::Server(rt) => rt.check(agent_id, req).await,

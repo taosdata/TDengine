@@ -80,6 +80,20 @@ pub struct PutFileResp {
     pub res: Response<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceReq {
+    /// from DSN
+    pub from: String,
+    /// 启动参数
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceResp {
+    pub req_id: u64,
+    pub output: Response<String>,
+}
+
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fail<T> {
@@ -184,4 +198,5 @@ pub enum RespAction {
     AgentActivity(Activity),
     TaskActivity(Activity),
     Metrics(MetricsEvents),
+    QueryDataSourceOk(QueryDataSourceResp),
 }

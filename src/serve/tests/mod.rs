@@ -80,6 +80,9 @@ pub(crate) async fn generate_scheduler_for_test(
                         crate::serve::controller::AgentAction::PutFile(_, _) => {
                             // TODO
                         }
+                        crate::serve::controller::AgentAction::QueryDataSource(_, _) => {
+                            // TODO
+                        }
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {

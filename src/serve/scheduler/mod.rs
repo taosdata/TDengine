@@ -525,6 +525,17 @@ impl TaskScheduler {
             .await
     }
 
+    pub(crate) async fn query_datasource_via_agent(
+        &self,
+        agent_id: i64,
+        req: taosx_core::QueryDataSourceReq,
+    ) -> anyhow::Result<String> {
+        self.global_state
+            .agent_runtime
+            .query_data_source(agent_id, req)
+            .await
+    }
+
     pub async fn validate_dsn_via_agent(
         &self,
         agent: i64,

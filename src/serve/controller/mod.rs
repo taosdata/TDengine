@@ -32,6 +32,7 @@ use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taosx_core::QueryDataSourceReq;
 use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
 };
@@ -146,7 +147,10 @@ pub enum AgentAction {
     Check(String, DsvSender),
     /// get sample data
     GetSample(String, StringSender),
+    /// send file to agent
     PutFile(PutFileReq, StringSender),
+    /// query data source via connectors
+    QueryDataSource(QueryDataSourceReq, StringSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
@@ -1556,7 +1560,25 @@ impl TaskController {
         }
     }
 
+    pub async fn query_data_source_via_agent(
+        &self,
+        request: QueryDataSourceReq,
+        agent_id: i64,
+    ) -> anyhow::Result<String> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .query_datasource_via_agent(agent_id, request)
+            .await
+    }
+
     pub async fn put_file_to_agent(&self, agent_id: i64, path: String) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(async move {
             let path = path.trim_start_matches("@");

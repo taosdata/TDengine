@@ -460,7 +460,7 @@ impl AgentWorker {
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
         }
-        let timeout = Duration::from_secs(10);
+        let timeout = Duration::from_secs(20);
         match tokio::time::timeout(timeout, receiver.recv_async()).await {
             Ok(result) => match result {
                 Ok(res) => match res {
@@ -475,7 +475,39 @@ impl AgentWorker {
                     err
                 )),
             },
-            Err(_) => Err(anyhow::anyhow!("PutFile timed out")),
+            Err(_) => Err(anyhow::anyhow!("PutFile timed out 20s")),
+        }
+    }
+
+    pub(crate) async fn query_data_source(
+        &self,
+        agent_id: i64,
+        req: taosx_core::QueryDataSourceReq,
+    ) -> anyhow::Result<String> {
+        check_agent_exists!(self, agent_id);
+        let (sender, receiver) = flume::bounded(1);
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::QueryDataSource(req, sender)))
+        {
+            bail!("failed to send PutFile action, cause: {:?}", err);
+        }
+        let timeout = Duration::from_secs(3 * 60);
+        match tokio::time::timeout(timeout, receiver.recv_async()).await {
+            Ok(result) => match result {
+                Ok(res) => match res {
+                    Ok(output) => {
+                        tracing::info!("QueryDataSource success: {}", output);
+                        Ok(output)
+                    }
+                    Err(err) => Err(anyhow::anyhow!("failed to QueryDataSource, cause: {:#}", err)),
+                },
+                Err(err) => Err(anyhow::anyhow!(
+                    "failed to get QueryDataSource response, cause: {:#}",
+                    err
+                )),
+            },
+            Err(_) => Err(anyhow::anyhow!("QueryDataSource timed out 3m")),
         }
     }
 }

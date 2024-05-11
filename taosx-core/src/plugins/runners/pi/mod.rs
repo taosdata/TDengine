@@ -486,6 +486,10 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     }])
 }
 
+pub async fn query_data_source(from: Dsn, args: Vec<String>) -> anyhow::Result<String> {
+    todo!()
+}
+
 #[allow(unused_variables, unreachable_code)]
 pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(target_os = "windows"))]

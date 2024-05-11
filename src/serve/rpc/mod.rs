@@ -22,7 +22,7 @@ use std::{
 };
 use taos::IntoDsn;
 use taosx_core::{
-    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp,
+    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
 };
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -48,7 +48,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use taosx_metrics::MetricsEvents;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument, warn, error};
 use uuid::Uuid;
 
 use super::{
@@ -294,6 +294,29 @@ async fn action_to_arrow(
                 .unwrap()]));
             let action: ArrayRef =
                 Arc::new(StringArray::from_iter_values(["put-file".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+            let string_senders = string_senders.clone();
+            tokio::spawn(async move {
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::QueryDataSource(query_data_source_req, sender, ) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &query_data_source_req,
+                )
+                .unwrap()]));
+            let action: ArrayRef =
+                Arc::new(StringArray::from_iter_values(["query-data-source".to_string()]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -774,20 +797,43 @@ impl FlightService for FlightServiceImpl {
                                             if let Some(sender) = string_senders.write().await.remove(&req_id)
                                             {
                                                 if let Err(err) = sender.send_async(resp.res).await {
-                                                    warn!(
+                                                    error!(
                                                         agent = agent_id,
                                                         req_id = req_id,
                                                         "Send PutFileResp failed: {err:#}"
                                                     );
                                                 }
                                             } else {
-                                                warn!(
+                                                error!(
                                                     agent = agent_id,
                                                     req_id = req_id,
                                                     "PutFileResp has no receiver"
                                                 );
                                             }
                                         
+                                        });
+                                    }
+                                    "query-data-source" => {
+                                        let resp: QueryDataSourceResp = serde_json::from_str(&context).unwrap();
+                                        let string_senders = string_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) = string_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.output).await {
+                                                    error!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "Send QueryDataSourceResp failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                error!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "QueryDataSourceResp has no receiver"
+                                                );
+                                            }
                                         });
                                     }
                                     "agent-activity" => {
