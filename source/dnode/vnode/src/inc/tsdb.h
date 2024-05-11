@@ -894,18 +894,13 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
+#define LAST_COL_VERSION (0x1)
+
 typedef struct {
-  int64_t version;
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
 } SLastCol;
-
-typedef struct {
-  TSKEY   ts;
-  int8_t  dirty;
-  SColVal colVal;
-} SLastColV1;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
