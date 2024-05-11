@@ -88,6 +88,7 @@ async fn write_data(
     tracing::debug!("Start writing data");
     metrics.add_messages_of_data(1);
     let mut has_blocks = false;
+    let mut last_error = None;
     if target_is_v3 && actions.is_empty() {
         let raw = data
             .as_raw_data()
@@ -101,7 +102,8 @@ async fn write_data(
             match code {
                 // Table not exist error codes or invalid input.
                 0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 => {
-                    tracing::debug!("Fallback to block-by-block method due to: {err}.");
+                    tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
+                    last_error.replace(err);
                 }
                 _ => {
                     metrics.add_write_raw_fails(1);
@@ -187,6 +189,21 @@ async fn write_data(
         }
         *rows += raw.nrows();
 
+        let last_error_context = || {
+            last_error.as_ref().map_or_else(
+                || {
+                    if actions.is_empty() {
+                        "Write blocks to older version".to_string()
+                    } else {
+                        "Write blocks with transform actions".to_string()
+                    }
+                },
+                |last_error| format!("Fallback while write_raw: {:#}", last_error),
+            )
+        };
+
+        let raw_block_context = || format!("Error with block: {}", raw.pretty_format());
+
         if target_is_v3 {
             let with_raw_block = async {
                 if let Err(err) = taos.write_raw_block(&raw).await {
@@ -245,23 +262,17 @@ async fn write_data(
                                     .context("Write raw block into target error")?;
                             }
                         }
-                        _ => {
-                            bail!(
-                                "write table failed: {err}, with block: {}",
-                                raw.pretty_format()
-                            );
-                        }
+                        _ => Err(err)?,
                     }
                 };
                 anyhow::Ok(())
             };
-            if let Err(err) = with_raw_block.await {
-                metrics.add_write_raw_fails(1);
-                bail!(
-                    "write table with raw block failed: {err:#}, block: {}",
-                    raw.pretty_format()
-                );
-            }
+            with_raw_block
+                .await
+                .inspect_err(|_| metrics.add_write_raw_fails(1))
+                .with_context(raw_block_context)
+                .with_context(last_error_context)
+                .context("Write raw block into target error")?
         } else {
             let with_stmt = async {
                 let mut stmt = Stmt::init(taos)
@@ -285,13 +296,12 @@ async fn write_data(
                     .context("Write with stmt execute error")?;
                 anyhow::Ok(())
             };
-            if let Err(err) = with_stmt.await {
-                metrics.add_write_raw_fails(1);
-                bail!(
-                    "write table with stmt failed: {err:#}, block: {}",
-                    raw.pretty_format()
-                );
-            }
+            with_stmt
+                .await
+                .inspect_err(|_| metrics.add_write_raw_fails(1))
+                .with_context(raw_block_context)
+                .with_context(last_error_context)
+                .context("write table with stmt error")?;
         }
         metrics.add_suc_blocks(1);
         metrics.add_written_rows(raw.nrows() as _);
@@ -981,7 +991,7 @@ pub async fn tmq_to_td(
     tracing::info!("Spawn consuming tasks {}", join_set.len());
     while let Some(res) = join_set.join_next().await {
         if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
-            tracing::error!("Task error: {err}");
+            tracing::error!("Task error: {err:#}");
             join_set.abort_all();
             return Err(err);
         }
