@@ -429,7 +429,7 @@ void printfIntroduction(bool community) {
   printf("  * ------------------------------------------------------------------------------------ *\n");
   printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
   printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
-  printf("  *   Enterprise or Free Cloud Trial. Learn more at https://tdengine.com                 *\n");
+  printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
   }
   printf("  ****************************************************************************************\n\n");
 }
@@ -438,7 +438,7 @@ void printfIntroduction(bool community) {
 void showAD(bool end) {
   printf("  You are using TDengine OSS. To experience advanced features, like backup/restore,  \n");
   printf("  privilege control and more, or receive 7x24 technical support, try TDengine Enterprise \n");
-  printf("  or Free Cloud Trial. Learn more at https://tdengine.com   \n");
+  printf("  or TDengine Cloud. Learn more at https://tdengine.com   \n");
   printf("  \n");
 }
 
