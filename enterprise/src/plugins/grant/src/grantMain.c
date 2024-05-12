@@ -685,10 +685,18 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
         GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.activeActiveExpireSec, 86400, dftExpireSec);
         break;
       case GRANT_OPT_DUAL_REPLICA_HA:
+#ifndef ASSERT_NOT_CORE
         GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireSec);
+#else  // release version
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, grantClusterEpoch);
+#endif
         break;
       case GRANT_OPT_DB_ENCRYPTION:
+#ifndef ASSERT_NOT_CORE
         GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireSec);
+#else  // release version
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, grantClusterEpoch);
+#endif
         break;
       default:
         break;
@@ -1485,10 +1493,17 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     gStatus.objectStorageExpireSec = optExpireSec;
     gStatus.objectStorageExpired = optExpired;
     gStatus.activeActiveExpireSec = optExpireSec;
+#ifndef ASSERT_NOT_CORE
     gStatus.dualReplicaHAExpireSec = optExpireSec;
     gStatus.dualReplicaHAExpired = optExpired;
     gStatus.dbEncryptionExpireSec = optExpireSec;
     gStatus.dbEncryptionExpired = optExpired;
+#else  // release version
+    gStatus.dualReplicaHAExpireSec = grantClusterEpoch;
+    gStatus.dualReplicaHAExpired = true;
+    gStatus.dbEncryptionExpireSec = grantClusterEpoch;
+    gStatus.dbEncryptionExpired = true;
+#endif
 
     // fixed dataIns
     grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
