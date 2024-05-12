@@ -820,14 +820,11 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   void      *pIter = NULL;
 
 #ifdef TD_ENTERPRISE
-  if(grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0){
+  if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
+  if (grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0) {
     code = TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED;
-    errno = code;
-    mError("db:%s, failed to create db since %s", pReq->db, terrstr());
     goto _exit;
   }
-
-  if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
     code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
     mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
@@ -850,7 +847,6 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
     }
     sdbRelease(pSdb, pDnode);
   }
-
 #else
   if (pReq->encryptAlgorithm != TSDB_ENCRYPT_ALGO_NONE) {
     code = TSDB_CODE_MND_INVALID_DB_OPTION;
