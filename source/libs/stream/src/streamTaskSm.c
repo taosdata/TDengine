@@ -84,7 +84,7 @@ int32_t streamTaskInitStatus(SStreamTask* pTask) {
   stDebug("s-task:%s start init, and check downstream tasks, set the init ts:%" PRId64, pTask->id.idStr,
           pTask->execInfo.checkTs);
 
-  streamTaskCheckDownstream(pTask);
+  streamTaskSendCheckMsg(pTask);
   return 0;
 }
 

@@ -894,34 +894,13 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
+#define LAST_COL_VERSION (0x1)
+
 typedef struct {
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
 } SLastCol;
-
-typedef struct  {
-  union {
-    int64_t val;
-    struct {
-      uint8_t *pData;
-      uint32_t nData;
-    };
-  };
-} SValueV0;
-
-typedef struct {
-  int16_t  cid;
-  int8_t   type;
-  int8_t   flag;
-  SValueV0 value;
-} SColValV0;
-
-typedef struct {
-  TSKEY     ts;
-  int8_t    dirty;
-  SColValV0 colVal;
-} SLastColV0;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);

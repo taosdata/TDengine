@@ -385,9 +385,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   int8_t ltype = (pr->type & CACHESCAN_RETRIEVE_LAST) >> 3;
-  if (pr->rowKey.numOfPKs > 0) {
-    ltype |= CACHESCAN_RETRIEVE_PK;
-  }
 
   STableKeyInfo* pTableList = pr->pTableList;
 

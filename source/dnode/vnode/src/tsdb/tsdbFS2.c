@@ -327,6 +327,7 @@ static int32_t abort_edit(STFileSystem *fs) {
   } else if (fs->etype == TSDB_FEDIT_MERGE) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   } else {
+    tsdbError("vgId:%d %s failed since invalid etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
     ASSERT(0);
   }
 
