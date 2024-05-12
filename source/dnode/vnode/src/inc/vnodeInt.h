@@ -152,13 +152,13 @@ int             metaCommit(SMeta* pMeta, TXN* txn);
 int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
 int             metaAbort(SMeta* pMeta);
-int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
+int             metaCreateSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaAlterSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropSuperTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
-int32_t         metaTrimTables(SMeta* pMeta);
-void            metaDropTables(SMeta* pMeta, SArray* tbUids);
+int32_t         metaTrimTables(SMeta* meta, int64_t version);
+int32_t         metaDropTables(SMeta* meta, int64_t version, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
@@ -170,9 +170,6 @@ int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
-
-int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);
 void          metaUpdTimeSeriesNum(SMeta* pMeta);

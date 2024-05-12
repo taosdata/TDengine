@@ -829,7 +829,7 @@ _exit:
   return code;
 }
 
-static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropTtlTableReq ttlReq = {0};
   if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -845,7 +845,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   int ret = 0;
   if (ttlReq.nUids > 0) {
-    metaDropTables(pVnode->pMeta, ttlReq.pTbUids);
+    metaDropTables(pVnode->pMeta, version, ttlReq.pTbUids);
     tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
   }
 
@@ -871,7 +871,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
-  if (metaCreateSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaCreateSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
@@ -1044,7 +1044,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     return -1;
   }
 
-  if (metaAlterSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaAlterSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     tDecoderClear(&dc);
     return -1;
@@ -1075,7 +1075,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // process request
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
-  if (metaDropSTable(pVnode->pMeta, ver, &req, tbUidList) < 0) {
+  if (metaDropSuperTable(pVnode->pMeta, ver, &req, tbUidList) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -1745,14 +1745,14 @@ int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
   return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
 
-static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
+static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t version) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   vInfo("vgId:%d, trim meta of tables per hash range [%" PRIu32 ", %" PRIu32 "]. apply-index:%" PRId64, TD_VID(pVnode),
-        pVnode->config.hashBegin, pVnode->config.hashEnd, ver);
+        pVnode->config.hashBegin, pVnode->config.hashEnd, version);
 
   // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
-  code = metaTrimTables(pVnode->pMeta);
+  code = metaTrimTables(pVnode->pMeta, version);
 
   return code;
 }
@@ -1986,7 +1986,7 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
     tDecoderClear(&dc);
     return -1;
   }
-  if (metaAddIndexToSTable(pVnode->pMeta, ver, &req) < 0) {
+  if (metaAlterSuperTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
@@ -1997,22 +1997,31 @@ _err:
   return -1;
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SDropIndexReq req = {0};
+  SVCreateStbReq req = {0};
+  SDecoder       dc = {0};
   pRsp->msgType = TDMT_VND_DROP_INDEX_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  if (tDeserializeSDropIdxReq(pReq, len, &req)) {
+  tDecoderInit(&dc, pReq, len);
+
+  if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
     return -1;
   }
 
-  if (metaDropIndexFromSTable(pVnode->pMeta, ver, &req) < 0) {
+  // TODO: use other
+  if (metaAlterSuperTable(pVnode->pMeta, ver, (SVCreateStbReq *)&req) < 0) {
     pRsp->code = terrno;
     return -1;
   }
+  tDecoderClear(&dc);
   return TSDB_CODE_SUCCESS;
+_err:
+  tDecoderClear(&dc);
+  return -1;
 }
 
 extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);

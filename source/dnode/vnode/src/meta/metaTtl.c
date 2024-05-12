@@ -351,8 +351,7 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
   ret = taosHashPut(pTtlMgr->pDirtyUids, &pUpdCtimeCtx->uid, sizeof(pUpdCtimeCtx->uid), &dirtryEntry,
                     sizeof(dirtryEntry));
   if (ret < 0) {
-    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix,
-              tstrerror(terrno));
+    metaError("%s, ttlMgr update ctime failed to update dirty uids since %s", pTtlMgr->logPrefix, tstrerror(terrno));
     goto _out;
   }
 
@@ -417,7 +416,8 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
     if (cacheEntry == NULL) {
       metaError("%s, ttlMgr flush failed to get ttl cache since %s, uid: %" PRId64 ", type: %d", pTtlMgr->logPrefix,
                 tstrerror(terrno), *pUid, pEntry->type);
-      continue;
+      break;
+      // continue;
     }
 
     STtlIdxKeyV1 ttlKey;
@@ -428,7 +428,7 @@ int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {
 
     if (pEntry->type == ENTRY_TYPE_UPSERT) {
       // delete old key & upsert new key
-      tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn); // maybe first insert, ignore error
+      tdbTbDelete(pTtlMgr->pTtlIdx, &ttlKey, sizeof(ttlKey), pTxn);  // maybe first insert, ignore error
       ret = tdbTbUpsert(pTtlMgr->pTtlIdx, &ttlKeyDirty, sizeof(ttlKeyDirty), &cacheEntry->ttlDaysDirty,
                         sizeof(cacheEntry->ttlDaysDirty), pTxn);
       if (ret < 0) {
