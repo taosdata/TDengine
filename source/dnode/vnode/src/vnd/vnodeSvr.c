@@ -1144,7 +1144,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       if (i < tbNames->size - 1) {
         taosStringBuilderAppendChar(&sb, ',');
       }
-      taosMemoryFreeClear(*key);
+      //taosMemoryFreeClear(*key);
     }
 
     size_t len = 0;
@@ -1168,7 +1168,7 @@ _exit:
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
-  taosArrayDestroy(tbNames);
+  taosArrayDestroyP(tbNames, taosMemoryFree);
   return rcode;
 }
 
