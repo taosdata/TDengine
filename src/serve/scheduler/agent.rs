@@ -492,7 +492,7 @@ impl AgentWorker {
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
         }
-        let timeout = Duration::from_secs(3 * 60);
+        let timeout = Duration::from_secs(4 * 60);
         match tokio::time::timeout(timeout, receiver.recv_async()).await {
             Ok(result) => match result {
                 Ok(res) => match res {

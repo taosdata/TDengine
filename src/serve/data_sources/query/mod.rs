@@ -12,14 +12,17 @@
 //!
 
 use taosx_core::QueryDataSourceReq;
+use tracing::instrument;
 
 use crate::serve::TaskController;
 
+#[instrument(skip_all)]
 pub async fn query_data_source(
     request: QueryDataSourceReq,
     via: Option<i64>,
     controller: Option<&TaskController>,
 ) -> anyhow::Result<String> {
+    tracing::info!(?request, ?via);
     if let Some(agent_id) = via {
         // 通过 Agent 启动连接器
         if controller.is_none() {

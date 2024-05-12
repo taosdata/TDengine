@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context;
 use futures::TryStreamExt;
@@ -23,7 +24,6 @@ use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
-use runners::pi::pi_datasets;
 pub use runners::pi::pi_to_taos;
 pub use runners::{
     get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
@@ -192,10 +192,6 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             topics.extend(databases);
             return Ok(topics);
         }
-        "pi" | "pibackfill" => {
-            // pi
-            return pi_datasets(data).await;
-        }
         "opc" | "opcua" | "opcda" => {
             // opc
             return opc_datasets(data).await;
@@ -259,6 +255,8 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
 }
 
 pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
+    let timeout = Duration::from_secs(4 * 60);
+    // todo: add time out limit
     let dsn = request.from.clone().into_dsn()?;
     match dsn.driver.as_str() {
         "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,

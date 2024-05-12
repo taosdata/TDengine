@@ -383,48 +383,127 @@ pub async fn pi_to_taos(
     Ok(())
 }
 
-#[allow(unused_variables, unreachable_code)]
-#[instrument(skip(data), fields(plugin = "pi"))]
-pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    println!("# loading plugin: PI");
+// TODO: clean clode
+// #[allow(unused_variables, unreachable_code)]
+// #[instrument(skip(data), fields(plugin = "pi"))]
+// pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
+//     println!("# loading plugin: PI");
+//     #[cfg(not(target_os = "windows"))]
+//     {
+//         anyhow::bail!("PI connector support only windows platform");
+//     }
+
+//     let from_dsn = data.from.clone().into_dsn()?;
+//     let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
+
+//     let toml = toml::to_string(&config)?;
+//     let mut config_file = tempfile::NamedTempFile::new()?;
+//     write!(config_file, "{}", &toml)?;
+//     let config_path = config_file.path().to_path_buf();
+//     let temp_path = config_file.into_temp_path();
+
+//     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
+
+//     let mut command = tokio::process::Command::new(pi_exe_path()?);
+
+//     let filter_point = from_dsn.params.get("filter_point").map(|s| s.as_str());
+//     let filter_element = from_dsn.params.get("filter_element").map(|s| s.as_str());
+//     let filter_template = from_dsn.params.get("filter_template").map(|s| s.as_str());
+
+//     let mode = data.categories.get(0).unwrap(); // -pp,-px,-pt
+//     let (pattern, pattern_type) = if mode.eq("-pp") {
+//         match filter_point {
+//             Some(pattern) => (pattern, ""),
+//             None => ("*", ""),
+//         }
+//     } else {
+//         if let Some(pattern) = filter_element {
+//             (pattern, "Element")
+//         } else if let Some(pattern) = filter_template {
+//             (pattern, "Template")
+//         } else {
+//             ("*", "Element")
+//         }
+//     };
+
+//     let mut log_path = log_path();
+
+//     fs::create_dir_all(&log_path)?;
+
+//     tracing::info!("log path created: {}", &log_path.display());
+
+//     log_path.push(LOG_FILE);
+
+//     tracing::info!("log file dir: {}", &log_path.display());
+
+//     let mut log_rotation = log_rotation(&log_path, 700);
+//     let cmd: &mut tokio::process::Command = command
+//         .arg("-f")
+//         .arg(&config_path)
+//         .arg(mode) // 搜索模式： -pp,-px,-pt
+//         .arg(pattern) // 搜索条件: * 或其它
+//         .kill_on_drop(true)
+//         .stdout(std::process::Stdio::piped())
+//         .stderr(std::process::Stdio::piped());
+//     if !pattern_type.is_empty() {
+//         cmd.arg(pattern_type);
+//     }
+//     tracing::info!("{:?}", cmd);
+//     let output = cmd.output().await?;
+//     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+//     // .context("Start PI collector error")?;
+//     tracing::info!("PI Connector exit with status {}", output.status);
+//     let mut lines = output.stdout.lines();
+//     let json: Value = lines
+//         .find_map(|line| {
+//             let line = line.ok()?;
+//             if line.is_empty() {
+//                 return None;
+//             }
+//             if line.len() < 10 {
+//                 tracing::warn!("invalid json line: {}", &line);
+//                 return None;
+//             }
+//             serde_json::from_str(&line).ok()
+//         })
+//         .ok_or_else(|| {
+//             tracing::error!(
+//                 "No valid json data returned from PI connector: {}",
+//                 String::from_utf8_lossy(&output.stdout)
+//             );
+//             anyhow::format_err!(
+//                 "No valid json data returned from PI connector: {}",
+//                 String::from_utf8_lossy(&output.stdout)
+//             )
+//         })?;
+//     tracing::debug!("pi dataset: {}", &json);
+//     Ok(vec![DataSet {
+//         id: format!("{}", &json),
+//         name: None,
+//         category: None,
+//         r#type: None,
+//         options: None,
+//         format: None,
+//     }])
+// }
+
+#[instrument(skip_all)]
+pub async fn query_data_source(from_dsn: Dsn, args: Vec<String>) -> anyhow::Result<String> {
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-
-    let from_dsn = data.from.clone().into_dsn()?;
     let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
-    let temp_path = config_file.into_temp_path();
+    let _temp_path = config_file.into_temp_path();
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = tokio::process::Command::new(pi_exe_path()?);
-
-    let filter_point = from_dsn.params.get("filter_point").map(|s| s.as_str());
-    let filter_element = from_dsn.params.get("filter_element").map(|s| s.as_str());
-    let filter_template = from_dsn.params.get("filter_template").map(|s| s.as_str());
-
-    let mode = data.categories.get(0).unwrap(); // -pp,-px,-pt
-    let (pattern, pattern_type) = if mode.eq("-pp") {
-        match filter_point {
-            Some(pattern) => (pattern, ""),
-            None => ("*", ""),
-        }
-    } else {
-        if let Some(pattern) = filter_element {
-            (pattern, "Element")
-        } else if let Some(pattern) = filter_template {
-            (pattern, "Template")
-        } else {
-            ("*", "Element")
-        }
-    };
-
     let mut log_path = log_path();
 
     fs::create_dir_all(&log_path)?;
@@ -439,14 +518,10 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let cmd: &mut tokio::process::Command = command
         .arg("-f")
         .arg(&config_path)
-        .arg(mode) // 搜索模式： -pp,-px,-pt
-        .arg(pattern) // 搜索条件: * 或其它
+        .args(args)
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    if !pattern_type.is_empty() {
-        cmd.arg(pattern_type);
-    }
     tracing::info!("{:?}", cmd);
     let output = cmd.output().await?;
     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
@@ -475,19 +550,9 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
                 String::from_utf8_lossy(&output.stdout)
             )
         })?;
-    tracing::debug!("pi dataset: {}", &json);
-    Ok(vec![DataSet {
-        id: format!("{}", &json),
-        name: None,
-        category: None,
-        r#type: None,
-        options: None,
-        format: None,
-    }])
-}
-
-pub async fn query_data_source(from: Dsn, args: Vec<String>) -> anyhow::Result<String> {
-    todo!()
+    let data = format!("{}", &json);
+    tracing::info!("Query pi data source done, got data len {}", data.len());
+    Ok(data)
 }
 
 #[allow(unused_variables, unreachable_code)]
@@ -676,6 +741,48 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
     temp_file.close()?;
     Ok(dsv)
 }
+
+pub const AF_SERVER_CONFIG: &str = "PI Data Archive and Asset Framework (AF) Server";
+pub const SINGLE_COLUMN_MODEL: &str = "single-column";
+pub const MULTI_COLUMN_MODEL: &str = "multi-column";
+
+pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
+    let model = dsn
+    .params
+    .get("model")
+    .map(|s| s.as_str())
+    .unwrap_or(SINGLE_COLUMN_MODEL);
+    let is_af =
+        dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
+    let mode = match (model, is_af) {
+        (SINGLE_COLUMN_MODEL, false) => "-pp", // PI Archive 模式
+        (SINGLE_COLUMN_MODEL, true) => "-px",  // AF 单列模式
+        (MULTI_COLUMN_MODEL, true) => "-pt",   // 多列模式
+        _ => unreachable!("unsupported model: {}, is_af: {}", model, is_af),
+    };
+
+    
+    let filter_point = dsn.params.get("filter_point").map(|s| s.as_str());
+    let filter_element = dsn.params.get("filter_element").map(|s| s.as_str());
+    let filter_template = dsn.params.get("filter_template").map(|s| s.as_str());
+    let (pattern, pattern_type) = if mode.eq("-pp") {
+        match filter_point {
+            Some(pattern) => (pattern, ""),
+            None => ("*", ""),
+        }
+    } else {
+        if let Some(pattern) = filter_element {
+            (pattern, "Element")
+        } else if let Some(pattern) = filter_template {
+            (pattern, "Template")
+        } else {
+            ("*", "Element")
+        }
+    };
+    (mode, pattern, pattern_type)
+}
+
+
 
 #[cfg(test)]
 mod tests {

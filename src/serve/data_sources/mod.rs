@@ -19,7 +19,7 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::{plugins::transform::sample::DsSampleIn, runners::pi::transform::{PIElementModelConfig, PIPointModelConfig}};
+use taosx_core::{plugins::transform::sample::DsSampleIn, runners::pi::{parse_query_datasource_params, transform::{PIElementModelConfig, PIPointModelConfig}}};
 use taosx_core::{dsv::DataSourceValidation, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 
@@ -645,10 +645,6 @@ pub struct GetPIDefaultConfigParams {
     update: Option<bool>,
 }
 
-const AF_SERVER_CONFIG: &str = "PI Data Archive and Asset Framework (AF) Server";
-const SINGLE_COLUMN_MODEL: &str = "single-column";
-const MULTI_COLUMN_MODEL: &str = "multi-column";
-
 #[instrument(skip_all)]
 pub async fn get_pi_default_config(
     controller: Data<TaskControllerRef>,
@@ -667,41 +663,30 @@ pub async fn get_pi_default_config(
     let exists = std::path::Path::new(file_name.as_str()).exists();
     if params.task_id.is_none() || !exists || update {
         let dsn = params.from.clone().into_dsn()?;
-        let model = dsn
-            .params
-            .get("model")
-            .map(|s| s.as_str())
-            .unwrap_or(SINGLE_COLUMN_MODEL);
-        let is_af =
-            dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
-        let mode = match (model, is_af) {
-            (SINGLE_COLUMN_MODEL, false) => "-pp", // PI Archive 模式
-            (SINGLE_COLUMN_MODEL, true) => "-px",  // AF 单列模式
-            (MULTI_COLUMN_MODEL, true) => "-pt",   // 多列模式
-            _ => unreachable!("unsupported model: {}, is_af: {}", model, is_af),
-        };
-        tracing::debug!("model: {}, mode: {}, is_af: {}", model, mode, is_af);
+        let (mode, pattern, pattern_type) = parse_query_datasource_params(&dsn);
+        tracing::debug!(?mode, ?pattern, ?pattern_type);
+        let mut args = vec![mode.to_string(), pattern.to_string()];
+        if !pattern_type.is_empty() {
+            args.push(pattern_type.to_string());
+        }
+
         let req = QueryDataSourceReq {
             from: params.from.clone(),
-            args: vec![mode.to_string()],
+            args
         };
         let pi_data =
             query::query_data_source(req, params.via, Some(controller.into_inner().as_ref()))
                 .await?;
-        // let (pi_data, _) = get_all_points(
-        //     params.from,
-        //     params.via,
-        //     mode.to_string(),
-        //     controller.into_inner().as_ref(),
-        //     None,
-        // )
-        // .await?;
-        let config_data: String = match model {
-            SINGLE_COLUMN_MODEL => {
-                let config = PIPointModelConfig::from_json(pi_data.as_str(), is_af).unwrap();
+        let config_data: String = match mode {
+            "-pp"=> {
+                let config = PIPointModelConfig::from_json(pi_data.as_str(), false).unwrap();
                 config.to_string()
             }
-            MULTI_COLUMN_MODEL => {
+            "-px" => {
+                let config = PIPointModelConfig::from_json(pi_data.as_str(), true).unwrap();
+                config.to_string()
+            }
+            "-pt" => {
                 let config = PIElementModelConfig::from_json(pi_data.as_str()).unwrap();
                 config.to_string()
             }
