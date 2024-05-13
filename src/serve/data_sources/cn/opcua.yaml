@@ -147,7 +147,8 @@ datasets:
         更多填写规则请参考<a target="_blank" href="/docs/enterprise/datain/opcua">企业版文档</a>。
       target:
         name: csv_config_file
-        description:
+        description: |
+          上传 CSV 配置文件，定义数据点位到 TDengine 数据子表的映射规则。
         required: true
         multiple: true
         editable: true
@@ -340,7 +341,6 @@ advanced:
         type: integer
         min: 1
         max: 365
-
     - name: keep_raw_data_dir
       display: 原始数据存储目录
       description: |

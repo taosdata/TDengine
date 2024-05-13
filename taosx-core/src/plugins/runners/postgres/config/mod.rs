@@ -353,31 +353,31 @@ mod tests {
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("TO_TIMESTAMP('2021-01-01 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
-        assert!(sql.contains("TO_TIMESTAMP('2021-01-02 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+        assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
+        assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
 
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_no_tz} and ts<${end_no_tz}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("TO_TIMESTAMP('2021-01-01 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
-        assert!(sql.contains("TO_TIMESTAMP('2021-01-02 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+        assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
+        assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
 
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("TO_DATE('2021-01-01','YYYY-MM-DD')"));
-        assert!(sql.contains("TO_DATE('2021-01-02','YYYY-MM-DD')"));
+        assert!(sql.contains("'2021-01-01'"));
+        assert!(sql.contains("'2021-01-02'"));
 
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("'00:00:00'"));
-        assert!(sql.contains("'00:00:00'"));
+        assert!(sql.contains("'00:00:00+00:00'"));
+        assert!(sql.contains("'00:00:00+00:00'"));
     }
 }

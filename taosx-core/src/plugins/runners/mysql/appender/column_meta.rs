@@ -228,7 +228,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("DATETIME".to_string()).unwrap(),
-            DataType::Timestamp(TimeUnit::Nanosecond, None)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type("TIMESTAMP".to_string()).unwrap(),

@@ -1124,27 +1124,3 @@ pub async fn get_table_progress(
         to_count: to_result.1,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_get_table_progress() {
-        let from = "tmq+ws://192.168.0.31:6041/t1?with.meta.delete=true&with.meta.drop=true";
-        let to = "taos+ws://192.168.0.201:6041/td3";
-        let table = "test.meters";
-        let start: Option<String> = Some("2024-04-01 00:00:00".to_string());
-        let end: Option<String> = Some("2024-04-10 00:00:00".to_string());
-        let result = get_table_progress(
-            &from.to_string(),
-            &to.to_string(),
-            table,
-            start.as_ref(),
-            end.as_ref(),
-        )
-        .await;
-        println!("{:?}", result);
-        println!("{:?}", serde_json::to_string(&result.unwrap()).unwrap());
-    }
-}

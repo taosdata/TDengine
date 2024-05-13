@@ -7,7 +7,7 @@ use taos::Dsn;
 mod da;
 mod ua;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectConfig {
     ua: Option<UaConnectConfig>,
     da: Option<DaConnectConfig>,
