@@ -1,15 +1,22 @@
 <template>
   <div>
     <div class="flexEnd">
-      <el-button
-        class="big-button"
-        plain
-        :disabled='localUser!=="root"'
-        @click="addShareTopicUser"
-        size="small"
-        icon="el-icon-plus"
-        >{{ $t("topic.addShareTopicUser") }}</el-button
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
       >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button
+          class="big-button"
+          plain
+          :disabled='localUser!=="root" || $COMMUNITY'
+          @click="addShareTopicUser"
+          size="small"
+          icon="el-icon-plus"
+          >{{ $t("topic.addShareTopicUser") }}</el-button
+        >
+      </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" size="mini" :data="subscriptionList">
       <el-table-column

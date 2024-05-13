@@ -43,31 +43,45 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL" @click="getMsgBody">{{
-                $t("datasource.transformer.msgbodytypes.retrieve")
-              }}</el-button>
+              <el-tooltip
+                placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+              >
+                <template slot="content">
+                  <span v-html="$t('communityTip')"></span>
+                </template>
+                <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL || $COMMUNITY" @click="getMsgBody">{{
+                  $t("datasource.transformer.msgbodytypes.retrieve")
+                }}</el-button>
+              </el-tooltip>
             </el-col>
             <el-col
               name="third"
               :class="['mt5','msg-right']"
               v-if="!$store.state.app.supportSQL"
             >
-              <el-upload
-                class="upload-demo"
-                :action="uploadUrl"
-                :data="{req_id: 'taosx-demo-file'}"
-                :before-remove="beforeRemove"
-                :on-success="handleSuccess"
-                :on-progress="handleStart"
-                :on-error="handleError"
-                :on-exceed="handleExceed"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
-                <el-button size="small" type="primary" plain :loading="request">{{
-                  $t("datasource.transformer.msgbodytypes.type3")
-                }}</el-button>
-              </el-upload>
+              <el-tooltip
+                  placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+                >
+                  <template slot="content">
+                    <span v-html="$t('communityTip')"></span>
+                  </template>
+                  <el-upload
+                    class="upload-demo"
+                    :action="uploadUrl"
+                    :data="{req_id: 'taosx-demo-file'}"
+                    :before-remove="beforeRemove"
+                    :on-success="handleSuccess"
+                    :on-progress="handleStart"
+                    :on-error="handleError"
+                    :on-exceed="handleExceed"
+                    :file-list="fileList"
+                    :show-file-list="false"
+                  >
+                    <el-button size="small" type="primary" plain :loading="request" :disabled="$COMMUNITY">{{
+                      $t("datasource.transformer.msgbodytypes.type3")
+                    }}</el-button>
+                  </el-upload>
+              </el-tooltip> 
             </el-col>
             <el-col
               name="first"
@@ -172,13 +186,20 @@
                 class="transform-json-icon"
               ></Icon>
             </el-button> -->
-            <el-button
-              size="small"
-              icon="el-icon-PREVIEW"
-              @click="submitParse"
-              style="display: flex"
-              :disabled="msgForm.msgbody == ''"
-            ></el-button>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+            >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                size="small"
+                icon="el-icon-PREVIEW"
+                @click="submitParse"
+                style="display: flex"
+                :disabled="msgForm.msgbody == '' || $COMMUNITY"
+              ></el-button>
+            </el-tooltip>
           </el-form>
         </div>
       </section>
@@ -240,17 +261,24 @@
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
-        <el-button 
-          type="primary"
-          icon="el-icon-plus" 
-          size="small" 
-          class="btn-icon-small"
-          plain
-          @click="addNewExtract" 
-          :disabled="columnsArr.length == 0"
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
         >
-          {{ $t("datasource.transformer.addExtract") }}
-        </el-button>
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button 
+            type="primary"
+            icon="el-icon-plus" 
+            size="small" 
+            class="btn-icon-small"
+            plain
+            @click="addNewExtract" 
+            :disabled="columnsArr.length == 0 || $COMMUNITY"
+          >
+            {{ $t("datasource.transformer.addExtract") }}
+          </el-button>
+        </el-tooltip>
       </section>
       <section class="filter">
         <div class="block-title">
@@ -282,17 +310,24 @@
             ref="filter"
           ></FilterExpression>
         </template>
-        <el-button
-            type="primary"
-            icon="el-icon-plus"
-            size="small"
-            class="btn-icon-small"
-            plain
-            @click="addNewFilter"
-            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
-          >
-            {{ $t("datasource.transformer.addfilter") }}
-        </el-button>
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+        >
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button
+              type="primary"
+              icon="el-icon-plus"
+              size="small"
+              class="btn-icon-small"
+              plain
+              @click="addNewFilter"
+              :disabled="filterArr.length >= 1 || columnsArr.length == 0 || $COMMUNITY"
+            >
+              {{ $t("datasource.transformer.addfilter") }}
+          </el-button>
+        </el-tooltip>
       </section>
       <section>
         <div class="block-title">
@@ -325,17 +360,24 @@
                 </el-form-item>
               </el-form>
             </div>
-            <el-button
-              type="primary"
-              class="btn-icon-small"
-              size="small"
-              icon="el-icon-plus"
-              plain
-              @click="createStable"
-              :disabled="$store.state.app.currentDBName == ''"
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
-              {{ $t("datasource.transformer.createstb") }}
-            </el-button>
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                type="primary"
+                class="btn-icon-small"
+                size="small"
+                icon="el-icon-plus"
+                plain
+                @click="createStable"
+                :disabled="$store.state.app.currentDBName == '' || $COMMUNITY"
+              >
+                {{ $t("datasource.transformer.createstb") }}
+              </el-button>
+            </el-tooltip>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
             <el-table :data="pageTableData" border style="width: 100%">
