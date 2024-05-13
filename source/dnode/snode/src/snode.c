@@ -86,17 +86,15 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     return NULL;
   }
 
+  stopRsync();
+  startRsync();
+
   pSnode->msgCb = pOption->msgCb;
   pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
-
-  streamMetaLoadAllTasks(pSnode->pMeta);
-
-  stopRsync();
-  startRsync();
 
   return pSnode;
 
@@ -106,8 +104,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamMetaResetTaskStatus(pSnode->pMeta);
-  streamMetaStartAllTasks(pSnode->pMeta);
+  streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS);
   return 0;
 }
 

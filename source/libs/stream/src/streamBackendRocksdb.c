@@ -490,7 +490,7 @@ static int32_t rebuildFromLocalCheckpoint(char* pTaskIdStr, const char* checkpoi
   if (taosIsDir(defaultPath)) {
     taosRemoveDir(defaultPath);
     taosMkDir(defaultPath);
-    stInfo("clear task backend dir:%s, done", defaultPath);
+    stInfo("clear local backend dir:%s, done", defaultPath);
   }
 
   if (taosIsDir(checkpointPath) && isValidCheckpoint(checkpointPath)) {

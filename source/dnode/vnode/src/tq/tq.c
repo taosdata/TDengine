@@ -92,8 +92,6 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  streamMetaLoadAllTasks(pTq->pStreamMeta);
-
   if (tqMetaTransform(pTq) < 0) {
     return -1;
   }
@@ -800,6 +798,11 @@ int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  if (!pTq->pVnode->restored) {
+    tqDebug("vgId:%d not restored, ignore the stream task deploy msg", TD_VID(pTq->pVnode));
+    return TSDB_CODE_SUCCESS;
+  }
+
   return tqStreamTaskProcessDeployReq(pTq->pStreamMeta, &pTq->pVnode->msgCb, sversion, msg, msgLen,
                                       vnodeIsRoleLeader(pTq->pVnode), pTq->pVnode->restored);
 }

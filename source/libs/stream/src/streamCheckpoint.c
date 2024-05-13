@@ -30,7 +30,7 @@ typedef struct {
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
-static int32_t streamTaskBackupCheckpoint(const char* id, const char* path);
+static int32_t streamTaskUploadCheckpoint(const char* id, const char* path);
 static int32_t deleteCheckpoint(const char* id);
 static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
@@ -321,7 +321,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   int32_t code = downloadCheckpointDataByName(id, "META", file);
   if (code != 0) {
-    stDebug("chkp failed to download meta file:%s", file);
+    stDebug("%s chkp failed to download meta file:%s", id, file);
     taosMemoryFree(file);
     return code;
   }
@@ -379,7 +379,7 @@ int32_t uploadCheckpointData(void* param) {
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskBackupCheckpoint(pParam->taskId, path);
+    code = streamTaskUploadCheckpoint(pParam->taskId, path);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to upload checkpoint data:%s, checkpointId:%" PRId64, taskStr, path, pParam->chkpId);
     } else {
@@ -562,9 +562,9 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   }
 }
 
-int32_t streamTaskBackupCheckpoint(const char* id, const char* path) {
+int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
-    stError("streamTaskBackupCheckpoint parameters invalid");
+    stError("invalid parameters in upload checkpoint, %s", id);
     return -1;
   }
 
@@ -580,7 +580,7 @@ int32_t streamTaskBackupCheckpoint(const char* id, const char* path) {
 // fileName:  CURRENT
 int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
   if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
-    stError("uploadCheckpointByName parameters invalid");
+    stError("down load checkpoint data parameters invalid");
     return -1;
   }
 

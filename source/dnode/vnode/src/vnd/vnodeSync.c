@@ -576,24 +576,22 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     if (tsDisableStream) {
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
-      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
-      int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
-      if (numOfTasks > 0) {
-        if (pMeta->startInfo.startAllTasks == 1) {
-          pMeta->startInfo.restartCount += 1;
-          tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
-                  pMeta->startInfo.restartCount);
-        } else {
-          pMeta->startInfo.startAllTasks = 1;
+      vInfo("vgId:%d sync restore finished, start to load and launch stream task(s)", pVnode->config.vgId);
+      if (pMeta->startInfo.startAllTasks == 1) {
+        pMeta->startInfo.restartCount += 1;
+        tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
+                pMeta->startInfo.restartCount);
+      } else {
+        pMeta->startInfo.startAllTasks = 1;
+        streamMetaWUnLock(pMeta);
 
-          streamMetaWUnLock(pMeta);
-          tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
-          return;
-        }
+        streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS);
+        return;
       }
     }
   } else {
-    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
+    vInfo("vgId:%d, sync restore finished, load stream tasks, not start tasks since not leader", vgId);
+    streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_LOAD_ALL_TASKS);
   }
 
   streamMetaWUnLock(pMeta);

@@ -52,7 +52,11 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     return -1;
   }
 
-  stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+  if (streamId != 0) {
+    stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+  } else {
+    stDebug("vgId:%d create msg to exec, type:%d", vgId, execType);
+  }
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = streamId;
