@@ -1388,7 +1388,7 @@ static int32_t taosCheckGlobalCfg() {
 }
 
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc) {
+                    bool tsc, bool isDumpCfg) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -1435,7 +1435,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
-  cfgDumpCfg(tsCfg, tsc, false);
+  if(isDumpCfg) cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
     return -1;
