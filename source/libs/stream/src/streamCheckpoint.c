@@ -469,8 +469,8 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     }
   }
 
-  // clear the checkpoint info, and commit the newest checkpoint info if all works are done successfully
-  if (code == TSDB_CODE_SUCCESS) {
+  // update the latest checkpoint info if all works are done successfully, for rsma, the pMsgCb is null.
+  if (code == TSDB_CODE_SUCCESS && (pTask->pMsgCb != NULL)) {
     STaskId* pHTaskId = &pTask->hTaskInfo.id;
     code = streamBuildAndSendCheckpointUpdateMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, pHTaskId, &pTask->chkInfo,
                                                  dropRelHTask);
