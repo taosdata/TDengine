@@ -166,12 +166,6 @@ int32_t dmInit() {
   if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
 #if defined(USE_S3)
-  int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
-  if (expired && tsS3Enabled) {
-    dWarn("s3 grant expired: %d", expired);
-    tsS3Enabled = false;
-  }
-
   if (s3Begin() != 0) return -1;
 #endif
 
