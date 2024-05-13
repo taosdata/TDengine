@@ -828,14 +828,11 @@ async fn consume_lush_record_with_transform(
                             )
                         })?;
                     match message {
-                        crate::plugins::transform::Message::Raw(_) => todo!(),
-                        crate::plugins::transform::Message::Tables(_) => todo!(),
-                        crate::plugins::transform::Message::ChildTables(_) => todo!(),
                         crate::plugins::transform::Message::Records(message) => {
                             if message.is_empty() {
                                 continue;
                             }
-                            *count += flat_write_with_sql(
+                            *count += lush::write_transformed_records_with_sql(
                                 pool,
                                 taos,
                                 taos::Precision::Millisecond,
@@ -846,6 +843,9 @@ async fn consume_lush_record_with_transform(
                             .await?;
                             metrics.add_processed_rows(num_rows as u64);
                         }
+                        _ => unreachable!(
+                            "parse_message_from_records always return Message::Records"
+                        ),
                     }
                 }
             }

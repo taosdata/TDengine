@@ -13,11 +13,23 @@ use arrow::{
 };
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
+use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
+use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
 use taosx_ipc::stream::reader::LushInsertAttrs;
+use thiserror::Error;
+
+use tracing::{error, instrument};
+
+use crate::{
+    core_metrics::TaskMetrics, plugins::transform::MessageArrowRecords,
+    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID,
+};
+
+use super::ipc_metric::IpcMetrics;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct LushModelConfig {
@@ -280,92 +292,396 @@ pub fn group_by_super_table_name(
         .collect()
 }
 
-#[cfg(test)]
-mod test {
-    use crate::runners::pi::transform::PIPointModelConfig;
+/// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
+#[instrument(skip_all)]
+#[async_backtrace::framed]
+pub async fn write_transformed_records_with_sql(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    target_precision: taos::Precision,
+    req_id: &RequestID,
+    messages: Vec<MessageArrowRecords>,
+    metrics: &IpcMetrics,
+) -> anyhow::Result<usize> {
+    let mut count = 0;
+    let cols = messages[0].records.num_columns();
+    let stable = messages[0].stable_name();
+    let sqls = message_to_sql(&messages, target_precision, true);
+    for records in sqls {
+        loop {
+            match write_stable_with_sql(pool, taos, req_id, &records).await {
+                Ok(n) => {
+                    count += n;
+                    metrics.add_inserted_sqls(1 as u64);
+                    metrics.add_written_rows(n as u64);
+                    metrics.add_written_points((n * cols) as u64);
+                    break;
+                }
+                Err(err) => {
+                    metrics.add_failed_sqls(1 as u64);
+                    metrics.add_failed_rows(records.records() as u64);
+                    metrics.add_failed_points((records.records() * cols) as u64);
+                    error!(stable, "write stable with sql error: {err:#}");
+                    match err {
+                        FlatWriteError::TableNotExits(_) => {
+                            if let Some(stable_sql) = messages[0].stable_sql() {
+                                tracing::info!(
+                                    sql = stable_sql,
+                                    stable = stable.as_deref(),
+                                    "stable not exists, create stable with sql: {stable_sql}"
+                                );
+                                assert_create_stable(pool, taos, &stable_sql, req_id).await?;
+                            }
 
-    use super::LushModelConfig;
-
-    #[test]
-    fn test_table_cache() {
-        use super::TableTagCache;
-        let cache = TableTagCache::new();
-        cache.insert("table1".to_string(), Default::default());
-        assert!(cache.get("table1").is_some());
-        assert!(cache.get("table2").is_none());
-    }
-
-    #[test]
-    fn test_create_lush_model_config() {
-        let point_model_config =
-            PIPointModelConfig::from_csv("default_pi_config_1714435852.csv").unwrap();
-        let super_tables = &point_model_config.super_tables;
-        let super_table = super_tables.get(0).unwrap();
-        let scheam = super_table.schema.clone();
-        for row in scheam {
-            println!("{}", row.column_map);
+                            for m in &messages {
+                                let sql = m.table_sql();
+                                assert_create_stable(pool, taos, &sql, req_id).await?;
+                            }
+                        }
+                        FlatWriteError::ContainerLengthTooShort(field) => {
+                            if let Some(stable) = stable.as_deref() {
+                                let desc = taos.as_ref().unwrap().describe(stable).await?;
+                                let f =
+                                    desc.iter().find(|f| f.field() == field).ok_or_else(|| {
+                                        anyhow::anyhow!(
+                                            "field `{}` not found in table `{}`",
+                                            field,
+                                            stable
+                                        )
+                                    })?;
+                                let length = messages
+                                    .iter()
+                                    .flat_map(|m| m.max_var_length(f.field()))
+                                    .max();
+                                if f.is_tag() {
+                                    let sql = format!(
+                                        "alter table `{}` modify tag `{}` {}({})",
+                                        stable,
+                                        f.field(),
+                                        f.ty(),
+                                        length.unwrap_or_else(|| {
+                                            let max =
+                                                if f.ty() == Ty::VarChar { 16382 } else { 4093 };
+                                            (f.length() * 2).min(max)
+                                        })
+                                    );
+                                    let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                } else {
+                                    let sql = format!(
+                                        "alter table `{}` modify column `{}` {}({})",
+                                        stable,
+                                        f.field(),
+                                        f.ty(),
+                                        length.unwrap_or_else(|| {
+                                            let max =
+                                                if f.ty() == Ty::VarChar { 65517 } else { 16382 };
+                                            (f.length() * 2).min(max)
+                                        })
+                                    );
+                                    let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(err)?;
+                        }
+                    }
+                }
+            }
         }
+    }
+    Ok(count)
+}
 
-        let lush_model_config = LushModelConfig::from(point_model_config);
-        let parser = lush_model_config
-            .super_table_parsers
-            .get("volt_double")
-            .unwrap();
-        println!("{}", serde_json::to_string_pretty(parser).unwrap());
+fn message_to_sql(
+    messages: &[MessageArrowRecords],
+    precision: taos::Precision,
+    with_meta: bool,
+) -> Vec<Records> {
+    const MAX_SQL_LENGTH: usize = 1_000_000;
+
+    fn valid_sql_or_none(
+        slice: &[(
+            String, // One table values SQL
+            usize,  // One table records
+        )],
+    ) -> Option<(
+        String, // SQL to insert into.
+        usize,  // number of tables
+        usize,  // number of records
+    )> {
+        if slice.len() == 1 {
+            return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
+        }
+        let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
+        if len < MAX_SQL_LENGTH {
+            let mut sql = String::with_capacity(len + 12);
+            sql.push_str("INSERT INTO ");
+            let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
+                sql.push_str(s);
+                (sql, records + n)
+            });
+            Some((sql, slice.len(), records))
+        } else {
+            None
+        }
     }
 
-    #[test]
-    fn test_group_by_super_table_name() {
-        use arrow::array::{ArrayRef, Int64Array, StringArray};
-        use arrow::record_batch::RecordBatch;
-        use arrow_schema::Field;
-        use arrow_schema::{DataType, Schema};
-        use std::sync::Arc;
+    fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
+        if slice.len() == 0 {
+            return vec![];
+        }
+        if let Some(sql) = valid_sql_or_none(slice) {
+            return vec![sql];
+        }
+        let p = (slice.len() + 1) / 2;
+        let (left, right) = slice.split_at(p);
+        let mut sqls = values_to_sqls(left);
+        sqls.extend(values_to_sqls(right));
+        sqls
+    }
 
-        let schema = Schema::new(vec![
-            Field::new("table_name", DataType::Utf8, true),
-            Field::new("value", DataType::Int64, true),
-        ]);
-        let table_name = StringArray::from(vec![
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
-        ]);
-        let value = Int64Array::from(vec![
-            1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1,
-            2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2,
-            3, 4, 1, 2, 3, 4,
-        ]);
-        let record = RecordBatch::try_new(
-            Arc::new(schema),
-            vec![
-                Arc::new(table_name) as ArrayRef,
-                Arc::new(value) as ArrayRef,
-            ],
-        )
-        .unwrap();
-        let sub_super_mapping: std::collections::HashMap<String, String> = vec![
-            ("table1".to_string(), "super_table1".to_string()),
-            ("table2".to_string(), "super_table2".to_string()),
-        ]
+    messages
         .iter()
-        .cloned()
-        .collect();
+        .group_by(|m| m.stable_name())
+        .into_iter()
+        .map(|(key, group)| {
+            let values = group
+                .into_iter()
+                .flat_map(|m| {
+                    m.sql_insert_part(precision, with_meta).map(|sql| {
+                        (
+                            sql,                  // SQL to insert into.
+                            m.records.num_rows(), // number of records
+                        )
+                    })
+                })
+                .collect_vec();
+            let stable_name_iter = std::iter::repeat(key);
 
-        // 统计耗时
-        let start = std::time::Instant::now();
-        let grouped_batches =
-            super::group_by_super_table_name(&record, "table_name", &sub_super_mapping);
-        let elapsed = start.elapsed();
-        println!("elapsed: {:?}", elapsed);
-        let super_table1 = grouped_batches.get("super_table1").unwrap();
-        let super_table2 = grouped_batches.get("super_table2").unwrap();
-        println!("{:?}", super_table1);
-        println!("{:?}", super_table2);
+            values_to_sqls(&values)
+                .into_iter()
+                .zip(stable_name_iter)
+                .map(|((sql, tables, records), stable)| Records {
+                    stable: stable.map(|s| s.to_string()),
+                    sql,
+                    tables,
+                    records,
+                })
+        })
+        .flatten()
+        .collect_vec()
+}
+
+/// Write records to TDengine with `sql`, which contains `tables` num of tables,
+/// and `records` number of records.
+#[derive(Debug)]
+#[allow(dead_code)]
+struct Records {
+    stable: Option<String>,
+    sql: String,
+    tables: usize,
+    records: usize,
+}
+impl Records {
+    fn sql(&self) -> &str {
+        self.sql.as_str()
+    }
+
+    fn records(&self) -> usize {
+        self.records
+    }
+}
+impl<'a> AsRef<str> for Records {
+    fn as_ref(&self) -> &str {
+        self.sql.as_str()
+    }
+}
+
+type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+
+#[derive(Debug, Error)]
+pub enum FlatWriteError {
+    #[error("Connection error")]
+    ConnectionPoolError(#[from] deadpool::managed::PoolError<taos::Error>),
+    #[error("Table not exists")]
+    TableNotExits(String),
+    #[error("Container length too short: {0:#}")]
+    ContainerLengthTooShort(String),
+    #[error("Write SQL error: {0:#}")]
+    Taos(#[from] taos::Error),
+    #[error("Arrow internal error: {0}")]
+    Arrow(#[from] arrow::error::ArrowError),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
+}
+
+async fn assert_create_stable(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    sql: &str,
+    req_id: &RequestID,
+) -> Result<(), FlatWriteError> {
+    let mut write_retries = 0;
+    loop {
+        if let Err(err) = taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(sql, req_id.next())
+            .await
+        {
+            let code = err.code();
+            let errno: i32 = code.into();
+            write_retries += 1;
+            tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
+            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                // counter!(METRIC_STABLE_CREATED, 1);
+                // TODO: add metrics
+                break Err(err)
+                    .context("Exec SQL error: Retries exceeded")
+                    .map_err(Into::into);
+            }
+            match errno {
+                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => {
+                    break Ok(());
+                }
+                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    taos.replace(pool.get().await?);
+                }
+                _ => {
+                    break Err(err).context("Create stable error").map_err(Into::into);
+                }
+            }
+        } else {
+            break Ok(());
+        }
+    }
+}
+
+lazy_static! {
+    static ref RE_0X2653: regex::Regex =
+        regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
+}
+
+/// TODO: maybe helpful for refactor
+#[allow(dead_code)]
+async fn assert_exec_sql(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    sql: &str,
+    req_id: &RequestID,
+) -> Result<(), FlatWriteError> {
+    let mut write_retries = 0;
+    loop {
+        if let Err(err) = taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(sql, req_id.next())
+            .await
+        {
+            let code = err.code();
+            let errno: i32 = code.into();
+            write_retries += 1;
+            tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
+            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                // TODO: add metrics
+                break Err(err)
+                    .context("Exec SQL error: Retries exceeded")
+                    .map_err(Into::into);
+            }
+            match errno {
+                0x2603 | 0x0618 => {
+                    // stable not exists
+                    break Err(FlatWriteError::TableNotExits("unknown".to_string()));
+                }
+                0x2653 => {
+                    // Value too long for column/tag
+                    let message = err.message();
+                    if let Some(caps) = RE_0X2653.captures(&message) {
+                        let field = caps.get(1).unwrap().as_str();
+                        break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
+                    }
+                    break Err(err).map_err(Into::into);
+                }
+                // 0x2605 => {
+                //     // container length is too short.
+                //     // break Err(FlatWriteError::ContainerLengthTooShort(err));
+                // }
+                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    taos.replace(pool.get().await?);
+                }
+                _ => {
+                    // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                    // TODO: add metrics
+                    break Err(err)
+                        .context("flat message write sql error")
+                        .map_err(Into::into);
+                }
+            }
+        } else {
+            break Ok(());
+        }
+    }
+}
+async fn write_stable_with_sql(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    req_id: &RequestID,
+    records: &Records,
+) -> Result<usize, FlatWriteError> {
+    let mut write_retries = 0;
+    let sql = records.sql();
+
+    loop {
+        match taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(sql, req_id.next())
+            .await
+        {
+            Ok(n) => break Ok(n),
+            Err(err) => {
+                let code = err.code();
+                let errno: i32 = code.into();
+                write_retries += 1;
+                tracing::warn!(
+                    sql,
+                    "flat message write sql encountered unrecoverable err: {err:#}"
+                );
+                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                    break Err(err)
+                        .context("Write flat stream with SQL error: Retries exceeded")
+                        .map_err(Into::into);
+                }
+                match errno {
+                    0x2603 | 0x0618 => {
+                        // stable/table not exists
+                        break Err(FlatWriteError::TableNotExits(
+                            records.stable.as_deref().unwrap_or("unknown").to_string(),
+                        ));
+                    }
+                    0x2653 => {
+                        // Value too long for column/tag
+                        let message = err.message();
+                        if let Some(caps) = RE_0X2653.captures(&message) {
+                            let field = caps.get(1).unwrap().as_str();
+                            break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
+                        }
+                        break Err(err).map_err(Into::into);
+                    }
+                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        taos.replace(pool.get().await?);
+                    }
+                    _ => {
+                        break Err(err)
+                            .context("flat message write sql error")
+                            .map_err(Into::into);
+                    }
+                }
+            }
+        }
     }
 }
