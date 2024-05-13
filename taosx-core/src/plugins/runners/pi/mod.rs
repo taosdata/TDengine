@@ -488,11 +488,13 @@ pub async fn pi_to_taos(
 // }
 
 #[instrument(skip_all)]
+#[allow(unused_variables, unreachable_code)]
 pub async fn query_data_source(from_dsn: Dsn, args: Vec<String>) -> anyhow::Result<String> {
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
     }
+    tracing::info!("Start query datasource using PI connector");
     let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
 
     let toml = toml::to_string(&config)?;
@@ -748,10 +750,10 @@ pub const MULTI_COLUMN_MODEL: &str = "multi-column";
 
 pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
     let model = dsn
-    .params
-    .get("model")
-    .map(|s| s.as_str())
-    .unwrap_or(SINGLE_COLUMN_MODEL);
+        .params
+        .get("model")
+        .map(|s| s.as_str())
+        .unwrap_or(SINGLE_COLUMN_MODEL);
     let is_af =
         dsn.params.get("system_configuration").map(|s| s.as_str()) == Some(AF_SERVER_CONFIG);
     let mode = match (model, is_af) {
@@ -761,7 +763,6 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
         _ => unreachable!("unsupported model: {}, is_af: {}", model, is_af),
     };
 
-    
     let filter_point = dsn.params.get("filter_point").map(|s| s.as_str());
     let filter_element = dsn.params.get("filter_element").map(|s| s.as_str());
     let filter_template = dsn.params.get("filter_template").map(|s| s.as_str());
@@ -781,8 +782,6 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
     };
     (mode, pattern, pattern_type)
 }
-
-
 
 #[cfg(test)]
 mod tests {
