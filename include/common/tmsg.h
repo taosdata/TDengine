@@ -329,6 +329,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DB_ALIVE_STMT,
   QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
   QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
+  QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT,
   QUERY_NODE_RESTORE_DNODE_STMT,
   QUERY_NODE_RESTORE_QNODE_STMT,
   QUERY_NODE_RESTORE_MNODE_STMT,
@@ -2425,10 +2426,11 @@ int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistrib
 void    tFreeSRedistributeVgroupReq(SRedistributeVgroupReq* pReq);
 
 typedef struct {
-  int32_t useless;
+  int32_t reserved;
   int32_t vgId;
   int32_t sqlLen;
   char*   sql;
+  char    db[TSDB_DB_FNAME_LEN];
 } SBalanceVgroupLeaderReq;
 
 int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
