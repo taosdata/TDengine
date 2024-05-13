@@ -23,7 +23,7 @@ Methods of installing taosKeeper:
 
 ### Configuration
 
-taosKeeper needs to be executed on the terminal of the operating system, it supports three configuration methods: [Command-line arguments](#command-line-arguments-in-detail), [environment variable](#environment-variable-in-detail) and [configuration file](#configuration-file-parameters-in-detail). The precedence of those is Command-line, environment variable and configuration file.
+taosKeeper needs to be executed on the terminal of the operating system, it supports three configuration methods: Command-line arguments, environment variable and configuration file. The precedence of those is Command-line, environment variable and configuration file.
 
 **Make sure that the TDengine cluster is running correctly before running taosKeeper.** Ensure that the monitoring service in TDengine has been started. At least the values of `monitor` and `monitorFqdn` need to be set in `taos.cfg`.
 
@@ -32,7 +32,7 @@ monitor 1
 monitorFqdn localhost # taoskeeper's FQDN
 ```
 
-For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
+For more information, see [TDengine Monitoring Configuration](../config/#monitoring-parameters).
 
 ### Quick Launch
 
