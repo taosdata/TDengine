@@ -36,7 +36,7 @@ For REST and native connections, client libraries provide similar APIs for perfo
 Key differences:
 
 3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
-1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../client-libraries/cpp#parameter-binding-api), [Subscription](../../client-libraries/cpp#subscription-and-consumption-api), etc.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../client-libraries/cpp#parameter-binding-api), [Subscription](../../client-libraries/cpp#subscription-api), etc.
 
 ## Install Client Driver taosc
 
