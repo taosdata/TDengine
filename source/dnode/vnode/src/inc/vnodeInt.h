@@ -428,6 +428,16 @@ typedef struct SVCommitSched {
   int64_t maxWaitMs;
 } SVCommitSched;
 
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVAChannelID;
+
+typedef struct {
+  int64_t async;
+  int64_t id;
+} SVATaskID;
+
 struct SVnode {
   char*     path;
   SVnodeCfg config;
@@ -449,8 +459,8 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  int64_t commitChannel;
-  int64_t commitTask;
+  SVAChannelID commitChannel;
+  SVATaskID    commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;

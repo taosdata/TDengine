@@ -749,9 +749,12 @@ extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
-  TARRAY2(int64_t) channelArr = {0};
+  SArray       *channArray = taosArrayInit(0, sizeof(SVAChannelID));
+  if (channArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  taosThreadMutexLock(&pTsdb->mutex);
 
   // disable
   pTsdb->bgTaskDisabled = true;
@@ -759,20 +762,20 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) {
-      TARRAY2_APPEND(&channelArr, fset->bgTaskChannel);
-      fset->bgTaskChannel = 0;
-    }
+    taosArrayPush(channArray, &fset->channel);
+    fset->channel = (SVAChannelID){0};
     fset->mergeScheduled = false;
     tsdbFSSetBlockCommit(fset, false);
   }
 
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  taosThreadMutexUnlock(&pTsdb->mutex);
 
   // destroy all channels
-  int64_t channel;
-  TARRAY2_FOREACH(&channelArr, channel) { vnodeAChannelDestroy(vnodeAsyncHandle[1], channel, true); }
-  TARRAY2_DESTROY(&channelArr, NULL);
+  for (int32_t i = 0; i < taosArrayGetSize(channArray); i++) {
+    SVAChannelID *channel = taosArrayGet(channArray, i);
+    vnodeAChannelDestroy(channel, true);
+  }
+  taosArrayDestroy(channArray);
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
@@ -913,8 +916,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         arg->tsdb = fs->tsdb;
         arg->fid = fset->fid;
 
-        code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg,
-                           NULL);
+        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg, &fset->mergeTask);
         TSDB_CHECK_CODE(code, lino, _exit);
         fset->mergeScheduled = true;
       }
@@ -944,10 +946,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
     }
 
     if (tsdbTFileSetIsEmpty(fset)) {
-      if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) {
-        vnodeAChannelDestroy(vnodeAsyncHandle[1], fset->bgTaskChannel, false);
-        fset->bgTaskChannel = 0;
-      }
+      vnodeAChannelDestroy(&fset->channel, false);
       TARRAY2_REMOVE(fs->fSetArr, i, tsdbTFileSetClear);
     } else {
       i++;

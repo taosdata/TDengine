@@ -423,8 +423,6 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // background task queue
-  fset[0]->bgTaskChannel = 0;
-  fset[0]->mergeScheduled = false;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);
@@ -557,6 +555,6 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
 }
 
 int32_t tsdbTFileSetOpenChannel(STFileSet *fset) {
-  if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) return 0;
-  return vnodeAChannelInit(vnodeAsyncHandle[1], &fset->bgTaskChannel);
+  // TODO: if (VNODE_ASYNC_VALID_CHANNEL_ID(&fset->channel)) return 0;
+  return vnodeAChannelInit(2, &fset->channel);
 }

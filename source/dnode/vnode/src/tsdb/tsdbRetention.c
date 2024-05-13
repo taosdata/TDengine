@@ -416,13 +416,8 @@ int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
     arg->now = now;
     arg->fid = fset->fid;
 
-    if (sync) {
-      code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    } else {
-      code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    }
+    code =
+        vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync, tsdbFreeRtnArg, arg, &fset->retentionTask);
     if (code) {
       tsdbFreeRtnArg(arg);
       taosThreadMutexUnlock(&tsdb->mutex);

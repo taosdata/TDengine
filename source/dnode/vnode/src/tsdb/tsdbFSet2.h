@@ -79,9 +79,12 @@ struct STFileSet {
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
 
-  // background task channel
-  int64_t bgTaskChannel;
-  bool    mergeScheduled;
+  // background task
+  bool         mergeScheduled;
+  SVAChannelID channel;
+  SVATaskID    compactTask;
+  SVATaskID    mergeTask;
+  SVATaskID    retentionTask;
 
   // block commit variables
   TdThreadCond canCommit;

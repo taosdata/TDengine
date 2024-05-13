@@ -288,7 +288,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
 
   // wait last commit task
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
 
   if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
@@ -399,8 +399,8 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
-                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
+  code = vnodeAsync(&pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask, vnodeCompleteCommit, pInfo,
+                    &pVnode->commitTask);
 
 _exit:
   if (code) {
@@ -418,7 +418,7 @@ _exit:
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
   return 0;
 }
 
