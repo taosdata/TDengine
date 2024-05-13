@@ -56,6 +56,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   mndTransSetSerial(pTrans);
   mndTransSetChangeless(pTrans);
   mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
+  mInfo("trans:%d, the transaction will balance vgroups for vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
 
   void *pIter = NULL;
   int32_t count = 0;
@@ -63,7 +64,13 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    mDebug("trans:%d, check group for vgId:%d, dbName:%s", pTrans->id, pVgroup->vgId, pVgroup->dbName);
+
     if (req.vgId != 0 && pVgroup->vgId != req.vgId) continue;
+
+    SName name = {0};
+    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+    if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) continue;
 
     if(mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0){
       count++;
@@ -73,6 +80,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   }
   
   if(count == 0) {
+    mError("trans:%d, no match found, vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
     terrno = TSDB_CODE_TSC_INVALID_OPERATION;
     goto _OVER;
   }
