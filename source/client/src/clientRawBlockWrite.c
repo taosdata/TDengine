@@ -30,6 +30,11 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3
 
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
                                   int8_t t, SColCmprWrapper* pColCmprRow) {
+  int8_t buildDefaultCompress = 0;
+  if (pColCmprRow->nCols <= 0) {
+    buildDefaultCompress = 1;
+  }
+
   char*  string = NULL;
   cJSON* json = cJSON_CreateObject();
   if (json == NULL) {
@@ -70,13 +75,20 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(column, "isPrimarykey", isPk);
     cJSON_AddItemToArray(columns, column);
 
-    if (pColCmprRow == NULL || pColCmprRow->nCols <= i) {
+    if (pColCmprRow == NULL) {
       continue;
     }
-    SColCmpr*   pColCmpr = pColCmprRow->pColCmpr + i;
-    const char* encode = columnEncodeStr(COMPRESS_L1_TYPE_U32(pColCmpr->alg));
-    const char* compress = columnCompressStr(COMPRESS_L2_TYPE_U32(pColCmpr->alg));
-    const char* level = columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pColCmpr->alg));
+
+    uint32_t alg = 0;
+    if (buildDefaultCompress) {
+      alg = createDefaultColCmprByType(s->type);
+    } else {
+      SColCmpr* pColCmpr = pColCmprRow->pColCmpr + i;
+      alg = pColCmpr->alg;
+    }
+    const char* encode = columnEncodeStr(COMPRESS_L1_TYPE_U32(alg));
+    const char* compress = columnCompressStr(COMPRESS_L2_TYPE_U32(alg));
+    const char* level = columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(alg));
 
     cJSON* encodeJson = cJSON_CreateString(encode);
     cJSON_AddItemToObject(column, "encode", encodeJson);
@@ -767,14 +779,25 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     code = TSDB_CODE_INVALID_PARA;
     goto end;
   }
+
+  int8_t           createDefaultCompress = 0;
+  SColCmprWrapper* p = &req.colCmpr;
+  if (p->nCols == 0) {
+    createDefaultCompress = 1;
+  }
   // build create stable
   pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SFieldWithOptions));
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
     SSchema*          pSchema = req.schemaRow.pSchema + i;
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
-    SColCmpr *p = &req.colCmpr.pColCmpr[i];
-    field.compress = p->alg;
+
+    if (createDefaultCompress) {
+      field.compress = createDefaultColCmprByType(pSchema->type);
+    } else {
+      SColCmpr* p = &req.colCmpr.pColCmpr[i];
+      field.compress = p->alg;
+    }
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
