@@ -491,6 +491,7 @@ typedef struct SStreamMeta {
   int32_t         vgId;
   int64_t         stage;
   int32_t         role;
+  bool            taskLoadFlag;
   bool            closeFlag;
   bool            sendMsgBeforeClosing;  // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
