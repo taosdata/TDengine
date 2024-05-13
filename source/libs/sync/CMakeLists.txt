@@ -1,6 +1,7 @@
 aux_source_directory(src SYNC_SRC)
 add_library(sync STATIC ${SYNC_SRC})
 
+target_compile_options(sync PRIVATE -Wno-error=deprecated-non-prototype)
 target_link_libraries(
     sync
     PUBLIC common

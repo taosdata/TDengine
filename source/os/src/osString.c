@@ -17,10 +17,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
-#include "iconv.h"
-#endif
-
 extern int wcwidth(wchar_t c);
 extern int wcswidth(const wchar_t *s, size_t n);
 

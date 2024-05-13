@@ -22,7 +22,12 @@ extern "C" {
 
 typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
-typedef void   *iconv_t;
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+#include "iconv.h"
+#else
+    typedef void   *iconv_t;
+#endif
+
 typedef enum { M2C = 0, C2M } ConvType;
 
 // If the error is in a third-party library, place this header file under the third-party library header file.

@@ -141,6 +141,9 @@ target_link_libraries(
 
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
+
+target_compile_options(udfd PRIVATE -Wno-error=deprecated-non-prototype)
+
 target_include_directories(
         udfd
         PUBLIC
