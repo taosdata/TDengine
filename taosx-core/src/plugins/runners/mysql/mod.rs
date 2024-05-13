@@ -422,11 +422,89 @@ fn generate_json_value(
 
 #[cfg(test)]
 mod tests {
+    use sqlx::Executor;
+
     use super::*;
 
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/information_schema").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data =
+                    "insert into t_metric (name, value, ts) values ('cpu', 0.8, now())";
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test]
-    #[ignore]
     async fn test_is_valid() {
+        // prepare data
+        let _ = test_create_database().await;
+
         // invalid port
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3305/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
@@ -473,21 +551,27 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_sample() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from (select id, concat('${F}', 'T', ts, '+08:00') as ts, current, voltage, phase  from meters_${Ymd}) t where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(4).await;
+
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric where ts >= ${start} and ts <= ${end}&start=2024-04-08T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
         dbg!(&res);
         assert_eq!(true, res.is_ok());
         println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_mysql_to_taos() {
-        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
+        let from = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
@@ -519,16 +603,15 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_generate_json_value() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select * from t_full_columns")
+            .select_one_for_schema("select * from t_metric")
             .await
             .unwrap();
 

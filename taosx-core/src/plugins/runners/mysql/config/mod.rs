@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_invalid_driver() {
-        let dsn = Dsn::from_str("mysqlx://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysqlx://root:password@192.168.1.40:3306/test_taosx?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn);
         dbg!(&config);
@@ -322,15 +322,15 @@ mod tests {
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
-        assert_eq!(config.connect.host, "localhost");
+        assert_eq!(config.connect.host, "192.168.1.40");
         assert_eq!(config.connect.port, 3306);
         assert_eq!(config.connect.username, "root");
         assert_eq!(config.connect.password, "password");
-        assert_eq!(config.connect.subject, "dbname");
+        assert_eq!(config.connect.subject, "test_taosx");
         assert_eq!(config.task.sql, "select * from table");
         assert_eq!(
             config.task.start,
@@ -348,14 +348,14 @@ mod tests {
     #[test]
     fn test_parse_time_zone() {
         // time_zone exists
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select&time_zone=+02:00&start=2021-01-01T00:00:00Z")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select&time_zone=+02:00&start=2021-01-01T00:00:00Z")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         assert_eq!(config.task.time_zone, "+02:00");
 
         // time_zone doesn't exists, start exists
         let dsn = Dsn::from_str(
-            "mysql://root:password@localhost:3306/dbname?sql=select&start=2021-01-01T00:00:00+03:00",
+            "mysql://root:password@192.168.1.40:3306/test_taosx?sql=select&start=2021-01-01T00:00:00+03:00",
         )
         .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
@@ -363,7 +363,7 @@ mod tests {
 
         // time_zone doesn't exists, start's time_zone is zero
         let dsn = Dsn::from_str(
-            "mysql://root:password@localhost:3306/dbname?sql=select&start=2021-01-01T00:00:00Z",
+            "mysql://root:password@192.168.1.40:3306/test_taosx?sql=select&start=2021-01-01T00:00:00Z",
         )
         .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn test_generate_sql() {
         // with time zone
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
@@ -382,7 +382,7 @@ mod tests {
         assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
 
         // use {time} and cross days
-        let dsn = Dsn::from_str("mysql://root:password@localhost:3306/dbname?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mysql://root:password@192.168.1.40:3306/test_taosx?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
