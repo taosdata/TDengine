@@ -38,7 +38,7 @@ export function getStableStructReq(payload) {
         if (item.note == "TAG") {
           tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {
-          columns.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY', type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         }
       }
       return {
@@ -68,7 +68,9 @@ export function createStableReq(payload) {
   return sendSQLReq(
     `CREATE STABLE \`${selected_db}\`.${name} (${ts_field_name} TIMESTAMP,${columns
       .map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
-      'NCHAR('+`${item.ncharLength}`+')':item.type}`)
+      'NCHAR('+`${item.ncharLength}`+')':item.type}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
+      ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
+      ${item.primaryKey ? ' PRIMARY KEY': ''}`)
       .join(",")}) TAGS (${tags.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
       'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")}) ${rollupValue};`
   ).catch(err => {
@@ -78,10 +80,24 @@ export function createStableReq(payload) {
 
 // TODO 待定修改
 // 修改超级表的表结构
+// 一次只能改类型长度或者修改压缩方法
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
   sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
+  return sendSQLReq(sql).catch(err => {
+    return Promise.reject(err);
+  });
+}
+
+export function changeStableStructOther(data, stableName) {
+  let { operation, first_field = "", second_field = "", encode = "", compress = "", level = "", isVariable } = data;
+  let sql = "";
+  if (operation.startsWith('add')) {
+    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field} ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+  } else {
+    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+  }
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });

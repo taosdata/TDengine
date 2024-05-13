@@ -81,6 +81,48 @@
                 controls-position="right"
                 class="custom-length"
               ></el-input-number>
+              <el-tag effect="plain" type="info" v-if="index == 1">
+              <el-checkbox :disabled="isEdit" v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
+            </el-tag>
+            <el-select
+              size="small"
+              v-model="column.encode"
+              placeholder="ENCODE"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['encodeList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.compress"
+              placeholder="COMPRESS"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['compressList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.level"
+              placeholder="LEVEL"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in levelList"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
               <el-input
                 size="small"
                 v-model="column.field"
@@ -136,6 +178,45 @@
                 controls-position="right"
                 class="custom-length"
               ></el-input-number>
+              <el-select
+                size="small"
+                v-model="currentData.encode"
+                placeholder="ENCODE"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(currentData.type)['encodeList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+              <el-select
+                size="small"
+                v-model="currentData.compress"
+                placeholder="COMPRESS"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(currentData.type)['compressList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+              <el-select
+                size="small"
+                v-model="currentData.level"
+                placeholder="LEVEL"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in levelList"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
               <el-input
                 size="small"
                 v-model="currentData.field"
@@ -236,8 +317,8 @@
  */
 import { mapState } from "vuex";
 // import { sendSQLReq } from '@/api/sql'
-import { dataType, tagType } from "../../utils";
-import { changeTableStruct, getTagValue } from "@/api/gateway/data/tables";
+import { dataType, tagType, parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive } from "../../utils";
+import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/gateway/data/tables";
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
 Array.prototype.insert = function (index, item) {
@@ -252,6 +333,9 @@ export default {
   data() {
     this.tagType = tagType;
     this.dataType = dataType;
+    this.parmaryKeyType = parmaryKeyType;
+    this.storageCompression = storageCompression;
+    this.levelList = levelList;
     return {
       isColumnsFold: false,
       isTagsFold: false,
@@ -359,12 +443,17 @@ export default {
     columnTypeChange(column) { 
       let params = null
       let rename_params = null
+      let other_params = null
       if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
         params = {
           operation: "modify column",
           first_field: column.field_old,
-          second_field: column.type,
-        };
+          second_field: column.type === 'VARCHAR' 
+            ? column.type + `(${column.varcharLength})`
+            : column.type === 'NCHAR' 
+            ? column.type + `(${column.ncharLength})` 
+            : column.type,
+        }
       } 
       if(column.field_old !== column.field) {
         rename_params = {
@@ -373,7 +462,14 @@ export default {
           second_field: column.field, // new_col_name
         };
       }
-      this.updateTypeField(params, rename_params);  
+      if (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level) {
+        other_params = {
+          operation: "modify column",
+          first_field: column.field,
+          second_field: `${column.encode ? ' ENCODE ' + `'${column.encode}'` : ''}${column.compress ? ' COMPRESS ' + `'${column.compress}'` : ''}${column.level ? ' LEVEL ' + `'${column.level}'` : ''}`
+        }
+      }
+      this.updateTypeField(params, rename_params, other_params);  
     },
     minusColumn(index, data) {
       if (!this.isEdit) return this.table_form.columns.remove(index);
@@ -422,7 +518,7 @@ export default {
           .catch(() => false);
       }
     },
-    async updateTypeField(params, rename_params) {
+    async updateTypeField(params, rename_params, other_params) {
       if (this.loading) return;
       this.loading = true;
       let second_params = "`" + this.selected_db + "`" + "." + "`" + this.table_form.name + "`"
@@ -437,6 +533,13 @@ export default {
         await changeTableStruct(rename_params,second_params)
           .then(async () => {
             this.$message.success(this.$t('data.renameColumn') + this.$t("operateSucc"));
+          })
+          .catch((err) => this.$error(err?.desc));
+      }
+      if(other_params) {
+        await changeTableStruct(other_params,second_params)
+          .then(async () => {
+            this.$message.success(this.$t("operateSucc"));
           })
           .catch((err) => this.$error(err?.desc));
       }
@@ -508,20 +611,38 @@ export default {
       if (!this.currentData.field || !this.currentData.type) {
         return this.$error(this.$t("data.checkFail"));
       }
-      let params = {
-        operation: "add column",
-        first_field: this.currentData.field,
-        second_field: this.currentData.type === 'VARCHAR' 
+      let second_field = this.currentData.type === 'VARCHAR' 
         ? this.currentData.type + `(${this.currentData.varcharLength})`
         : this.currentData.type === 'NCHAR' 
         ? this.currentData.type + `(${this.currentData.ncharLength})` 
-        : this.currentData.type,
+        : this.currentData.type
+      let other = `${this.currentData.encode ? ' ENCODE ' + `'${this.currentData.encode}'` : ''}${this.currentData.compress ? ' COMPRESS ' + `'${this.currentData.compress}'` : ''}${this.currentData.level ? ' LEVEL ' + `'${this.currentData.level}'` : ''}`
+      let params = {
+        operation: "add column",
+        first_field: this.currentData.field,
+        second_field: second_field + other,
+
       };
       this.columnEdit = false;
       this.updateData(params);
     },
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
+    },
+    handleEncodeList(type) {
+      if (groupOne.includes(type)) {
+        return this.storageCompression.groupOne
+      } else if (groupTwo.includes(type)) {
+        return this.storageCompression.groupTwo
+      } else if (groupThree.includes(type)) {
+        return this.storageCompression.groupThree
+      } else if (groupFour.findIndex((item) =>
+        type.startsWith(item)
+      )) {
+        return this.storageCompression.groupFour
+      } else if (groupFive.includes(type)) {
+        return this.storageCompression.groupFive
+      }
     },
   },
 };
@@ -535,7 +656,7 @@ export default {
 
 .formWrapper {
   padding-right: 18px;
-  max-width: 680px;
+  // max-width: 680px;
 }
 
 .name_input {
