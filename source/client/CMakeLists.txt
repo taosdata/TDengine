@@ -23,13 +23,6 @@ target_link_libraries(
     PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
 )
 
-if(TD_DARWIN_ARM64)
-    target_link_libraries(
-        taos
-        PRIVATE  "-arch x86_64"
-    )
-endif()
-
 if(TD_WINDOWS)
     INCLUDE_DIRECTORIES(jni/windows)
     INCLUDE_DIRECTORIES(jni/windows/win32)
