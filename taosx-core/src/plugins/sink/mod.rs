@@ -774,7 +774,6 @@ async fn consume_lush_record_with_transform(
             }
         }
         LushMessage::Insert(record) => {
-            // tracing::debug!(?record, "Received LushMessageInsert"); // debug
             for record in record {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
@@ -793,14 +792,11 @@ async fn consume_lush_record_with_transform(
                     .unwrap();
 
                 // 只包含 tag 列的值
-                let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
-                // tracing::debug!(?table_cache, "table_cache_2"); // debug
-                let tags_record: RecordBatch = create_tags_record(table_name_column, table_cache)?;
-                // tracing::debug!(?tags_record, "tags_record"); // debug
+                let tags_record: RecordBatch =
+                    create_tags_record(table_name_column, &lush_model_config.table_tags)?;
 
-                // 合并 RecordBatch
+                // 左右合并 RecordBatch
                 let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
-                // tracing::debug!(?concated_record, "concated_record"); // debug
 
                 // 类型转换
                 let parsed_message = lush_parser.transform_record_batch(&concated_record)?;
@@ -823,11 +819,6 @@ async fn consume_lush_record_with_transform(
                                 super_table.to_string()
                             )
                         })?;
-                    tracing::debug!(
-                        "super_table: {},parser: {}",
-                        super_table,
-                        serde_json::to_string(&parser).unwrap()
-                    ); // debug
                     let message: transform::Message =
                         parser.parse_message_from_records(&record_batch).with_context(|| {
                             format!(
@@ -2788,10 +2779,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut count = 0;
     let lush_parser: Option<ParserImpl> = ipc_reader.metadata().init().map(|init| {
         let columns = init.columns();
-        let tags = init.tags();
         let fields: LinkedHashMap<String, FieldParser> = columns
             .iter()
-            .chain(tags.iter())
             .map(|(col_name, ipc_type)| {
                 (
                     col_name.clone(),
@@ -3494,9 +3483,9 @@ impl IpcStreamWorker {
         let lush_model_config: OnceCell<LushModelConfig> = OnceCell::const_new();
         match from.driver.as_str() {
             "pi" | "pi_backfill" => {
-                lush_model_config
-                    .get_or_try_init(|| async { LushModelConfig::try_from(from.clone()) })
-                    .await?;
+                let v: LushModelConfig = LushModelConfig::try_from(from.clone()).unwrap();
+                tracing::info!("LushModelConfig: {}", serde_json::to_string(&v).unwrap());
+                lush_model_config.set(v).unwrap();
             }
             _ => {}
         };

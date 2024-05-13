@@ -6,11 +6,12 @@ use crate::{
     runners::pi::transform::PiModelType,
 };
 use anyhow::{anyhow, Context};
+use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
 use taosx_ipc::stream::reader::LushInsertAttrs;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct LushModelConfig {
     /// The name of the column that represent sub-table name in the recived RecordBatch.
     pub table_name_column: String,
@@ -20,6 +21,7 @@ pub struct LushModelConfig {
     /// key: sub-table name.
     /// value: super-table name.
     pub sub_super_mapping: HashMap<String, String>,
+    #[serde(skip)]
     pub table_tags: Arc<TableTagCache>,
 }
 
