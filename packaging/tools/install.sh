@@ -913,15 +913,15 @@ function updateProduct() {
       echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"    
     echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ./${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
       [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
@@ -935,12 +935,11 @@ function updateProduct() {
     echo
     echo "${productName} is updated successfully!"
     echo
+    
+    echo -e "\033[44;32;1mTo start all the components                 : sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo start all the components       : ./start-all.sh${NC}"
-    fi
-    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
       echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
     fi
   else
@@ -1007,15 +1006,15 @@ function installProduct() {
       echo -e "${GREEN_DARK}To configure ${clientName}Adapter ${NC}\t: edit ${configDir}/${clientName}adapter.toml"
     echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server    ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}\t\t: ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${serverName}${NC}"
       [ -f ${installDir}/bin/${clientName}adapter ] &&
         echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
     fi
@@ -1030,12 +1029,11 @@ function installProduct() {
     echo
     echo "${productName} is installed successfully!"
     echo
+    
+    echo -e "\033[44;32;1mTo start all the components                 : sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
-    fi
-    echo -e "\033[44;32;1mTo access ${productName}                : ${clientName} -h $serverFqdn${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
       echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
     fi
     echo
