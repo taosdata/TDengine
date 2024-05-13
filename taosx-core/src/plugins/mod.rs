@@ -255,11 +255,16 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
 }
 
 pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
-    let timeout = Duration::from_secs(4 * 60);
-    // todo: add time out limit
-    let dsn = request.from.clone().into_dsn()?;
-    match dsn.driver.as_str() {
-        "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
-        _ => unimplemented!(),
+    async fn query_data_source_inner(request: QueryDataSourceReq) -> anyhow::Result<String> {
+        let dsn = request.from.clone().into_dsn()?;
+        match dsn.driver.as_str() {
+            "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
+            _ => unimplemented!(),
+        }
     }
+
+    let timeout = Duration::from_secs(3 * 60);
+    tokio::time::timeout(timeout, query_data_source_inner(request))
+        .await
+        .map_err(|err| anyhow::anyhow!("query data source timeout, cause: {:?}", err))?
 }
