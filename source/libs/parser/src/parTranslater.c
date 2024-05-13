@@ -8411,10 +8411,8 @@ static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
-  int32_t     code = 0;
-  SName       name;
   STableMeta* pTableMeta = NULL;
-  code =
+  int32_t     code =
       getTableMeta(pCxt, ((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal, &pTableMeta);
   taosMemoryFreeClear(pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
