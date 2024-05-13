@@ -1,6 +1,4 @@
-use std::{
-    sync::{Arc, Weak},
-};
+use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context};
 use arrow_flight::{error::FlightError, FlightData, PutResult};
@@ -27,6 +25,7 @@ use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
     scheduler::agent::AgentNotifySender,
 };
+use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
 
 #[derive(Debug)]
 pub struct PutStream {
@@ -238,13 +237,10 @@ impl PutStream {
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
             let metrics = metrics_arc.ipc();
-            use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
             let lush_parser: Option<ParserImpl> = metadata.init().map(|init| {
                 let columns = init.columns();
-                let tags = init.tags();
                 let fields: LinkedHashMap<String, FieldParser> = columns
                     .iter()
-                    .chain(tags.iter())
                     .map(|(col_name, ipc_type)| {
                         (
                             col_name.clone(),
@@ -324,7 +320,7 @@ impl PutStream {
                                     trace_id,
                                     &trace_id_str,
                                     metrics,
-                                    lush_parser
+                                    lush_parser,
                                 )
                                 .in_current_span()
                                 .await
