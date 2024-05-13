@@ -8414,10 +8414,8 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
   int32_t     code = 0;
   SName       name;
   STableMeta* pTableMeta = NULL;
-  code = getTargetMeta(pCxt,
-                       toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal,
-                              ((SValueNode*)pShow->pTbName)->literal, &name),
-                       &pTableMeta, true);
+  code =
+      getTableMeta(pCxt, ((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal, &pTableMeta);
   taosMemoryFreeClear(pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
