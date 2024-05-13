@@ -207,7 +207,7 @@ export default {
   hours: 'h ',
   minutes: 'm ',
   seconds: 's ',
-  milliseconds: 'ms',
+  milliseconds: 'ms ',
   microseconds: 'us ',
   nanoseconds: 'ns ',
   systemPrompt: 'System Prompt',
@@ -799,6 +799,14 @@ export default {
       "The SQL you input doesn't have any conditions to limit the input and output, this may cause some problems such as too much time cost, too big result set, too big resource consumption. It's strongly recommended to add some conditions to filter by time range, tags, and use 'limit/slimit' to control the number of output groups.",
     startTime: "Please enter the start time.",
     endTime: "Please enter the end time.",
+    category: "Category",
+    name: "Name",
+    type: "Type",
+    stable_name: "STable Name",
+    table_name: "Table Name",
+    create_time: "Creation Time",
+    columns: "Columns",
+    tags: "Tags"
   },
   sql: {
     analysis: "Analysis",

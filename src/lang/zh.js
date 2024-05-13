@@ -699,6 +699,14 @@ export default {
       "当前查询无输入输出限制，可能导致查询时间长、资源消耗高、结果集过大等问题，如必要可添加主键时间范围、过滤条件、LIMIT/SLIMIT等限制条件进行优化",
     startTime: "请输入开始时间",
     endTime: "请输入结束时间",
+    category: "类别",
+    name: "名称",
+    type: "类型",
+    stable_name: "超级表名称",
+    table_name: "表名",
+    create_time: "创建时间",
+    columns: "列数量",
+    tags: "标签数量"
   },
   sql: {
     analysis: "分析",
@@ -1211,7 +1219,7 @@ export default {
       sepntip: "请输入分隔符个数",
       csvtip: "自定义列数必须等于csv列数",
       identified: "1. 识别的列",
-      preview:'预览',
+      preview:'查看点位列表',
       previewmore:'预览结果',
       more:'更多',
       viewmore:'查看更多',

@@ -761,7 +761,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         };
       }
       // postgres/mysql 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql') && paramConfig.field == 'sql') {
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
