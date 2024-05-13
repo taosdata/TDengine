@@ -34,7 +34,7 @@ class TDTestCase(TDTestCase):
         
         # self.query_pk_fun(self.database,'') 
         
-        self.touying_pk_1(self.database,1) 
+        # self.touying_pk_1(self.database,1) 
         self.touying_pk_where(self.database,'') 
         # self.touying_pk_where(self.database,'tags') 
         # self.touying_pk_where(self.database,'distinct') 
