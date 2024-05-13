@@ -171,6 +171,7 @@ void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t start
         printf("failed to insert data, reason:%s\n", taos_errstr(p));
       }
 
+//      startTs += 20;
       taos_free_result(p);
     }
   }
@@ -826,19 +827,27 @@ TEST(clientCase, projection_query_tables) {
   //  }
   //  taos_free_result(pRes);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "alter local 'fqdn 127.0.0.1'");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to exec query, %s\n", taos_errstr(pRes));
+  }
+
   taos_free_result(pRes);
 
-//  TAOS_RES* pRes = taos_query(pConn, "select tbname, last(ts) from abc1.stable_1 group by tbname");
-//  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");
+  pRes = taos_query(pConn, "select last(ts), ts from cache_1.t1");
+//  pRes = taos_query(pConn, "select last(ts), ts from cache_1.no_pk_t1");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+    printf("failed to exec query, %s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
+//  pRes = taos_query(pConn, "create stream stream_1 trigger at_once fill_history 1 ignore expired 0 into str_res1 as select _wstart as ts, count(*) from stable_1 interval(10s);");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table tu using st2 tags(2)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
   }
@@ -853,7 +862,7 @@ TEST(clientCase, projection_query_tables) {
       "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
       "QWERTYUIOP{}";
 
-  for(int32_t i = 0; i < 10000; ++i) {
+  for(int32_t i = 0; i < 1; ++i) {
     char str[1024] = {0};
     sprintf(str, "create table if not exists tu%d using st2 tags(%d)", i, i);
 
@@ -864,10 +873,10 @@ TEST(clientCase, projection_query_tables) {
     taos_free_result(px);
   }
 
-  for(int32_t j = 0; j < 5000; ++j) {
+  for(int32_t j = 0; j < 1; ++j) {
     start += 20;
-    for (int32_t i = 0; i < 10000; ++i) {
-      createNewTable(pConn, i, 20, start, pstr);
+    for (int32_t i = 0; i < 1; ++i) {
+      createNewTable(pConn, i, 100, start, pstr);
     }
   }
 

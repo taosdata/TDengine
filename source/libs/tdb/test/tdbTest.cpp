@@ -131,7 +131,7 @@ TEST(tdb_test, DISABLED_simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0);
+  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -246,7 +246,7 @@ TEST(tdb_test, DISABLED_simple_insert2) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 1024, 10, &pEnv, 0);
+  ret = tdbOpen("tdb", 1024, 10, &pEnv, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -339,7 +339,7 @@ TEST(tdb_test, DISABLED_simple_delete1) {
   pPool = openPool();
 
   // open env
-  ret = tdbOpen("tdb", 1024, 256, &pEnv, 0);
+  ret = tdbOpen("tdb", 1024, 256, &pEnv, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
@@ -428,7 +428,7 @@ TEST(tdb_test, DISABLED_simple_upsert1) {
   taosRemoveDir("tdb");
 
   // open env
-  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0);
+  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
@@ -479,6 +479,45 @@ TEST(tdb_test, DISABLED_simple_upsert1) {
   tdbClose(pEnv);
 }
 
+TEST(tdb_test, simple_upsert2) {
+  int         ret;
+  TDB        *pEnv;
+  TTB        *pDb;
+  int         nData = 10000;
+  const char *key = "key";
+  int32_t     dataSize = 256 * 1024;
+  void       *data = taosMemoryMalloc(dataSize);
+  void       *pData = NULL;
+  SPoolMem   *pPool;
+  TXN        *txn;
+
+  taosRemoveDir("tdb");
+  memset(data, 'a', dataSize);
+
+  // open env
+  ret = tdbOpen("tdb", 4096, 64, &pEnv, 0, 0, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pPool = openPool();
+
+  for (int iData = 0; iData < nData; iData++) {
+    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+    ret = tdbTbUpsert(pDb, key, strlen(key), data, dataSize, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+
+    tdbCommit(pEnv, txn);
+    tdbPostCommit(pEnv, txn);
+  }
+
+  tdbTbClose(pDb);
+  tdbClose(pEnv);
+}
+
 TEST(tdb_test, multi_thread_query) {
   int           ret;
   TDB          *pEnv;
@@ -490,7 +529,7 @@ TEST(tdb_test, multi_thread_query) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 4096, 10, &pEnv, 0);
+  ret = tdbOpen("tdb", 4096, 10, &pEnv, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -599,7 +638,7 @@ TEST(tdb_test, DISABLED_multi_thread1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 512, 1, &pDb, 0);
+  ret = tdbOpen("tdb", 512, 1, &pDb, 0, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   ret = tdbTbOpen("db.db", -1, -1, NULL, pDb, &pTb, 0);

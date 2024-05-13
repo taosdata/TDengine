@@ -287,7 +287,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
@@ -303,9 +303,9 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **insert_rows** : 每个子表插入的记录数，默认为 0 。
 
-- **childtable_offset** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
+- **childtable_offset** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
 
-- **childtable_limit** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
+- **childtable_limit** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
 - **interlace_rows** : 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
@@ -328,6 +328,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **use_sample_ts** : 仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。 若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
 - **tags_file** : 仅当 insert_mode 为 taosc, rest 的模式下生效。 最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+
+- **primary_key** : 指定超级表是否有复合主键，取值 1 和 0， 复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错
+- **repeat_ts_min** : 数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值, 最小值等于最大值时为固定个数
+- **repeat_ts_max** : 数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数
+- **sqls** : 字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误
 
 #### tsma配置参数
 
@@ -367,6 +372,16 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
 - **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
+
+- **encode**: 字符串类型，指定此列两级压缩中的第一级编码算法，详细参见创建超级表
+  
+- **compress**: 字符串类型，指定此列两级压缩中的第二级加密算法，详细参见创建超级表
+
+- **level**: 字符串类型，指定此列两级压缩中的第二级加密算法的压缩率高低，详细参见创建超级表
+
+- **gen**: 字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”, 会按自然数顺序增长
+
+- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
 
 #### 插入行为配置参数
 
@@ -440,6 +455,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
+    
  
 #### 配置文件中数据类型书写对照表
 

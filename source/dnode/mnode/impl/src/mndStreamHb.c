@@ -235,7 +235,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
-    streamMetaClearHbMsg(&req);
+    tCleanupStreamHbMsg(&req);
     tDecoderClear(&decoder);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -258,7 +258,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
-    mDebug("%d stream node(s) need updated from report of hbMsg(vgId:%d)", numOfUpdated, req.vgId);
+    mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
     setNodeEpsetExpiredFlag(req.pUpdateNodes);
   }
 
@@ -294,12 +294,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
 
       streamTaskStatusCopy(pTaskEntry, p);
-      if ((p->checkpointId != 0) && p->checkpointFailed) {
+
+      STaskCkptInfo *pChkInfo = &p->checkpointInfo;
+      if ((pChkInfo->activeId != 0) && pChkInfo->failed) {
         mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
-               p->checkpointId, p->chkpointTransId);
+               pChkInfo->activeId, pChkInfo->activeTransId);
 
         SFailedCheckpointInfo info = {
-            .transId = p->chkpointTransId, .checkpointId = p->checkpointId, .streamUid = p->id.streamId};
+            .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
         addIntoCheckpointList(pFailedTasks, &info);
       }
     }
@@ -347,7 +349,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
-  streamMetaClearHbMsg(&req);
+  tCleanupStreamHbMsg(&req);
 
   taosArrayDestroy(pFailedTasks);
   taosArrayDestroy(pOrphanTasks);

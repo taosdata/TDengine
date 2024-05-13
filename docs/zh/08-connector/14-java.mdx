@@ -29,8 +29,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ## JDBC 和 JRE 兼容性
 
-- JDBC: 主要兼容 JDBC 4.2 版本，部分功能如无模式写入和数据订阅单独提供  
-- JRE: 支持 JRE 8 及以上版本  
+- JDBC: 支持 JDBC 4.2 版本，部分功能如无模式写入和数据订阅单独提供  
+- JRE: 支持 JRE 8 及以上版本
 
 ## 支持的平台
 
@@ -41,6 +41,8 @@ REST 连接支持所有能运行 Java 的平台。
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
+|        3.2.11        | 解决了 Native 连接关闭结果集 bug      |        -         |
+|        3.2.10        | 1. REST/WebSocket 连接支持传输中的数据压缩；2. Websocket 自动重连机制，默认关闭；3. Connection 类提供无模式写入的方法；4. 优化了原生连接的数据拉取性能；5. 修复了一些已知问题；6.元数据获取函数可以返回支持的函数列表。      |        -         |
 |        3.2.9         | 解决了 Websocket prepareStatement 关闭 bug                                    |        -         |
 |        3.2.8         | 优化了自动提交, 解决了 websocket 手动提交 bug, 优化 Websocket prepareStatement 使用一个连接, 元数据支持视图                                       |        -         |
 |        3.2.7         | 支持 VARBINARY 和 GEOMETRY 类型，增加 native 连接的时区设置支持。增加 websocket 自动重连功能。                                                                      | 3.2.0.0 及更高版本 |
@@ -174,7 +176,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.2.9</version>
+  <version>3.2.11</version>
 </dependency>
 ```
 
@@ -336,7 +338,6 @@ public Connection getConn() throws Exception{
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
   connProps.setProperty("debugFlag", "135");
-  connProps.setProperty("maxSQLLength", "1048576");
   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
   return conn;
 }
@@ -368,6 +369,13 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
 - TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+> **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
+
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+
 
 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](../../reference/config/#仅客户端适用)。
 
@@ -525,12 +533,8 @@ TDengine Java 连接器支持订阅功能，应用 API 如下：
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopImp.java:create_topic}}
 ```
 
-`subscribe` 方法的三个参数含义如下：
-
-- topic_meters：订阅的主题（即名称），此参数是订阅的唯一标识。
-- sql：订阅的查询语句，此语句只能是 `SELECT` 语句，只应查询原始数据，只能按时间正序查询数据。
-
-如上面的例子将使用 SQL 语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 创建一个名为 `topic_meters` 的订阅。
+如上面的例子将使用 SQL 语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 创建一个名为 `topic_meters` 的主题。
+> **注意**：订阅主题的查询语句只能是 `SELECT` 语句，只应查询原始数据，只能按时间正序查询数据。
 
 #### 创建 Consumer
 
@@ -546,8 +550,12 @@ TDengine Java 连接器支持订阅功能，应用 API 如下：
 - httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
 - messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
 - httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
-其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)， 注意TDengine服务端自3.2.0.0版本开始消息订阅中的auto.offset.reset默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
   
 #### 订阅消费数据
 
@@ -555,7 +563,8 @@ TDengine Java 连接器支持订阅功能，应用 API 如下：
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:poll_data}}
 ```
 
-`poll` 每次调用获取一个消息。
+`subscribe` 方法的参数含义如为：订阅的主题列表（即名称），支持同时订阅多个主题。 
+`poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
 
 #### 指定订阅 Offset
 

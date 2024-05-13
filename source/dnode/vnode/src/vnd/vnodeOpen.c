@@ -305,14 +305,14 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
   return dstVgId;
 }
 
-void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs) {
+void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   vInfo("path:%s is removed while destroy vnode", path);
   tfsRmdir(pTfs, path);
 
-  int32_t nlevel = tfsGetLevel(pTfs);
-  if (vgId > 0 && nlevel > 1 && tsS3Enabled) {
+  // int32_t nlevel = tfsGetLevel(pTfs);
+  if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
     char vnode_prefix[TSDB_FILENAME_LEN];
-    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "v%df", vgId);
+    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
     s3DeleteObjectsByPrefix(vnode_prefix);
   }
 }
@@ -480,26 +480,27 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     vnodeRollback(pVnode);
   }
 
-  snprintf(pVnode->monitor.strClusterId, TSDB_CLUSTER_ID_LEN, "%"PRId64, pVnode->config.syncCfg.nodeInfo[0].clusterId);
-  snprintf(pVnode->monitor.strDnodeId, TSDB_NODE_ID_LEN, "%"PRId32, pVnode->config.syncCfg.nodeInfo[0].nodeId);
-  snprintf(pVnode->monitor.strVgId, TSDB_VGROUP_ID_LEN, "%"PRId32, pVnode->config.vgId);
+  snprintf(pVnode->monitor.strClusterId, TSDB_CLUSTER_ID_LEN, "%" PRId64, pVnode->config.syncCfg.nodeInfo[0].clusterId);
+  snprintf(pVnode->monitor.strDnodeId, TSDB_NODE_ID_LEN, "%" PRId32, pVnode->config.syncCfg.nodeInfo[0].nodeId);
+  snprintf(pVnode->monitor.strVgId, TSDB_VGROUP_ID_LEN, "%" PRId32, pVnode->config.vgId);
 
-  if(pVnode->monitor.insertCounter == NULL){
+  if (tsEnableMonitor && pVnode->monitor.insertCounter == NULL) {
+    taos_counter_t *counter = NULL;
     int32_t label_count = 7;
     const char *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE, VNODE_METRIC_TAG_NAME_CLUSTER_ID,
-                                   VNODE_METRIC_TAG_NAME_DNODE_ID, VNODE_METRIC_TAG_NAME_DNODE_EP,
-                                   VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
-                                   VNODE_METRIC_TAG_NAME_RESULT};
-    taos_counter_t *counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql",  
+                                  VNODE_METRIC_TAG_NAME_DNODE_ID, VNODE_METRIC_TAG_NAME_DNODE_EP,
+                                  VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
+                                  VNODE_METRIC_TAG_NAME_RESULT};
+    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql",
                                                 label_count, sample_labels);
     vInfo("vgId:%d, new metric:%p",TD_VID(pVnode), counter);
     if(taos_collector_registry_register_metric(counter) == 1){
       taos_counter_destroy(counter);
       counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
-      vInfo("vgId:%d, get metric from registry:%p",TD_VID(pVnode), counter);
+      vInfo("vgId:%d, get metric from registry:%p", TD_VID(pVnode), counter);
     }
     pVnode->monitor.insertCounter = counter;
-    vInfo("vgId:%d, succeed to set metric:%p",TD_VID(pVnode), counter);
+    vInfo("vgId:%d, succeed to set metric:%p", TD_VID(pVnode), counter);
   }
 
   return pVnode;
@@ -555,6 +556,9 @@ int32_t vnodeStart(SVnode *pVnode) {
 int32_t vnodeIsCatchUp(SVnode *pVnode) { return syncIsCatchUp(pVnode->sync); }
 
 ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
+
+int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm) { return syncUpdateArbTerm(pVnode->sync, arbTerm); }
+int32_t vnodeGetArbToken(SVnode *pVnode, char *outToken) { return syncGetArbToken(pVnode->sync, outToken); }
 
 void vnodeStop(SVnode *pVnode) {}
 

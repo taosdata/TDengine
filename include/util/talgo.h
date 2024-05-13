@@ -55,6 +55,12 @@ typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void 
 void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
 
 /**
+ * Non-recursive quick sort.
+ *
+ */
+void taosqsort_r(void *src, int64_t nelem, int64_t size, const void *arg, __ext_compar_fn_t cmp);
+
+/**
  * merge sort, with the compare function requiring additional parameters support
  *
  * @param src

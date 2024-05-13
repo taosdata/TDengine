@@ -28,6 +28,7 @@ typedef struct SProjectOperatorInfo {
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
   bool           inputIgnoreGroup;
+  bool           outputIgnoreGroup;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -111,6 +112,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
+  pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
   
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
@@ -229,7 +231,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   // set current group id
   pLimitInfo->currentGroupId = groupId;
   bool limitReached = applyLimitOffset(pLimitInfo, pBlock, pOperator->pTaskInfo);
-  if (pBlock->info.rows == 0) {
+  if (pBlock->info.rows == 0 && 0 != pLimitInfo->limit.limit) {
     return PROJECT_RETRIEVE_CONTINUE;
   } else {
     if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
@@ -274,6 +276,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     code = doGenerateSourceData(pOperator);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    if (pProjectInfo->outputIgnoreGroup) {
+      pRes->info.id.groupId = 0;
     }
 
     return (pRes->info.rows > 0) ? pRes : NULL;
@@ -346,7 +352,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
         // continue merge data, ignore the group id
         blockDataMerge(pFinalRes, pRes);
-        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold) {
+        if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;
         }
       }
@@ -379,6 +385,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+  }
+
+  if (pProjectInfo->outputIgnoreGroup) {
+    p->info.id.groupId = 0;
   }
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {

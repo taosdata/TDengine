@@ -63,7 +63,7 @@ int taos_metric_formatter_destroy(taos_metric_formatter_t *self) {
   self = NULL;
   return ret;
 }
-
+/*
 int taos_metric_formatter_load_help(taos_metric_formatter_t *self, const char *name, const char *help) {
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return 1;
@@ -105,7 +105,7 @@ int taos_metric_formatter_load_type(taos_metric_formatter_t *self, const char *n
 
   return taos_string_builder_add_char(self->string_builder, '\n');
 }
-
+*/
 int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char *name, const char *suffix,
                                        size_t label_count, const char **label_keys, const char **label_values) {
   TAOS_ASSERT(self != NULL);
@@ -156,7 +156,7 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
   }
   return 0;
 }
-
+/*
 int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
                                       char *ts, char *format) {
   TAOS_ASSERT(self != NULL);
@@ -185,7 +185,7 @@ int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric
 
   return taos_string_builder_add_char(self->string_builder, '\n');
 }
-
+*/
 int taos_metric_formatter_clear(taos_metric_formatter_t *self) {
   TAOS_ASSERT(self != NULL);
   return taos_string_builder_clear(self->string_builder);
@@ -204,7 +204,7 @@ char *taos_metric_formatter_dump(taos_metric_formatter_t *self) {
   }
   return data;
 }
-
+/*
 int taos_metric_formatter_load_metric(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format) {
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return 1;
@@ -255,3 +255,4 @@ int taos_metric_formatter_load_metrics(taos_metric_formatter_t *self, taos_map_t
   }
   return r;
 }
+*/

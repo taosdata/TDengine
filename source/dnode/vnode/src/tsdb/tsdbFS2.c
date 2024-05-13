@@ -20,7 +20,7 @@
 
 #define BLOCK_COMMIT_FACTOR 3
 
-extern void remove_file(const char *fname, bool last_level);
+extern void remove_file(const char *fname);
 
 #define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
 #define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
@@ -327,6 +327,7 @@ static int32_t abort_edit(STFileSystem *fs) {
   } else if (fs->etype == TSDB_FEDIT_MERGE) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   } else {
+    tsdbError("vgId:%d %s failed since invalid etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
     ASSERT(0);
   }
 
@@ -355,17 +356,32 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
 
   // check file existence
   if (!taosCheckExistFile(fobj->fname)) {
-    if (tsS3Enabled) {
-      const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
-      long        s3_size = s3Size(object_name);
-      if (s3_size > 0) {
-        return 0;
+    bool found = false;
+
+    if (tsS3Enabled && fobj->f->lcn > 1) {
+      char fname1[TSDB_FILENAME_LEN];
+      tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
+      if (!taosCheckExistFile(fname1)) {
+        code = TSDB_CODE_FILE_CORRUPTED;
+        tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fname1);
+        return code;
       }
+
+      found = true;
+      /*
+        const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+        long        s3_size = s3Size(object_name);
+        if (s3_size > 0) {
+          return 0;
+        }
+      */
     }
 
-    code = TSDB_CODE_FILE_CORRUPTED;
-    tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fobj->fname);
-    return code;
+    if (!found) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      tsdbError("vgId:%d %s failed since file:%s does not exist", TD_VID(fs->tsdb->pVnode), __func__, fobj->fname);
+      return code;
+    }
   }
 
   {  // TODO: check file size
@@ -530,9 +546,9 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
       if (taosIsDir(file->aname)) continue;
 
       if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL &&
-          strncmp(file->aname + strlen(file->aname) - 3, ".cp", 3)) {
-        int32_t nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
-        remove_file(file->aname, nlevel > 1 && file->did.level == nlevel - 1);
+          strncmp(file->aname + strlen(file->aname) - 3, ".cp", 3) &&
+          strncmp(file->aname + strlen(file->aname) - 5, ".data", 5)) {
+        remove_file(file->aname);
       }
     }
 
@@ -882,6 +898,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // commit
   code = commit_edit(fs);
+  ASSERT(code == 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule merge
@@ -900,57 +917,28 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         continue;
       }
 
-      bool    skipMerge = false;
+      // bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
       if (numFile >= sttTrigger && (!fset->mergeScheduled)) {
-        // launch merge
-        {
-          extern int8_t  tsS3Enabled;
-          extern int32_t tsS3UploadDelaySec;
-          long           s3Size(const char *object_name);
-          int32_t        nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
-          if (tsS3Enabled && nlevel > 1) {
-            STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-            if (fobj && fobj->f->did.level == nlevel - 1) {
-              // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
-              const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+        code = tsdbTFileSetOpenChannel(fset);
+        TSDB_CHECK_CODE(code, lino, _exit);
 
-              if (taosCheckExistFile(fobj->fname)) {
-                int32_t now = taosGetTimestampSec();
-                int32_t mtime = 0;
-                taosStatFile(fobj->fname, NULL, &mtime, NULL);
-                if (mtime < now - tsS3UploadDelaySec) {
-                  skipMerge = true;
-                }
-              } else /* if (s3Size(object_name) > 0) */ {
-                skipMerge = true;
-              }
-            }
-            // new fset can be written with ts data
-          }
+        SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
+        if (arg == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        if (!skipMerge) {
-          code = tsdbTFileSetOpenChannel(fset);
-          TSDB_CHECK_CODE(code, lino, _exit);
+        arg->tsdb = fs->tsdb;
+        arg->fid = fset->fid;
 
-          SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
-          if (arg == NULL) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-
-          arg->tsdb = fs->tsdb;
-          arg->fid = fset->fid;
-
-          code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree,
-                             arg, NULL);
-          TSDB_CHECK_CODE(code, lino, _exit);
-          fset->mergeScheduled = true;
-        }
+        code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg,
+                           NULL);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        fset->mergeScheduled = true;
       }
 
-      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR && !skipMerge) {
+      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
         tsdbFSSetBlockCommit(fset, true);
       } else {
         tsdbFSSetBlockCommit(fset, false);
@@ -987,11 +975,11 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->tsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
-    tsem_post(&fs->canEdit);
+    tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
+  tsem_post(&fs->canEdit);
   return code;
 }
 

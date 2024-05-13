@@ -77,7 +77,6 @@ static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock*
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
-static void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
 static int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
@@ -303,6 +302,12 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
     pInput->colDataSMAIsSet = false;
 
     SExprInfo* pOneExpr = &pExprSup->pExprInfo[i];
+    bool hasPk = pOneExpr->pExpr->nodeType == QUERY_NODE_FUNCTION && pOneExpr->pExpr->_function.pFunctNode->hasPk;
+    pCtx[i].hasPrimaryKey = hasPk;
+
+    int16_t tsParamIdx = (!hasPk) ? pOneExpr->base.numOfParams - 1 : pOneExpr->base.numOfParams - 2;
+    int16_t pkParamIdx = pOneExpr->base.numOfParams - 1;
+
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
@@ -315,9 +320,13 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
 
         // NOTE: the last parameter is the primary timestamp column
         // todo: refactor this
-        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
+        
+        if (fmIsImplicitTsFunc(pCtx[i].functionId) && (j == tsParamIdx)) {
           pInput->pPTS = pInput->pData[j];  // in case of merge function, this is not always the ts column data.
         }
+        if (hasPk && (j == pkParamIdx)) {
+          pInput->pPrimaryKey = pInput->pData[j];
+        } 
         ASSERT(pInput->pData[j] != NULL);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.

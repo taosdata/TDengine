@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define CHECK_DOWNSTREAM_INTERVAL      100
+#define CHECK_RSP_CHECK_INTERVAL       300
 #define LAUNCH_HTASK_INTERVAL          100
 #define WAIT_FOR_MINIMAL_INTERVAL      100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK  40
@@ -69,6 +69,7 @@ typedef struct {
   int64_t chkpId;
   char*   dbPrefixPath;
 } SStreamTaskSnap;
+
 struct STokenBucket {
   int32_t numCapacity;         // total capacity, available token per second
   int32_t numOfToken;          // total available tokens
@@ -87,6 +88,15 @@ struct SStreamQueue {
   int8_t      status;
 };
 
+struct SStreamQueueItem {
+  int8_t type;
+};
+
+typedef enum {
+  EXEC_CONTINUE = 0x0,
+  EXEC_AFTER_IDLE = 0x1,
+} EExtractDataCode;
+
 extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
@@ -94,6 +104,8 @@ extern int32_t taskDbWrapperId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
+
+void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
 void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
@@ -116,7 +128,9 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
 int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
-void    streamTaskSetCheckpointFailedId(SStreamTask* pTask);
+int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
+
+void    streamTaskSetFailedCheckpointId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskGetTaskId(const SStreamTask* pTask);
@@ -125,7 +139,7 @@ void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
-int32_t           streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                               int32_t* blockSize);
 int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
@@ -143,19 +157,15 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 void streamMetaRemoveDB(void* arg, char* key);
 
-typedef enum UPLOAD_TYPE {
-  UPLOAD_DISABLE = -1,
-  UPLOAD_S3 = 0,
-  UPLOAD_RSYNC = 1,
-} UPLOAD_TYPE;
+typedef enum ECHECKPOINT_BACKUP_TYPE {
+  DATA_UPLOAD_DISABLE = -1,
+  DATA_UPLOAD_S3 = 0,
+  DATA_UPLOAD_RSYNC = 1,
+} ECHECKPOINT_BACKUP_TYPE;
 
-UPLOAD_TYPE getUploadType();
-int         uploadCheckpoint(char* id, char* path);
-int         downloadCheckpoint(char* id, char* path);
-int         deleteCheckpoint(char* id);
-int         deleteCheckpointFile(char* id, char* name);
-int         downloadCheckpointByName(char* id, char* fname, char* dstName);
+ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
+int32_t streamTaskDownloadCheckpointData(char* id, char* path);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
 

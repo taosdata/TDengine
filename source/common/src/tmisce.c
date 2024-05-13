@@ -17,6 +17,8 @@
 #include "tmisce.h"
 #include "tglobal.h"
 #include "tjson.h"
+#include "tdatablock.h"
+
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
@@ -70,6 +72,7 @@ void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
     tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
   }
 }
+
 void epAssign(SEp* pDst, SEp* pSrc) {
   if (pSrc == NULL || pDst == NULL) {
     return;
@@ -78,6 +81,7 @@ void epAssign(SEp* pDst, SEp* pSrc) {
   tstrncpy(pDst->fqdn, pSrc->fqdn, tListLen(pSrc->fqdn));
   pDst->port = pSrc->port;
 }
+
 void epsetSort(SEpSet* pDst) {
   if (pDst->numOfEps <= 1) {
     return;
@@ -95,10 +99,10 @@ void epsetSort(SEpSet* pDst) {
       SEp* s = &pDst->eps[j + 1];
       int  cmp = strncmp(f->fqdn, s->fqdn, sizeof(f->fqdn));
       if (cmp > 0 || (cmp == 0 && f->port > s->port)) {
-        SEp ep = {0};
-        epAssign(&ep, f);
+        SEp ep1 = {0};
+        epAssign(&ep1, f);
         epAssign(f, s);
-        epAssign(s, &ep);
+        epAssign(s, &ep1);
       }
     }
   }
@@ -125,6 +129,34 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   taosCorEndRead(&pEpSet->version);
 
   return ep;
+}
+
+int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t bufLen) {
+  int len = snprintf(pBuf, bufLen, "epset:{");
+  if (len < 0) {
+    return -1;
+  }
+
+  for (int _i = 0; (_i < pEpSet->numOfEps) && (bufLen > len); _i++) {
+    int32_t ret = 0;
+    if (_i == pEpSet->numOfEps - 1) {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    } else {
+      ret = snprintf(pBuf + len, bufLen - len, "%d. %s:%d, ", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
+    }
+
+    if (ret < 0) {
+      return -1;
+    }
+
+    len += ret;
+  }
+
+  if (len < bufLen) {
+    /*len += */snprintf(pBuf + len, bufLen - len, "}, inUse:%d", pEpSet->inUse);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
@@ -184,5 +216,45 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 
   *pMsg = pCont;
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
+  SConfig*     pConf = taosGetCfg();
+  int32_t      numOfRows = 0;
+  int32_t      col = startCol;
+  SConfigItem* pItem = NULL;
+
+  blockDataEnsureCapacity(pBlock, cfgGetSize(pConf));
+  SConfigIter* pIter = cfgCreateIter(pConf);
+
+  while ((pItem = cfgNextIter(pIter)) != NULL) {
+    col = startCol;
+
+    // GRANT_CFG_SKIP;
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, name, false);
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t valueLen = 0;
+    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    varDataSetLen(value, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, value, false);
+
+    char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    varDataSetLen(scope, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    colDataSetVal(pColInfo, numOfRows, scope, false);
+
+    numOfRows++;
+  }
+
+  pBlock->info.rows = numOfRows;
+
+  cfgDestroyIter(pIter);
   return TSDB_CODE_SUCCESS;
 }

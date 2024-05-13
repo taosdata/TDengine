@@ -50,49 +50,16 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
 
   streamTaskOpenAllUpstreamInput(pTask);
 
-  STaskId taskId = {0};
-  if (pTask->info.fillHistory) {
-    taskId = replaceStreamTaskId(pTask);
+  code = tqExpandStreamTask(pTask, pSnode->pMeta, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
-
-  pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);
-  if (pTask->pState == NULL) {
-    sndError("s-task:%s failed to open state for task", pTask->id.idStr);
-    return -1;
-  } else {
-    sndDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
-  }
-
-  if (pTask->info.fillHistory) {
-    restoreStreamTaskId(pTask, &taskId);
-  }
-
-  int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
-  SReadHandle handle = {
-      .checkpointId = pTask->chkInfo.checkpointId,
-      .vnode = NULL,
-      .numOfVgroups = numOfVgroups,
-      .pStateBackend = pTask->pState,
-      .fillHistory = pTask->info.fillHistory,
-      .winRange = pTask->dataRange.window,
-  };
-  initStreamStateAPI(&handle.api);
-
-  pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, SNODE_HANDLE, pTask->id.taskId);
-  ASSERT(pTask->exec.pExecutor);
-  qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
-  // checkpoint ver is the kept version, handled data should be the next version.
-  if (pTask->chkInfo.checkpointId != 0) {
-    pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
-    pChkInfo->processedVer = pChkInfo->checkpointVer;
-    sndInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " nextProcessVer:%" PRId64,
-            pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
-  }
+  tqSetRestoreVersionInfo(pTask);
 
   char* p = streamTaskGetStatus(pTask)->name;
   if (pTask->info.fillHistory) {
@@ -119,11 +86,6 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pSnode->path = taosStrdup(path);
-  if (pSnode->path == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto FAIL;
-  }
 
   pSnode->msgCb = pOption->msgCb;
   pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
@@ -132,9 +94,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     goto FAIL;
   }
 
-  if (streamMetaLoadAllTasks(pSnode->pMeta) < 0) {
-    goto FAIL;
-  }
+  streamMetaLoadAllTasks(pSnode->pMeta);
 
   stopRsync();
   startRsync();
@@ -142,7 +102,6 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   return pSnode;
 
 FAIL:
-  taosMemoryFree(pSnode->path);
   taosMemoryFree(pSnode);
   return NULL;
 }
@@ -158,7 +117,6 @@ void sndClose(SSnode *pSnode) {
   streamMetaNotifyClose(pSnode->pMeta);
   streamMetaCommit(pSnode->pMeta);
   streamMetaClose(pSnode->pMeta);
-  taosMemoryFree(pSnode->path);
   taosMemoryFree(pSnode);
 }
 

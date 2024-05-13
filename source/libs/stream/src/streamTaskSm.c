@@ -80,11 +80,11 @@ static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEv
 }
 
 int32_t streamTaskInitStatus(SStreamTask* pTask) {
-  pTask->execInfo.init = taosGetTimestampMs();
-
+  pTask->execInfo.checkTs = taosGetTimestampMs();
   stDebug("s-task:%s start init, and check downstream tasks, set the init ts:%" PRId64, pTask->id.idStr,
-          pTask->execInfo.init);
-  streamTaskCheckDownstream(pTask);
+          pTask->execInfo.checkTs);
+
+  streamTaskSendCheckMsg(pTask);
   return 0;
 }
 

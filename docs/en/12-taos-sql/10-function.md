@@ -503,38 +503,38 @@ TO_CHAR(ts, format_str_literal)
 
 **Supported Formats**
 
-| **Format** | **Comment**| **example** |
-| --- | --- | --- |
-|AM,am,PM,pm| Meridiem indicator(without periods) | 07:00:00am|
-|A.M.,a.m.,P.M.,p.m.| Meridiem indicator(with periods)| 07:00:00a.m.|
-|YYYY,yyyy|year, 4 or more digits| 2023-10-10|
-|YYY,yyy| year, last 3 digits| 023-10-10|
-|YY,yy| year, last 2 digits| 23-10-10|
-|Y,y| year, last digit| 3-10-10|
-|MONTH|full uppercase of month| 2023-JANUARY-01|
-|Month|full capitalized month| 2023-January-01|
-|month|full lowercase of month| 2023-january-01|
-|MON| abbreviated uppercase of month(3 char)| JAN, SEP|
-|Mon| abbreviated capitalized month| Jan, Sep|
-|mon|abbreviated lowercase of month| jan, sep|
-|MM,mm|month number 01-12|2023-01-01|
-|DD,dd|month day, 01-31||
-|DAY|full uppercase of week day|MONDAY|
-|Day|full capitalized week day|Monday|
-|day|full lowercase of week day|monday|
-|DY|abbreviated uppercase of week day|MON|
-|Dy|abbreviated capitalized week day|Mon|
-|dy|abbreviated lowercase of week day|mon|
-|DDD|year day, 001-366||
-|D,d|week day number, 1-7, Sunday(1) to Saturday(7)||
-|HH24,hh24|hour of day, 00-23|2023-01-30 23:59:59|
-|hh12,HH12, hh, HH| hour of day, 01-12|2023-01-30 12:59:59PM|
-|MI,mi|minute, 00-59||
-|SS,ss|second, 00-59||
-|MS,ms|milli second, 000-999||
-|US,us|micro second, 000000-999999||
-|NS,ns|nano second, 000000000-999999999||
-|TZH,tzh|time zone hour|2023-01-30 11:59:59PM +08|
+| **Format**          | **Comment**                                    | **example**               |
+| ------------------- | ---------------------------------------------- | ------------------------- |
+| AM,am,PM,pm         | Meridiem indicator(without periods)            | 07:00:00am                |
+| A.M.,a.m.,P.M.,p.m. | Meridiem indicator(with periods)               | 07:00:00a.m.              |
+| YYYY,yyyy           | year, 4 or more digits                         | 2023-10-10                |
+| YYY,yyy             | year, last 3 digits                            | 023-10-10                 |
+| YY,yy               | year, last 2 digits                            | 23-10-10                  |
+| Y,y                 | year, last digit                               | 3-10-10                   |
+| MONTH               | full uppercase of month                        | 2023-JANUARY-01           |
+| Month               | full capitalized month                         | 2023-January-01           |
+| month               | full lowercase of month                        | 2023-january-01           |
+| MON                 | abbreviated uppercase of month(3 char)         | JAN, SEP                  |
+| Mon                 | abbreviated capitalized month                  | Jan, Sep                  |
+| mon                 | abbreviated lowercase of month                 | jan, sep                  |
+| MM,mm               | month number 01-12                             | 2023-01-01                |
+| DD,dd               | month day, 01-31                               |                           |
+| DAY                 | full uppercase of week day                     | MONDAY                    |
+| Day                 | full capitalized week day                      | Monday                    |
+| day                 | full lowercase of week day                     | monday                    |
+| DY                  | abbreviated uppercase of week day              | MON                       |
+| Dy                  | abbreviated capitalized week day               | Mon                       |
+| dy                  | abbreviated lowercase of week day              | mon                       |
+| DDD                 | year day, 001-366                              |                           |
+| D,d                 | week day number, 1-7, Sunday(1) to Saturday(7) |                           |
+| HH24,hh24           | hour of day, 00-23                             | 2023-01-30 23:59:59       |
+| hh12,HH12, hh, HH   | hour of day, 01-12                             | 2023-01-30 12:59:59PM     |
+| MI,mi               | minute, 00-59                                  |                           |
+| SS,ss               | second, 00-59                                  |                           |
+| MS,ms               | milli second, 000-999                          |                           |
+| US,us               | micro second, 000000-999999                    |                           |
+| NS,ns               | nano second, 000000000-999999999               |                           |
+| TZH,tzh             | time zone hour                                 | 2023-01-30 11:59:59PM +08 |
 
 **More explanations**:
 - The output format of `Month`, `Day` are left aligined, like`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, `September` is the longest, no paddings. Week days are slimilar.
@@ -952,9 +952,10 @@ FIRST(expr)
 
 **More explanation**:
 
-- FIRST(\*) can be used to get the first non-null value of all columns
+- FIRST(\*) can be used to get the first non-null value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - NULL will be returned if all the values of the specified column are all NULL
 - A result will NOT be returned if all the columns in the result set are all NULL
+- For a table with composite primary key, the data with the smallest primary key value is returned.
 
 ### INTERP
 
@@ -988,6 +989,7 @@ ignore_null_values: {
 - `INTERP` can be applied to supertable by interpolating primary key sorted data of all its childtables. It can also be used with `partition by tbname` when applied to supertable to generate interpolation on each single timeline.
 - Pseudocolumn `_irowts` can be used along with `INTERP` to return the timestamps associated with interpolation points(support after version 3.0.2.0).
 - Pseudocolumn `_isfilled` can be used along with `INTERP` to indicate whether the results are original records or data points generated by interpolation algorithm(support after version 3.0.3.0).
+- For a table with composite primary key, onley the data with the smallest primary key value is used to generate interpolation.
 
 **Example**
 
@@ -1014,9 +1016,10 @@ LAST(expr)
 
 **More explanation**:
 
-- LAST(\*) can be used to get the last non-NULL value of all columns
+- LAST(\*) can be used to get the last non-NULL value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - If the values of a column in the result set are all NULL, NULL is returned for that column; if all columns in the result are all NULL, no result will be returned.
 - When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
+- For a table with composite primary key, the data with the largest primary key value is returned.
 
 
 ### LAST_ROW
@@ -1035,8 +1038,10 @@ LAST_ROW(expr)
 
 **More explanations**:
 
+- LAST_ROW(\*) can be used to get the last value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
 - When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
 - Can't be used with `INTERVAL`.
+- Like `LAST`, the data with the largest primary key value is returned for a table with composite primary key.
 
 ### MAX
 
@@ -1143,7 +1148,7 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword.
+**Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword. For a table with composite primary key, only the data with the smallest primary key value is returned.
 
 **Return value type**:Same as the data type of the column being operated upon
 
@@ -1189,7 +1194,7 @@ ignore_negative: {
 }
 ```
 
-**Description**: The derivative of a specific column. The time rage can be specified by parameter `time_interval`, the minimum allowed time range is 1 second (1s); the value of `ignore_negative` can be 0 or 1, 1 means negative values are ignored.
+**Description**: The derivative of a specific column. The time rage can be specified by parameter `time_interval`, the minimum allowed time range is 1 second (1s); the value of `ignore_negative` can be 0 or 1, 1 means negative values are ignored. For tables with composite primary key, the data with the smallest primary key value is used to calculate the derivative.
 
 **Return value type**: DOUBLE
 
@@ -1212,7 +1217,7 @@ ignore_negative: {
 }
 ```
 
-**Description**: The different of each row with its previous row for a specific column. `ignore_negative` can be specified as 0 or 1, the default value is 1 if it's not specified. `1` means negative values are ignored.
+**Description**: The different of each row with its previous row for a specific column. `ignore_negative` can be specified as 0 or 1, the default value is 1 if it's not specified. `1` means negative values are ignored. For tables with composite primary key, the data with the smallest primary key value is used to calculate the difference.
 
 **Return value type**:Same as the data type of the column being operated upon
 
@@ -1232,7 +1237,7 @@ ignore_negative: {
 IRATE(expr)
 ```
 
-**Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values.
+**Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values. For tables with composite primary key, the data with the smallest primary key value is used to calculate the rate.
 
 **Return value type**: DOUBLE
 
@@ -1322,7 +1327,7 @@ STATEDURATION(expr, oper, val, unit)
 TWA(expr)
 ```
 
-**Description**: Time weighted average on a specific column within a time range
+**Description**: Time weighted average on a specific column within a time range. For tables with composite primary key, the data with the smallest primary key value is used to calculate the average.
 
 **Return value type**: DOUBLE
 

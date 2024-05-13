@@ -109,6 +109,13 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# xz
+#cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
+#lzma2
+cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
+
 if (${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
         cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -126,6 +133,8 @@ else()
         endif(${BUILD_WITH_ROCKSDB})
     endif()
 endif()
+
+#cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 #libuv
 if(${BUILD_WITH_UV})
@@ -241,6 +250,10 @@ target_include_directories(
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
+if(${TD_DARWIN})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
+endif(${TD_DARWIN})
 add_subdirectory(zlib EXCLUDE_FROM_ALL)
 target_include_directories(
     zlibstatic
@@ -253,6 +266,13 @@ target_include_directories(
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
 )
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
+
+# add_subdirectory(xz EXCLUDE_FROM_ALL)
+# target_include_directories(
+#     xz
+#     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/xz 
+#     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/xz 
+# )
 
 # leveldb
 if(${BUILD_WITH_LEVELDB})
@@ -388,7 +408,6 @@ endif()
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
     MESSAGE("build with s3: ${BUILD_WITH_S3}")
-
 # cos
 elseif(${BUILD_WITH_COS})
   if(${TD_LINUX})
@@ -426,6 +445,7 @@ if(${BUILD_PTHREAD})
     add_library(pthread INTERFACE)
     target_link_libraries(pthread INTERFACE libpthreadVC3)
 endif()
+
 
 # jemalloc
 if(${JEMALLOC_ENABLED})

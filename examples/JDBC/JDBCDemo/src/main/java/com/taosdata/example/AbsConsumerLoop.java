@@ -48,9 +48,9 @@ this.consumer = new TaosConsumer<>(config);
 
     public void pollData() throws SQLException {
         try {
-            consumer.subscribe(topics);
 
 // ANCHOR: poll_data
+consumer.subscribe(topics);
 while (!shutdown.get()) {
     ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
     for (ConsumerRecord<ResultBean> record : records) {

@@ -14,6 +14,7 @@
  */
 
 #include "executorInt.h"
+#include "geosWrapper.h"
 #include "filter.h"
 #include "functionMgt.h"
 #include "querynodes.h"
@@ -548,7 +549,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   if (!pInfo->pCur || !pInfo->pSchema) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    qError("sysTableScanUserCols failed since %s", terrstr(terrno));
+    qError("sysTableScanUserCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
     return NULL;
@@ -719,7 +720,6 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
 
-  bool blockFull = false;
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
       continue;
@@ -742,25 +742,19 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
-      blockFull = true;
-    } else {
-      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                       dataBlock);
-    }
-
-    pAPI->metaReaderFn.clearReader(&smrSuperTable);
-
-    if (blockFull || numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
         pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
         break;
       }
-
-      blockFull = false;
+    } else {
+      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                       dataBlock);
     }
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
 
   if (numOfRows > 0) {
@@ -828,6 +822,8 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -871,6 +867,30 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, int32_t* nOutput) {
+  int32_t code = 0;
+  char*   outputWKT = NULL;
+
+  if (nGeom == 0) {
+    if (!(*output = taosStrdup(""))) code = TSDB_CODE_OUT_OF_MEMORY;
+    *nOutput = 0;
+    return code;
+  }
+
+  if (TSDB_CODE_SUCCESS != (code = initCtxAsText()) ||
+      TSDB_CODE_SUCCESS != (code = doAsText(iGeom, nGeom, &outputWKT))) {
+    qError("geo text for systable failed:%s", getThreadLocalGeosCtx()->errMsg);
+    *output = NULL;
+    *nOutput = 0;
+    return code;
+  }
+
+  *output = outputWKT;
+  *nOutput = strlen(outputWKT);
+
+  return code;
+}
+
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock) {
@@ -906,13 +926,13 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     char tagTypeStr[VARSTR_HEADER_SIZE + 32];
     int  tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
-    if (tagType == TSDB_DATA_TYPE_VARCHAR) {
-      tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
-                            (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
-    } else if (tagType == TSDB_DATA_TYPE_NCHAR) {
+    if (tagType == TSDB_DATA_TYPE_NCHAR) {
       tagTypeLen += sprintf(
           varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
           (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_VAR_DATA_TYPE(tagType)) {
+      tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+                            (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
     colDataSetVal(pColInfoData, numOfRows, (char*)tagTypeStr, false);
@@ -927,7 +947,13 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     } else {
       bool exist = tTagGet((STag*)smrChildTable->me.ctbEntry.pTags, &tagVal);
       if (exist) {
-        if (IS_VAR_DATA_TYPE(tagType)) {
+        if (tagType == TSDB_DATA_TYPE_GEOMETRY) {
+          sysTableGetGeomText(tagVal.pData, tagVal.nData, &tagData, &tagLen);
+        } else if (tagType == TSDB_DATA_TYPE_VARBINARY) {
+          if (taosAscii2Hex(tagVal.pData, tagVal.nData, (void**)&tagData, &tagLen) < 0) {
+            qError("varbinary for systable failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+          }
+        } else if (IS_VAR_DATA_TYPE(tagType)) {
           tagData = (char*)tagVal.pData;
           tagLen = tagVal.nData;
         } else {
@@ -950,13 +976,17 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
         tagVarChar = taosMemoryCalloc(1, bufSize + 1);
         int32_t len = -1;
-        convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        if (tagLen > 0)
+          convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
+        else
+          len = 0;
         varDataSetLen(tagVarChar, len);
       }
     }
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     colDataSetVal(pColInfoData, numOfRows, tagVarChar,
                   (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
+    if (tagType == TSDB_DATA_TYPE_GEOMETRY || tagType == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(tagData);
     taosMemoryFree(tagVarChar);
     ++numOfRows;
   }
@@ -1369,6 +1399,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
         pInfo->pCur = NULL;
         T_LONG_JMP(pTaskInfo->env, terrno);
+      }
+
+      if (isTsmaResSTb(mr.me.name)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
       }
 
       // number of columns
@@ -2293,6 +2328,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->colList->colId = 1;
   pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
   pCond->colList->bytes = sizeof(TSKEY);
+  pCond->colList->pk = 0;
 
   pCond->pSlotList[0] = 0;
 

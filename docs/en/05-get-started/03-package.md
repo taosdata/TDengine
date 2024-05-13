@@ -35,6 +35,10 @@ gcc version - 9.3.1 or above;
 
 ## Installation
 
+**Note**
+
+Since TDengine 3.0.6.0, we don't provide standalone taosTools pacakge for downloading. However, all the tools included in the taosTools pacakge can be found in TDengine-server pacakge.
+
 <Tabs>
 <TabItem label=".deb" value="debinst">
 
@@ -119,11 +123,17 @@ This installation method is supported only for Debian and Ubuntu.
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+**Note**
+- TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+- Since TDengine 3.1.0.0, we wonly provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
+
+Follow the steps below:
 
 1. Download the Windows installation package.
    <PkgListV3 type={3}/>
 2. Run the downloaded package to install TDengine.
+Note: From version 3.0.1.7, only TDengine client pacakge can be downloaded for Windows platform. If you want to run TDengine servers on Windows, please contact our sales team to upgrade to TDengine Enterprise. 
+
 
 </TabItem>
 <TabItem label="macOS" value="macos">

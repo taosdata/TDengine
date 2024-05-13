@@ -138,7 +138,7 @@ typedef struct SElapsedInfo {
 
 typedef struct STwaInfo {
   double      dOutput;
-  bool        isNull;
+  int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
@@ -269,6 +269,12 @@ typedef struct SRateInfo {
   double lastValue;
   TSKEY  lastKey;
   int8_t hasResult;  // flag to denote has value
+
+  char* firstPk;
+  char* lastPk;
+  int8_t pkType;
+  int32_t pkBytes;
+  char pkData[];
 } SRateInfo;
 
 typedef struct SGroupKeyInfo {
@@ -417,6 +423,225 @@ typedef struct SGroupKeyInfo {
     (_p).key = (_k);                \
     (_p).val = (_v);                \
   } while (0)
+
+int32_t funcInputUpdate(SqlFunctionCtx* pCtx) {
+  SFuncInputRowIter* pIter = &pCtx->rowIter;
+
+  if (!pCtx->bInputFinished) {
+    pIter->pInput = &pCtx->input;
+    pIter->tsList = (TSKEY*)pIter->pInput->pPTS->pData;
+    pIter->pDataCol = pIter->pInput->pData[0];
+    pIter->pPkCol = pIter->pInput->pPrimaryKey;
+    pIter->rowIndex = pIter->pInput->startRowIndex;
+    pIter->inputEndIndex = pIter->rowIndex + pIter->pInput->numOfRows - 1;
+    pIter->pSrcBlock = pCtx->pSrcBlock;
+    if (!pIter->hasGroupId || pIter->groupId != pIter->pSrcBlock->info.id.groupId) {
+      pIter->hasGroupId = true;
+      pIter->groupId = pIter->pSrcBlock->info.id.groupId;
+      pIter->hasPrev = false;
+    }
+  } else {
+    pIter->finalRow = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+bool funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
+  if (pIter->finalRow) {
+    if (pIter->hasPrev) {
+      pRow->ts = pIter->prevBlockTsEnd;
+      pRow->isDataNull = pIter->prevIsDataNull;
+      pRow->pData = pIter->pPrevData;
+      pRow->block = pIter->pPrevRowBlock;
+      pRow->rowIndex = 0;
+      
+      pIter->hasPrev = false;
+      return true;            
+    } else {
+      return false;
+    }
+  }
+  if (pIter->hasPrev) {
+    if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
+      blockDataDestroy(pIter->pPrevRowBlock);
+      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
+
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
+      memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
+
+      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
+
+      pIter->hasPrev = true;
+      return false;
+    } else {
+      int32_t idx = pIter->rowIndex;
+      while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
+        ++idx;
+      }
+      pRow->ts = pIter->prevBlockTsEnd;
+      if (idx == pIter->pInput->startRowIndex) {
+        pRow->isDataNull = pIter->prevIsDataNull;
+        pRow->pData = pIter->pPrevData;
+        pRow->block = pIter->pPrevRowBlock;
+        pRow->rowIndex = 0;
+      } else {
+        pRow->ts = pIter->tsList[idx - 1];
+        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx - 1);
+        pRow->pData = colDataGetData(pIter->pDataCol, idx - 1);
+        pRow->pPk = colDataGetData(pIter->pPkCol, idx - 1);
+        pRow->block = pIter->pSrcBlock;
+        pRow->rowIndex = idx - 1;
+      }
+      pIter->hasPrev = false;
+      pIter->rowIndex = idx;
+      return true;
+    }
+  } else {
+    TSKEY tsEnd = pIter->tsList[pIter->inputEndIndex];
+    if (pIter->tsList[pIter->rowIndex] != tsEnd) {
+      int32_t idx = pIter->rowIndex;
+      while (pIter->tsList[idx + 1] == pIter->tsList[pIter->rowIndex]) {
+        ++idx;
+      }
+      pRow->ts = pIter->tsList[idx];
+      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, idx);
+      pRow->pData = colDataGetData(pIter->pDataCol, idx);
+      pRow->pPk = colDataGetData(pIter->pPkCol, idx);
+      pRow->block = pIter->pSrcBlock;
+
+      pIter->rowIndex = idx + 1;
+      return true;
+    } else {
+      pIter->hasPrev = true;
+      pIter->prevBlockTsEnd = tsEnd;
+      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
+      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
+      memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex), pIter->pDataCol->info.bytes);
+      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
+      memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
+
+      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
+      return false;
+    }
+  }
+}
+
+static void forwardToNextDiffTsRow(SFuncInputRowIter* pIter, int32_t rowIndex) {
+  int32_t idx = rowIndex + 1;
+  while (idx <= pIter->inputEndIndex && pIter->tsList[idx] == pIter->tsList[rowIndex]) {
+    ++idx;
+  }
+  pIter->rowIndex = idx;
+}
+
+static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32_t rowIndex, bool setPk) {
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->ts = pIter->tsList[rowIndex];
+  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, rowIndex);
+  pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
+  pRow->pPk = setPk? colDataGetData(pIter->pPkCol, rowIndex):NULL;
+  pRow->block = pIter->pSrcBlock;
+  pRow->rowIndex = rowIndex;
+}
+
+bool funcInputGetNextRowAscPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
+  if (pIter->hasPrev) {
+    if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
+      pIter->hasPrev = true;
+      return false;
+    } else {
+      int32_t idx = pIter->rowIndex;
+      while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
+        ++idx;
+      }
+
+      pIter->hasPrev = false;
+      setInputRowInfo(pRow, pIter, idx, true);
+      forwardToNextDiffTsRow(pIter, idx);
+      return true;
+    }
+  } else {
+    if (pIter->rowIndex <= pIter->inputEndIndex) { 
+      setInputRowInfo(pRow, pIter, pIter->rowIndex, true);
+
+      TSKEY tsEnd = pIter->tsList[pIter->inputEndIndex];
+      if (pIter->tsList[pIter->rowIndex] != tsEnd) {
+        forwardToNextDiffTsRow(pIter, pIter->rowIndex);
+      } else {
+        pIter->rowIndex = pIter->inputEndIndex + 1;
+      }
+      return true;
+    } else {
+      TSKEY tsEnd = pIter->tsList[pIter->inputEndIndex];
+      pIter->hasPrev = true;
+      pIter->prevBlockTsEnd = tsEnd;
+      return false;
+    }
+  }
+}
+
+bool funcInputGetNextRowNoPk(SFuncInputRowIter *pIter, SFuncInputRow* pRow) {
+  if (pIter->rowIndex <= pIter->inputEndIndex) {
+    setInputRowInfo(pRow, pIter, pIter->rowIndex, false);
+    ++pIter->rowIndex;
+    return true;    
+  } else {
+    return false;    
+  }
+}
+
+bool funcInputGetNextRow(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+  SFuncInputRowIter* pIter = &pCtx->rowIter;
+  if (pCtx->hasPrimaryKey) {
+    if (pCtx->order == TSDB_ORDER_ASC) {
+      return funcInputGetNextRowAscPk(pIter, pRow);
+    } else {
+      return funcInputGetNextRowDescPk(pIter, pRow);
+    }
+  } else {
+    return funcInputGetNextRowNoPk(pIter, pRow);
+  }
+}
+
+// This function append the selectivity to subsidiaries function context directly, without fetching data
+// from intermediate disk based buf page
+void appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int32_t rowIndex, int32_t pos) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
+  for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+
+    // get data from source col
+    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+
+    SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+
+    char* pData = colDataGetData(pSrcCol, rowIndex);
+
+    // append to dest col
+    int32_t dstSlotId = pc->pExpr->base.resSchema.slotId;
+
+    SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
+
+    if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
+      colDataSetNULL(pDstCol, pos);
+    } else {
+      colDataSetVal(pDstCol, pos, pData, false);
+    }
+  }
+}
+
+bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex, int32_t* nextFrom);
 
 static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
 
@@ -642,6 +867,12 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
 _sum_over:
+  if (numOfElem == 0) {
+    if (tsCountAlwaysReturnValue && pCtx->pExpr->pExpr->_function.pFunctNode->hasOriginalFunc &&
+        fmIsCountLikeFunc(pCtx->pExpr->pExpr->_function.pFunctNode->originalFuncId)) {
+      numOfElem = 1;
+    }
+  }
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
@@ -1223,6 +1454,12 @@ static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
 int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -1230,6 +1467,7 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
   SStddevRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) continue;
     char*       data = colDataGetData(pCol, i);
     SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
     stddevTransferInfo(pInputInfo, pInfo);
@@ -2087,7 +2325,31 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   return TSDB_CODE_SUCCESS;
 }
 
-EFuncDataRequired firstDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
+// TODO: change this function when block data info pks changed
+static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal, int32_t order) {
+  char numVal[8] = {0};
+  switch (pkType) {
+    case TSDB_DATA_TYPE_INT:
+      *(int32_t*)numVal = (int32_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *(uint32_t*)numVal = (uint32_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *(int64_t*)numVal = (int64_t)pVal->val;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *(uint64_t*)numVal = (uint64_t)pVal->val;
+      break;
+    default:
+      break;
+  }
+  char*         blockData = (IS_NUMERIC_TYPE(pkType)) ? (char*) numVal : (char*)pVal->pData;
+  __compar_fn_t fn = getKeyComparFunc(pkType, order);
+  return fn(pkData, blockData);
+}
+
+EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 
   // not initialized yet, data is required
@@ -2096,14 +2358,26 @@ EFuncDataRequired firstDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
   }
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
-  if (pResult->hasResult && pResult->ts <= pTimeWindow->skey) {
-    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  if (pResult->hasResult) {
+    if (pResult->pkBytes > 0) {
+      pResult->pkData = pResult->buf + pResult->bytes;
+    } else {
+      pResult->pkData = NULL;
+    }    
+    if (pResult->ts < pBlockInfo->window.skey) {
+      return FUNC_DATA_REQUIRED_NOT_LOAD;
+    } else if (pResult->ts == pBlockInfo->window.skey && pResult->pkData) {
+      if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 0, TSDB_ORDER_ASC) < 0) {
+        return FUNC_DATA_REQUIRED_NOT_LOAD;
+      }
+    }
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 }
 
-EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
+EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 
   // not initialized yet, data is required
@@ -2112,18 +2386,33 @@ EFuncDataRequired lastDynDataReq(void* pRes, STimeWindow* pTimeWindow) {
   }
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
-  if (pResult->hasResult && pResult->ts >= pTimeWindow->ekey) {
-    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  if (pResult->hasResult) {
+    if (pResult->pkBytes > 0) {
+      pResult->pkData = pResult->buf + pResult->bytes;
+    } else {
+      pResult->pkData = NULL;
+    }
+    if (pResult->ts > pBlockInfo->window.ekey) {
+      return FUNC_DATA_REQUIRED_NOT_LOAD;
+    } else if (pResult->ts == pBlockInfo->window.ekey && pResult->pkData) {
+      if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 1, TSDB_ORDER_DESC) < 0) {
+        return FUNC_DATA_REQUIRED_NOT_LOAD;
+      }
+    }
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 }
 
-int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + resBytes; }
+//TODO modify it to include primary key bytes
+int32_t getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes) { return sizeof(SFirstLastRes) + resBytes + pkBytes; }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = getFirstLastInfoSize(pNode->node.resType.bytes);
+  //TODO: change SFunctionNode to add pk info
+  int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
+  pEnv->calcMemSize = getFirstLastInfoSize(pNode->node.resType.bytes, pkBytes);
   return true;
 }
 
@@ -2177,7 +2466,7 @@ static int32_t firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowI
   return code;
 }
 
-static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t currentTs, int32_t type, char* pData) {
+static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t currentTs, char* pkData, int32_t type, char* pData) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -2186,6 +2475,14 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
   }
 
   memcpy(pInfo->buf, pData, pInfo->bytes);
+  if (pkData != NULL) {
+    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
+      pInfo->pkBytes = varDataTLen(pkData);
+    }
+    memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
+    pInfo->pkData = pInfo->buf + pInfo->bytes;
+  }
+
   pInfo->ts = currentTs;
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2211,6 +2508,15 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   if (IS_NULL_TYPE(pInputCol->info.type)) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pkCol = pInput->pPrimaryKey;
+  pInfo->pkType = -1;
+  __compar_fn_t  pkCompareFn = NULL;
+  if (pCtx->hasPrimaryKey) {
+    pInfo->pkType = pkCol->info.type;
+    pInfo->pkBytes = pkCol->info.bytes;
+    pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_ASC);
   }
 
   // All null data column, return directly.
@@ -2283,17 +2589,24 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   }
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+
+  int from = -1;
+  int32_t i = -1;
+  while (funcInputGetNextRowIndex(pInput, from, true, &i, &from)) {
     if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
       continue;
     }
 
     numOfElems++;
-
     char* data = colDataGetData(pInputCol, i);
+    char* pkData = NULL;
+    if (pCtx->hasPrimaryKey) {
+      pkData = colDataGetData(pkCol, i);
+    }
     TSKEY cts = pts[i];
-    if (pResInfo->numOfRes == 0 || pInfo->ts > cts) {
-      int32_t code = doSaveCurrentVal(pCtx, i, cts, pInputCol->info.type, data);
+    if (pResInfo->numOfRes == 0 || pInfo->ts > cts || 
+         (pInfo->ts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+      int32_t code = doSaveCurrentVal(pCtx, i, cts, pkData, pInputCol->info.type, data);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -2330,6 +2643,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SColumnInfoData* pkCol = pInput->pPrimaryKey;
+  pInfo->pkType = -1;
+  __compar_fn_t  pkCompareFn = NULL;
+  if (pCtx->hasPrimaryKey) {
+    pInfo->pkType = pkCol->info.type;
+    pInfo->pkBytes = pkCol->info.bytes;
+    pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_DESC);
+  }
+
   // All null data column, return directly.
   if (pInput->colDataSMAIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows) &&
       pInputCol->hasNull == true) {
@@ -2348,8 +2670,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
-  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first
-  //  function.
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
 #if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
@@ -2400,7 +2721,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
 #else
-  if (!pInputCol->hasNull) {
+
+// todo refactor
+  if (!pInputCol->hasNull && !pCtx->hasPrimaryKey) {
     numOfElems = 1;
 
     int32_t round = pInput->numOfRows >> 2;
@@ -2427,7 +2750,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
         char*   data = colDataGetData(pInputCol, chosen);
-        int32_t code = doSaveCurrentVal(pCtx, i, cts, type, data);
+        int32_t code = doSaveCurrentVal(pCtx, i, cts, NULL, type, data);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2438,7 +2761,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
         char*   data = colDataGetData(pInputCol, i);
-        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], NULL, type, data);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2446,16 +2769,22 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
     }
   } else {
-    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    int from = -1;
+    int32_t i = -1;
+    while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
       if (colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
         continue;
       }
 
       numOfElems++;
-
-      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
+      char* pkData = NULL;
+      if (pCtx->hasPrimaryKey) {
+        pkData = colDataGetData(pkCol, i);
+      }
+      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
+          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         char*   data = colDataGetData(pInputCol, i);
-        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], type, data);
+        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2475,7 +2804,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  //  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2483,14 +2811,19 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
   if (!pInput->hasResult) {
     return TSDB_CODE_FAILED;
   }
-
+  __compar_fn_t pkCompareFn = NULL;
+  if (pInput->pkData) {
+    pkCompareFn = getKeyComparFunc(pInput->pkType, (isFirst) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC);
+  }
   if (pOutput->hasResult) {
     if (isFirst) {
-      if (pInput->ts > pOutput->ts) {
+      if (pInput->ts > pOutput->ts ||
+          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
         return TSDB_CODE_FAILED;
       }
     } else {
-      if (pInput->ts < pOutput->ts) {
+      if (pInput->ts < pOutput->ts ||
+          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
         return TSDB_CODE_FAILED;
       }
     }
@@ -2499,8 +2832,14 @@ static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* p
   pOutput->isNull = pInput->isNull;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
+  pOutput->pkType = pInput->pkType;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
+  if (pInput->pkData) {
+    pOutput->pkBytes = pInput->pkBytes;
+    memcpy(pOutput->buf + pOutput->bytes, pInput->pkData, pOutput->pkBytes);
+    pOutput->pkData = pOutput->buf + pOutput->bytes;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2520,6 +2859,12 @@ static int32_t firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput
 static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuery) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -2535,7 +2880,13 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
     }
     char*          data = colDataGetData(pCol, i);
     SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
-    int32_t        code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
+    if (pCtx->hasPrimaryKey) {
+      pInputInfo->pkData = pInputInfo->buf + pInputInfo->bytes;
+    } else {
+      pInputInfo->pkData = NULL;
+    }
+
+    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2575,7 +2926,7 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-  int32_t resultBytes = getFirstLastInfoSize(pRes->bytes);
+  int32_t resultBytes = getFirstLastInfoSize(pRes->bytes, pRes->pkBytes);
 
   // todo check for failure
   char* res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
@@ -2613,6 +2964,8 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex, int64_t cts, SFirstLastRes* pInfo) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  SColumnInfoData* pkCol = pInput->pPrimaryKey;
+
 
   if (colDataIsNull_s(pInputCol, rowIndex)) {
     pInfo->isNull = true;
@@ -2626,6 +2979,14 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     memcpy(pInfo->buf, pData, pInfo->bytes);
   }
 
+  if (pCtx->hasPrimaryKey) {
+    char* pkData = colDataGetData(pkCol, rowIndex);
+    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
+      pInfo->pkBytes = varDataTLen(pkData);
+    }
+    memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
+    pInfo->pkData = pInfo->buf + pInfo->bytes;
+  }
   pInfo->ts = cts;
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2653,7 +3014,14 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(type)) {
     return TSDB_CODE_SUCCESS;
   }
-
+  SColumnInfoData* pkCol = pInput->pPrimaryKey;
+  pInfo->pkType = -1;
+  __compar_fn_t  pkCompareFn = NULL;
+  if (pCtx->hasPrimaryKey) {
+    pInfo->pkType = pkCol->info.type;
+    pInfo->pkBytes = pkCol->info.bytes;
+    pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_DESC);
+  }
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
 
@@ -2689,13 +3057,20 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 #else
 
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+  int from = -1;
+  int32_t i = -1;
+  while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
     bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
     char* data = isNull ? NULL : colDataGetData(pInputCol, i);
     TSKEY cts = pts[i];
 
     numOfElems++;
-    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+    char* pkData = NULL;
+    if (pCtx->hasPrimaryKey) {
+      pkData = colDataGetData(pkCol, i);
+    }
+    if (pResInfo->numOfRes == 0 || pInfo->ts < cts ||
+        (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
       int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2854,13 +3229,52 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
   return TSDB_CODE_SUCCESS;
 }
 
+//TODO: the primary key compare can be skipped for ordered pk if knonwn before
+//TODO: for desc ordered, pk shall select the smallest one for one ts. if across block boundaries.
+bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex, int32_t* nextFrom) {
+  if (pInput->pPrimaryKey == NULL) {
+    if (from == -1) {
+      from = pInput->startRowIndex;
+    } else if (from >= pInput->numOfRows + pInput->startRowIndex) {
+      return false;
+    }
+    *pRowIndex = from;
+    *nextFrom = from + 1;
+    return true;
+  } else {
+    if (from == -1) {
+      from = pInput->startRowIndex;
+    } else if (from >= pInput->numOfRows + pInput->startRowIndex) {
+      return false;
+    }
+    TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+    SColumnInfoData* pkCol = pInput->pPrimaryKey;
+    int8_t pkType = pkCol->info.type;
+    int32_t order = (firstOccur) ? TSDB_ORDER_ASC: TSDB_ORDER_DESC;
+    __compar_fn_t compareFunc = getKeyComparFunc(pkType, order);
+    int32_t select = from;
+    char* val = colDataGetData(pkCol, select);
+    while (from < pInput->numOfRows + pInput->startRowIndex - 1  &&  tsList[from + 1] == tsList[from]) {
+      char* val1 = colDataGetData(pkCol, from + 1);
+      if (compareFunc(val1, val) < 0)  {
+        select = from + 1;
+        val = val1;
+      }
+      from = from + 1;
+    }
+    *pRowIndex = select;
+    *nextFrom = from + 1;
+    return true;
+  }
+}
+
 int32_t diffFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-
   SColumnInfoData* pInputCol = pInput->pData[0];
+  int8_t inputType = pInputCol->info.type;
 
   TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
@@ -2869,36 +3283,44 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+  funcInputUpdate(pCtx);
+
+  SFuncInputRow row = {0};
+  while (funcInputGetNextRow(pCtx, &row)) {
     int32_t pos = startOffset + numOfElems;
 
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (row.isDataNull) {
       if (pDiffInfo->includeNull) {
         colDataSetNull_f_s(pOutput, pos);
+
+        // handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
+        }
 
         numOfElems += 1;
       }
       continue;
     }
 
-    char* pv = colDataGetData(pInputCol, i);
+    char* pv = row.pData;
 
     if (pDiffInfo->hasPrev) {
-      if (tsList[i] == pDiffInfo->prevTs) {
-        return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      if (row.ts == pDiffInfo->prevTs) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
       }
-      int32_t code = doHandleDiff(pDiffInfo, pInputCol->info.type, pv, pOutput, pos, tsList[i]);
+      int32_t code = doHandleDiff(pDiffInfo, inputType, pv, pOutput, pos, row.ts);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
       // handle selectivity
       if (pCtx->subsidiaries.num > 0) {
-        appendSelectivityValue(pCtx, i, pos);
+        appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
       }
-
+      
       numOfElems++;
     } else {
-      int32_t code = doSetPrevVal(pDiffInfo, pInputCol->info.type, pv, tsList[i]);
+      int32_t code = doSetPrevVal(pDiffInfo, inputType, pv, row.ts);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -3201,15 +3623,12 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
 int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   prepareBuf(pCtx);
 
-  SWinKey key;
+  SWinKey key = {0};
   if (pCtx->saveHandle.pBuf == NULL) {
-    SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
-    if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      int64_t skey = *(int64_t*)colDataGetData(pColInfo, rowIndex);
-
-      key.groupId = pSrcBlock->info.id.groupId;
-      key.ts = skey;
-    }
+    SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
+    ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    key.groupId = pSrcBlock->info.id.groupId;
+    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);;
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
@@ -3453,6 +3872,12 @@ static void spreadTransferInfo(SSpreadInfo* pInput, SSpreadInfo* pOutput) {
 int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -3461,6 +3886,7 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if(colDataIsNull_s(pCol, i)) continue;
     char*        data = colDataGetData(pCol, i);
     SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
     if (pInputInfo->hasResult) {
@@ -4189,6 +4615,11 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
 
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4198,6 +4629,7 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) continue;
     char*     data = colDataGetData(pCol, i);
     SHLLInfo* pInputInfo = (SHLLInfo*)varDataVal(data);
     hllTransferInfo(pInputInfo, pInfo);
@@ -5159,7 +5591,7 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   }
 
   STwaInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pInfo->isNull = false;
+  pInfo->numOfElems = 0;
   pInfo->p.key = INT64_MIN;
   pInfo->win = TSWINDOW_INITIALIZER;
   return true;
@@ -5183,49 +5615,44 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
-
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-
-  STwaInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  SPoint1*  last = &pInfo->p;
-  int32_t   numOfElems = 0;
+  STwaInfo*            pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SPoint1*             last = &pInfo->p;
 
   if (IS_NULL_TYPE(pInputCol->info.type)) {
-    pInfo->isNull = true;
+    pInfo->numOfElems = 0;
     goto _twa_over;
   }
 
-  int32_t i = pInput->startRowIndex;
+  funcInputUpdate(pCtx);
+  SFuncInputRow row = {0};
   if (pCtx->start.key != INT64_MIN && last->key == INT64_MIN) {
-    for (; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    while (funcInputGetNextRow(pCtx, &row)) {
+      if (row.isDataNull) {
         continue;
       }
 
-      last->key = tsList[i];
+      last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
 
       pInfo->dOutput += twa_get_area(pCtx->start, *last);
       pInfo->win.skey = pCtx->start.key;
-      numOfElems++;
-      i += 1;
+      pInfo->numOfElems++;
       break;
     }
   } else if (pInfo->p.key == INT64_MIN) {
-    for (; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    while (funcInputGetNextRow(pCtx, &row)) {
+      if (row.isDataNull) {
         continue;
       }
 
-      last->key = tsList[i];
+      last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
 
       pInfo->win.skey = last->key;
-      numOfElems++;
-      i += 1;
+      pInfo->numOfElems++;
       break;
     }
   }
@@ -5235,14 +5662,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   // calculate the value of
   switch (pInputCol->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t* val = (int8_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5254,14 +5680,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t* val = (int16_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(int16_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5272,14 +5697,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      int32_t* val = (int32_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(int32_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5290,14 +5714,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t* val = (int64_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(int64_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5308,14 +5731,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float* val = (float*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(float_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5326,14 +5748,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double* val = (double*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(double*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5344,14 +5765,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      uint8_t* val = (uint8_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(uint8_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5362,14 +5782,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      uint16_t* val = (uint16_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(uint16_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5380,14 +5799,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
-      uint32_t* val = (uint32_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(uint32_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5398,14 +5816,13 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      uint64_t* val = (uint64_t*)colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      while (funcInputGetNextRow(pCtx, &row)) {
+        if (row.isDataNull) {
           continue;
         }
-        numOfElems++;
+        pInfo->numOfElems++;
 
-        INIT_INTP_POINT(st, tsList[i], val[i]);
+        INIT_INTP_POINT(st, row.ts, *(uint64_t*)row.pData);
         if (pInfo->p.key == st.key) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
@@ -5424,16 +5841,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (pCtx->end.key != INT64_MIN) {
     pInfo->dOutput += twa_get_area(pInfo->p, pCtx->end);
     pInfo->p = pCtx->end;
-    numOfElems += 1;
+    pInfo->numOfElems += 1;
   }
 
   pInfo->win.ekey = pInfo->p.key;
 
 _twa_over:
-  if (numOfElems == 0) {
-    pInfo->isNull = true;
-  }
-
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -5454,7 +5867,7 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo* pInfo = (STwaInfo*)GET_ROWCELL_INTERBUF(pResInfo);
-  if (pInfo->isNull == true) {
+  if (pInfo->numOfElems == 0) {
     pResInfo->numOfRes = 0;
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
@@ -5707,28 +6120,27 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
 
-  int32_t i = pInput->startRowIndex;
-  TSKEY*  tsList = (int64_t*)pInput->pPTS->pData;
+  funcInputUpdate(pCtx);
 
   double v = 0;
-
   if (pCtx->order == TSDB_ORDER_ASC) {
-    for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    SFuncInputRow row = {0};
+    while (funcInputGetNextRow(pCtx, &row)) {
+      if (row.isDataNull) {
         continue;
       }
 
-      char* d = (char*)pInputCol->pData + pInputCol->info.bytes * i;
+      char* d = row.pData;
       GET_TYPED_DATA(v, double, pInputCol->info.type, d);
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
         pDerivInfo->valueSet = true;
       } else {
-        if (tsList[i] == pDerivInfo->prevTs) {
+        if (row.ts == pDerivInfo->prevTs) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
-        double r = ((v - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+        double r = ((v - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (row.ts - pDerivInfo->prevTs);
         if (pDerivInfo->ignoreNegative && r < 0) {
         } else {
           if (isinf(r) || isnan(r)) {
@@ -5738,12 +6150,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
           }
 
           if (pTsOutput != NULL) {
-            colDataSetInt64(pTsOutput, pos, &tsList[i]);
+            colDataSetInt64(pTsOutput, pos, &row.ts);
           }
 
           // handle selectivity
           if (pCtx->subsidiaries.num > 0) {
-            appendSelectivityValue(pCtx, i, pos);
+            appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
           }
 
           numOfElems++;
@@ -5751,25 +6163,26 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
       }
 
       pDerivInfo->prevValue = v;
-      pDerivInfo->prevTs = tsList[i];
+      pDerivInfo->prevTs = row.ts;
     }
   } else {
-    for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    SFuncInputRow row = {0};
+    while (funcInputGetNextRow(pCtx, &row)) {
+      if (row.isDataNull) {
         continue;
       }
 
-      char* d = (char*)pInputCol->pData + pInputCol->info.bytes * i;
+      char* d = row.pData;
       GET_TYPED_DATA(v, double, pInputCol->info.type, d);
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
         pDerivInfo->valueSet = true;
       } else {
-        if (tsList[i] == pDerivInfo->prevTs) {
+        if (row.ts == pDerivInfo->prevTs) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
-        double r = ((pDerivInfo->prevValue - v) * pDerivInfo->tsWindow) / (pDerivInfo->prevTs - tsList[i]);
+        double r = ((pDerivInfo->prevValue - v) * pDerivInfo->tsWindow) / (pDerivInfo->prevTs - row.ts);
         if (pDerivInfo->ignoreNegative && r < 0) {
         } else {
           if (isinf(r) || isnan(r)) {
@@ -5784,15 +6197,14 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
 
           // handle selectivity
           if (pCtx->subsidiaries.num > 0) {
-            appendSelectivityValue(pCtx, i, pos);
+            appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
           }
-
           numOfElems++;
         }
       }
 
       pDerivInfo->prevValue = v;
-      pDerivInfo->prevTs = tsList[i];
+      pDerivInfo->prevTs = row.ts;
     }
   }
 
@@ -5801,10 +6213,11 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getIrateInfoSize() { return (int32_t)sizeof(SRateInfo); }
+int32_t getIrateInfoSize(int32_t pkBytes) { return (int32_t)sizeof(SRateInfo) + 2 * pkBytes; }
 
 bool getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SRateInfo);
+  int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
+  pEnv->calcMemSize = getIrateInfoSize(pkBytes);
   return true;
 }
 
@@ -5824,6 +6237,41 @@ bool irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return true;
 }
 
+static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
+  if (isFirst) {
+    pRateInfo->firstValue = v;
+    pRateInfo->firstKey = ts;
+    if (pRateInfo->firstPk) {
+      int32_t pkBytes = IS_VAR_DATA_TYPE(pRateInfo->pkType) ? varDataTLen(pk) : pRateInfo->pkBytes;
+      memcpy(pRateInfo->firstPk, pk, pkBytes);
+    }
+  } else {
+    pRateInfo->lastValue = v;
+    pRateInfo->lastKey = ts;
+    if (pRateInfo->lastPk) {
+      int32_t pkBytes = IS_VAR_DATA_TYPE(pRateInfo->pkType) ? varDataTLen(pk) : pRateInfo->pkBytes;
+      memcpy(pRateInfo->lastPk, pk, pkBytes);
+    }
+  }
+}
+
+static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
+  if (pCtx->hasPrimaryKey) {
+    if (!isMerge) {
+      pRateInfo->pkType = pCtx->input.pPrimaryKey->info.type;
+      pRateInfo->pkBytes = pCtx->input.pPrimaryKey->info.bytes;
+      pRateInfo->firstPk = pRateInfo->pkData;
+      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    } else {
+      pRateInfo->firstPk = pRateInfo->pkData;
+      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    }
+  } else {
+    pRateInfo->firstPk = NULL;
+    pRateInfo->lastPk = NULL;
+  }  
+}
+
 int32_t irateFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SRateInfo*           pRateInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -5833,51 +6281,48 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+  funcInputUpdate(pCtx);
+  
+  initializeRateInfo(pCtx, pRateInfo, false);
 
   int32_t numOfElems = 0;
   int32_t type = pInputCol->info.type;
-
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+  SFuncInputRow row = {0};
+  while (funcInputGetNextRow(pCtx, &row))  {
+    if (row.isDataNull) {
       continue;
     }
 
-    numOfElems++;
-
-    char*  data = colDataGetData(pInputCol, i);
+    char*  data = row.pData;
     double v = 0;
     GET_TYPED_DATA(v, double, type, data);
 
     if (INT64_MIN == pRateInfo->lastKey) {
-      pRateInfo->lastValue = v;
-      pRateInfo->lastKey = tsList[i];
+      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       pRateInfo->hasResult = 1;
       continue;
     }
 
-    if (tsList[i] > pRateInfo->lastKey) {
+    if (row.ts > pRateInfo->lastKey) {
       if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
-        pRateInfo->firstValue = pRateInfo->lastValue;
-        pRateInfo->firstKey = pRateInfo->lastKey;
+        doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
       }
-
-      pRateInfo->lastValue = v;
-      pRateInfo->lastKey = tsList[i];
-
+      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       continue;
-    } else if (tsList[i] == pRateInfo->lastKey) {
-      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    } else if (row.ts == pRateInfo->lastKey) {
+        return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
+    
 
-    if ((INT64_MIN == pRateInfo->firstKey) || tsList[i] > pRateInfo->firstKey) {
-      pRateInfo->firstValue = v;
-      pRateInfo->firstKey = tsList[i];
-    } else if (tsList[i] == pRateInfo->firstKey) {
+    if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
+      doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);    
+    } else if (row.ts == pRateInfo->firstKey) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
   }
 
+  numOfElems++;
+  
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -5906,25 +6351,26 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
 
 static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
   if (inputKey > pOutput->lastKey) {
-    pOutput->firstKey   = pOutput->lastKey;
-    pOutput->firstValue = pOutput->lastValue;
-
-    pOutput->lastKey    = isFirstKey ? pInput->firstKey : pInput->lastKey;
-    pOutput->lastValue  = isFirstKey ? pInput->firstValue : pInput->lastValue;
+    doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    if (isFirstKey) {
+      doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+    } else {
+      doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+    }
   } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
-    pOutput->firstKey   = isFirstKey ? pInput->firstKey : pInput->lastKey;
-    pOutput->firstValue = isFirstKey ? pInput->firstValue : pInput->lastValue;
+    if (isFirstKey) {
+      doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+    } else {
+      doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+    }
   } else {
     // inputKey < pOutput->firstKey
   }
 }
 
 static void irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  pOutput->firstKey = pInput->firstKey;
-  pOutput->lastKey  = pInput->lastKey;
-
-  pOutput->firstValue = pInput->firstValue;
-  pOutput->lastValue  = pInput->lastValue;
+  doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+  doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
 }
 
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
@@ -5959,11 +6405,13 @@ int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  initializeRateInfo(pCtx, pInfo, true);
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*        data = colDataGetData(pCol, i);
     SRateInfo*   pInputInfo = (SRateInfo*)varDataVal(data);
+    initializeRateInfo(pCtx, pInfo, true);
     if (pInputInfo->hasResult) {
       int32_t code = irateTransferInfo(pInputInfo, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
@@ -5982,7 +6430,7 @@ int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
 int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SRateInfo*           pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t              resultBytes = getIrateInfoSize();
+  int32_t              resultBytes = getIrateInfoSize(pInfo->pkBytes);
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   memcpy(varDataVal(res), pInfo, resultBytes);
@@ -6111,6 +6559,16 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
 
+  SColumnInfoData* pkCol = pInput->pPrimaryKey;
+  pInfo->pkType = -1;
+  __compar_fn_t  pkCompareFn = NULL;
+  if (pCtx->hasPrimaryKey) {
+    pInfo->pkType = pkCol->info.type;
+    pInfo->pkBytes = pkCol->info.bytes;
+    pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_DESC);
+  }
+
+  // TODO it traverse the different way.
   // last_row function does not ignore the null value
   for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
     numOfElems++;

@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tgeosctx.h"
 #include "tlog.h"
+#include "tcompare.h"
 
 #define QUEUE_THRESHOLD (1000 * 1000)
 
@@ -103,6 +104,7 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
   }
 
   destroyThreadLocalGeosCtx();
+  DestoryThreadLocalRegComp();
 
   return NULL;
 }
@@ -222,6 +224,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
 
     taosUpdateItemSize(qinfo.queue, 1);
   }
+  DestoryThreadLocalRegComp();
 
   return NULL;
 }

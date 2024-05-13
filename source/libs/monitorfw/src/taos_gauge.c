@@ -38,7 +38,7 @@ int taos_gauge_destroy(taos_gauge_t *self) {
   self = NULL;
   return r;
 }
-
+/*
 int taos_gauge_inc(taos_gauge_t *self, const char **label_values) {
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return 1;
@@ -86,7 +86,7 @@ int taos_gauge_sub(taos_gauge_t *self, double r_value, const char **label_values
   if (sample == NULL) return 1;
   return taos_metric_sample_sub(sample, r_value);
 }
-
+*/
 int taos_gauge_set(taos_gauge_t *self, double r_value, const char **label_values) {
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return 1;

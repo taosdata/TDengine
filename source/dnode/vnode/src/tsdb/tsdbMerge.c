@@ -544,7 +544,7 @@ int32_t tsdbMerge(void *arg) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (merger->fset == NULL) return 0;
-
+  /*
   bool skipMerge = false;
   {
     extern int8_t  tsS3Enabled;
@@ -565,7 +565,8 @@ int32_t tsdbMerge(void *arg) {
           if (mtime < now - tsS3UploadDelaySec) {
             skipMerge = true;
           }
-        } else /* if (s3Size(object_name) > 0) */ {
+        } else // if (s3Size(object_name) > 0)
+        {
           skipMerge = true;
         }
       }
@@ -577,11 +578,11 @@ int32_t tsdbMerge(void *arg) {
     code = 0;
     goto _exit;
   }
-
+  */
   // do merge
-  tsdbDebug("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
+  tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
   code = tsdbDoMerge(merger);
-  tsdbDebug("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

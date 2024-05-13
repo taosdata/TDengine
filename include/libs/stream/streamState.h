@@ -46,7 +46,7 @@ bool    streamStateCheck(SStreamState* pState, const SWinKey* key);
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear(SStreamState* pState);
-void    streamStateSetNumber(SStreamState* pState, int32_t number);
+void    streamStateSetNumber(SStreamState* pState, int32_t number, int32_t tsIdex);
 int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
 int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
@@ -83,7 +83,8 @@ int32_t streamStateClearBuff(SStreamState* pState, void* pVal);
 void    streamStateFreeVal(void* val);
 
 // count window
-int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal,
+                                         int32_t* pVLen);
 int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
 SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key);
@@ -128,6 +129,8 @@ typedef struct SStateSessionKey {
 typedef struct SStreamValue {
   int64_t unixTimestamp;
   int32_t len;
+  int32_t rawLen;
+  int8_t  compress;
   char*   data;
 } SStreamValue;
 

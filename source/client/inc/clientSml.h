@@ -80,7 +80,7 @@ extern "C" {
 #define IS_SAME_KEY (maxKV->type == kv->type && maxKV->keyLen == kv->keyLen && memcmp(maxKV->key, kv->key, kv->keyLen) == 0)
 
 #define IS_SLASH_LETTER_IN_MEASUREMENT(sql)                                                           \
-  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE))
+  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == SLASH))
 
 #define MOVE_FORWARD_ONE(sql, len) (memmove((void *)((sql)-1), (sql), len))
 

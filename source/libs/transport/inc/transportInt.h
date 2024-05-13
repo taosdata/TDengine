@@ -63,6 +63,7 @@ typedef struct {
   bool (*startTimer)(int32_t code, tmsg_t msgType);
   void (*destroyFp)(void* ahandle);
   bool (*failFastFp)(tmsg_t msgType);
+  bool (*noDelayFp)(tmsg_t msgType);
 
   int32_t       connLimitNum;
   int8_t        connLimitLock;  // 0: no lock. 1. lock
