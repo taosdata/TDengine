@@ -29,7 +29,7 @@ The source code for the Rust client library is located on [GitHub](https://githu
 
 You can specify a connection type with Cargo features. By default, both types are supported. 
 
-For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
 ## Supported platforms
 
@@ -309,7 +309,7 @@ There are two ways to query data: Using built-in types or the [serde](https://se
 
 TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
 
-Parameter binding details see [API Reference](#stmt-api)
+Parameter binding details see [API Reference](#bind-interface)
 
 ```rust
 {{#include docs/examples/rust/nativeexample/examples/stmt.rs}}
@@ -533,11 +533,7 @@ Note that Rust asynchronous functions and an asynchronous runtime are required.
 
 In addition, this structure is also the entry point for Parameter Binding and Line Protocol Interface. Please refer to the specific API descriptions for usage.
 
-<p>
-<a id="stmt-api" style={{color:'#141414'}}>
-Bind Interface
-</a>
-</p>
+### Bind Interface
 
 Similar to the C interface, Rust provides the bind interface's wrapping. First, the [Taos][struct.taos] object creates a parameter binding object [Stmt] for an SQL statement.
 
