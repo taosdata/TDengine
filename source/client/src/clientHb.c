@@ -627,7 +627,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
 _return:
   releaseTscObj(connKey->tscRid);
   if (code) {
-    tscError("hb got user auth info failed since %s", terrstr(code));
+    tscError("hb got user auth info failed since %s", tstrerror(code));
   }
 
   return code;
