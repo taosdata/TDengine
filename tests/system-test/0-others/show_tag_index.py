@@ -113,6 +113,9 @@ class TDTestCase:
         tdSql.error(f'show tags from `db`.`stb` from db')
         tdSql.error(f'show tags from db.ctb1 from db')
         tdSql.error(f'show tags from `db`.`ctb1` from db')
+        tdSql.error(f'show tags from tb_undef from db')
+        tdSql.error(f'show tags from db.tb_undef')
+        tdSql.error(f'show tags from tb_undef')
 
         # show table tags
         tdSql.query(f'show table tags from stb')
@@ -145,6 +148,9 @@ class TDTestCase:
         tdSql.error(f'show table tags from `db`.`stb` from db')
         tdSql.error(f'show table tags from db.ctb1 from db')
         tdSql.error(f'show table tags from `db`.`ctb1` from db')
+        tdSql.error(f'show table tags from tb_undef from db')
+        tdSql.error(f'show table tags from db.tb_undef')
+        tdSql.error(f'show table tags from tb_undef')
 
         # show indexes
         tdSql.execute(f'create index idx1 on stb (t1)')
