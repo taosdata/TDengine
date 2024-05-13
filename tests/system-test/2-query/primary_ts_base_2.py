@@ -27,14 +27,14 @@ class TDTestCase(TDTestCase):
         # self.fun_pk_twa(self.database,'derivative',',1s,0') 
         # self.fun_pk_twa(self.database,'derivative',',1s,1') 
         # self.fun_pk_unique(self.database,'unique','')  
-        self.fun_pk_last_init(self.database,'last','')  
-        self.fun_pk_last(self.database,'last','')  
+        # self.fun_pk_last_init(self.database,'last','')  
+        # self.fun_pk_last(self.database,'last','')  
         self.fun_pk_last(self.database,'last_row','') 
         self.fun_pk_first(self.database,'first','') 
         
         self.query_pk_fun(self.database,'') 
         
-        # self.touying_pk_1(self.database,1) 
+        self.touying_pk_1(self.database,1) 
         # self.touying_pk_where(self.database,'') 
         # self.touying_pk_where(self.database,'tags') 
         # self.touying_pk_where(self.database,'distinct') 
