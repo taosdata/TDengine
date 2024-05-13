@@ -1602,20 +1602,20 @@ class TDTestCase(TDTestCase):
         tdSql.execute('alter stable stable_1 drop column q_binary5;')
         tdSql.execute('alter stable stable_1 drop column q_nchar4;')
         tdSql.execute('alter stable stable_1 drop column q_binary4;')
-       
+
     def testTBNameUseJoin(self):
         tdSql.execute('CREATE STABLE `meter1` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
         tdSql.execute('CREATE STABLE `meter2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
-        
+
         tdSql.execute('CREATE TABLE `d1` USING `meter1` (`t1`) TAGS (1)')
         tdSql.execute('CREATE TABLE `d2` USING `meter1` (`t1`) TAGS (2)')
         tdSql.execute('CREATE TABLE `d21` USING `meter2` (`t1`) TAGS (21)')
         tdSql.execute('CREATE TABLE `d22` USING `meter2` (`t1`) TAGS (22)')
-        
+
         time.sleep(1)
         tdSql.query('select tbname,count(*) from d2')
         tdSql.checkData(0, 1, 0)
-        
+
         tdSql.query('select b.tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
         tdSql.checkData(0, 0, 'd2')
         tdSql.checkData(0, 1, 0)
@@ -1635,23 +1635,46 @@ class TDTestCase(TDTestCase):
         tdSql.checkData(0, 0, 'd21')
         tdSql.checkData(1, 0, 'd22')
         tdSql.checkData(0, 1, 0)
-        
+  
+        tdSql.execute('insert into `d1` VALUES (now, 1) `d21` VALUES (now, 21)')
+        tdSql.execute('insert into `d1` VALUES (now, 2) `d21` VALUES (now, 22)')
+        tdSql.execute('insert into `d1` VALUES (now, 3) `d21` VALUES (now, 32)')
+
+        # tdSql.query('select b.tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
+        # tdSql.checkData(0, 0, 'd2')
+
+        tdSql.query('select meter1.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
+        tdSql.checkData(0, 0, 'd1')
+        tdSql.checkData(1, 0, 'd2')
+        tdSql.query('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter2.tbname order by meter2.tbname')
+        tdSql.checkData(0, 0, 'd21')
+        tdSql.checkData(1, 0, 'd22')
+        tdSql.query('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by meter2.tbname order by meter2.tbname')
+        tdSql.checkData(0, 0, 'd21')
+        tdSql.checkData(1, 0, 'd22')
+        tdSql.query('select m2.tbname, count(*) from meter1 m1, meter2 m2 where m1.ts = m2.ts partition by m2.tbname order by m2.tbname')
+        tdSql.checkData(0, 0, 'd21')
+        tdSql.checkData(1, 0, 'd22')
+
         tdSql.error('select tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
-        tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
+        # tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
         tdSql.error('select tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter2.tbname order by meter2.tbname')
         tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by meter2.tbname order by meter.tbname')
         tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by tbname order by meter2.tbname')
         tdSql.error('select m2.tbname, count(*) from meter1 m1, meter2 m2 where meter1.ts = meter2.ts partition by m2.tbname order by meter2.tbname')
-            
+  
     def run(self):
         tdSql.prepare()
         
         startTime = time.time() 
 
         # self.create_tables()
-        # self.insert_data()   
-         
+        # self.insert_data()
+        
+        self.testTBNameUseJoin()
         self.dropandcreateDB_random("nested", 1)
+        #self.testTBNameUseJoin()
+
         self.modify_tables()
                
         for i in range(1):
@@ -1660,7 +1683,7 @@ class TDTestCase(TDTestCase):
             self.tbname_agg_all()    
           
 
-        self.testTBNameUseJoin()  
+
     
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
