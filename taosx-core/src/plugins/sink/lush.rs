@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 
 use super::transform::Parser;
 use crate::{
@@ -6,6 +6,14 @@ use crate::{
     runners::pi::transform::PiModelType,
 };
 use anyhow::{anyhow, Context};
+use arrow::{array::Array, record_batch::RecordBatch};
+use arrow::{
+    array::{ArrayRef, StringArray},
+    compute::concat_batches,
+};
+use arrow_schema::Field;
+use arrow_schema::{DataType, Schema};
+use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
@@ -151,6 +159,127 @@ impl From<PIElementModelConfig> for LushModelConfig {
     }
 }
 
+pub fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch) -> RecordBatch {
+    let mut fields: Vec<Field> = Vec::new();
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    let mut added_name = std::collections::BTreeSet::<&str>::new();
+    let tags_schema = tags_record.schema();
+    let values_schema = values_record.schema();
+    for i in 0..tags_schema.fields().len() {
+        let name = tags_schema.field(i).name().as_str();
+        if added_name.contains(name) {
+            continue;
+        }
+        added_name.insert(name);
+        fields.push(tags_schema.field(i).clone());
+        columns.push(tags_record.column(i).clone());
+    }
+    for i in 0..values_schema.fields().len() {
+        let name = values_schema.field(i).name().as_str();
+        if added_name.contains(name) {
+            continue;
+        }
+        added_name.insert(name);
+        fields.push(values_schema.field(i).clone());
+        columns.push(values_record.column(i).clone());
+    }
+    let schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(schema), columns).unwrap()
+}
+
+pub fn create_tags_record(
+    table_name_column: &StringArray,
+    table_cache: &TableTagCache,
+) -> anyhow::Result<RecordBatch> {
+    // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
+    let mut fields: Vec<Field> = Vec::new();
+    let table_name0 = table_name_column.value(0);
+    let table0 = table_cache
+        .get(table_name0)
+        .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name0))?;
+    for tag in table0.tags().as_ref().unwrap() {
+        fields.push(Field::new(tag.0.clone(), DataType::Utf8, true));
+    }
+    // 收集每一行 tag 值
+    let mut tag_values: Vec<Vec<String>> = Vec::new();
+    for table_name in table_name_column.iter() {
+        let table_name = table_name.unwrap();
+        let table = table_cache
+            .get(table_name)
+            .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
+        let tags = table.tags().as_ref().unwrap();
+        let values: Vec<String> = tags
+            .iter()
+            .map(|tag| {
+                let value = &tag.1;
+                match value {
+                    taos::Value::VarChar(v) => v.clone(),
+                    taos::Value::NChar(v) => v.clone(),
+                    _ => unimplemented!(),
+                }
+            })
+            .collect();
+        tag_values.push(values);
+    }
+    // 行转列
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    for i in 0..fields.len() {
+        let values: Vec<String> = tag_values.iter().map(|v| v[i].clone()).collect();
+        let array = StringArray::from(values);
+        columns.push(Arc::new(array) as ArrayRef);
+    }
+
+    let schema = Schema::new(fields);
+    RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
+}
+
+/// 按 table_name 列（值是子表名）对应的超级表名分组
+/// 为了避免过多的内存复制，这里不是每遍历一行就调 concat_batches 方法创建一个 RecordBatch， 而是先把连续属于同一超级表的行 slice 成一个 RecordBatch，暂存起来
+/// 最后对于每个超级表，调用一次 concat_batches 合并成一个 RecordBatch
+pub fn group_by_super_table_name(
+    records: &RecordBatch,
+    name_of_table_name_column: &str,
+    sub_super_mapping: &HashMap<String, String>,
+) -> LinkedHashMap<String, RecordBatch> {
+    let table_name_column: &Arc<dyn Array> = records
+        .column_by_name(name_of_table_name_column)
+        .expect("table_name_column not found");
+    let table_name_column: &StringArray = table_name_column
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+
+    let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
+    for i in 0..table_name_column.len() {
+        let table_name = table_name_column.value(i);
+        let super_table = sub_super_mapping.get(table_name).unwrap();
+        if super_table_ranges.contains_key(super_table.as_str()) {
+            let ranges = super_table_ranges.get_mut(super_table.as_str()).unwrap();
+            let last_range = ranges.last_mut().unwrap();
+            if last_range.end == i {
+                last_range.end += 1;
+            } else {
+                ranges.push(i..i + 1);
+            }
+        } else {
+            super_table_ranges.insert(super_table.as_str(), vec![i..i + 1]);
+        }
+    }
+    let schema = records.schema();
+    super_table_ranges
+        .into_iter()
+        .map(|(super_table, ranges)| {
+            let mut record_batches: Vec<RecordBatch> = Vec::new();
+            for range in ranges {
+                let record = records.slice(range.start, range.end - range.start);
+                record_batches.push(record);
+            }
+            let record_batch = concat_batches(&schema, record_batches.iter()).unwrap();
+            (super_table.to_string(), record_batch)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod test {
     use crate::runners::pi::transform::PIPointModelConfig;
@@ -186,122 +315,57 @@ mod test {
     }
 
     #[test]
-    fn test_parser() {
-        let s = r#"{
-            "global": {
-              "replace_dot_in_table_name": "_"
-            },
-            "parse": null,
-            "mutate": [
-              {
-                "filter": [
-                  {
-                    "Expr": {
-                      "expr": ""
-                    }
-                  }
-                ]
-              },
-              {
-                "map": {
-                  "value": {
-                    "expr": "value",
-                    "null_if_error": true,
-                    "as": "double"
-                  },
-                  "status": {
-                    "expr": "status",
-                    "null_if_error": true,
-                    "as": "int"
-                  },
-                  "path": {
-                    "expr": "path",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "ptclassname": {
-                    "expr": "ptclassname",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "sourcetag": {
-                    "expr": "sourcetag",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "tag": {
-                    "expr": "tag",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "descriptor": {
-                    "expr": "descriptor",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "exdesc": {
-                    "expr": "exdesc",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "engunits": {
-                    "expr": "engunits",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "pointsource": {
-                    "expr": "pointsource",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "step": {
-                    "expr": "step",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "future": {
-                    "expr": "future",
-                    "null_if_error": true,
-                    "as": "nchar(100)"
-                  },
-                  "element_paths": {
-                    "expr": "element_paths.replace('\', 'b')",
-                    "null_if_error": true,
-                    "as": "nchar(512)"
-                  }
-                }
-              }
-            ],
-            "model": [
-              {
-                "name": "${point_name}",
-                "using": "volt_double",
-                "tags": [
-                  "path",
-                  "ptclassname",
-                  "sourcetag",
-                  "tag",
-                  "descriptor",
-                  "exdesc",
-                  "engunits",
-                  "pointsource",
-                  "step",
-                  "future",
-                  "element_paths"
-                ],
-                "columns": [
-                  "ts",
-                  "value",
-                  "status"
-                ],
-                "where": null,
-                "global": null
-              }
-            ]
-          }"#;
-        use crate::plugins::transform::Parser;
+    fn test_group_by_super_table_name() {
+        use arrow::array::{ArrayRef, Int64Array, StringArray};
+        use arrow::record_batch::RecordBatch;
+        use arrow_schema::Field;
+        use arrow_schema::{DataType, Schema};
+        use std::sync::Arc;
 
-        let parse: Parser = serde_json::from_str(s).unwrap();
-        println!("{:?}", serde_json::to_string(&parse).unwrap());
+        let schema = Schema::new(vec![
+            Field::new("table_name", DataType::Utf8, true),
+            Field::new("value", DataType::Int64, true),
+        ]);
+        let table_name = StringArray::from(vec![
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+            "table1", "table1", "table2", "table2", "table1", "table1", "table2", "table2",
+        ]);
+        let value = Int64Array::from(vec![
+            1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1,
+            2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2,
+            3, 4, 1, 2, 3, 4,
+        ]);
+        let record = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(table_name) as ArrayRef,
+                Arc::new(value) as ArrayRef,
+            ],
+        )
+        .unwrap();
+        let sub_super_mapping: std::collections::HashMap<String, String> = vec![
+            ("table1".to_string(), "super_table1".to_string()),
+            ("table2".to_string(), "super_table2".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        // 统计耗时
+        let start = std::time::Instant::now();
+        let grouped_batches =
+            super::group_by_super_table_name(&record, "table_name", &sub_super_mapping);
+        let elapsed = start.elapsed();
+        println!("elapsed: {:?}", elapsed);
+        let super_table1 = grouped_batches.get("super_table1").unwrap();
+        let super_table2 = grouped_batches.get("super_table2").unwrap();
+        println!("{:?}", super_table1);
+        println!("{:?}", super_table2);
     }
 }

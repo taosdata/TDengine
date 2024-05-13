@@ -779,12 +779,12 @@ async fn consume_lush_record_with_transform(
                 if num_rows == 0 {
                     continue;
                 }
-                let table_name_col_name = lush_model_config.table_name_column.as_str();
+                let name_of_table_name_column = lush_model_config.table_name_column.as_str();
                 // 只包含普通列的值
-                let values_record: &RecordBatch = record.record();
+                let values_records: &RecordBatch = record.record();
                 // tracing::debug!(?values_record, "values_record"); // debug
-                let table_name_column: &Arc<dyn Array> = values_record
-                    .column_by_name(table_name_col_name)
+                let table_name_column: &Arc<dyn Array> = values_records
+                    .column_by_name(name_of_table_name_column)
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
                 let table_name_column: &StringArray = table_name_column
                     .as_any()
@@ -792,23 +792,24 @@ async fn consume_lush_record_with_transform(
                     .unwrap();
 
                 // 只包含 tag 列的值
-                let tags_record: RecordBatch =
-                    create_tags_record(table_name_column, &lush_model_config.table_tags)?;
+                let tags_records: RecordBatch =
+                    lush::create_tags_record(table_name_column, &lush_model_config.table_tags)?;
 
                 // 左右合并 RecordBatch
-                let concated_record: RecordBatch = join_record_batch(&tags_record, values_record);
+                let combined_records: RecordBatch =
+                    lush::join_record_batch(&tags_records, values_records);
 
                 // 类型转换
-                let parsed_message = lush_parser.transform_record_batch(&concated_record)?;
+                let parsed_records: RecordBatch =
+                    lush_parser.transform_record_batch(&combined_records)?;
 
                 // 按超级表名分组
-                let sub_super_mapping: &HashMap<String, String> =
-                    &lush_model_config.sub_super_mapping;
-                let grouped_batches: LinkedHashMap<String, RecordBatch> = group_by_super_table_name(
-                    &parsed_message,
-                    table_name_col_name,
-                    sub_super_mapping,
-                );
+                let grouped_batches: LinkedHashMap<String, RecordBatch> =
+                    lush::group_by_super_table_name(
+                        &parsed_records,
+                        name_of_table_name_column,
+                        &lush_model_config.sub_super_mapping,
+                    );
                 for (super_table, record_batch) in grouped_batches {
                     let parser: &transform::Parser = lush_model_config
                         .super_table_parsers
@@ -851,112 +852,6 @@ async fn consume_lush_record_with_transform(
         }
     }
     Ok(())
-}
-
-use arrow::compute::concat_batches;
-
-fn group_by_super_table_name(
-    records: &RecordBatch,
-    sub_table_name_col: &str,
-    sub_super_mapping: &HashMap<String, String>,
-) -> LinkedHashMap<String, RecordBatch> {
-    let table_name_column: &Arc<dyn Array> = records
-        .column_by_name(sub_table_name_col)
-        .expect("table_name_column not found");
-    let table_name_column: &StringArray = table_name_column
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .unwrap();
-    let schema = records.schema();
-    let mut grouped_batches: LinkedHashMap<String, RecordBatch> = LinkedHashMap::new();
-    for i in 0..records.num_rows() {
-        let table_name = table_name_column.value(i);
-        let super_table = sub_super_mapping.get(table_name).unwrap();
-        let new_record = records.slice(i, 1);
-        if grouped_batches.contains_key(super_table) {
-            let old_record_batch = grouped_batches.get(super_table).unwrap();
-            let new_record_batch =
-                concat_batches(&schema, vec![old_record_batch, &new_record]).unwrap();
-            grouped_batches.insert(super_table.to_string(), new_record_batch);
-        } else {
-            grouped_batches.insert(super_table.to_string(), new_record);
-        }
-    }
-    grouped_batches
-}
-
-fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch) -> RecordBatch {
-    let mut fields: Vec<Field> = Vec::new();
-    let mut columns: Vec<ArrayRef> = Vec::new();
-    let mut added_name = std::collections::BTreeSet::<&str>::new();
-    let tags_schema = tags_record.schema();
-    let values_schema = values_record.schema();
-    for i in 0..tags_schema.fields().len() {
-        let name = tags_schema.field(i).name().as_str();
-        if added_name.contains(name) {
-            continue;
-        }
-        added_name.insert(name);
-        fields.push(tags_schema.field(i).clone());
-        columns.push(tags_record.column(i).clone());
-    }
-    for i in 0..values_schema.fields().len() {
-        let name = values_schema.field(i).name().as_str();
-        if added_name.contains(name) {
-            continue;
-        }
-        added_name.insert(name);
-        fields.push(values_schema.field(i).clone());
-        columns.push(values_record.column(i).clone());
-    }
-    let schema = Schema::new(fields);
-    RecordBatch::try_new(Arc::new(schema), columns).unwrap()
-}
-
-fn create_tags_record(
-    table_name_column: &StringArray,
-    table_cache: &lush::TableTagCache,
-) -> anyhow::Result<RecordBatch> {
-    // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
-    let mut fields: Vec<Field> = Vec::new();
-    let table_name0 = table_name_column.value(0);
-    let table0 = table_cache
-        .get(table_name0)
-        .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name0))?;
-    for tag in table0.tags().as_ref().unwrap() {
-        fields.push(Field::new(tag.0.clone(), DataType::Utf8, true));
-    }
-    // 收集每一行 tag 值
-    let mut tag_values: Vec<Vec<String>> = Vec::new();
-    for table_name in table_name_column.iter() {
-        let table_name = table_name.unwrap();
-        let table = table_cache
-            .get(table_name)
-            .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
-        let tags = table.tags().as_ref().unwrap();
-        let values: Vec<String> = tags
-            .iter()
-            .map(|tag| {
-                let value = &tag.1;
-                match value {
-                    Value::VarChar(v) => v.clone(),
-                    Value::NChar(v) => v.clone(),
-                    _ => unimplemented!(),
-                }
-            })
-            .collect();
-        tag_values.push(values);
-    }
-    // 行转列
-    let mut columns: Vec<ArrayRef> = Vec::new();
-    for i in 0..fields.len() {
-        let values: Vec<String> = tag_values.iter().map(|v| v[i].clone()).collect();
-        let array = StringArray::from(values);
-        columns.push(Arc::new(array) as ArrayRef);
-    }
-
-    let schema = Schema::new(fields);
-    RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
 }
 
 fn get_ts_from_sql(sql: &str) -> Option<String> {
@@ -3976,7 +3871,8 @@ mod tests {
         let schema = Schema::new(vec![Field::new("table_name", DataType::Utf8, true)]);
         let record =
             RecordBatch::try_new(Arc::new(schema), vec![Arc::new(table_name) as ArrayRef]).unwrap();
-        let grouped_batches = group_by_super_table_name(&record, "table_name", &sub_super_mapping);
+        let grouped_batches =
+            lush::group_by_super_table_name(&record, "table_name", &sub_super_mapping);
         assert_eq!(grouped_batches.len(), 2);
         let record_batch = grouped_batches.get("super1").unwrap();
         assert_eq!(record_batch.num_rows(), 2);
