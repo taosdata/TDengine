@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR_END: create_db_and_table
     
     // ANCHOR: insert_data
-    let inserted = taos.exec("INSERT INTO " +
+    let inserted = taos.exec("INSERT INTO ".to_string() +
     "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') " +
     "VALUES " +
     "(NOW + 1a, 10.30000, 219, 0.31000) " +
