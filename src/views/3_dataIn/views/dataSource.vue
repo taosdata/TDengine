@@ -10,7 +10,7 @@
           :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
+        <el-button @click="addDbSource" size="small" icon="el-icon-plus" type="text">{{
           $t("datasource.addsource")
         }}</el-button>
       </div>
@@ -371,6 +371,14 @@
     <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
     </div>
+    <el-alert
+      v-if="$COMMUNITY"
+      style="margin-top: 8px"
+      type="warning"
+      :description="$t('communityDemoDataTip')"
+      :closable="true"
+      center
+    />
   </div>
 </template>
 <script>
@@ -958,9 +966,9 @@ export default {
   z-index: 9;
   right: 10px;
   .el-button {
-    border: 1px solid transparent;
-    background: transparent;
-    color: #4259ce;
+    // border: 1px solid transparent;
+    // background: transparent;
+    // color: #4259ce;
     font-size: 14px;
     &:hover {
       background: #fff;

@@ -11,9 +11,16 @@
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
       > -->
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
         <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
           $t("taosagents.createnewagent")
         }}</el-button>
+      </el-tooltip>
       </div>
     </div>
 
@@ -691,9 +698,9 @@ export default {
   z-index: 9;
   right: 10px;
   .el-button {
-    border: 1px solid transparent;
-    background: transparent;
-    color: #4259ce;
+    // border: 1px solid transparent;
+    // background: transparent;
+    // color: #4259ce;
     font-size: 14px;
     &:hover {
       background: #fff;

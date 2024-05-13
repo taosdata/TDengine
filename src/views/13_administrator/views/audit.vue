@@ -297,7 +297,7 @@ export default {
   },
   watch: {
     activeName(val) {
-      if (val == 'audit') {
+      if (val == 'audit' && !this.$COMMUNITY) {
         this.getDatabases();
         this.getAuditData();
       }

@@ -35,6 +35,12 @@
         v-if="this.databaseList.length > 0"
         class="database-item"
       >
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -43,12 +49,13 @@
               class="db-pri"
               @change="changePri($event)"
             >
-              <el-checkbox label="Read">{{ $t('read') }}</el-checkbox>
-              <el-checkbox label="Write">{{ $t('write') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Read">{{ $t('read') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Write">{{ $t('write') }}</el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
             </el-checkbox-group>
           </li>
         </ul>
+      </el-tooltip>
       </el-form-item>
 
       <el-form-item
@@ -56,6 +63,12 @@
         v-if="this.topicList.length > 0"
         class="database-item"
       >
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -63,10 +76,11 @@
               v-model="selectedTopicPrivileges[item]"
               class="db-pri"
             >
-              <el-checkbox label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
             </el-checkbox-group>
           </li>
         </ul>
+      </el-tooltip>
       </el-form-item>
     </el-form>
 

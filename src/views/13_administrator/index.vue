@@ -15,13 +15,21 @@
         <el-tab-pane name="cluster" :label="$t('route.cluster')" lazy>
           <Cluster></Cluster>
         </el-tab-pane>
-        <el-tab-pane name="license" :label="$t('topic.license')" lazy>
+        <el-tab-pane name="license" :label="$t('topic.license')" lazy v-if="!$COMMUNITY">
           <License></License>
         </el-tab-pane>
         <el-tab-pane name="audit" :label="$t('topic.audit')" lazy>
           <Audit :activeName="activeName"></Audit>
         </el-tab-pane>
       </el-tabs>
+      <el-alert
+        v-if="$COMMUNITY && (activeName == 'backup' || activeName == 'replication' || activeName == 'audit')"
+        style="margin-top: 8px"
+        type="warning"
+        :description="$t('communityDemoDataTip')"
+        :closable="true"
+        center
+      />
     </div>
   </div>
 </template>

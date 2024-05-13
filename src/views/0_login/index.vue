@@ -50,6 +50,7 @@
       <div class="login-content reginster-box" v-else>
         <div class="login-title">
           <span class="dynamic-title">{{ $t("register.title") }}</span>
+          <span class="activate-tip">{{ $t("register.titleTip") }}</span>
         </div>
         <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
           class="demo-dynamic">
@@ -663,6 +664,11 @@ export default {
         text-overflow: ellipsis;
       }
 
+      .activate-tip {
+        color: #909399;
+        font-size: 14px !important;
+      }
+
       .login-title {
         font-size: 28px;
         font-weight: 500;
@@ -675,7 +681,8 @@ export default {
       }
     }
     .reginster-box {
-      height: 550px;
+      height: 600px;
+      width: 680px;
     }
   }
 

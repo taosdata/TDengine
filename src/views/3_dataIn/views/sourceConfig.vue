@@ -62,15 +62,23 @@
                 :value="item.id"
               ></el-option>
             </el-select>
-            <el-button
-              @click="createAgent"
-              type="primary"
-              size="small"
-              plain
-              class="ml15"
-              icon="el-icon-plus"
-              >{{ $t("dataIn.createNewAgent") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                :disabled="$COMMUNITY"
+                @click="createAgent"
+                type="primary"
+                size="small"
+                plain
+                class="ml15"
+                icon="el-icon-plus"
+                >{{ $t("dataIn.createNewAgent") }}</el-button
+              >
+            </el-tooltip>
             <!-- <p class="custom-placeholder mt10">
               {{ $t("dataIn.needAgentTip") }}
             </p> -->
@@ -87,15 +95,23 @@
                 :value="item.name"
               ></el-option>
             </el-select>
-            <el-button
-              @click="createDb"
-              type="primary"
-              size="small"
-              plain
-              class="ml15"
-              icon="el-icon-plus"
-              >{{ $t("data.createDatabase") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                :disabled="$COMMUNITY"
+                @click="createDb"
+                type="primary"
+                size="small"
+                plain
+                class="ml15"
+                icon="el-icon-plus"
+                >{{ $t("data.createDatabase") }}</el-button
+              >
+            </el-tooltip>
           </el-form-item>
         </section>
         <ConfigForm
@@ -121,9 +137,18 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button v-else type="primary" @click="save" size="small" :loading="loading" :disabled="$COMMUNITY">{{
-          isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
-        }}</el-button>
+        <template v-else>
+          <el-tooltip
+            placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+          >
+            <template slot="content">
+              <span v-html="$t('communityTip')"></span>
+            </template>
+            <el-button type="primary" @click="save" size="small" :loading="loading" :disabled="$COMMUNITY">{{
+              isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
+            }}</el-button>
+          </el-tooltip>
+        </template>
          <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
