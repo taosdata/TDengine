@@ -8359,7 +8359,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
       if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
     } else if (pReq->type == TSDB_NORMAL_TABLE) {
       if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
-      taosArrayDestroyEx(pReq->jsonTemplate, taosMemoryFree);
+      taosArrayDestroyP(pReq->jsonTemplate, taosMemoryFree);
     }
   }
 

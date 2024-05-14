@@ -3042,7 +3042,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
-  taosArrayDestroyEx(req->jsonTemplate, taosMemoryFree);
+  taosArrayDestroyP(req->jsonTemplate, taosMemoryFree);
 }
 
 typedef struct {

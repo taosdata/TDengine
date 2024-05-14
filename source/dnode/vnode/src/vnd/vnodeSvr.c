@@ -1165,7 +1165,7 @@ _exit:
     taosMemoryFree(pCreateReq->sql);
     taosMemoryFree(pCreateReq->comment);
     taosArrayDestroy(pCreateReq->ctb.tagName);
-    taosArrayDestroyEx(pCreateReq->jsonTemplate, taosMemoryFree);
+    taosArrayDestroyP(pCreateReq->jsonTemplate, taosMemoryFree);
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
