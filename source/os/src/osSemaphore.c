@@ -215,29 +215,85 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
-int32_t tsem_wait(tsem_t* sem) {
-  int ret = 0;
-  do {
-    ret = sem_wait(sem);
-  } while (ret != 0 && errno == EINTR);
+int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
+  int ret = taosThreadMutexInit(&sem->mutex, NULL);
+  if (ret != 0) return ret;
+  ret = taosThreadCondAttrInit(&sem->attr);
+  if (ret != 0) return ret;
+  ret = taosThreadCondAttrSetclock(&sem->attr, CLOCK_MONOTONIC);
+  if (ret != 0) return ret;
+  ret = taosThreadCondInit(&sem->cond, &sem->attr);
+  if (ret != 0) return ret;
+
+  sem->count = value;
+  return 0;
+}
+
+int tsem_post(tsem_t *sem) {
+  taosThreadMutexLock(&sem->mutex);
+  sem->count++;
+  taosThreadCondSignal(&sem->cond);
+  taosThreadMutexUnlock(&sem->mutex);
+  return 0;
+}
+
+int tsem_destroy(tsem_t* sem) {
+  int ret = taosThreadMutexDestroy(&sem->mutex);
+  if (ret != 0) return ret;
+  ret = taosThreadCondDestroy(&sem->cond);
   return ret;
+  ret = taosThreadCondAttrDestroy(&sem->attr);
+  return ret;
+}
+
+int32_t tsem_wait(tsem_t* sem) {
+  taosThreadMutexLock(&sem->mutex);
+  while (sem->count <= 0) {
+    struct timespec timeout;
+    clock_gettime(CLOCK_MONOTONIC, &timeout);
+    timeout.tv_sec += 9;
+
+    while (sem->count <= 0) {
+      int ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &timeout);
+      if (ret == ETIMEDOUT) {
+        continue;
+      } else {
+        return ret;
+      }
+    }
+  }
+  sem->count--;
+  taosThreadMutexUnlock(&sem->mutex);
+  return 0;
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   int ret = 0;
 
-  struct timespec ts = {0};
+  taosThreadMutexLock(&sem->mutex);
+  if (sem->count <= 0) {
+    struct timespec ts = {0};
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+      taosThreadMutexUnlock(&sem->mutex);
+      return -1;
+    }
 
-  if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-    return -1;
+    ts.tv_sec += ms / 1000;
+    ts.tv_nsec += (ms % 1000) * 1000000;
+    ts.tv_sec += ts.tv_nsec / 1000000000;
+    ts.tv_nsec %= 1000000000;
+
+    while (sem->count <= 0) {
+      ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &ts);
+      if (ret != 0) {
+        taosThreadMutexUnlock(&sem->mutex);
+        return ret;
+      }
+    }
   }
 
-  ts.tv_nsec += ms * 1000000;
-  ts.tv_sec += ts.tv_nsec / 1000000000;
-  ts.tv_nsec %= 1000000000;
-
-  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
-
+  sem->count--;
+  taosThreadMutexUnlock(&sem->mutex);
   return ret;
 }
 
