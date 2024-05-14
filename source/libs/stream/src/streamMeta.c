@@ -1645,6 +1645,8 @@ int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t ta
       streamMetaAddTaskLaunchResult(pMeta, hId.streamId, hId.taskId, startTs, now, false);
     }
   } else {
+    streamMetaRUnLock(pMeta);
+
     stError("failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
             streamId, taskId, pMeta->vgId);
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
