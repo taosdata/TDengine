@@ -580,11 +580,12 @@ bool streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId) {
   taosMemoryFree(state);
   return exist;
 }
+
 void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   char*   backendPath = NULL;
   int32_t code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);
 
-  stDebug("start to init stream backend at %s, checkpointid: %" PRId64 " vgId:%d", backendPath, chkpId, vgId);
+  stDebug("start to init stream backend:%s, checkpointId:%" PRId64 " vgId:%d", backendPath, chkpId, vgId);
 
   uint32_t         dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
@@ -643,10 +644,12 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
       goto _EXIT;
     }
   }
+
   if (cfs != NULL) {
     rocksdb_list_column_families_destroy(cfs, nCf);
   }
-  stDebug("%s init stream backend at %s, backend:%p, vgId:%d", backendPath, pHandle, vgId);
+
+  stDebug("init stream backend at %s, backend:%p, vgId:%d", backendPath, pHandle, vgId);
   taosMemoryFreeClear(backendPath);
 
   return (void*)pHandle;
