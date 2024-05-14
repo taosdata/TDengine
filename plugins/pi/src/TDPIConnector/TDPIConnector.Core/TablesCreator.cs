@@ -349,10 +349,10 @@ namespace TDPIConnector.Core
                         var element = elements[j];
                         TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
                         log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                        if (!elementsCollection.ContainsKey(table.Name))
+                        if (!elementsCollection.ContainsKey(table.Id))
                         {
                             tables.Add(table);
-                            elementsCollection[table.Name] = element;
+                            elementsCollection[table.Id] = element;
                         }
                     }
                 }));
