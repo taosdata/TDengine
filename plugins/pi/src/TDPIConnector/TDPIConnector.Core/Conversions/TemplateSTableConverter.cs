@@ -42,7 +42,7 @@ namespace TDPIConnector.Core.Conversions
         internal static string GetTDTableNameForElement(AFElementWrapper element) {
             return TDEngineProxy.GetFullTableName(element.Name).ToTDEngineNamingPattern() + "_" + element.ID.ToString();
         }
-        internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)
+        internal static TDTable Convert(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
             Dictionary<string, string> tags = new Dictionary<string, string>();

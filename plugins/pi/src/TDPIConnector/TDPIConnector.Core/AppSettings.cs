@@ -20,7 +20,7 @@ namespace TDPIConnector.Core
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }
             public int PIDataPipesInstances { get; set; } = 1;
-            public int AFDataPipesInstances { get; set; } = 10;
+            public int AFDataPipesInstances { get; set; } = 20;
             public string IPCStream { get; set; }
             public string SQLAPI { get; set; }
             public string AFTreeTagName { get; set; } = "path";

@@ -149,13 +149,21 @@ namespace TDPIConnector.Core
             return await GetTDPointsFirstRecordedValue(tdDatabaseName, piPointNames);
         }
 
-        public void BackfillAFElementsFromLastRecordedValue(string tdDatabaseName, Dictionary<AFElementWrapper, DateTime> lastValueTimestamps)
+        public async void BackfillAFElementsFromLastRecordedValue(string tdDatabaseName, Dictionary<AFElementWrapper, DateTime> lastValueTimestamps)
         {
+            List<Task> tasks = new List<Task>();
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(10);
             foreach (var lastTDValue in lastValueTimestamps)
             {
-                AFElementWrapper element = lastTDValue.Key;
-                BackfillElement(tdDatabaseName, element, lastTDValue.Value, DateTime.Now);
+                await concurrencySemaphore.WaitAsync();
+                tasks.Add(Task.Run(async () =>
+                {
+                    AFElementWrapper element = lastTDValue.Key;
+                    BackfillElement(tdDatabaseName, element, lastTDValue.Value, DateTime.Now);
+                    concurrencySemaphore.Release();
+                }));
             }
+            Task.WaitAll(tasks.ToArray());
         }
 
         internal void BackfillElements(string tdDatabaseName, List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
