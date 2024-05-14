@@ -182,7 +182,7 @@ typedef struct SColumnOptions {
   char      encode[TSDB_CL_COMPRESS_OPTION_LEN];
   char      compress[TSDB_CL_COMPRESS_OPTION_LEN];
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
-  char      jsonTemplate[TSDB_MAX_JSON_COL_LEN];
+  char      jsonTemplate[TSDB_MAX_JSON_TEMPLATE_LEN];
   bool      bPrimaryKey;
 } SColumnOptions;
 typedef struct SColumnDefNode {

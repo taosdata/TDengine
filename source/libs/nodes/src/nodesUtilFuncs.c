@@ -817,7 +817,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pReal = (SRealTableNode*)pNode;
-      taosHashCleanup(pReal->pMeta->pHashJsonTemplate);
+      if(pReal->pMeta) taosHashCleanup(pReal->pMeta->pHashJsonTemplate);
       taosMemoryFreeClear(pReal->pMeta);
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
@@ -972,7 +972,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_VIEW: {
       SViewNode* pView = (SViewNode*)pNode;
-      taosHashCleanup(pView->pMeta->pHashJsonTemplate);
+      if(pView->pMeta) taosHashCleanup(pView->pMeta->pHashJsonTemplate);
       taosMemoryFreeClear(pView->pMeta);
       taosMemoryFreeClear(pView->pVgroupList);
       taosArrayDestroyEx(pView->pSmaIndexes, destroySmaIndex);
@@ -1016,7 +1016,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_VNODE_MODIFY_STMT: {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
-      taosHashCleanup(pStmt->pTableMeta->pHashJsonTemplate);
+      if(pStmt->pTableMeta) taosHashCleanup(pStmt->pTableMeta->pHashJsonTemplate);
       taosMemoryFreeClear(pStmt->pTableMeta);
       nodesDestroyNode(pStmt->pTagCond);
       taosArrayDestroy(pStmt->pTableTag);
@@ -1136,7 +1136,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DESCRIBE_STMT:
-      taosHashCleanup(((SDescribeStmt*)pNode)->pMeta->pHashJsonTemplate);
+      if(((SDescribeStmt*)pNode)->pMeta) taosHashCleanup(((SDescribeStmt*)pNode)->pMeta->pHashJsonTemplate);
       taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field

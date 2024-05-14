@@ -198,9 +198,9 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     }
 
     if (taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
-      char jsonBuf[TSDB_MAX_JSON_COL_LEN + VARSTR_HEADER_SIZE] = {0};
+      char jsonBuf[TSDB_MAX_JSON_TEMPLATE_LEN + VARSTR_HEADER_SIZE] = {0};
       col_id_t colId = pMeta->schema[i].colId;
-      buildJsonTemplate(pMeta->pHashJsonTemplate, colId, varDataVal(jsonBuf), TSDB_MAX_JSON_COL_LEN);
+      buildJsonTemplate(pMeta->pHashJsonTemplate, colId, varDataVal(jsonBuf), TSDB_MAX_JSON_TEMPLATE_LEN);
       varDataLen(jsonBuf) = strlen(varDataVal(jsonBuf));
       colDataSetVal(pCol8, pBlock->info.rows, jsonBuf, false);
     }

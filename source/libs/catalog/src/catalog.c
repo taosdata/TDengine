@@ -1187,7 +1187,7 @@ int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STabl
 }
 
 void catalogFreeSTableMeta(STableMeta* pTableMeta){
-  taosHashCleanup(pTableMeta->pHashJsonTemplate);
+  if(pTableMeta) taosHashCleanup(pTableMeta->pHashJsonTemplate);
   taosMemoryFree(pTableMeta);
 }
 

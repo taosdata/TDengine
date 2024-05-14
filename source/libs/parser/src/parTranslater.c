@@ -7251,14 +7251,14 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
       field.bytes = pCol->dataType.bytes;
     } 
     if (field.type == TSDB_DATA_TYPE_JSON) {
-      field.bytes = TSDB_MAX_JSON_COL_LEN;
+      field.bytes = TSDB_MAX_JSON_TEMPLATE_LEN;
     }
     strcpy(field.name, pCol->colName);
     if (pCol->pOptions) {
       setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
       setColCompress(&field.compress, columnCompressVal(((SColumnOptions*)pCol->pOptions)->compress));
       setColLevel(&field.compress, columnLevelVal(((SColumnOptions*)pCol->pOptions)->compressLevel));
-      strncpy(field.jsonTemplate, ((SColumnOptions*)pCol->pOptions)->jsonTemplate, TSDB_MAX_JSON_COL_LEN);
+      strncpy(field.jsonTemplate, ((SColumnOptions*)pCol->pOptions)->jsonTemplate, TSDB_MAX_JSON_TEMPLATE_LEN);
     }
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
@@ -11409,7 +11409,7 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   }
 
   if (pMeta && taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
-    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, TSDB_MAX_JSON_COL_LEN, "json template");
+    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, TSDB_MAX_JSON_TEMPLATE_LEN - 1, "json template");
   }
   return TSDB_CODE_SUCCESS;
 }

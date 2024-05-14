@@ -479,7 +479,7 @@ typedef struct SFieldWithOptions {
   int8_t   flags;
   int32_t  bytes;
   uint32_t compress;
-  char     jsonTemplate[TSDB_MAX_JSON_COL_LEN];
+  char     jsonTemplate[TSDB_MAX_JSON_TEMPLATE_LEN];
 } SFieldWithOptions;
 
 typedef struct SRetention {
