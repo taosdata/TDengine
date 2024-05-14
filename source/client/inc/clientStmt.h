@@ -52,6 +52,12 @@ typedef struct SStmtQueryResInfo {
   int32_t     precision;
 } SStmtQueryResInfo;
 
+typedef struct SStmtTableInfo {
+  uint64_t uid;
+  uint64_t suid;
+  int8_t   tbType;
+} SStmtTableInfo;
+
 typedef struct SStmtBindInfo {
   bool     needParse;
   bool     inExecCache;
@@ -79,6 +85,7 @@ typedef struct SStmtExecInfo {
 typedef struct SStmtSQLInfo {
   STMT_TYPE         type;
   STMT_STATUS       status;
+  bool              staticMode;
   uint64_t          runTimes;
   SHashObj         *pTableCache;  // SHash<SStmtTableCache>
   SQuery           *pQuery;
@@ -88,6 +95,7 @@ typedef struct SStmtSQLInfo {
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
+  SSHashObj        *pTbInfo;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {

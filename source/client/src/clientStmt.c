@@ -357,6 +357,9 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   taosHashCleanup(pStmt->sql.pTableCache);
   pStmt->sql.pTableCache = NULL;
 
+  tSimpleHashCleanup(pStmt->sql.pTbInfo);
+  pStmt->sql.pTbInfo = NULL;
+
   STMT_ERR_RET(stmtCleanExecInfo(pStmt, false, true));
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
@@ -391,6 +394,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
 
+/*
   STableDataCxt** pCxtInExec = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (pCxtInExec) {
     pStmt->bInfo.needParse = false;
@@ -403,6 +407,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
       return TSDB_CODE_SUCCESS;
     }
   }
+*/
 
   if (NULL == pStmt->sql.pTableCache || taosHashGetSize(pStmt->sql.pTableCache) <= 0) {
     if (pStmt->bInfo.inExecCache) {
@@ -443,25 +448,44 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     STMT_RET(stmtCleanBindInfo(pStmt));
   }
 
-  STableMeta*      pTableMeta = NULL;
-  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
-                           .requestId = pStmt->exec.pRequest->requestId,
-                           .requestObjRefId = pStmt->exec.pRequest->self,
-                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
-  int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-    tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
-    stmtCleanBindInfo(pStmt);
+  uint64_t uid, suid;
+  int8_t tableType;
+  SStmtTableInfo* pTbInfo = NULL;
+
+  if (pStmt->sql.staticMode) {
+    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  } 
+
+  if (NULL == pTbInfo) {
+    STableMeta*      pTableMeta = NULL;
+    SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
+                             .requestId = pStmt->exec.pRequest->requestId,
+                             .requestObjRefId = pStmt->exec.pRequest->self,
+                             .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+    int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+      tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
+      stmtCleanBindInfo(pStmt);
+
+      STMT_ERR_RET(code);
+    }
 
     STMT_ERR_RET(code);
+
+    uid = pTableMeta->uid;
+    suid = pTableMeta->suid;
+    tableType = pTableMeta->tableType;
+
+    SStmtTableInfo tbInfo = {.uid = uid, .suid = suid, .tbType = tableType};
+    tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &tbInfo, sizeof(tbInfo));
+    
+    taosMemoryFree(pTableMeta);
+  } else {
+    uid = pTbInfo->uid;
+    suid = pTbInfo->suid;
+    tableType = pTbInfo->tbType;
   }
-
-  STMT_ERR_RET(code);
-
-  uint64_t uid = pTableMeta->uid;
-  uint64_t suid = pTableMeta->suid;
-  int8_t   tableType = pTableMeta->tableType;
-  taosMemoryFree(pTableMeta);
+  
   uint64_t cacheUid = (TSDB_CHILD_TABLE == tableType) ? suid : uid;
 
   if (uid == pStmt->bInfo.tbUid) {
@@ -558,7 +582,17 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
   pStmt->taos = pObj;
   pStmt->bInfo.needParse = true;
   pStmt->sql.status = STMT_INIT;
+  pStmt->sql.staticMode = true;
   pStmt->reqid = reqid;
+
+  if (pStmt->sql.staticMode) {
+    pStmt->sql.pTbInfo = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pStmt->sql.pTbInfo) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(pStmt);
+      return NULL;
+    }
+  }
 
   STMT_LOG_SEQ(STMT_INIT);
 
