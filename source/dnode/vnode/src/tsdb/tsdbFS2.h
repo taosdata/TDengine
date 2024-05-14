@@ -61,10 +61,6 @@ struct STFileSystem {
   EFEditT       etype;
   TFileSetArray fSetArr[1];
   TFileSetArray fSetArrTmp[1];
-
-  // background task queue
-  bool    stop;
-  int64_t taskid;
 };
 
 #ifdef __cplusplus

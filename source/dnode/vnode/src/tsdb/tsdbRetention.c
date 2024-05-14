@@ -360,42 +360,42 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDoRetentionAsync(void *arg) {
+static int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
-  SRTNer  rtner[1] = {0};
+  SRTNer  rtner = {0};
 
-  code = tsdbDoRetentionBegin(arg, rtner);
+  code = tsdbDoRetentionBegin(arg, &rtner);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   STFileSet *fset;
-  TARRAY2_FOREACH(rtner->fsetArr, fset) {
+  TARRAY2_FOREACH(rtner.fsetArr, fset) {
     if (fset->fid != ((SRtnArg *)arg)->fid) continue;
 
-    code = tsdbDoRetentionOnFileSet(rtner, fset);
+    code = tsdbDoRetentionOnFileSet(&rtner, fset);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbDoRetentionEnd(rtner);
+  code = tsdbDoRetentionEnd(&rtner);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    TSDB_ERROR_LOG(TD_VID(rtner.tsdb->pVnode), lino, code);
   }
   return code;
 }
 
 static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
 
-int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
+int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   taosThreadMutexLock(&tsdb->mutex);
 
   if (tsdb->bgTaskDisabled) {
-    taosThreadMutexUnlock(&tsdb->mutex);
-    return 0;
+    goto _exit;
   }
 
   STFileSet *fset;
@@ -416,8 +416,7 @@ int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
     arg->now = now;
     arg->fid = fset->fid;
 
-    code =
-        vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync, tsdbFreeRtnArg, arg, &fset->retentionTask);
+    code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbFreeRtnArg, arg, &fset->retentionTask);
     if (code) {
       tsdbFreeRtnArg(arg);
       taosThreadMutexUnlock(&tsdb->mutex);
@@ -425,7 +424,10 @@ int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
     }
   }
 
+_exit:
   taosThreadMutexUnlock(&tsdb->mutex);
-
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
