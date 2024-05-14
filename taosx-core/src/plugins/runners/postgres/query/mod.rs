@@ -8,7 +8,7 @@ use sqlx_postgres::{PgConnectOptions, PgPool, PgRow, Postgres};
 use crate::runners::postgres::config::connect::ConnectConfig;
 
 pub struct PostgresQuery {
-    pool: Pool<Postgres>,
+    pub pool: Pool<Postgres>,
 }
 
 impl PostgresQuery {
@@ -146,14 +146,91 @@ impl PostgresQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::Row;
     use std::str::FromStr;
     use taos::Dsn;
 
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key, name varchar(255), value FLOAT8, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, CURRENT_TIMESTAMP)", i);
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test]
-    #[ignore]
     async fn test_connect() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres");
+        // prepare data
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
         dbg!(&config);
 
@@ -164,85 +241,130 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_select_one_for_schema() {
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(1).await;
 
-        let row = query
-            .select_one_for_schema("select * from information_schema.tables")
-            .await
-            .unwrap();
-        match row {
-            Some(row) => {
-                dbg!(row.len());
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let row = query
+                    .select_one_for_schema("select * from t_metric")
+                    .await
+                    .unwrap();
+                assert!(row.is_some());
             }
-            None => {
-                println!("no data");
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_select_all() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let rows = query
-            .select_all("select * from information_schema.tables")
-            .await
-            .unwrap();
-        dbg!(rows.len());
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_select_by_stream() {
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
-
-        let mut stream = query.select_by_stream("select * from information_schema.tables");
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(row) => {
-                    println!("row: {:?}", row.len());
-                }
-                Err(e) => {
-                    println!("error: {:?}", e);
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from t_metric").await;
+                match query_result {
+                    Ok(rows) => {
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
                 }
             }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
         }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_top_n() {
-        let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
+    async fn test_select_by_stream() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
 
-        let rows = query
-            .top_n("select * from information_schema.tables", 1)
-            .await
-            .unwrap();
-        // dbg!(&rows);
-        assert_eq!(rows.len(), 1);
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let mut stream = query.select_by_stream("select * from t_metric");
+                let mut rows = Vec::new();
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(row) => {
+                            rows.push(row);
+                        }
+                        Err(e) => {
+                            println!("error: {:?}", e);
+                        }
+                    }
+                }
+                assert_eq!(rows.len(), 3);
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_top_n() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.top_n("select * from t_metric", 3).await;
+                match query_result {
+                    Ok(rows) => {
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     /// postgres> show variables like 'require_secure_transport'; ---OFF
@@ -251,7 +373,7 @@ mod tests {
     async fn test_ssl_require_secure_off() {
         // test: ssl_mode=DISABLE
         let dsn = Dsn::from_str(
-            "postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=DISABLE",
+            "postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=DISABLE",
         )
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -263,7 +385,7 @@ mod tests {
 
         // test: ssl_mode=ALLOW
         let dsn = Dsn::from_str(
-            "postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=ALLOW",
+            "postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=ALLOW",
         )
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -275,7 +397,7 @@ mod tests {
 
         // test: ssl_mode=PREFER
         let dsn = Dsn::from_str(
-            "postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=PREFER",
+            "postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=PREFER",
         )
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -287,7 +409,7 @@ mod tests {
 
         // test: ssl_mode=REQUIRE
         let dsn = Dsn::from_str(
-            "postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=REQUIRE",
+            "postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=REQUIRE",
         )
         .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -299,7 +421,7 @@ mod tests {
 
         // test: ssl_mode=VERIFY_CA
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=VERIFY_CA&ssl_ca=/tmp/postgres/ca.pem")
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=VERIFY_CA&ssl_ca=/tmp/postgres/ca.pem")
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
@@ -309,7 +431,7 @@ mod tests {
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_IDENTITY
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?ssl_mode=VERIFY_FULL&ssl_ca=/tmp/postgres/ca.pem&ssl_client_cert=/tmp/postgres/client-cert.pem&ssl_client_key=/tmp/postgres/client-key.pem")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?ssl_mode=VERIFY_FULL&ssl_ca=/tmp/postgres/ca.pem&ssl_client_cert=/tmp/postgres/client-cert.pem&ssl_client_key=/tmp/postgres/client-key.pem")
             .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
