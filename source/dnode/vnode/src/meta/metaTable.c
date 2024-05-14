@@ -971,7 +971,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
       }
 
       cJSON *root = cJSON_Parse(jsonTemplate);
-      if (root == NULL || root->type != cJSON_Object){
+      if (root == NULL){
         terrno = TSDB_CODE_INVALID_JSON_FORMAT;
         goto _err;
       }

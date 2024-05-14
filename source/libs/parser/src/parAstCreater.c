@@ -1768,15 +1768,21 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
         break;
       }
       cJSON *root = cJSON_Parse(((SColumnOptions*)pOptions)->jsonTemplate);
-      if (root == NULL || root->type != cJSON_Object){
+      if (root == NULL){
         pCxt->errCode = TSDB_CODE_INVALID_JSON_FORMAT;
         break;
       }
+      if (root->type != cJSON_Object){
+        pCxt->errCode = TSDB_CODE_TEMPLATE_MUST_BE_OBJECT;
+        cJSON_Delete(root);
+        break;
+      }
 
-      int32_t code = checkJsonTemplate(((SColumnOptions*)pOptions)->jsonTemplate);
+      int32_t code = checkJsonTemplate(root);
       if (code != TSDB_CODE_SUCCESS){
         pCxt->errCode = code;
       }
+      cJSON_Delete(root);
       break;
     case COLUMN_OPTION_DROP_JSON_TEMPLATE:
       memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_TEMPLATE_LEN);

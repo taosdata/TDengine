@@ -1006,7 +1006,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
       }
 
       cJSON *root = cJSON_Parse(pField->jsonTemplate);
-      if (root == NULL || root->type != cJSON_Object){
+      if (root == NULL){
         terrno = TSDB_CODE_INVALID_JSON_FORMAT;
         return -1;
       }
