@@ -452,7 +452,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   int8_t tableType;
   SStmtTableInfo* pTbInfo = NULL;
 
-  if (pStmt->sql.staticMode) {
+  if (pStmt->sql.staticMode && pStmt->sql.runTimes > 50) {
     pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   } 
 
