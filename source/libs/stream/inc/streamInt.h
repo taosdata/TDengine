@@ -166,7 +166,7 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
 int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
-int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
+int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
 
 typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 

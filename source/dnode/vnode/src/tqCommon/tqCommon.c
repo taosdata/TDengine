@@ -745,10 +745,6 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     int32_t code = streamMetaAddFailedTask(pMeta, pReq->streamId, pReq->taskId);
     return code;
-  } else if (type == STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS) {
-    streamMetaLoadAllTasks(pMeta);
-    int32_t code = streamMetaStartAllTasks(pMeta, tqExpandStreamTask);
-    return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
 

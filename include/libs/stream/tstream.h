@@ -60,7 +60,6 @@ extern "C" {
 #define STREAM_EXEC_T_ADD_FAILED_TASK   (-7)
 // the load and start stream task should be executed after snode has started successfully, since the load of stream
 // tasks may incur the download of checkpoint data from remote, which may consume significant network and CPU resources.
-#define STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS (-8)
 
 typedef struct SStreamTask      SStreamTask;
 typedef struct SStreamQueue     SStreamQueue;

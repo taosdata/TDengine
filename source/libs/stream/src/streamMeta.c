@@ -1376,13 +1376,11 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expa
     return TSDB_CODE_SUCCESS;
   }
 
-  numOfTasks = taosArrayGetSize(pTaskList);
-
   // broadcast the check downstream tasks msg
+  numOfTasks = taosArrayGetSize(pTaskList);
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
 
-    // todo: use hashTable instead
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
@@ -1391,13 +1389,14 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expa
     }
 
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
-
-    code = expandFn(pTask);
-    if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:0x%x vgId:%d failed to build stream backend", pTaskId->taskId, vgId);
-      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
-      streamMetaReleaseTask(pMeta, pTask);
-      continue;
+    if (pTask->pBackend == NULL) {
+      code = expandFn(pTask);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:0x%x vgId:%d failed to expand stream backend", pTaskId->taskId, vgId);
+        streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
+        streamMetaReleaseTask(pMeta, pTask);
+        continue;
+      }
     }
 
     // fill-history task can only be launched by related stream tasks.
@@ -1407,6 +1406,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expa
       continue;
     }
 
+    // ready now, start the related fill-history task
     if (pTask->status.downstreamReady == 1) {
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         stDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
@@ -1429,7 +1429,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expa
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  stInfo("vgId:%d start tasks completed", pMeta->vgId);
+  stInfo("vgId:%d start all task(s) completed", pMeta->vgId);
   taosArrayDestroy(pTaskList);
   return code;
 }
@@ -1494,7 +1494,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
   if (pTask == NULL) {
-    stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, taskId);
+    stError("vgId:%d failed to acquire task:0x%x when starting task", pMeta->vgId, taskId);
     streamMetaAddFailedTask(pMeta, streamId, taskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
@@ -1507,9 +1507,29 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
-
-  if (pTask->pBackend == NULL) {  // todo handle the error code
+  if (pTask->pBackend == NULL) {
     int32_t code = expandFn(pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
+      streamMetaReleaseTask(pMeta, pTask);
+      return code;
+    }
+
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
+      if (pHTask != NULL) {
+        if (pHTask->pBackend == NULL) {
+          code = expandFn(pHTask);
+          if (code != TSDB_CODE_SUCCESS) {
+            streamMetaAddFailedTaskSelf(pHTask, pInfo->readyTs);
+            streamMetaReleaseTask(pMeta, pHTask);
+            return code;
+          }
+        }
+
+        streamMetaReleaseTask(pMeta, pHTask);
+      }
+    }
   }
 
   int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
