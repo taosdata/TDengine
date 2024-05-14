@@ -23,10 +23,7 @@ use tracing::{debug, info, instrument, warn};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
-    utils::{
-        breakpoints::{breakpoints_get_async, breakpoints_set},
-        constants::VERSION_3_3_0,
-    },
+    utils::constants::VERSION_3_3_0,
     Action,
 };
 
@@ -1526,7 +1523,7 @@ async fn sync_schema(
     Ok(())
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(task.id = task_id.as_deref()))]
 async fn sync_specified_tables_with_workers(
     scheduler: &Scheduler,
     from: &TaosPool,
@@ -1550,6 +1547,7 @@ async fn sync_specified_tables_with_workers(
     )>();
     let task_id = task_id.clone().map(|s| Arc::new(s));
     let task_id_cloned = task_id.clone();
+    let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
         let mut fails = 0;
         let task_id = task_id_cloned;
@@ -1559,20 +1557,21 @@ async fn sync_specified_tables_with_workers(
                 Ok(_) => {
                     if let Some((table, time_range)) = sparse {
                         // set breakpoint async
-                        if let Some(task_id) = task_id.clone() {
+                        if let Some(breakpoints) = breakpoints.clone() {
                             if let Some(end) = time_range.end {
                                 let breakpoint = end.to_string();
-                                tokio::task::spawn_blocking(move || {
-                                    let _ = breakpoints_set(&task_id, &table, &breakpoint);
-                                })
-                                .await
-                                .unwrap();
+                                if let Err(err) = breakpoints.set(&table, &breakpoint) {
+                                    tracing::warn!(
+                                        task.id = task_id.as_deref(),
+                                        "Set breakpoint error: {err:#}"
+                                    );
+                                }
                             }
                         }
                     }
                 }
                 Err(err) => {
-                    tracing::error!("Syncing error: {err:#}",);
+                    tracing::error!(task.id = task_id.as_deref(), "Syncing error: {err:#}",);
                     fails += 1;
                     if target_opts.fails_to.is_none() {
                         return Err(err);
@@ -1608,23 +1607,22 @@ async fn sync_specified_tables_with_workers(
         tracing::info!(tables = todo.tables.len(), "Scanning tables done");
     });
 
+    let breakpoints = scheduler.breakpoints();
     while let Ok(item) = items_rx.recv_async().await {
         let stable = &item.stable;
         let table = &item.table;
 
         if item.mtlf {
             // get breakpoints use breakpoints_get
-            if let Some(task_id) = task_id.as_deref() {
+            if let Some(breakpoints) = breakpoints.as_ref() {
                 const MAX_RETRIES: usize = 5;
                 let mut retries = MAX_RETRIES;
                 loop {
                     let _lock = file_mutex.lock().await;
-                    match breakpoints_get_async(&task_id, &table)
-                        .await
-                        .and_then(|bp| {
-                            bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
-                                .transpose()
-                        }) {
+                    match breakpoints.get(&table).and_then(|bp| {
+                        bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                            .transpose()
+                    }) {
                         Ok(Some(breakpoint)) => {
                             opts.time_range.start = Some(breakpoint);
                             tracing::debug!(

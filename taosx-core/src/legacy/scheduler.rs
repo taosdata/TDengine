@@ -27,7 +27,7 @@ use crate::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap, transform_tbname_with_actions,
     },
-    utils::breakpoints,
+    utils::breakpoints::BreakpointDb,
     Action, QueryOpts, TargetOpts, TimeRange,
 };
 
@@ -60,6 +60,7 @@ pub struct Scheduler {
     handles: Vec<JoinHandle<anyhow::Result<()>>>,
     #[allow(dead_code)]
     task_id: Option<String>,
+    breakpoints: Option<BreakpointDb>,
 }
 
 impl Debug for Scheduler {
@@ -90,6 +91,7 @@ async fn worker(
     target_is_v3: bool,
     task_id: Option<String>,
     file_mutex: Arc<tokio::sync::Mutex<()>>,
+    breakpoints: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
@@ -293,15 +295,22 @@ async fn worker(
                     tracing::info_span!("sync_data", table = table.as_str(), range = ?time_range);
                 let _entered = span.enter();
                 // get breakpoints use breakpoints_get
-                if let Some(task_id) = task_id.clone() {
+                if task_id.is_some() {
                     const MAX_RETRIES: usize = 5;
                     let mut retries = MAX_RETRIES;
                     loop {
                         let _lock = file_mutex.lock().await;
-                        match breakpoints::breakpoints_get(&task_id, &table).and_then(|bp| {
-                            bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                        let breakpoint = breakpoints
+                            .as_ref()
+                            .and_then(|db| db.get(&table).transpose())
+                            .transpose()
+                            .and_then(|v| {
+                                v.map(|bp| {
+                                    bp.parse::<DateTime<Utc>>().context("Parse datetime error")
+                                })
                                 .transpose()
-                        }) {
+                            });
+                        match breakpoint {
                             Ok(Some(breakpoint)) => {
                                 time_range.start = Some(breakpoint);
                                 tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
@@ -391,7 +400,7 @@ async fn worker(
                                             time_range = query.time_range,
                                         );
                                         // set breakpoint
-                                        if let Some(task_id) = task_id.clone() {
+                                        if let Some(breakpoints) = breakpoints.clone() {
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
                                                 // dbg!(&breakpoint);
@@ -400,8 +409,7 @@ async fn worker(
                                                     let mut retries = 0;
                                                     loop {
                                                         if let Err(err) =
-                                                            breakpoints::breakpoints_set(
-                                                                &task_id,
+                                                            breakpoints.set(
                                                                 &table_inner,
                                                                 &breakpoint,
                                                             )
@@ -409,9 +417,8 @@ async fn worker(
                                                             retries += 1;
                                                             if retries >= max_retries {
                                                                 tracing::warn!(
-                                                                    task.id = task_id.as_str(),
-                                                                    breakpoints.key = table_inner.as_str(),
-                                                                    breakpoints.value = breakpoint.as_str(),
+                                                                    breakpoints.key = %table_inner,
+                                                                    breakpoints.value = breakpoint,
                                                                     "set breakpoint failed, err: {err:#}"
                                                                 );
                                                             }
@@ -683,6 +690,15 @@ impl Scheduler {
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
+        let breakpoints = if let Some(id) = task_id.as_deref() {
+            Some(
+                BreakpointDb::new_with_task(&id)
+                    .await
+                    .expect("create breakpoint db failed"), // TODO: handle error
+            )
+        } else {
+            None
+        };
 
         let handles = (0..workers)
             .map(|i| {
@@ -700,6 +716,7 @@ impl Scheduler {
                     target_is_v3,
                     task_id.clone(),
                     file_mutex.clone(),
+                    breakpoints.clone(),
                 )
                 .in_current_span();
                 tokio::spawn(async move {
@@ -724,7 +741,12 @@ impl Scheduler {
             receiver,
             handles,
             task_id,
+            breakpoints,
         }
+    }
+
+    pub fn breakpoints(&self) -> Option<BreakpointDb> {
+        self.breakpoints.clone()
     }
 
     pub fn abort(&self) {
