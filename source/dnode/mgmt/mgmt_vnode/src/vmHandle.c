@@ -270,7 +270,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
     dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
-    code = terrno;
+    code = terrno != 0 ? terrno : -1;
     goto _OVER;
   }
 
@@ -295,21 +295,21 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     vmReleaseVnode(pMgmt, pVnode);
     tFreeSCreateVnodeReq(&req);
-    code = terrno;
+    code = terrno != 0 ? terrno : -1;
     return code;
   }
 
   SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
-    code = terrno;
+    code = terrno != 0 ? terrno : -1;
     goto _OVER;
   }
 
   code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
     dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
-    code = terrno;
+    code = terrno != 0 ? terrno : code;
     goto _OVER;
   }
 
@@ -330,7 +330,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
-    code = terrno;
+    code = terrno != 0 ? terrno : code;
     goto _OVER;
   }
 
