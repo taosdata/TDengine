@@ -63,6 +63,11 @@ static int32_t s3ListBucket(char const *bucketname);
 int32_t s3CheckCfg() {
   int32_t code = 0;
 
+  if (!tsS3Enabled) {
+    fprintf(stderr, "s3 not configured.\n");
+    goto _exit;
+  }
+
   code = s3Begin();
   if (code != 0) {
     fprintf(stderr, "failed to initialize s3.\n");
