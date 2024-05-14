@@ -478,7 +478,13 @@ fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
 
 /// 获取 opc 点位
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from: Dsn = req.from.parse()?;
+    let from: Dsn = req.from.parse().map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse dsn: {}, cause: {}",
+            req.from,
+            err.to_string()
+        )
+    })?;
 
     if req.categories.is_empty() {
         anyhow::bail!("categories is empty");
@@ -497,7 +503,12 @@ async fn opc_datasets_impl(mut from: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let opc_points = match csv_config_file {
         // 解析 csv 文件中的点位
         Some(_file_paths) => {
-            let parser = CsvParser::from_dsn(&from).await?;
+            let parser = CsvParser::from_dsn(&from).await.map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to parse csv_config_file, cause: {}",
+                    err.to_string()
+                )
+            })?;
             opc_datasets_by_csv(&parser).await?
         }
         // 通过 taosx-opc points 命令获取点位
