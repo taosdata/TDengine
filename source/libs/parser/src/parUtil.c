@@ -324,6 +324,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   } else {
     p->schemaExt = NULL;
   }
+  p->pHashJsonTemplate = taosHashCopy(pTableMeta->pHashJsonTemplate);
   return p;
 }
 

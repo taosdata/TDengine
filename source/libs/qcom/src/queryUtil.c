@@ -497,6 +497,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     (*pDst)->schemaExt = NULL;
   }
 
+  (*pDst)->pHashJsonTemplate = taosHashCopy(pSrc->pHashJsonTemplate);
   return TSDB_CODE_SUCCESS;
 }
 

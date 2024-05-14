@@ -8187,6 +8187,8 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeI8(pCoder, pReq->colCmpred) < 0) return -1;
   if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
 
+  if (tEncodeHashJsonTemplate(pCoder, pReq->pHashJsonTemplate) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -8216,6 +8218,10 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
     }
+  }
+
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeHashJsonTemplate(pCoder, &pReq->pHashJsonTemplate) < 0) return -1;
   }
 
   tEndDecode(pCoder);
@@ -8261,6 +8267,12 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   // Encode Column Options: encode compress level
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr) < 0) return -1;
+    int32_t len = taosArrayGetSize(pReq->jsonTemplate);
+    if (tEncodeI32(pCoder, len) < 0) return -1;
+    for (int32_t i = 0; i < len; i++) {
+      char *jsonTemplate = (char*)taosArrayGetP(pReq->jsonTemplate, i);
+      if (tEncodeCStr(pCoder, jsonTemplate) < 0) return -1;
+    }
   }
 
   tEndEncode(pCoder);
@@ -8315,6 +8327,17 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       if (!tDecodeIsEnd(pCoder)) {
         if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
       }
+      if (!tDecodeIsEnd(pCoder)){
+        int32_t len = 0;
+        if (tDecodeI32(pCoder, &len) < 0) return -1;
+        pReq->jsonTemplate = taosArrayInit(len, POINTER_BYTES);
+        if (pReq->jsonTemplate == NULL) return -1;
+        for (int32_t i = 0; i < len; i++) {
+          char *tmp = NULL;
+          if (tDecodeCStrAlloc(pCoder, &tmp) < 0) return -1;
+          taosArrayPush(pReq->jsonTemplate, &tmp);
+        }
+      }
   }
 
   tEndDecode(pCoder);
@@ -8336,6 +8359,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
       if (pReq->ctb.tagName) taosArrayDestroy(pReq->ctb.tagName);
     } else if (pReq->type == TSDB_NORMAL_TABLE) {
       if (pReq->ntb.schemaRow.pSchema) taosMemoryFree(pReq->ntb.schemaRow.pSchema);
+      taosArrayDestroyEx(pReq->jsonTemplate, taosMemoryFree);
     }
   }
 
@@ -8420,11 +8444,8 @@ void tFreeSVCreateTbRsp(void *param) {
   }
 
   SVCreateTbRsp *pRsp = (SVCreateTbRsp *)param;
-  if (pRsp->pMeta) {
-    taosMemoryFree(pRsp->pMeta->pSchemas);
-    taosMemoryFree(pRsp->pMeta->pSchemaExt);
-    taosMemoryFree(pRsp->pMeta);
-  }
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFree(pRsp->pMeta);
 }
 
 // TDMT_VND_DROP_TABLE =================
@@ -8736,6 +8757,14 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
       if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
       break;
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
+        if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -8791,6 +8820,14 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
       if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
       break;
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
+        if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -8915,11 +8952,8 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
     return;
   }
 
-  if (pRsp->pMeta) {
-    taosMemoryFree(pRsp->pMeta->pSchemas);
-    taosMemoryFree(pRsp->pMeta->pSchemaExt);
-    taosMemoryFree(pRsp->pMeta);
-  }
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFree(pRsp->pMeta);
 }
 
 int32_t tEncodeSMCreateStbRsp(SEncoder *pEncoder, const SMCreateStbRsp *pRsp) {
@@ -8967,11 +9001,8 @@ void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
     return;
   }
 
-  if (pRsp->pMeta) {
-    taosMemoryFree(pRsp->pMeta->pSchemas);
-    taosMemoryFree(pRsp->pMeta->pSchemaExt);
-    taosMemoryFree(pRsp->pMeta);
-  }
+  tFreeSTableMetaRsp(pRsp->pMeta);
+  taosMemoryFree(pRsp->pMeta);
 }
 
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
@@ -10584,7 +10615,7 @@ void destroyJsonTemplateArray(void *data){
   SArray* array = (SArray*)data;
   for(int i = 0; i < taosArrayGetSize(array); i++){
     SJsonTemplate* tmp = (SJsonTemplate*)taosArrayGet(array, i);
-    taosMemoryFree(tmp->templateJsonString);
+    taosMemoryFreeClear(tmp->templateJsonString);
   }
 
   taosArrayDestroy(data);

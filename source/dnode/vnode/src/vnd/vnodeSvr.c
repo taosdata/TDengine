@@ -1027,10 +1027,12 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
+  taosHashCleanup(req.pHashJsonTemplate);
   tDecoderClear(&coder);
   return 0;
 
 _err:
+  taosHashCleanup(req.pHashJsonTemplate);
   tDecoderClear(&coder);
   return -1;
 }
@@ -1163,6 +1165,7 @@ _exit:
     taosMemoryFree(pCreateReq->sql);
     taosMemoryFree(pCreateReq->comment);
     taosArrayDestroy(pCreateReq->ctb.tagName);
+    taosArrayDestroyEx(pCreateReq->jsonTemplate, taosMemoryFree);
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
@@ -1186,16 +1189,19 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   // decode req
   if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    taosHashCleanup(req.pHashJsonTemplate);
     tDecoderClear(&dc);
     return -1;
   }
 
   if (metaAlterSTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
+    taosHashCleanup(req.pHashJsonTemplate);
     tDecoderClear(&dc);
     return -1;
   }
 
+  taosHashCleanup(req.pHashJsonTemplate);
   tDecoderClear(&dc);
 
   return 0;
@@ -1288,10 +1294,7 @@ _exit:
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
   tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp);
   tEncoderClear(&ec);
-  if (vMetaRsp.pSchemas) {
-    taosMemoryFree(vMetaRsp.pSchemas);
-    taosMemoryFree(vMetaRsp.pSchemaExt);
-  }
+  tFreeSTableMetaRsp(&vMetaRsp);
   return 0;
 }
 
@@ -2209,16 +2212,17 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
   // decode req
   if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    tDecoderClear(&dc);
-    return -1;
+    goto _err;
   }
   if (metaAddIndexToSTable(pVnode->pMeta, ver, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
+  taosHashCleanup(req.pHashJsonTemplate);
   tDecoderClear(&dc);
   return 0;
 _err:
+  taosHashCleanup(req.pHashJsonTemplate);
   tDecoderClear(&dc);
   return -1;
 }

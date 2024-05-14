@@ -1157,7 +1157,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
       assert(0);
     }
 
-    taosMemoryFreeClear(tbMeta);
+    catalogFreeSTableMeta(tbMeta);
 
     if (ctgTestEnableSleep) {
       taosUsleep(taosRand() % 5);
@@ -1296,7 +1296,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
@@ -1319,7 +1319,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   tableMeta = NULL;
   catalogGetCachedTableMeta(pCtg, &n, &tableMeta);
@@ -1332,6 +1332,8 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  catalogFreeSTableMeta(tableMeta);
 
   SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1406,7 +1408,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
@@ -1429,7 +1431,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   strcpy(n.tname, ctgTestSTablename);
   code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
@@ -1443,7 +1445,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1518,7 +1520,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
@@ -1542,7 +1544,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   ctgTestSetRspCTableMeta();
 
@@ -1561,7 +1563,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
@@ -1584,7 +1586,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1662,7 +1664,7 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFree(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
@@ -1741,7 +1743,7 @@ TEST(tableMeta, updateStbMeta) {
     }
   }
 
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   STableMetaRsp rsp = {0};
   ctgTestBuildSTableMetaRsp(&rsp);
@@ -1781,7 +1783,7 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1 + 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
 }
@@ -1873,7 +1875,7 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1890,7 +1892,7 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
 }
@@ -1952,7 +1954,7 @@ TEST(refreshGetMeta, normal2notexist) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -2025,7 +2027,7 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -2041,7 +2043,7 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
   ctgTestCurrentCTableName = NULL;
@@ -2110,7 +2112,7 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -2127,7 +2129,7 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
   ctgTestCurrentCTableName = NULL;
@@ -2195,7 +2197,7 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -2213,7 +2215,7 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
   ctgTestCurrentCTableName = NULL;
@@ -2280,7 +2282,7 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   while (2 != ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -2299,7 +2301,7 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  taosMemoryFreeClear(tableMeta);
+  catalogFreeSTableMeta(tableMeta);
 
   catalogDestroy();
   ctgTestCurrentCTableName = NULL;
@@ -2720,7 +2722,7 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.precision, 1);
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-    taosMemoryFree(tableMeta);
+    catalogFreeSTableMeta(tableMeta);
 
     while (ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
       taosMsleep(50);

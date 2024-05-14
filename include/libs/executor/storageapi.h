@@ -82,6 +82,7 @@ typedef struct SMetaEntry {
   uint8_t*        pBuf;
 
   SColCmprWrapper colCmpr;  // col compress alg
+  SHashObj*       pHashJsonTemplate;
 } SMetaEntry;
 
 typedef struct SMetaReader {

@@ -100,32 +100,60 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
+void buildJsonTemplate(SHashObj* pHashJsonTemplate, col_id_t colId, char* jsonBuf, int jsonBufLen){
+  SArray** templateArray = (SArray**)taosHashGet(pHashJsonTemplate, &colId, sizeof(col_id_t));
+  if(!templateArray)
+    return;
+
+  int size = 0;
+  for(int32_t j = 0; j < taosArrayGetSize(*templateArray); ++j){
+    SJsonTemplate* pTemplate = taosArrayGet(*templateArray, j);
+    if(pTemplate->isValidate){
+      size += snprintf(jsonBuf + size, jsonBufLen - size, "%d:%s\n", pTemplate->templateId, pTemplate->templateJsonString);
+    }
+    if(size >= jsonBufLen){
+      qError("json template is too long, truncated");
+      break;
+    }
+  }
+  if(size > 0){     // remove the last \n
+    jsonBuf[size - 1] = '\0';
+  }
+}
+
 static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta,
                                           int8_t biMode) {
   int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
   blockDataEnsureCapacity(pBlock, blockCap);
   pBlock->info.rows = 0;
 
+  int index = 0;
   // field
-  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, index++);
   // Type
-  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, index++);
   // Length
-  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
+  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, index++);
   // Note
-  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
+  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, index++);
   // encode
   SColumnInfoData* pCol5 = NULL;
   // compress
   SColumnInfoData* pCol6 = NULL;
   // level
   SColumnInfoData* pCol7 = NULL;
+  // json template
+  SColumnInfoData* pCol8 = NULL;
+
   if (useCompress(pMeta->tableType)) {
-    pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
-    pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
-    pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
+    pCol5 = taosArrayGet(pBlock->pDataBlock, index++);
+    pCol6 = taosArrayGet(pBlock->pDataBlock, index++);
+    pCol7 = taosArrayGet(pBlock->pDataBlock, index++);
   }
 
+  if (taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
+    pCol8 = taosArrayGet(pBlock->pDataBlock, index++);
+  }
   int32_t fillTagCol = 0;
   char    buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -167,6 +195,14 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         STR_TO_VARSTR(buf, fillTagCol == 0 ? "" : "disabled");
         colDataSetVal(pCol7, pBlock->info.rows, buf, false);
       }
+    }
+
+    if (taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
+      char jsonBuf[TSDB_MAX_JSON_COL_LEN + VARSTR_HEADER_SIZE] = {0};
+      col_id_t colId = pMeta->schema[i].colId;
+      buildJsonTemplate(pMeta->pHashJsonTemplate, colId, varDataVal(jsonBuf), TSDB_MAX_JSON_COL_LEN);
+      varDataLen(jsonBuf) = strlen(varDataVal(jsonBuf));
+      colDataSetVal(pCol8, pBlock->info.rows, jsonBuf, false);
     }
 
     fillTagCol = 0;

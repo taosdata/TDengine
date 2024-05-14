@@ -106,7 +106,7 @@ const char* tjsonGetError();
 void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
 int32_t     testJsonAvro(const char* json);
-
+int32_t     checkJsonTemplate(SJson *pJson);
 #ifdef __cplusplus
 }
 #endif

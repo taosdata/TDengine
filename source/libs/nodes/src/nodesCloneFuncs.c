@@ -245,6 +245,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
     return NULL;
   }
   memcpy(pDst, pSrc, len);
+  pDst->pHashJsonTemplate = taosHashCopy(pSrc->pHashJsonTemplate);
   return pDst;
 }
 

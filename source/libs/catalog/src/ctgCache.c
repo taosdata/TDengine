@@ -542,6 +542,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     }
 
     memcpy(*pTableMeta, tbMeta, metaSize);
+    (*pTableMeta)->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
     if (tbMeta->schemaExt != NULL) {
       (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
       memcpy((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
@@ -574,7 +575,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
   if (NULL == tbCache) {
-    taosMemoryFreeClear(*pTableMeta);
+    catalogFreeSTableMeta(*pTableMeta);
     *pDb = NULL;
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
     return TSDB_CODE_SUCCESS;
@@ -585,7 +586,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   STableMeta *stbMeta = tbCache->pMeta;
   if (stbMeta->suid != ctx->tbInfo.suid) {
     ctgError("stb suid 0x%" PRIx64 " in stbCache mis-match, expected suid 0x%" PRIx64, stbMeta->suid, ctx->tbInfo.suid);
-    taosMemoryFreeClear(*pTableMeta);
+    catalogFreeSTableMeta(*pTableMeta);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -596,6 +597,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   memcpy(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  (*pTableMeta)->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
   (*pTableMeta)->schemaExt =  NULL;
 
   return TSDB_CODE_SUCCESS;
@@ -631,7 +633,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 _return:
 
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
-  taosMemoryFreeClear(*pTableMeta);
+  catalogFreeSTableMeta(*pTableMeta);
   *pTableMeta = NULL;
 
   CTG_RET(code);
@@ -1157,7 +1159,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog *pCtg, STableMetaOutput *output, bool sy
 _return:
 
   if (output) {
-    taosMemoryFree(output->tbMeta);
+    catalogFreeSTableMeta(output->tbMeta);
     taosMemoryFree(output);
   }
 
@@ -1392,6 +1394,7 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+
   newDBCache.stbCache = taosHashInit(gCtgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT),
                                      true, HASH_ENTRY_LOCK);
   if (NULL == newDBCache.stbCache) {
@@ -1519,7 +1522,7 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
                               STableMeta *meta) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
-    taosMemoryFree(meta);
+    catalogFreeSTableMeta(meta);
     ctgError("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
     CTG_ERR_RET(TSDB_CODE_CTG_DB_DROPPED);
   }
@@ -1534,7 +1537,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
     if (origType == meta->tableType && orig->uid == meta->uid &&
         (origType == TSDB_CHILD_TABLE || (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion))) {
-      taosMemoryFree(meta);
+      catalogFreeSTableMeta(meta);
       ctgDebug("ignore table %s meta update", tbName);
       return TSDB_CODE_SUCCESS;
     }
@@ -1558,7 +1561,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     cache.pMeta = meta;
     if (taosHashPut(dbCache->tbCache, tbName, strlen(tbName), &cache, sizeof(SCtgTbCache)) != 0) {
       ctgError("taosHashPut new tbCache failed, dbFName:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
-      taosMemoryFree(meta);
+      catalogFreeSTableMeta(meta);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -1573,7 +1576,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
     atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(meta) - ctgGetTbMetaCacheSize(pCache->pMeta));
 
-    taosMemoryFree(pCache->pMeta);
+    catalogFreeSTableMeta(pCache->pMeta);
     pCache->pMeta = meta;
     
     CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
@@ -2060,7 +2063,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
 
 _return:
 
-  taosMemoryFreeClear(pMeta->tbMeta);
+  catalogFreeSTableMeta(pMeta->tbMeta);
   taosMemoryFreeClear(pMeta);
 
   taosMemoryFreeClear(msg);
@@ -2578,7 +2581,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     }
     case CTG_OP_UPDATE_TB_META: {
       SCtgUpdateTbMetaMsg *msg = op->data;
-      taosMemoryFreeClear(msg->pMeta->tbMeta);
+      catalogFreeSTableMeta(msg->pMeta->tbMeta);
       taosMemoryFreeClear(msg->pMeta);
       taosMemoryFreeClear(op->data);
       break;
@@ -2747,7 +2750,7 @@ int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **p
       return TSDB_CODE_SUCCESS;
     }
 
-    taosMemoryFreeClear(*pTableMeta);
+    catalogFreeSTableMeta(*pTableMeta);
     *pTableMeta = NULL;
   }
 
@@ -2783,7 +2786,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
           ((!CTG_FLAG_IS_FORCE_UPDATE(nctx.flag)) || (CTG_FLAG_IS_SYS_DB(nctx.flag)))) {
         res.pRes = pTableMeta;
       } else {
-        taosMemoryFreeClear(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
       }
     }
 
@@ -2903,6 +2906,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->schemaExt = NULL;
       }
 
+      pTableMeta->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
 
@@ -2951,7 +2955,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", pTableMeta->suid, dbFName);
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(ctx->pResList, &(SMetaRes){0});
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
 
       CTG_META_NHIT_INC();
       continue;
@@ -2964,7 +2968,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(ctx->pResList, &(SMetaRes){0});
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
 
       CTG_META_NHIT_INC();
       continue;
@@ -2980,7 +2984,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(ctx->pResList, &(SMetaRes){0});
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
 
       CTG_META_NHIT_INC();
       continue;
@@ -2996,7 +3000,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArrayPush(ctx->pResList, &(SMetaRes){0});
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
 
       CTG_META_NHIT_INC();
       continue;
@@ -3055,7 +3059,7 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq
 
 _return:
 
-  taosMemoryFreeClear(tblMeta);
+  catalogFreeSTableMeta(tblMeta);
 
   CTG_RET(code);
 }

@@ -461,7 +461,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   uint64_t uid = pTableMeta->uid;
   uint64_t suid = pTableMeta->suid;
   int8_t   tableType = pTableMeta->tableType;
-  taosMemoryFree(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   uint64_t cacheUid = (TSDB_CHILD_TABLE == tableType) ? suid : uid;
 
   if (uid == pStmt->bInfo.tbUid) {
@@ -864,13 +864,13 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
       if (code || NULL == pTableMeta) {
         pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
         finalCode = code;
-        taosMemoryFree(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
         continue;
       }
 
       pMeta->uid = pTableMeta->uid;
       pStmt->bInfo.tbUid = pTableMeta->uid;
-      taosMemoryFree(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
     }
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);

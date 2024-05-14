@@ -257,6 +257,8 @@ int32_t catalogGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const S
 int32_t catalogGetSTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
                              STableMeta** pTableMeta);
 
+void    catalogFreeSTableMeta(STableMeta* pTableMeta);
+
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
 int32_t catalogAsyncUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg);

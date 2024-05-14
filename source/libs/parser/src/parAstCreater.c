@@ -20,6 +20,7 @@
 #include "parUtil.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "tjson.h"
 
 #define CHECK_OUT_OF_MEM(p)                                                      \
   do {                                                                           \
@@ -1759,6 +1760,10 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->jsonTemplate, (SToken*)pVal);
       if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
         pCxt->errCode = TSDB_CODE_TSC_INVALID_JSON;
+      }
+      int32_t code = checkJsonTemplate(((SColumnOptions*)pOptions)->jsonTemplate);
+      if (code != TSDB_CODE_SUCCESS){
+        pCxt->errCode = code;
       }
       break;
     case COLUMN_OPTION_DROP_JSON_TEMPLATE:

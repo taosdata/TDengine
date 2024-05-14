@@ -282,7 +282,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     TABLE_SET_COL_COMPRESSED(me.flags);
     me.colCmpr = pReq->colCmpr;
   }
-
+  me.pHashJsonTemplate = pReq->pHashJsonTemplate;
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
   ++pMeta->pVnode->config.vndStats.numOfSTables;
@@ -957,6 +957,43 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
     }
+
+    me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    if(me.pHashJsonTemplate){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    taosHashSetFreeFp(me.pHashJsonTemplate, destroyJsonTemplateArray);
+    for (int32_t i = 0; i < me.ntbEntry.schemaRow.nCols; i++) {
+      char *jsonTemplate = (char*)taosArrayGetP(pReq->jsonTemplate, i);
+      if (strlen(jsonTemplate) == 0){
+        continue;
+      }
+
+      cJSON *root = cJSON_Parse(jsonTemplate);
+      if (root == NULL || root->type != cJSON_Object){
+        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+        goto _err;
+      }
+
+      SJsonTemplate tmp = {.templateId=0, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+      cJSON_Delete(root);
+      SArray* arr = taosArrayInit(1, sizeof(tmp));
+      if (arr == NULL){
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        taosMemoryFree(tmp.templateJsonString);
+        goto _err;
+      }
+      taosArrayPush(arr, &tmp);
+      if(taosHashPut(me.pHashJsonTemplate, &me.ntbEntry.schemaRow.pSchema[i].colId, sizeof(me.ntbEntry.schemaRow.pSchema[i].colId), &arr, POINTER_BYTES) != 0){
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        taosMemoryFree(tmp.templateJsonString);
+        taosArrayDestroy(arr);
+        goto _err;
+      }
+      metaDebug("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
+                me.ntbEntry.schemaRow.pSchema[i].colId, tmp.templateJsonString);
+    }
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -979,10 +1016,13 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
           (*pMetaRsp)->pSchemaExt[i].colId = p->id;
           (*pMetaRsp)->pSchemaExt[i].compress = p->alg;
         }
+        (*pMetaRsp)->pHashJsonTemplate = me.pHashJsonTemplate;
+        me.pHashJsonTemplate = NULL;
       }
     }
   }
 
+  taosHashCleanup(me.pHashJsonTemplate);
   pMeta->changed = true;
   metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
@@ -991,6 +1031,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 _err:
   metaError("vgId:%d, failed to create table:%s type:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->type == TSDB_CHILD_TABLE ? "child table" : "normal table", tstrerror(terrno));
+  taosHashCleanup(me.pHashJsonTemplate);
   return -1;
 }
 
@@ -1379,6 +1420,45 @@ int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbDelete(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), pMeta->txn);
 }
 
+static int32_t metaUpdateTableJsonTemplate(SVAlterTbReq *pAlterTbReq, SSchema* pCol, SMetaEntry* entry) {
+  if (pCol == NULL) {
+    terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
+    return -1;
+  }
+
+  if(pCol->type != TSDB_DATA_TYPE_JSON){
+    terrno = TSDB_CODE_ADD_TEMPLATE_ONLY_JSON;
+    return -1;
+  }
+
+  SArray* templateArray = taosHashGet(entry->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
+  ASSERT(templateArray != NULL);
+
+  if(pAlterTbReq->type == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
+    cJSON *root = cJSON_Parse(pAlterTbReq->newComment);
+    if (root == NULL) {
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+      return -1;
+    }
+    SJsonTemplate tmp = {.templateId=taosArrayGetSize(templateArray), .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+    cJSON_Delete(root);
+    taosArrayPush(templateArray, &tmp);
+    metaInfo("add json template for column:%s, id:%d, template:%s", pCol->name, pCol->colId, tmp.templateJsonString);
+  }else if(pAlterTbReq->type == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
+    int32_t templateId = taosStr2Int32(pAlterTbReq->newComment, NULL, 10);
+    if(templateId < 0 || templateId >= taosArrayGetSize(templateArray)){
+      terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
+      return -1;
+    }
+    metaInfo("drop json template id:%d for column:%s, id:%d", templateId, pCol->name, pCol->colId);
+    SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId);
+    ASSERT(pTemplateOld != NULL);
+    pTemplateOld->isValidate = false;
+  }
+
+  return 0;
+}
+
 static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq, STableMetaRsp *pMetaRsp) {
   void           *pVal = NULL;
   int             nVal = 0;
@@ -1599,6 +1679,14 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pSchema->version++;
       strcpy(pColumn->name, pAlterTbReq->colNewName);
       break;
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:
+    {
+      if(metaUpdateTableJsonTemplate(pAlterTbReq, pColumn, &entry) != 0){
+        goto _err;
+      }
+      pSchema->version++;
+    }
   }
 
   entry.version = version;
@@ -1625,6 +1713,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     pMetaRsp->pSchemaExt[i].colId = p->id;
     pMetaRsp->pSchemaExt[i].compress = p->alg;
   }
+  pMetaRsp->pHashJsonTemplate = entry.pHashJsonTemplate;
 
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   if (pNewSchema) taosMemoryFree(pNewSchema);
@@ -1638,6 +1727,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
 _err:
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
+  taosHashCleanup(entry.pHashJsonTemplate);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   tDecoderClear(&dc);
@@ -2272,6 +2362,8 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:
       return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return metaUpdateTableTagVal(pMeta, version, pReq);

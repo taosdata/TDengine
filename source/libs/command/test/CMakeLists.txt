@@ -14,5 +14,5 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         commandTest
-        PUBLIC os util common nodes parser catalog transport gtest function qcom
+        PUBLIC os util common nodes parser catalog transport gtest function qcom command taos
 )

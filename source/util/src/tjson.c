@@ -386,6 +386,8 @@ bool isInteger(double value){
   return value == (int64_t)value;
 }
 
+#define check(rval, call) { rval = call; if(rval) goto END; }
+
 #define ADD_TYPE_2_OBJECT(t,k,v) cJSON* type = cJSON_CreateString(v);\
                                  cJSON_AddItemToObject(t, k, type)
 
@@ -603,7 +605,7 @@ cJSON* transformArray2AvroRecord(cJSON* template){
   return array;
 }
 
-int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_value_t *current_val) {
+int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_datum_t current_val) {
   switch (schema->type) {
     case AVRO_RECORD:
     {
@@ -616,10 +618,9 @@ int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_value_t *curren
 
         cJSON *json_val = cJSON_GetObjectItem(json, name);
 
-        avro_value_t field;
-        avro_value_get_by_index(current_val, i, &field, NULL);
-
-        if (encodeBySchema(field_schema, json_val, &field) != 0){
+        avro_datum_t  subrec = NULL;
+        avro_record_get(current_val, name, &subrec);
+        if (encodeBySchema(field_schema, json_val, subrec) != 0){
           return -1;
         }
       }
@@ -629,7 +630,7 @@ int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_value_t *curren
       ASSERT(cJSON_IsString(json));
 
       const char *js = cJSON_GetStringValue(json);
-      avro_value_set_string(current_val, js);
+      avro_string_set(current_val, js);
       break;
 
     case AVRO_INT32:
@@ -638,39 +639,40 @@ int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_value_t *curren
 
     case AVRO_INT64:
       ASSERT(cJSON_IsNumber(json));
-      avro_value_set_long(current_val, cJSON_GetNumberValue(json));
+      avro_int64_set(current_val, cJSON_GetNumberValue(json));
       break;
 
     case AVRO_FLOAT:
       ASSERT(cJSON_IsNumber(json));
-      avro_value_set_float(current_val, cJSON_GetNumberValue(json));
+      avro_float_set(current_val, cJSON_GetNumberValue(json));
       break;
 
     case AVRO_DOUBLE:
       ASSERT(cJSON_IsNumber(json));
-      avro_value_set_double(current_val, cJSON_GetNumberValue(json));
+      avro_double_set(current_val, cJSON_GetNumberValue(json));
       break;
 
     case AVRO_BOOLEAN:
       ASSERT(cJSON_IsBool(json));
-      avro_value_set_boolean(current_val, cJSON_GetNumberValue(json));
+      avro_boolean_set(current_val, cJSON_GetNumberValue(json));
       break;
 
     case AVRO_NULL:
       ASSERT(cJSON_IsNull(json));
-      avro_value_set_null(current_val);
       break;
 
     case AVRO_ARRAY:
       ASSERT(cJSON_IsArray(json));
       int i, len = cJSON_GetArraySize(json);
       avro_schema_t items = avro_schema_array_items(schema);
-      avro_value_t val;
       for (i=0; i<len; i++) {
-        avro_value_append(current_val, &val, NULL);
-        if (encodeBySchema(items, cJSON_GetArrayItem(json, i), &val)){
+        avro_datum_t  element = avro_datum_from_schema(items);
+        avro_array_append_datum(current_val, element);
+        if (encodeBySchema(items, cJSON_GetArrayItem(json, i), element)){
+          avro_datum_decref(element);
           return -1;
         }
+        avro_datum_decref(element);
       }
       break;
 
@@ -705,35 +707,31 @@ avro_schema_t getAvroSchema(cJSON* avro) {
   return schema;
 }
 
-int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void** encodeData, int64_t* len) {
-  avro_file_writer_t db;
-  int32_t rval = avro_file_writer_create_with_codec("/tmp/avro.db", schema, &db, "deflate", 0);
-  if (rval) {
-    uError("%s There was an error creating writer, error message: %s\n", __FUNCTION__, avro_strerror());
-    return -1;
+int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void* encodeData, int64_t len) {
+  int32_t        ret = 0;
+  avro_datum_t   in = NULL;
+  avro_writer_t  writer = NULL;
+
+  writer = avro_writer_memory(encodeData, len);
+  if(writer == NULL){
+    uError("%s Failed to create writer", __FUNCTION__);
+    goto END;
+
+  }
+  in = avro_datum_from_schema(schema);
+  if(in == NULL){
+    uError("%s Failed to create datum", __FUNCTION__);
+    goto END;
   }
 
-  avro_value_t        record;
-  avro_value_iface_t* iface = avro_generic_class_from_schema(schema);
-  avro_generic_value_new(iface, &record);
+  check(ret,encodeBySchema(schema, data, in))
+  avro_writer_reset(writer);
+  check(ret, avro_write_data(writer, schema, in))
 
-  if (encodeBySchema(schema, data, &record) != 0) {
-    uError("%s Failed to process record", __FUNCTION__);
-    return -1;
-  }
-
-  avro_file_writer_get_encode_data(db, &record, encodeData, len);
-  void* tmp = taosMemoryMalloc(*len);
-  if(tmp == NULL){
-    return -1;
-  }
-  memcpy(tmp, *encodeData, *len);
-  *encodeData = tmp;
-  avro_value_iface_decref(iface);
-  avro_value_decref(&record);
-
-  avro_file_writer_close(db);
-  return 0;
+END:
+  avro_datum_decref(in);
+  avro_writer_free(writer);
+  return ret;
 }
 
 //cJSON* decodeRecord2Json(const avro_schema_t schema, avro_value_t *current_val);
@@ -830,14 +828,84 @@ int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void** encodeData, in
 //  return json;
 //}
 
-char* decodeAvro2Json(const avro_schema_t schema, void* data, int64_t len) {
+avro_datum_t decodeAvro2Datum(const avro_schema_t schema, void* data, int64_t len) {
+  int32_t ret = 0;
+  avro_datum_t  out = NULL;
+  avro_reader_t  reader = avro_reader_memory(data, len);
+  if(reader == NULL){
+    return NULL;
+  }
+  avro_reader_reset(reader);
+  check(ret, avro_read_data(reader, schema, schema, &out))
 
+  END:
+//  avro_datum_decref(out);
+  avro_reader_free(reader);
 
-  char* jsonStr = NULL;
-
-
-  return jsonStr;
+  if(ret != 0){
+    return NULL;
+  }
+  return out;
 }
+
+char* datum2Json(avro_datum_t  out) {
+  char* jsonStr = NULL;
+  if(avro_datum_to_json(out, 1, &jsonStr) != 0){
+    return NULL;
+  }else {
+    return jsonStr;
+  }
+}
+
+//int32_t getElementFromRoot(const avro_schema_t schema, void* data, int64_t len, const char* key) {
+//  int ret = 0;
+//  if (!is_avro_record(schema)) {
+//    return -1;
+//  }
+//  const char* record_name = avro_schema_name(schema);
+//
+//  avro_schema_t projection_schema = avro_schema_record(record_name,NULL);
+//  avro_schema_t t = avro_schema_record_field_get(schema, key);
+//  avro_schema_t projection_schame_key_schema = avro_schema_copy(t);
+//  avro_schema_record_field_append(projection_schema, key, projection_schame_key_schema);
+//
+//  avro_datum_t  out = NULL;
+//  avro_reader_t  reader = avro_reader_memory(data, len);
+//  if(reader == NULL){
+//    return -1;
+//  }
+//  avro_reader_reset(reader);
+//  check(ret, avro_read_data(reader, schema, projection_schema, &out))
+//  check(ret, avro_datum_to_json(out, 1, jsonStr))
+//
+//          END:
+//  avro_datum_decref(out);
+//}
+//
+//avro_datum_t getElementFromDatum(avro_datum_t schema, const char* key) {
+//  int ret = 0;
+//  if (!is_avro_record(schema)) {
+//    return NULL;
+//  }
+//  const char* record_name = avro_schema_name(schema);
+//
+//  avro_schema_t projection_schema = avro_schema_record(record_name,NULL);
+//  avro_schema_t t = avro_schema_record_field_get(schema, key);
+//  avro_schema_t projection_schame_key_schema = avro_schema_copy(t);
+//  avro_schema_record_field_append(projection_schema, key, projection_schame_key_schema);
+//
+//  avro_datum_t  out = NULL;
+//  avro_reader_t  reader = avro_reader_memory(data, len);
+//  if(reader == NULL){
+//    return -1;
+//  }
+//  avro_reader_reset(reader);
+//  check(ret, avro_read_data(reader, schema, projection_schema, &out))
+//  check(ret, avro_datum_to_json(out, 1, jsonStr))
+//
+//  END:
+//  avro_datum_decref(out);
+//}
 
 int32_t testJsonAvro(const char* json) {
   if (json == NULL) {
@@ -869,18 +937,58 @@ int32_t testJsonAvro(const char* json) {
     return -1;
   }
 
-  void* encodeData = NULL;
-  int64_t len = 0;
-  encodeJson2Avro(root, schema, &encodeData, &len);
-  char* decodeStr = NULL;
-  avro_get_json_from_data(schema, encodeData, len, "deflate", &decodeStr);
-
+  int64_t len = strlen(json);
+  void* encodeData = taosMemoryMalloc(len);
+  encodeJson2Avro(root, schema, encodeData, len);
+  char* decodeStr = datum2Json(decodeAvro2Datum(schema, encodeData, len));
   printf("decode str: %s\n", decodeStr);
   taosMemoryFree(decodeStr);
   taosMemoryFree(encodeData);
+
+  taosMemoryFree(in);
   taosMemoryFree(out);
+  taosMemoryFree(avroout);
+
+  cJSON_Delete(avro);
   cJSON_Delete(root);
   cJSON_Delete(object);
   avro_schema_decref(schema);
   return 0;
+}
+
+static bool valueValidate(const char* value){
+  if(strcmp(value, "string") == 0 || strcmp(value, "long") == 0 ||
+     strcmp(value, "double") == 0 || strcmp(value, "boolean") == 0){
+    return true;
+  }
+  return false;
+}
+
+int32_t checkJsonTemplate(SJson *pJson){
+  cJSON *template = (cJSON*)pJson;
+  if (template->type == cJSON_Array) {
+    int array_size = cJSON_GetArraySize(template);
+    if(array_size != 1){
+      return TSDB_CODE_TEMPLATE_ARRAY_ONLY_ONE_TYPE;
+    }
+    for (int i = 0; i < array_size; i++) {
+      cJSON *item = cJSON_GetArrayItem(template, i);
+      int code = checkJsonTemplate(item);
+      if (code != TSDB_CODE_SUCCESS)
+        return code;
+    }
+  } else if (template->type == cJSON_Object) {
+    cJSON *item = template->child;
+    while (item != NULL) {
+      int code = checkJsonTemplate(item);
+      if (code != TSDB_CODE_SUCCESS)
+        return code;
+      item = item->next;
+    }
+  } else {
+    if (template->type != cJSON_String || !valueValidate(template->valuestring)) {
+      return TSDB_CODE_TEMPLATE_VALUE_INVALIDATE;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }

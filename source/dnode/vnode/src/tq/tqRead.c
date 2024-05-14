@@ -38,6 +38,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       goto end;
     }
     realTbSuid = req.suid;
+    taosHashCleanup(req.pHashJsonTemplate);
   } else if (msgType == TDMT_VND_DROP_STB) {
     SVDropStbReq req = {0};
     if (tDecodeSVDropStbReq(&coder, &req) < 0) {

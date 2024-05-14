@@ -426,6 +426,7 @@ end:
   return ret;
 }
 
+//jsontodo
 static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* contLen) {
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, req, *contLen, ret);
@@ -521,6 +522,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
 
   if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_SUPER_TABLE) ||
       (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.uid == ctx->suid)) {
+    // jsontodo
     SVCreateStbReq req = {0};
     req.name = me.name;
     req.suid = me.uid;

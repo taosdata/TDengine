@@ -360,15 +360,15 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) MODIFY COLUMN column_name(C) column_options(D).              { A = createAlterTableAddModifyColOptions(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS, &C, D); }
 alter_table_clause(A) ::=
-  full_table_name(B) MODIFY COLUMN column_name(C) ADD template NK_STRING(D).      {
-                                                                                    E = createDefaultColumnOptions(pCxt);
-                                                                                    F = setColumnOptions(pCxt, E, COLUMN_OPTION_JSON_TEMPLATE, &D);
+  full_table_name(B) MODIFY COLUMN column_name(C) ADD TEMPLATE NK_STRING(D).      {
+                                                                                    SNode* E = createDefaultColumnOptions(pCxt);
+                                                                                    SNode* F = setColumnOptions(pCxt, E, COLUMN_OPTION_JSON_TEMPLATE, &D);
                                                                                     A = createAlterTableAddModifyColOptions(pCxt, B, TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE, &C, F);
                                                                                   }
 alter_table_clause(A) ::=
-  full_table_name(B) MODIFY COLUMN column_name(C) drop template NK_INTEGER(D).    {
-                                                                                    E = createDefaultColumnOptions(pCxt);
-                                                                                    F = setColumnOptions(pCxt, E, COLUMN_OPTION_DROP_JSON_TEMPLATE, &D);
+  full_table_name(B) MODIFY COLUMN column_name(C) DROP TEMPLATE NK_INTEGER(D).    {
+                                                                                    SNode* E = createDefaultColumnOptions(pCxt);
+                                                                                    SNode* F = setColumnOptions(pCxt, E, COLUMN_OPTION_DROP_JSON_TEMPLATE, &D);
                                                                                     A = createAlterTableAddModifyColOptions(pCxt, B, TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE, &C, F);
                                                                                   }
 alter_table_clause(A) ::=
@@ -1585,4 +1585,4 @@ column_options(A) ::= column_options(B) PRIMARY KEY.                            
 column_options(A) ::= column_options(B) ENCODE NK_STRING(C).                      { A = setColumnOptions(pCxt, B, COLUMN_OPTION_ENCODE, &C); }
 column_options(A) ::= column_options(B) COMPRESS NK_STRING(C).                    { A = setColumnOptions(pCxt, B, COLUMN_OPTION_COMPRESS, &C); }
 column_options(A) ::= column_options(B) LEVEL NK_STRING(C).                       { A = setColumnOptions(pCxt, B, COLUMN_OPTION_LEVEL, &C); }
-column_options(A) ::= column_options(B) template NK_STRING(C).                    { A = setColumnOptions(pCxt, B, COLUMN_OPTION_JSON_TEMPLATE, &C); }
+column_options(A) ::= column_options(B) TEMPLATE NK_STRING(C).                    { A = setColumnOptions(pCxt, B, COLUMN_OPTION_JSON_TEMPLATE, &C); }

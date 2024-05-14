@@ -3719,6 +3719,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         if (!pRealTable->tsmaTargetTbInfo) {
           pRealTable->tsmaTargetTbInfo = taosArrayInit(pRealTable->pTsmas->size, sizeof(STsmaTargetTbInfo));
           if (!pRealTable->tsmaTargetTbInfo) {
+            catalogFreeSTableMeta(pTableMeta);
             code = TSDB_CODE_OUT_OF_MEMORY;
             break;
           }
@@ -3726,7 +3727,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         if (code == TSDB_CODE_SUCCESS) {
           sprintf(ctbInfo.tableName, "%s", tsmaTargetTbName.tname);
           ctbInfo.uid = pTableMeta->uid;
-          taosMemoryFree(pTableMeta);
+          catalogFreeSTableMeta(pTableMeta);
         } else if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
           // ignore table not exists error
           code = TSDB_CODE_SUCCESS;
@@ -8328,7 +8329,7 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
   }
-  taosMemoryFree(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   return code;
 }
 
@@ -8590,7 +8591,7 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       pStmt->pOptions->tsPrecision = pMetaCache->tableInfo.precision;
       code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pMetaCache->schema[0].name, &pStmt->pPrevQuery);
     }
-    taosMemoryFreeClear(pMetaCache);
+    catalogFreeSTableMeta(pMetaCache);
   }
 
   return code;
@@ -8722,12 +8723,12 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
 
   code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
   if (code) {
-    taosMemoryFree(pMeta);
+    catalogFreeSTableMeta(pMeta);
     return code;
   }
 
   if (LIST_LENGTH(pStmt->pCols) != 1) {
-    taosMemoryFree(pMeta);
+    catalogFreeSTableMeta(pMeta);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM, "Only one tag is allowed");
   }
 
@@ -8735,7 +8736,7 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
   FOREACH(pNode, pStmt->pCols) {
     const SSchema* pSchema = getTagSchema(pMeta, ((SColumnNode*)pNode)->colName);
     if (!pSchema) {
-      taosMemoryFree(pMeta);
+      catalogFreeSTableMeta(pMeta);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, ((SColumnNode*)pNode)->colName);
     }
   }
@@ -8745,8 +8746,8 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
   }
-_exit:
-  taosMemoryFree(pMeta);
+
+  catalogFreeSTableMeta(pMeta);
   return code;
 }
 
@@ -8938,11 +8939,11 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
   int32_t          code =
       getTargetMeta(pCxt, toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name), &pMeta, false);
   if (code) {
-    taosMemoryFree(pMeta);
+    catalogFreeSTableMeta(pMeta);
     return code;
   }
   if (TSDB_SUPER_TABLE != pMeta->tableType) {
-    taosMemoryFree(pMeta);
+    catalogFreeSTableMeta(pMeta);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only supertable table can be used");
   }
 
@@ -8959,7 +8960,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
     code = translateQuery(pCxt, *pSelect);
   }
 
-  taosMemoryFree(pMeta);
+  catalogFreeSTableMeta(pMeta);
   return code;
 }
 
@@ -9167,7 +9168,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
                     &pMeta, true);
   if (NULL != pMeta) {
     tableType = pMeta->tableType;
-    taosMemoryFree(pMeta);
+    catalogFreeSTableMeta(pMeta);
   }
   if (TSDB_CODE_SUCCESS != code) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
@@ -10098,7 +10099,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
         }
     */
   }
-  taosMemoryFree(pMeta);
+  catalogFreeSTableMeta(pMeta);
   return code;
 }
 
@@ -10306,7 +10307,8 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
     STableMeta* pMetaCache = NULL;
     int32_t code = getTableMeta(pCxt, pStmt->dbName, pStmt->viewName, &pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
-      taosMemoryFreeClear(pMetaCache);
+      catalogFreeSTableMeta(pMetaCache);
+      pMetaCache = NULL;
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE, "View name is conflict with
     table");
     }
@@ -10534,7 +10536,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
     } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
       req.isView = true;
     }
-    taosMemoryFree(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
   }
 #endif
 
@@ -10570,7 +10572,7 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
     } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
       req.isView = true;
     }
-    taosMemoryFree(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
   }
 #endif
 
@@ -11027,7 +11029,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = createLastTsSelectStmt(pStmt->dbName, tbName, pkColName, &pStmt->pPrevQuery);
   }
 
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
 
   return code;
 }
@@ -11380,44 +11382,35 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
   return TSDB_CODE_SUCCESS;
 }
 
+#define ADD_DESC_ELEMENT(t,l,n) \
+  (*pSchema)[index].type = t; \
+  (*pSchema)[index].bytes = l; \
+  strcpy((*pSchema)[index++].name, n)
+
 static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = DESCRIBE_RESULT_COLS;
   if (pMeta && useCompress(pMeta->tableType)) *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
+  if (pMeta && taosHashGetSize(pMeta->pHashJsonTemplate) > 0) *numOfCols += 1;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = DESCRIBE_RESULT_FIELD_LEN;
-  strcpy((*pSchema)[0].name, "field");
-
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = DESCRIBE_RESULT_TYPE_LEN;
-  strcpy((*pSchema)[1].name, "type");
-
-  (*pSchema)[2].type = TSDB_DATA_TYPE_INT;
-  (*pSchema)[2].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  strcpy((*pSchema)[2].name, "length");
-
-  (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
-  strcpy((*pSchema)[3].name, "note");
+  int index = 0;
+  ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_FIELD_LEN, "field");
+  ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_TYPE_LEN, "type");
+  ADD_DESC_ELEMENT(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, "length");
+  ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_NOTE_LEN, "note");
 
   if (pMeta && useCompress(pMeta->tableType)) {
-    (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-    (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[4].name, "encode");
-
-    (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
-    (*pSchema)[5].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[5].name, "compress");
-
-    (*pSchema)[6].type = TSDB_DATA_TYPE_BINARY;
-    (*pSchema)[6].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
-    strcpy((*pSchema)[6].name, "level");
+    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_COPRESS_OPTION_LEN, "encode");
+    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_COPRESS_OPTION_LEN, "compress");
+    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, DESCRIBE_RESULT_COPRESS_OPTION_LEN, "level");
   }
 
+  if (pMeta && taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
+    ADD_DESC_ELEMENT(TSDB_DATA_TYPE_BINARY, TSDB_MAX_JSON_COL_LEN, "json template");
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12049,6 +12042,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SNode*   pCol;
   col_id_t index = 0;
   tInitDefaultSColCmprWrapperByCols(&req.colCmpr, req.ntb.schemaRow.nCols);
+  req.jsonTemplate = taosArrayInit(req.ntb.schemaRow.nCols, POINTER_BYTES);
   FOREACH(pCol, pStmt->pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
     SSchema*        pScheam = req.ntb.schemaRow.pSchema + index;
@@ -12063,6 +12057,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
         tdDestroySVCreateTbReq(&req);
         return code;
       }
+      char* tmp = taosStrdup(((SColumnOptions*)pColDef->pOptions)->jsonTemplate);
+      taosArrayPush(req.jsonTemplate, &tmp);
     }
     ++index;
   }
@@ -12430,7 +12426,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
 
   taosArrayDestroy(tagName);
-  taosMemoryFreeClear(pSuperTableMeta);
+  catalogFreeSTableMeta(pSuperTableMeta);
   return code;
 }
 
@@ -12532,7 +12528,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
   }
 
 over:
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   return code;
 }
 
@@ -12944,12 +12940,14 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       } else {
         return buildAlterTableColumnCompress(pCxt, pStmt, pTableMeta, pReq);
       }
-    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:{
-      ASSERT(0);
-      break;
-    }
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
     case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
-      ASSERT(0);
+      // use comment to store json template
+      pReq->newComment = taosStrdup(pStmt->pColOptions->jsonTemplate);
+      if (NULL == pReq->newComment) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pReq->newCommentLen = strlen(pStmt->pColOptions->jsonTemplate);
       break;
     }
     default:
@@ -13070,7 +13068,7 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteAlterTableImpl(pCxt, pStmt, pTableMeta, pQuery);
   }
-  taosMemoryFree(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   return code;
 }
 

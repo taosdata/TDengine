@@ -213,7 +213,7 @@ SSmlSTableMeta *smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currEleme
   }
   sMeta = smlBuildSTableMeta(info->dataFormat);
   if (sMeta == NULL) {
-    taosMemoryFreeClear(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return sMeta;
   }
@@ -529,7 +529,7 @@ static void smlDestroySTableMeta(void *para) {
   taosHashCleanup(meta->colHash);
   taosArrayDestroy(meta->tags);
   taosArrayDestroy(meta->cols);
-  taosMemoryFreeClear(meta->tableMeta);
+  catalogFreeSTableMeta(meta->tableMeta);
   taosMemoryFree(meta);
 }
 
@@ -1091,7 +1091,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       info->cost.numOfCreateSTables++;
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
 
       code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1172,7 +1172,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         }
 
         info->cost.numOfAlterTagSTables++;
-        taosMemoryFreeClear(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
         code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
         if (code != TSDB_CODE_SUCCESS) {
           goto end;
@@ -1241,7 +1241,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         }
 
         info->cost.numOfAlterColSTables++;
-        taosMemoryFreeClear(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
         code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
         if (code != TSDB_CODE_SUCCESS) {
           goto end;
@@ -1275,7 +1275,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       }
     }
 
-    taosMemoryFreeClear(sTableData->tableMeta);
+    catalogFreeSTableMeta(sTableData->tableMeta);
     sTableData->tableMeta = pTableMeta;
     uDebug("SML:0x%" PRIx64 "modify schema uid:%" PRIu64 ", sversion:%d, tversion:%d", info->id, pTableMeta->uid,
            pTableMeta->sversion, pTableMeta->tversion);
@@ -1289,7 +1289,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 end:
   taosHashCancelIterate(info->superTables, tmp);
   taosHashCleanup(hashTmp);
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
   uError("SML:0x%" PRIx64 " smlModifyDBSchemas end failed:%d:%s, format:%d, needModifySchema:%d", info->id, code,
          tstrerror(code), info->dataFormat, info->needModifySchema);

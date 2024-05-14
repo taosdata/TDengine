@@ -191,7 +191,7 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
 _return:
 
   if (output) {
-    taosMemoryFreeClear(output->tbMeta);
+    catalogFreeSTableMeta(output->tbMeta);
     taosMemoryFreeClear(output);
   }
   
@@ -224,13 +224,13 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
 
     if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
       ctgError("invalid metaType:%d", output->metaType);
-      taosMemoryFreeClear(output->tbMeta);
+      catalogFreeSTableMeta(output->tbMeta);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
     // HANDLE ONLY CHILD TABLE META
 
-    taosMemoryFreeClear(output->tbMeta);
+    catalogFreeSTableMeta(output->tbMeta);
 
     SName stbName = *ctx->pName;
     strcpy(stbName.tname, output->tbName);
@@ -312,7 +312,7 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
 _return:
 
   if (output) {
-    taosMemoryFreeClear(output->tbMeta);
+    catalogFreeSTableMeta(output->tbMeta);
     taosMemoryFreeClear(output);
   }
   
@@ -368,7 +368,7 @@ int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName,
   CTG_ERR_RET(ctgGetTbMeta(pCtg, pConn, &ctx, &pMeta));
 
   *tbType = pMeta->tableType;
-  taosMemoryFree(pMeta);
+  catalogFreeSTableMeta(pMeta);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -532,7 +532,7 @@ _return:
     ctgReleaseDBCache(pCtg, dbCache);
   }
 
-  taosMemoryFreeClear(tbMeta);
+  catalogFreeSTableMeta(tbMeta);
 
   if (vgInfo) {
     freeVgInfo(vgInfo);
@@ -1186,6 +1186,10 @@ int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STabl
   CTG_API_LEAVE(ctgGetTbMeta(pCtg, NULL, &ctx, pTableMeta));
 }
 
+void catalogFreeSTableMeta(STableMeta* pTableMeta){
+  taosHashCleanup(pTableMeta->pHashJsonTemplate);
+  taosMemoryFree(pTableMeta);
+}
 
 int32_t catalogGetSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
                              STableMeta** pTableMeta) {
@@ -1404,7 +1408,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalo
 
       if (NULL == taosArrayPush(pRsp->pTableMeta, &pTableMeta)) {
         ctgError("taosArrayPush failed, idx:%d", i);
-        taosMemoryFreeClear(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
         CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
@@ -1423,7 +1427,7 @@ _return:
     int32_t aSize = taosArrayGetSize(pRsp->pTableMeta);
     for (int32_t i = 0; i < aSize; ++i) {
       STableMeta* pMeta = taosArrayGetP(pRsp->pTableMeta, i);
-      taosMemoryFreeClear(pMeta);
+      catalogFreeSTableMeta(pMeta);
     }
 
     taosArrayDestroy(pRsp->pTableMeta);

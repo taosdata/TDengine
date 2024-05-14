@@ -101,6 +101,8 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (meteEncodeColCmprEntry(pCoder, pME) < 0) return -1;
 
+  if (tEncodeHashJsonTemplate(pCoder, pME->pHashJsonTemplate) < 0) return -1;
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -174,6 +176,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     TABLE_SET_COL_COMPRESSED(pME->flags);
   }
 
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeHashJsonTemplate(pCoder, &pME->pHashJsonTemplate) < 0) return -1;
+  }
   tEndDecode(pCoder);
   return 0;
 }

@@ -517,24 +517,9 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
   }
 
-  void* pIter = taosHashIterate(pNew->pHashJsonTemplate, NULL);
-  while (pIter != NULL) {
-    int32_t *colId = taosHashGetKey(pIter, NULL);
-    SArray* pArray = (SArray *)(pIter);
-    SArray* arr = taosHashGet(pOld->pHashJsonTemplate, colId, sizeof(*colId));
-    ASSERT(arr != NULL && taosArrayGetSize(arr) > 0);
-    SJsonTemplate *pTemplateNew = taosArrayPop(pArray);
-    if (pTemplateNew->templateId == taosArrayGetSize(arr)) {
-      taosArrayPush(arr, pTemplateNew);
-    }else{
-      SJsonTemplate *pTemplateOld = taosArrayGet(arr, pTemplateNew->templateId);
-      ASSERT(pTemplateOld != NULL);
-      pTemplateOld->isValidate = false;
-      taosMemoryFree(pTemplateNew->templateJsonString);
-    }
-  }
-  taosHashCleanup(pNew->pHashJsonTemplate);
-
+  SHashObj *tmp = pOld->pHashJsonTemplate;
+  pOld->pHashJsonTemplate = pNew->pHashJsonTemplate;
+  pNew->pHashJsonTemplate = tmp;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -629,6 +614,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
       }
     }
   }
+  req.pHashJsonTemplate = pStb->pHashJsonTemplate;
   // get length
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
@@ -1020,10 +1006,11 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
       }
 
       cJSON *root = cJSON_Parse(pField->jsonTemplate);
-      if (root == NULL) {
+      if (root == NULL || root->type != cJSON_Object){
         terrno = TSDB_CODE_INVALID_JSON_FORMAT;
         return -1;
       }
+
       SJsonTemplate tmp = {.templateId=0, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
       cJSON_Delete(root);
       SArray* arr = taosArrayInit(1, sizeof(tmp));
@@ -2194,7 +2181,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     pSchEx->compress = pCmpr->alg;
   }
 
-  pRsp->pHashJsonTemplate = pStb->pHashJsonTemplate;
+  pRsp->pHashJsonTemplate = taosHashCopy(pStb->pHashJsonTemplate);
   taosRUnLockLatch(&pStb->lock);
   return 0;
 }
@@ -2551,13 +2538,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndUpdateSuperTableAddJsonTemplate(const SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq *pAlter) {
-  pNew->pHashJsonTemplate = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-  if(pNew->pHashJsonTemplate){
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-  taosHashSetFreeFp(pNew->pHashJsonTemplate, destroyJsonTemplateArray);
+static int32_t mndUpdateSuperTableJsonTemplate(const SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq *pAlter) {
   TAOS_FIELD *p = taosArrayGet(pAlter->pFields, 0);
   int32_t col = mndFindSuperTableColumnIndex(pOld, p->name);
   if (col < 0) {
@@ -2571,41 +2552,36 @@ static int32_t mndUpdateSuperTableAddJsonTemplate(const SStbObj *pOld, SStbObj *
     return -1;
   }
 
-  SArray* oldTemplateArray = taosHashGet(pOld->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
-  ASSERT(oldTemplateArray != NULL);
-  SJsonTemplate tmp = {.templateId=0, .templateJsonString=NULL, .isValidate=true};
+  pNew->pHashJsonTemplate = taosHashCopy(pOld->pHashJsonTemplate);
+  if(pNew->pHashJsonTemplate){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  SArray* templateArray = taosHashGet(pNew->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
+  ASSERT(templateArray != NULL);
+
   if(pAlter->alterType == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
     cJSON *root = cJSON_Parse(pAlter->comment);
     if (root == NULL) {
       terrno = TSDB_CODE_INVALID_JSON_FORMAT;
       return -1;
     }
-    tmp.templateJsonString = cJSON_PrintUnformatted(root);
-    tmp.templateId = taosArrayGetSize(oldTemplateArray);
+    SJsonTemplate tmp = {.templateId=taosArrayGetSize(templateArray), .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
     cJSON_Delete(root);
-    mDebug("add json template for column:%s, id:%d, template:%s", pCol->name, pCol->colId, tmp.templateJsonString);
+    taosArrayPush(templateArray, &tmp);
+    mInfo("add json template for column:%s, id:%d, template:%s", pCol->name, pCol->colId, tmp.templateJsonString);
   }else if(pAlter->alterType == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
-    tmp.templateId = taosStr2Int32(pAlter->comment, NULL, 10);
-    if(tmp.templateId < 0 || tmp.templateId >= taosArrayGetSize(oldTemplateArray)){
+    int32_t templateId = taosStr2Int32(pAlter->comment, NULL, 10);
+    if(templateId < 0 || templateId >= taosArrayGetSize(templateArray)){
       terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
       return -1;
     }
-    mDebug("drop json template id:%d for column:%s, id:%d", tmp.templateId, pCol->name, pCol->colId);
+    mInfo("drop json template id:%d for column:%s, id:%d", templateId, pCol->name, pCol->colId);
+    SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId);
+    ASSERT(pTemplateOld != NULL);
+    pTemplateOld->isValidate = false;
   }
 
-  SArray* arr = taosArrayInit(1, sizeof(tmp));
-  if (arr == NULL){
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(tmp.templateJsonString);
-    return -1;
-  }
-  taosArrayPush(arr, &tmp);
-  if(taosHashPut(pNew->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId), &arr, POINTER_BYTES) != 0){
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(tmp.templateJsonString);
-    taosArrayDestroy(arr);
-    return -1;
-  }
   return 0;
 }
 
@@ -2661,8 +2637,9 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
-    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:{
-      code = mndUpdateSuperTableAddJsonTemplate(pOld, &stbObj, pAlter);
+    case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      code = mndUpdateSuperTableJsonTemplate(pOld, &stbObj, pAlter);
       break;
     }
     default:
@@ -3180,12 +3157,13 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       STableIndexRsp indexRsp = {0};
       indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
       if (NULL == indexRsp.pIndex) {
+        tFreeSSTbHbRsp(&hbRsp);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
 
       sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
-      int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
+      code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {
         indexRsp.suid = pStbVersion->suid;
         indexRsp.version = -1;

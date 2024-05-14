@@ -1507,11 +1507,11 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
-            taosMemoryFreeClear(stbMeta);
+            catalogFreeSTableMeta(stbMeta);
           } else {
             ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
             taosMemoryFreeClear(pOut->tbMeta);
-            taosMemoryFreeClear(stbMeta);
+            catalogFreeSTableMeta(stbMeta);
           }
         }
 

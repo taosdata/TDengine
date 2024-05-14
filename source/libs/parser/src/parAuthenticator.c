@@ -172,7 +172,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
-    taosMemoryFree(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
 #endif
     if (!isView) {
       pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);

@@ -209,6 +209,8 @@ typedef struct SExplainCtx {
 #define EXPLAIN_ROW_APPEND_LIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, false)
 #define EXPLAIN_ROW_APPEND_SLIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, true)
 
+void buildJsonTemplate(SHashObj* pHashJsonTemplate, col_id_t colId, char* jsonBuf, int jsonBufLen);
+
 #ifdef __cplusplus
 }
 #endif

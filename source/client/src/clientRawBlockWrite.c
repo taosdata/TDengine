@@ -242,6 +242,7 @@ end:
 }
 
 static char* processCreateStb(SMqMetaRsp* metaRsp) {
+  // jsontodo
   SVCreateStbReq req = {0};
   SDecoder       coder;
   char*          string = NULL;
@@ -263,6 +264,7 @@ _err:
 }
 
 static char* processAlterStb(SMqMetaRsp* metaRsp) {
+  // jsontodo
   SVCreateStbReq req = {0};
   SDecoder       coder;
   char*          string = NULL;
@@ -742,6 +744,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+  // jsontodo
   SVCreateStbReq req = {0};
   SDecoder       coder;
   SMCreateStbReq pReq = {0};
@@ -884,14 +887,14 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     code = TSDB_CODE_SUCCESS;
-    taosMemoryFreeClear(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
     goto end;
   }
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
   pReq.suid = pTableMeta->uid;
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
 
   // build drop stable
   pReq.igNotExists = true;
@@ -1030,7 +1033,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         code = TSDB_CODE_SUCCESS;
-        taosMemoryFreeClear(pTableMeta);
+        catalogFreeSTableMeta(pTableMeta);
         continue;
       }
 
@@ -1049,7 +1052,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
           }
         }
       }
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
     }
     taosArrayPush(pRequest->tableList, &pName);
 
@@ -1197,7 +1200,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       code = TSDB_CODE_SUCCESS;
-      taosMemoryFreeClear(pTableMeta);
+      catalogFreeSTableMeta(pTableMeta);
       continue;
     }
     if (code != TSDB_CODE_SUCCESS) {
@@ -1205,7 +1208,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
     tb_uid_t oldSuid = pDropReq->suid;
     pDropReq->suid = pTableMeta->suid;
-    taosMemoryFreeClear(pTableMeta);
+    catalogFreeSTableMeta(pTableMeta);
     uDebug(LOG_ID_TAG " drop table name:%s suid:%" PRId64 " new suid:%" PRId64, LOG_ID_VALUE, pDropReq->name, oldSuid,
            pDropReq->suid);
 
@@ -1557,7 +1560,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
 
 end:
   uDebug(LOG_ID_TAG " write raw block with field return, msg:%s", LOG_ID_VALUE, tstrerror(code));
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
@@ -1641,7 +1644,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
 
 end:
   uDebug(LOG_ID_TAG " write raw block return, msg:%s", LOG_ID_VALUE, tstrerror(code));
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
@@ -1802,7 +1805,7 @@ end:
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   terrno = code;
   return code;
 }
@@ -1993,7 +1996,7 @@ end:
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
-  taosMemoryFreeClear(pTableMeta);
+  catalogFreeSTableMeta(pTableMeta);
   if (pCreateReqDst) {
     tdDestroySVCreateTbReq(pCreateReqDst);
     taosMemoryFree(pCreateReqDst);

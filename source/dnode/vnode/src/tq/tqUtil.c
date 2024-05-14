@@ -263,6 +263,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
             PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq)
           } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
             PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq)
+            taosHashCleanup(req.pHashJsonTemplate);
           } else if (pHead->msgType == TDMT_VND_DELETE) {
             PROCESS_EXCLUDED_MSG(SDeleteRes, tDecodeDeleteRes)
           }

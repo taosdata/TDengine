@@ -244,7 +244,7 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
     if (lock) { 
       CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     }
-    taosMemoryFreeClear(pCache->pMeta);
+    catalogFreeSTableMeta(pCache->pMeta);
     if (lock) { 
       CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
     }
@@ -662,7 +662,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
     return;
   }
 
-  taosMemoryFree(pOutput->tbMeta);
+  catalogFreeSTableMeta(pOutput->tbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -689,7 +689,8 @@ void ctgFreeBatchMeta(void* meta) {
   }
 
   SMetaRes* pRes = (SMetaRes*)meta;
-  taosMemoryFreeClear(pRes->pRes);
+  catalogFreeSTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
 }
 
 void ctgFreeBatchHash(void* hash) {
@@ -1557,6 +1558,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
     }
+    (*pOutput)->tbMeta->pHashJsonTemplate = taosHashCopy(output->tbMeta->pHashJsonTemplate);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1688,7 +1690,7 @@ static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 //   return pDst;
 // }
 
-static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeTableMeta(void* p) { catalogFreeSTableMeta(((SMetaRes*)p)->pRes); }
 
 static void* ctgCloneVgroupInfo(void* pSrc) {
   SVgroupInfo* pDst = taosMemoryMalloc(sizeof(SVgroupInfo));
@@ -1802,7 +1804,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
 
   while (true) {
-    taosMemoryFreeClear(pMeta);
+    catalogFreeSTableMeta(pMeta);
 
     char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName) + 1);
     if (pCond) {
@@ -1861,7 +1863,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 
 _return:
 
-  taosMemoryFree(pMeta);
+  catalogFreeSTableMeta(pMeta);
   taosMemoryFree(stbName);
 
   CTG_RET(code);

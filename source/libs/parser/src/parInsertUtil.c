@@ -358,8 +358,8 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   if (NULL == pTableCxt) {
     return;
   }
-
-  taosMemoryFreeClear(pTableCxt->pMeta);
+  catalogFreeSTableMeta(pTableCxt->pMeta);
+  pTableCxt->pMeta = NULL;
   tDestroyTSchema(pTableCxt->pSchema);
   insDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);

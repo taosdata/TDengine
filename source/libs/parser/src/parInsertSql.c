@@ -2260,7 +2260,8 @@ static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   insDestroyBoundColInfo(&pStbRowsCxt->boundColsInfo);
   tTagFree(pStbRowsCxt->pTag);
   pStbRowsCxt->pTag = NULL;
-  taosMemoryFreeClear(pStbRowsCxt->pCtbMeta);
+  catalogFreeSTableMeta(pStbRowsCxt->pCtbMeta);
+  pStbRowsCxt->pCtbMeta = NULL;
   tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
   taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
 }
@@ -2360,7 +2361,8 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   insDestroyBoundColInfo(&pCxt->tags);
-  taosMemoryFreeClear(pStmt->pTableMeta);
+  catalogFreeSTableMeta(pStmt->pTableMeta);
+  pStmt->pTableMeta = NULL;
   nodesDestroyNode(pStmt->pTagCond);
   taosArrayDestroy(pStmt->pTableTag);
   tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
@@ -2505,7 +2507,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return code;
 }
 
-static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
+static void destroySubTableHashElem(void* p) { catalogFreeSTableMeta(*(STableMeta**)p); }
 
 static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, SNode** pOutput) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
@@ -2582,7 +2584,8 @@ static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMet
     return TSDB_CODE_FAILED;
   }
 
-  taosMemoryFreeClear(*pMeta);
+  catalogFreeSTableMeta(*pMeta);
+  *pMeta = NULL;
   SMetaRes* pRes = taosArrayGet(pTables, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);
