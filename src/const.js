@@ -1385,7 +1385,7 @@ export const licenseMockData = {
 }
 
 export const auditMockData = [{
-  ts: '2024-03-28T13:3:06+08:00',
+  ts: '2024-03-28T13:37:06+08:00',
   client_address: '127.0.0.1:60640',
   user_name: 'root',
   operation: 'createStb',
