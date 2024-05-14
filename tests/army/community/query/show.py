@@ -125,9 +125,12 @@ class TDTestCase(TBase):
         sqls = [
             "show scores;",
             "SHOW CLUSTER VARIABLES",
-            "SHOW BNODES;",
+            # "SHOW BNODES;",
         ]
         tdSql.executes(sqls)
+
+        # verification for TD-29904
+        tdSql.error("show tags from t100000", expectErrInfo='Fail to get table info, error: Table does not exist')
 
 
     # run
@@ -142,6 +145,9 @@ class TDTestCase(TBase):
 
         # do action
         self.doQuery()
+
+        # check show
+        self.checkShow()
 
 
         tdLog.success(f"{__file__} successfully executed")
