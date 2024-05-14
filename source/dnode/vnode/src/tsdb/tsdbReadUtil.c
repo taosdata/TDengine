@@ -212,7 +212,7 @@ static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader
   int32_t numOfPks = pReader->suppInfo.numOfPks;
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
   int8_t  type = pReader->suppInfo.pk.type;
-  int8_t  bytes = pReader->suppInfo.pk.bytes;
+  int32_t bytes = pReader->suppInfo.pk.bytes;
 
   SRowKey* pRowKey = &pScanInfo->lastProcKey;
   if (asc) {
