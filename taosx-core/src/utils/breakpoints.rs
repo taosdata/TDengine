@@ -7,6 +7,51 @@ fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     path.join("tasks").join(task_id).join("breakpoints")
 }
 
+#[derive(Debug, Clone)]
+pub struct BreakpointDb(std::sync::Arc<sled::Db>);
+
+impl BreakpointDb {
+    pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
+        let path = breakpoints_db_dir(id);
+        // create db file
+        if !path.exists() {
+            tokio::fs::create_dir_all(&path).await?;
+        }
+
+        let mut retries = 0;
+        let max_retries = 5;
+        loop {
+            match sled::open(&path) {
+                Ok(db) => {
+                    return Ok(BreakpointDb(std::sync::Arc::new(db)));
+                }
+                Err(err) => {
+                    if retries >= max_retries {
+                        return Err(anyhow::anyhow!("sled open db file failed: {:?}", err));
+                    }
+                    retries += 1;
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
+    pub fn set(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        self.0.insert(key, value)?;
+        Ok(())
+    }
+    pub fn get(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let result = self.0.get(key)?;
+        match result {
+            Some(v) => Some(
+                String::from_utf8(v.to_vec())
+                    .map_err(|err| anyhow::anyhow!("Breakpoint value utf8 error: {:?}", err)),
+            )
+            .transpose(),
+            None => Ok(None),
+        }
+    }
+}
+
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     if task_id == "-1" {
         return Ok(());
