@@ -249,17 +249,12 @@ int tsem_destroy(tsem_t* sem) {
 int32_t tsem_wait(tsem_t* sem) {
   taosThreadMutexLock(&sem->mutex);
   while (sem->count <= 0) {
-    struct timespec timeout;
-    clock_gettime(CLOCK_MONOTONIC, &timeout);
-    timeout.tv_sec += 9;
-
-    while (sem->count <= 0) {
-      int ret = taosThreadCondTimedWait(&sem->cond, &sem->mutex, &timeout);
-      if (ret == ETIMEDOUT) {
-        continue;
-      } else {
-        return ret;
-      }
+    int ret = taosThreadCondWait(&sem->cond, &sem->mutex);
+    if (0 == ret) {
+      continue;
+    } else {
+      taosThreadMutexUnlock(&sem->mutex);
+      return ret;
     }
   }
   sem->count--;
