@@ -706,7 +706,10 @@ export default {
     table_name: "表名",
     create_time: "创建时间",
     columns: "列数量",
-    tags: "标签数量"
+    tags: "标签数量",
+    encode: "编码方法",
+    compress: "压缩算法",
+    level: "压缩级别"
   },
   sql: {
     analysis: "分析",

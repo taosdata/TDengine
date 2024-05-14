@@ -31,18 +31,24 @@ export function getStableStructReq(payload) {
   return sendSQLReq(`DESCRIBE  \`${selected_db}\`` +'.'+`\`${stableName}\`;`, true)
     .then(list => {
       let ts_field_name = list[0]?.field;
+      let encode = list[0]?.encode;
+      let compress = list[0]?.compress;
+      let level = list[0]?.level;
       let columns = [];
       let tags = [];
       for (let i = 1; i < list.length; i++) {
         const item = list[i];
         if (item.note == "TAG") {
-          tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          tags.push({ ...item, type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {
           columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY', type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         }
       }
       return {
         ts_field_name: ts_field_name,
+        encode,
+        compress,
+        level,
         columns: columns,
         tags: tags,
       };

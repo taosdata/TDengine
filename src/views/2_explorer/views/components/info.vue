@@ -37,11 +37,17 @@
         <el-descriptions-item v-for="item in infoField" :label="$t(`console.${item}`)" :key="item">{{ infoData[item] }}</el-descriptions-item>
       </el-descriptions>
       <el-table tooltip-effect="light" size="mini" :data="tableData" border>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.category')" prop="category" width="150px">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.category')" prop="category" width="90px">
         </el-table-column>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.name')" prop="name">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.name')" prop="name" min-width="200">
         </el-table-column>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.type')" prop="type">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.type')" prop="type" min-width="100">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.encode')" prop="encode" width="90px">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.compress')" prop="compress" width="180px">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.level')" prop="level" width="150px">
         </el-table-column>
       </el-table>
     </section>
@@ -133,11 +139,18 @@ export default {
         tags: [],
       }));
 
-      this.columns = [{ name: data.ts_field_name, type: "timestamp", category: 'Column' }].concat(
-        data.columns.map((item) => ({ name: item.field, type: item.type, category: 'Column' }))
+      const { encode, compress, level } = data;
+      this.columns = [{ name: data.ts_field_name, type: "timestamp", category: 'Column', encode, compress, level }].concat(
+        data.columns.map((item) => ({ 
+          ...item, 
+          name: item.field, 
+          type: item.note ? item.type + '(' + item.note + ')' : item.type, 
+          category: 'Column',
+        }))
       );
 
       this.tags = data.tags.map((item) => ({
+        ...item,
         name: item.field,
         type: item.type,
         category: 'Tag'
@@ -165,6 +178,7 @@ export default {
       this.tableData = result.map((item) => {
         item.value = data[0] ? data[0][item.name] : item['dataType'];
         item.name = item.typeName == 'tag' ? item.name + '(' + item.value + ')' : item.name
+        item.type = item.note ? item.type + '(' + item.note + ')' : item.type
         item.category = item.typeName == 'tag' ? 'Tag' : 'Column'
         return item;
       });
