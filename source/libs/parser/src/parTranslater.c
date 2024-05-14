@@ -4338,7 +4338,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
 #ifdef TD_ENTERPRISE
-        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType && !pCurrSmt->tagScan) {
           return translateView(pCxt, pTable, &name);
         }
         translateAudit(pCxt, pRealTable, &name);
