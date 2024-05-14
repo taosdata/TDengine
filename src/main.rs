@@ -35,12 +35,12 @@ use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
 };
-#[cfg(feature = "tikv_jemallocator")]
+#[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
 use crate::serve::monitor;
-#[cfg(feature = "tikv_jemallocator")]
+#[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;

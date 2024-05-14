@@ -556,6 +556,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
 //     Ok(())
 // }
 
+#[instrument(skip_all)]
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
     source: TaosPool,
@@ -569,7 +570,7 @@ async fn sync_single_table_partial(
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     target_is_v3: bool,
-    metrics_arc: Arc<CoreMetrics>,
+    metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tracing::debug!("Syncing table {table} with range: {}", opts.time_range);
     let metrics = metrics_arc.legacy();
@@ -607,7 +608,8 @@ async fn sync_single_table_partial(
     let mut res = from
         .query(&sql)
         .await
-        .context(format!("query with {sql}"))?;
+        .with_context(|| format!("SQL: {sql}"))
+        .with_context(|| "query from source error")?;
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
     let new_table_name = if actions.is_empty() {
@@ -617,6 +619,8 @@ async fn sync_single_table_partial(
     };
 
     let concurrent_limit = target_opts.concurrent_limit.get();
+    let span = tracing::info_span!("sync_single_table_partial", table = %table, target = %new_table_name, concurrent_limit, blocks_chunk_size = target_opts.blocks_chunk_size.get());
+    let _guard = span.enter();
 
     if target_is_v3 && !target_opts.force_stmt {
         let context = Arc::new(WriteContext {
@@ -1535,6 +1539,7 @@ async fn sync_specified_tables_with_workers(
 ) -> anyhow::Result<()> {
     tracing::info!(
         tables = todo.tables_todo(),
+        task_id,
         "Synchronize table data with {} workers",
         workers
     );
