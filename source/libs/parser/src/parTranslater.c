@@ -11867,6 +11867,30 @@ static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
+  int32_t     code = 0;
+  SName       name;
+  STableMeta* pTableMeta = NULL;
+  code = getTargetMeta(pCxt,
+                       toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal,
+                              ((SValueNode*)pShow->pTbName)->literal, &name),
+                       &pTableMeta, true);
+  taosMemoryFreeClear(pTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+  }
+
+  return code;
+}
+
+static int32_t rewriteShowTags(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowTags(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
+  }
+  return code;
+}
+
 static SNode* createTagsFunction() {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -13170,7 +13194,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
@@ -13180,6 +13203,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      code = rewriteShowTags(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       code = rewriteShowVgroups(pCxt, pQuery);
