@@ -102,6 +102,22 @@ class TDTestCase(TBase):
         allRows = self.insert_rows * self.childtable_count
         tdSql.checkFirstValue(sql, allRows)
 
+    def checkShowTags(self):
+        # verification for TD-29904
+        tdSql.error("show tags from t100000", expectErrInfo='Fail to get table info, error: Table does not exist')
+
+        sql = "show tags from child1"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+
+        sql = f"show tags from child1 from {self.db}"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+
+        sql = f"show tags from {self.db}.child1"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+
     def checkShow(self):
         # not support
         sql = "show accounts;"
@@ -129,8 +145,7 @@ class TDTestCase(TBase):
         ]
         tdSql.executes(sqls)
 
-        # verification for TD-29904
-        tdSql.error("show tags from t100000", expectErrInfo='Fail to get table info, error: Table does not exist')
+        self.checkShowTags()
 
 
     # run
