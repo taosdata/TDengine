@@ -439,21 +439,102 @@ fn generate_json_value(
 
 #[cfg(test)]
 mod tests {
+    use sqlx::Executor;
+
     use super::*;
     use std::str::FromStr;
+
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key, name varchar(255), value FLOAT8, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, CURRENT_TIMESTAMP)", i);
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
 
     #[tokio::test]
     #[ignore]
     async fn test_is_valid() {
+        // prepare data
+        let _ = test_create_database().await;
+
         // invalid port
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/postgres").unwrap();
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5433/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("postgres", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/postgres, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
+            "failed to connect to dsn: postgres://postgres:tbase125%21@192.168.1.40:5433/test_taosx, cause: failed to connect to postgres, cause: pool timed out while waiting for an open connection",
             res.message.unwrap()
         );
 
@@ -507,7 +588,7 @@ mod tests {
 
         // normal
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
@@ -515,21 +596,25 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_sample() {
-        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test?sql=select * from public.pg_test3 where ttimezone >= ${start} and ttimezone < ${end}&start=2024-01-01T00:00:00Z&end=2024-05-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(4).await;
+
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts >= ${start} and ts <= ${end}&start=2024-01-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
         dbg!(&res);
         assert_eq!(true, res.is_ok());
-        println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_postgres_to_taos() {
-        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
+        let from = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
@@ -561,30 +646,45 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_generate_json_value() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(1).await;
+
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let row = query
-            .select_one_for_schema("select * from information_schema.tables")
-            .await
-            .unwrap();
-
-        match row {
-            Some(row) => {
-                for idx in 0..11 {
-                    let res = generate_json_value(&row, row.column(idx).type_info().name(), idx);
-                    dbg!(&res);
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_one_for_schema("select * from t_metric").await;
+                match query_result {
+                    Ok(row) => match row {
+                        Some(row) => {
+                            for idx in 0..4 {
+                                let res = generate_json_value(
+                                    &row,
+                                    row.column(idx).type_info().name(),
+                                    idx,
+                                );
+                                dbg!(&res);
+                            }
+                        }
+                        None => {
+                            println!("no data found");
+                        }
+                    },
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
                 }
             }
-            None => {
-                println!("no data");
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
+        // clear data
+        let _ = test_clear_data().await;
     }
 }

@@ -754,70 +754,187 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::postgres::{config::connect::ConnectConfig, query::PostgresQuery};
+    use sqlx::Executor;
     use std::str::FromStr;
     use taos::Dsn;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_to_schema() {
+    async fn test_create_database() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let row = query
-            .select_one_for_schema("select * from information_schema.tables")
-            .await
-            .unwrap();
-
-        match row {
-            Some(row) => {
-                let schema = to_schema(row).await.unwrap();
-                dbg!(schema);
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
             }
-            None => {
-                println!("no row");
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key, name varchar(255), value FLOAT8, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, CURRENT_TIMESTAMP)", i);
+                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_to_record_batch() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test").unwrap();
+    async fn test_to_schema() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(1).await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let rows = query
-            .select_all("select * from public.pg_test1")
-            .await
-            .unwrap();
-
-        let batch = to_record_batch(rows).await.unwrap();
-        dbg!(batch);
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let row = query
+                    .select_one_for_schema("select * from public.t_metric")
+                    .await
+                    .unwrap();
+                match row {
+                    Some(row) => {
+                        let schema = to_schema(row).await.unwrap();
+                        dbg!(&schema);
+                        assert_eq!(schema.fields().len(), 4);
+                    }
+                    None => {
+                        println!("no row");
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_to_record_batches() {
+    async fn test_to_record_batch() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
         let dsn =
-            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = PostgresQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let rows = query
-            .select_all("select * from information_schema.tables")
-            .await
-            .unwrap();
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from public.t_metric").await;
+                match query_result {
+                    Ok(rows) => {
+                        let batch = to_record_batch(rows).await.unwrap();
+                        dbg!(&batch);
+                        assert_eq!(batch.num_columns(), 4);
+                        assert_eq!(batch.num_rows(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
 
-        let batches = to_record_batches(rows, 3).await.unwrap();
-        dbg!(batches);
+    #[tokio::test]
+    async fn test_to_record_batches() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn =
+            Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = PostgresQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from public.t_metric").await;
+                match query_result {
+                    Ok(rows) => {
+                        let batches = to_record_batches(rows, 3).await.unwrap();
+                        dbg!(&batches);
+                        assert_eq!(batches.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[test]
