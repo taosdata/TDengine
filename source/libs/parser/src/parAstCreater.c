@@ -21,6 +21,7 @@
 #include "tglobal.h"
 #include "ttime.h"
 #include "tjson.h"
+#include "cJSON.h"
 
 #define CHECK_OUT_OF_MEM(p)                                                      \
   do {                                                                           \
@@ -1759,11 +1760,19 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
       memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_TEMPLATE_LEN);
       if (((SToken*)pVal)->n - 2 > TSDB_MAX_JSON_TEMPLATE_LEN - 1) {
         pCxt->errCode = TSDB_CODE_TEMPLATE_TOO_LONG;
+        break;
       }
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->jsonTemplate, (SToken*)pVal);
       if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
         pCxt->errCode = TSDB_CODE_TSC_INVALID_JSON;
+        break;
       }
+      cJSON *root = cJSON_Parse(((SColumnOptions*)pOptions)->jsonTemplate);
+      if (root == NULL || root->type != cJSON_Object){
+        pCxt->errCode = TSDB_CODE_INVALID_JSON_FORMAT;
+        break;
+      }
+
       int32_t code = checkJsonTemplate(((SColumnOptions*)pOptions)->jsonTemplate);
       if (code != TSDB_CODE_SUCCESS){
         pCxt->errCode = code;

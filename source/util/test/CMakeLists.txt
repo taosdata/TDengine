@@ -118,6 +118,14 @@ add_test(
     COMMAND bufferTest
 )
 
+# jsonTest
+add_executable(jsonTest "jsonTest.cpp")
+target_link_libraries(jsonTest os util gtest_main)
+add_test(
+        NAME jsonTest
+        COMMAND jsonTest
+)
+
 #add_executable(decompressTest "decompressTest.cpp")
 #target_link_libraries(decompressTest os util common gtest_main)
 #add_test(
