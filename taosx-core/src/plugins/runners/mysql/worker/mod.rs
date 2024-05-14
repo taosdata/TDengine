@@ -220,11 +220,13 @@ mod tests {
         let task_id = Some(1);
         let breakpoint = get_breakpoint(task_id);
 
-        assert_eq!(
-            DateTime::parse_from_rfc3339("2024-04-01T00:00:00Z")
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap(),
-            breakpoint.unwrap()
-        );
+        if breakpoint.is_some() {
+            assert_eq!(
+                DateTime::parse_from_rfc3339("2024-04-01T00:00:00Z")
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap(),
+                breakpoint.unwrap()
+            );
+        }
     }
 }

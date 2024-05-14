@@ -8,11 +8,11 @@ use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
 use crate::runners::opc::config::OpcType;
 
-mod da;
+pub mod da;
 pub mod dump;
-mod ua;
+pub mod ua;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
     OBSERVE,
@@ -30,7 +30,7 @@ impl FromStr for CollectMode {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectConfig {
     pub interval: Option<i64>,
     pub limit: Option<i64>,

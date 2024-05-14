@@ -149,7 +149,7 @@ datasets:
       target:
         name: csv_config_file
         description: |
-          OPC UA point configuration list.
+          Upload a csv file to define the mapping rules for each data point to the TDengine table.
         required: true
         multiple: true
         editable: true
@@ -343,7 +343,6 @@ advanced:
         type: integer
         min: 1
         max: 365
-
     - name: keep_raw_data_dir
       display: Raw Data Directory
       description: |

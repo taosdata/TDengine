@@ -6,25 +6,23 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, Dsn, Taos};
 
-use taosx_ipc::types::DataSetsReq;
-
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::{csv_string_record_from_iter, opc_datasets, OpcType};
+use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
 
-mod collect;
+pub mod collect;
 mod connect;
 pub mod csv;
 pub mod model;
 pub mod points;
 mod report;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
@@ -79,23 +77,17 @@ impl OPCConfig {
 
             model_config
         } else {
-            let points = opc_datasets(&DataSetsReq {
-                from: dsn.to_string(),
-                categories: vec![String::from("nodes")],
-                via: None,
-                offset: 0,
-                pattern: None,
-                limit: usize::MAX / 2 - 1,
-                lang: None,
-            })
-            .await?;
-
+            let points = opc_datasets_impl(dsn.clone()).await?;
             let mut opc_model_config = OpcModelConfig::new();
             opc_model_config.add_points(points, dsn)?;
 
             opc_model_config
         };
 
+        let points_config = PointsConfig::from_dsn(dsn)?;
+
+        // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
+        // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
         let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
             |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
@@ -112,7 +104,7 @@ impl OPCConfig {
             debug,
             connect,
             report,
-            points: None,
+            points: Some(points_config),
             collect: Some(collect),
             model_config: Some(model_config),
         })
@@ -144,7 +136,7 @@ impl OPCConfig {
     }
 
     pub async fn from_dsn_check_mode(dsn: &Dsn) -> anyhow::Result<Self> {
-        Ok(OPCConfig {
+        Ok(Self {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
@@ -343,7 +335,7 @@ impl OPCConfig {
     */
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub enum AuthMethod {
     Anonymous,
     UserName,

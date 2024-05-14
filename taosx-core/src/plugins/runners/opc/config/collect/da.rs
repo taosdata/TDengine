@@ -5,14 +5,20 @@ use taos::Dsn;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::{get_string_vec_from_param_or_file_for_opc, OPCConfig};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaCollectConfig {
-    tags: Vec<DaNodeConfig>,
+    pub(crate) tags: Vec<DaNodeConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaNodeConfig {
     tag: String,
+}
+
+impl DaNodeConfig {
+    pub fn new(tag: String) -> Self {
+        Self { tag }
+    }
 }
 
 impl DaCollectConfig {

@@ -5,16 +5,22 @@ use crate::runners::opc::config::collect::CollectMode;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::{get_string_vec_from_param_or_file_for_opc, OPCConfig};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UaCollectConfig {
     collect_mode: CollectMode,
-    nodes: Vec<UANodeConfig>,
+    pub(crate) nodes: Vec<UANodeConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UANodeConfig {
     id: String,
     // value_type: String,
+}
+
+impl UANodeConfig {
+    pub fn new(id: String) -> Self {
+        Self { id }
+    }
 }
 
 impl UaCollectConfig {

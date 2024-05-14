@@ -159,9 +159,12 @@ impl ZFileMan {
         metrics: &TmqMetrics,
         stop_at: Option<DateTime<Local>>,
     ) -> Result<(usize, bool)> {
+        if stop_at.is_none() {
+            return Ok((0, false));
+        }
         let mut nrows = 0;
         let mut last_ts = None;
-        while let Some(block) = data.fetch_raw_block().await.unwrap() {
+        while let Some(block) = data.fetch_raw_block().await? {
             // dbg!(&block);
             if let Some(view) = block.column_views().get(0) {
                 match view {
@@ -251,9 +254,9 @@ async fn backup(
                             man.flush_vgroup(vgroup).await?;
                             metrics.add_messages_of_data(1);
 
-                            consumer.commit(offset).await?;
                             let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
                             rows += size;
+                            consumer.commit(offset).await?;
                             if stop {
                                 break;
                             }
@@ -266,6 +269,7 @@ async fn backup(
 
                             let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
                             rows += size;
+                            consumer.commit(offset).await?;
                             if stop {
                                 break;
                             }

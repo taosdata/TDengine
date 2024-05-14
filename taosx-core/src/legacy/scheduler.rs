@@ -376,7 +376,7 @@ async fn worker(
                                     remap.as_ref(),
                                     &opts,
                                     target_is_v3,
-                                    metrics_arc.clone(),
+                                    &metrics_arc,
                                 )
                                 .in_current_span()
                                 .await

@@ -872,7 +872,7 @@ fn transform_by_name(
     let col_index = schema.index_of(col_name).unwrap();
     let col_type = schema.field(col_index).data_type();
 
-    let mut values = Vec::with_capacity(rows);
+    let mut values: Vec<Dynamic> = Vec::with_capacity(rows);
     for row_index in 0..rows {
         let point_id = columns[id_col_index]
             .as_any()
@@ -881,165 +881,168 @@ fn transform_by_name(
             .value(row_index);
 
         let expression = get_transform_exprssion_by_id(point_id, &transform_map);
-        if expression.is_none() {
-            values.push(Dynamic::UNIT);
-            continue;
-        }
-        let (name, expr) = expression.unwrap();
-        let mut scope = Scope::new();
-        match col_type {
-            DataType::Boolean => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BooleanArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Int8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_f64());
-            }
-            DataType::Float32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Binary => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
-            }
-            DataType::Utf8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_string());
-            }
-            DataType::Timestamp(TimeUnit::Millisecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMillisecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMicrosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampNanosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            dt => {
-                tracing::warn!(
-                    "unsupported data type: {}, expression scope not set",
-                    dt.clone()
-                )
-            }
-        }
 
-        let engine = Engine::new();
-        let engine = Arc::new(engine);
-        let ast = engine.compile_expression(&expr)?;
-        let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
-            Ok(v) => v,
-            Err(_) => rhai::Dynamic::UNIT,
-        };
-        values.push(new_value);
+        match expression {
+            Some((name, expr)) => {
+                let mut scope = Scope::new();
+                match col_type {
+                    DataType::Boolean => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Int8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_f64());
+                    }
+                    DataType::Float32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Binary => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BinaryArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
+                    }
+                    DataType::Utf8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_string());
+                    }
+                    DataType::Timestamp(TimeUnit::Millisecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    dt => {
+                        tracing::warn!(
+                            "unsupported data type: {}, expression scope not set",
+                            dt.clone()
+                        )
+                    }
+                }
+                let engine = Arc::new(Engine::new());
+                let ast = engine.compile_expression(&expr)?;
+                let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
+                    Ok(v) => v,
+                    Err(_) => rhai::Dynamic::UNIT,
+                };
+                values.push(new_value);
+            }
+            None => {
+                // no transform expression for this point_id, use raw value
+                let value = to_dynamic_value(record, col_type, col_index, row_index)?;
+                values.push(value);
+            }
+        }
     }
 
     let mut is_none = true;
@@ -1063,6 +1066,7 @@ fn transform_by_name(
     let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
         "failed to transform Vec<Dynamic> to ArrayRef"
     ))?;
+
     arrow::compute::cast(&array, col_type).map_err(|err| {
         anyhow::anyhow!(
             "failed to cast transformed array to dataType: {}, cause: {:?}",
@@ -1070,6 +1074,157 @@ fn transform_by_name(
             err
         )
     })
+}
+fn to_dynamic_value(
+    record_batch: &RecordBatch,
+    col_type: &DataType,
+    col_index: usize,
+    row_index: usize,
+) -> anyhow::Result<Dynamic> {
+    let columns = record_batch.columns();
+    let value: Dynamic = match col_type {
+        DataType::Boolean => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Int8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_f64())
+        }
+        DataType::Float32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Binary => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BinaryArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(String::from_utf8_lossy(value).to_string())
+        }
+        DataType::Utf8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_string())
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .unwrap()
+                .value(row_index);
+            rhai::Dynamic::from(value)
+        }
+        dt => {
+            unimplemented!("unsupported data type: {}", dt.clone())
+        }
+    };
+
+    Ok(value)
 }
 
 fn get_transform_exprssion_by_id(
