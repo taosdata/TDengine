@@ -8,6 +8,9 @@ fn breakpoints_db_dir(task_id: &str) -> PathBuf {
 }
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
+    if task_id == "-1" {
+        return Ok(());
+    }
     let path = breakpoints_db_dir(task_id);
     debug!(
         "breakpoints db path: {}, breakpoints key: {}, value: {}",
