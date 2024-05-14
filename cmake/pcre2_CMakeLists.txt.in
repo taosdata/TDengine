@@ -1,0 +1,13 @@
+
+# pcre2
+ExternalProject_Add(pcre2
+        GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
+        GIT_TAG pcre2-10.43
+        SOURCE_DIR "${TD_CONTRIB_DIR}/pcre2"
+        #BINARY_DIR "${TD_CONTRIB_DIR}/pcre2"
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )
