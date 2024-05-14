@@ -576,37 +576,22 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     if (tsDisableStream) {
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
-      vInfo("vgId:%d sync restore finished, start to load and launch stream task(s)", vgId);
+      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", vgId);
       if (pMeta->startInfo.startAllTasks == 1) {
         pMeta->startInfo.restartCount += 1;
         vDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
                 pMeta->startInfo.restartCount);
       } else {
         pMeta->startInfo.startAllTasks = 1;
-
-        bool loadTaskInfo = pMeta->taskLoadFlag;
-        pMeta->taskLoadFlag = true;
         streamMetaWUnLock(pMeta);
 
-        if (loadTaskInfo) {
-          tqInfo("vgId:%d stream task already loaded, start them", vgId);
-          streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
-        } else {
-          tqInfo("vgId:%d start load and launch stream task(s)", vgId);
-          streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS);
-        }
-
+        tqInfo("vgId:%d stream task already loaded, start them", vgId);
+        streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
         return;
       }
     }
   } else {
-    if (!pMeta->taskLoadFlag) {
-      pMeta->taskLoadFlag = true;
-      vInfo("vgId:%d, sync restore finished, load stream tasks, not start tasks since not leader", vgId);
-      streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_LOAD_ALL_TASKS);
-    } else {
-      vInfo("vgId:%d, sync restore finished, not load stream tasks since already loaded for follower");
-    }
+    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
 
   streamMetaWUnLock(pMeta);

@@ -217,7 +217,7 @@ int32_t downloadRsync(const char* id, const char* path) {
 #endif
            );
 
-  uDebug("[rsync] %s start to sync data from remote to local:%s, %s", id, path, command);
+  uDebug("[rsync] %s start to sync data from remote to:%s, %s", id, path, command);
 
   while(times++ < MAX_RETRY) {
 

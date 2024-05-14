@@ -40,7 +40,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
 
 void            destroyRocksdbCfInst(RocksdbCfInst* inst);
 int32_t         getCfIdx(const char* cfName);
-STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath);
+STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath);
 
 static int32_t backendCopyFiles(const char* src, const char* dst);
 
@@ -325,7 +325,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
   return complete == 1 ? 0 : -1;
 }
 
-int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkptPath, int64_t checkpointId, char* defaultPath) {
+int32_t rebuildFromRemoteChkp_rsync(const char* key, char* chkptPath, int64_t checkpointId, char* defaultPath) {
   int32_t code = 0;
   if (taosIsDir(chkptPath)) {
     taosRemoveDir(chkptPath);
@@ -335,7 +335,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkptPath, int64_t checkpoi
   if (taosIsDir(defaultPath)) {
     taosRemoveDir(defaultPath);
     taosMulMkDir(defaultPath);
-    stDebug("clear local backend dir:%s succ", defaultPath);
+    stDebug("clear local default dir before download checkpoint data:%s succ", defaultPath);
   }
 
   code = streamTaskDownloadCheckpointData(key, chkptPath);
@@ -348,7 +348,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkptPath, int64_t checkpoi
   return backendCopyFiles(chkptPath, defaultPath);
 }
 
-int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
+int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
   int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
   if (code != 0) {
     return code;
@@ -383,14 +383,14 @@ int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char
   return code;
 }
 
-int32_t rebuildFromRemoteCheckpoint(char* key, char* chkpPath, int64_t checkpointId, char* defaultPath) {
+int32_t rebuildFromRemoteCheckpoint(const char* key, char* chkpPath, int64_t checkpointId, char* defaultPath) {
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
   if (type == DATA_UPLOAD_S3) {
     return rebuildFromRemoteChkp_s3(key, chkpPath, checkpointId, defaultPath);
   } else if (type == DATA_UPLOAD_RSYNC) {
     return rebuildFromRemoteChkp_rsync(key, chkpPath, checkpointId, defaultPath);
   } else {
-    stError("%s not remote backup checkpoint data for:%"PRId64, key, checkpointId);
+    stError("%s not remote backup checkpoint data for:%" PRId64" restore ", key, checkpointId);
   }
 
   return -1;
@@ -484,24 +484,26 @@ int32_t backendCopyFiles(const char* src, const char* dst) {
   return backendFileCopyFilesImpl(src, dst);
 }
 
-static int32_t rebuildFromLocalCheckpoint(char* pTaskIdStr, const char* checkpointPath, int64_t chkptId, const char* defaultPath) {
+static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* checkpointPath, int64_t checkpointId,
+                                          const char* defaultPath) {
   int32_t code = 0;
 
   if (taosIsDir(defaultPath)) {
     taosRemoveDir(defaultPath);
     taosMkDir(defaultPath);
-    stInfo("clear local backend dir:%s, done", defaultPath);
+    stInfo("%s clear local backend dir:%s, succ", pTaskIdStr, defaultPath);
   }
 
   if (taosIsDir(checkpointPath) && isValidCheckpoint(checkpointPath)) {
-    code = backendCopyFiles(checkpointPath, defaultPath);
+    stDebug("%s local checkpoint data existed, checkpointId:%d copy to backend dir", pTaskIdStr, checkpointId);
 
+    code = backendCopyFiles(checkpointPath, defaultPath);
     if (code != TSDB_CODE_SUCCESS) {
       taosRemoveDir(defaultPath);
       taosMkDir(defaultPath);
 
-      stError("%s failed to restart stream backend from %s, reason: %s, start to restart from empty path: %s",
-              pTaskIdStr, checkpointPath, tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
+      stError("%s failed to start stream backend from local %s, reason:%s, try download checkpoint from remote",
+              pTaskIdStr, checkpointPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       code = TSDB_CODE_SUCCESS;
     } else {
       stInfo("%s copy checkpoint data from:%s to:%s succ, try to start stream backend", pTaskIdStr, checkpointPath,
@@ -509,18 +511,13 @@ static int32_t rebuildFromLocalCheckpoint(char* pTaskIdStr, const char* checkpoi
     }
   } else {
     code = TSDB_CODE_FAILED;
-    stError("%s no valid checkpoint data for checkpointId:%" PRId64 " in %s", pTaskIdStr, chkptId, checkpointPath);
+    stError("%s no valid data for checkpointId:%" PRId64 " in %s", pTaskIdStr, checkpointId, checkpointPath);
   }
 
   return code;
 }
 
-int32_t rebuildFromlocalDefault(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = 0;
-  return code;
-}
-
-int32_t rebuildDirFormCheckpoint(const char* path, char* key, int64_t chkptId, char** dbPrefixPath, char** dbPath) {
+int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId, char** dbPrefixPath, char** dbPath) {
   int32_t code = 0;
 
   char* prefixPath = taosMemoryCalloc(1, strlen(path) + 128);
@@ -533,13 +530,23 @@ int32_t rebuildDirFormCheckpoint(const char* path, char* key, int64_t chkptId, c
 
   char* defaultPath = taosMemoryCalloc(1, strlen(path) + 256);
   sprintf(defaultPath, "%s%s%s", prefixPath, TD_DIRSEP, "state");
+
   if (!taosIsDir(defaultPath)) {
     taosMulMkDir(defaultPath);
   }
-  stDebug("local default dir:%s, checkpointId:%" PRId64 ", key:%s succ", defaultPath, chkptId, key);
+
+  char* checkpointRoot = taosMemoryCalloc(1, strlen(path) + 256);
+  sprintf(checkpointRoot, "%s%s%s", prefixPath, TD_DIRSEP, "checkpoints");
+
+  if (!taosIsDir(checkpointRoot)) {
+    taosMulMkDir(checkpointRoot);
+  }
+  taosMemoryFree(checkpointRoot);
+
+  stDebug("%s check local default:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
 
   char* chkptPath = taosMemoryCalloc(1, strlen(path) + 256);
-  if (chkptId != 0) {
+  if (chkptId > 0) {
     sprintf(chkptPath, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkptId);
 
     code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath);
@@ -550,16 +557,9 @@ int32_t rebuildDirFormCheckpoint(const char* path, char* key, int64_t chkptId, c
     if (code != 0) {
       stError("failed to start stream backend at %s, reason: %s, restart from default defaultPath:%s", chkptPath,
              tstrerror(code), defaultPath);
-      code = taosMkDir(defaultPath);
     }
-  } else {
-    sprintf(chkptPath, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
-            (int64_t)-1);
-
-    code = rebuildFromLocalCheckpoint(key, chkptPath, -1, defaultPath);
-    if (code != 0) {
-      code = taosMkDir(defaultPath);
-    }
+  } else {  // no valid checkpoint id
+    stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data", key);
   }
 
   taosMemoryFree(chkptPath);
@@ -646,7 +646,7 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   if (cfs != NULL) {
     rocksdb_list_column_families_destroy(cfs, nCf);
   }
-  stDebug("succ to init stream backend at %s, backend:%p, vgId:%d", backendPath, pHandle, vgId);
+  stDebug("%s init stream backend at %s, backend:%p, vgId:%d", backendPath, pHandle, vgId);
   taosMemoryFreeClear(backendPath);
 
   return (void*)pHandle;
@@ -1933,6 +1933,7 @@ int32_t taskDbBuildFullPath(char* path, char* key, char** dbFullPath, char** sta
   *stateFullPath = statePath;
   return 0;
 }
+
 void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId) {
   STaskDbWrapper* p = pTaskDb;
   taosThreadMutexLock(&p->mutex);
@@ -1940,7 +1941,7 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId) {
   taosThreadMutexUnlock(&p->mutex);
 }
 
-STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
+STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
   char*  err = NULL;
   char** cfNames = NULL;
   size_t nCf = 0;
@@ -1955,7 +1956,7 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
 
   cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
   if (nCf == 0) {
-    stInfo("newly create db, need to restart");
+    stInfo("%s newly create db, need to restart", key);
     // pre create db
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
     if (pTaskDb->db == NULL) goto _EXIT;
@@ -1980,21 +1981,21 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
     cfNames = NULL;
   }
 
-  stDebug("succ to init stream backend at %s, backend:%p", dbPath, pTaskDb);
+  stDebug("init s-task backend in:%s, backend:%p, %s", dbPath, pTaskDb, key);
   return pTaskDb;
-_EXIT:
 
+_EXIT:
   taskDbDestroy(pTaskDb, false);
   if (err) taosMemoryFree(err);
   if (cfNames) rocksdb_list_column_families_destroy(cfNames, nCf);
   return NULL;
 }
 
-STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkptId) {
+STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId) {
   char* statePath = NULL;
   char* dbPath = NULL;
 
-  if (rebuildDirFormCheckpoint(path, key, chkptId, &statePath, &dbPath) != 0) {
+  if (restoreCheckpointData(path, key, chkptId, &statePath, &dbPath) != 0) {
     return NULL;
   }
 

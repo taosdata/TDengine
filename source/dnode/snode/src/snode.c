@@ -45,14 +45,9 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
   pTask->pBackend = NULL;
-
   streamTaskOpenAllUpstreamInput(pTask);
-
-  code = tqExpandStreamTask(pTask, pSnode->pMeta, NULL);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
@@ -96,6 +91,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     goto FAIL;
   }
 
+  streamMetaLoadAllTasks(pSnode->pMeta);
   return pSnode;
 
 FAIL:
@@ -104,7 +100,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS);
+  streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
   return 0;
 }
 

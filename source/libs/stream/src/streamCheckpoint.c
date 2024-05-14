@@ -239,6 +239,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
   taosThreadMutexLock(&pTask->lock);
 
+  if (pReq->checkpointId <= pInfo->checkpointId) {
+    stDebug("s-task:%s vgId:%d latest checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " no need to update the checkpoint info, updated checkpointId:%" PRId64 " checkpointVer:%" PRId64 " ignored",
+            id, vgId, pInfo->checkpointId, pInfo->checkpointVer, pReq->checkpointId, pReq->checkpointVer);
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_SUCCESS;
+  }
+
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
 
   stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint info, checkpointId:%" PRId64 "->%" PRId64
@@ -246,7 +254,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
           id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
           pInfo->checkpointTime, pReq->checkpointTs);
 
-  // in the
   if (pStatus->state != TASK_STATUS__DROPPING) {
     ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer);
 
@@ -593,7 +600,7 @@ int32_t downloadCheckpointDataByName(const char* id, const char* fname, const ch
   return 0;
 }
 
-int32_t streamTaskDownloadCheckpointData(char* id, char* path) {
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("down checkpoint data parameters invalid");
     return -1;

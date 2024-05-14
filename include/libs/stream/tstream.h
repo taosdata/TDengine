@@ -61,7 +61,6 @@ extern "C" {
 // the load and start stream task should be executed after snode has started successfully, since the load of stream
 // tasks may incur the download of checkpoint data from remote, which may consume significant network and CPU resources.
 #define STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS (-8)
-#define STREAM_EXEC_T_LOAD_ALL_TASKS           (-9)
 
 typedef struct SStreamTask      SStreamTask;
 typedef struct SStreamQueue     SStreamQueue;
@@ -155,8 +154,6 @@ typedef enum EStreamTaskEvent {
   TASK_EVENT_HALT = 0x9,
   TASK_EVENT_DROPPING = 0xA,
 } EStreamTaskEvent;
-
-typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
 typedef void    FTbSink(SStreamTask* pTask, void* vnode, void* data);
 typedef void    FSmaSink(void* vnode, int64_t smaId, const SArray* data);
@@ -491,7 +488,6 @@ typedef struct SStreamMeta {
   int32_t         vgId;
   int64_t         stage;
   int32_t         role;
-  bool            taskLoadFlag;
   bool            closeFlag;
   bool            sendMsgBeforeClosing;  // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
@@ -521,6 +517,9 @@ typedef struct STaskUpdateEntry {
   int32_t taskId;
   int32_t transId;
 } STaskUpdateEntry;
+
+typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
+typedef int32_t (*__stream_task_expand_fn)(struct SStreamTask* pTask);
 
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5);
@@ -675,7 +674,7 @@ int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
-int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
@@ -723,9 +722,9 @@ void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
-int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
+int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn fn);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
-int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn fn);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 
 // timer

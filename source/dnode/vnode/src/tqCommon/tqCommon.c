@@ -39,9 +39,13 @@ static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
   pTask->id.streamId = pId->streamId;
 }
 
-int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode) {
-  int32_t vgId = pMeta->vgId;
-  STaskId taskId = {0};
+int32_t tqExpandStreamTask(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      vgId = pMeta->vgId;
+  STaskId      taskId = {0};
+  int64_t      st = taosGetTimestampMs();
+
+  tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
   if (pTask->info.fillHistory) {
     taskId = replaceStreamTaskId(pTask);
@@ -67,7 +71,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
   };
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    handle.vnode = pVnode;
+    handle.vnode = ((STQ*)pMeta->ahandle)->pVnode;
     handle.initTqReader = 1;
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     handle.numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
@@ -83,6 +87,9 @@ int32_t tqExpandStreamTask(SStreamTask* pTask, SStreamMeta* pMeta, void* pVnode)
     }
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   }
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  tqDebug("s-task:%s vgId:%d expand stream task completed, elapsed time:%.2fsec", pTask->id.idStr, vgId, el);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -706,7 +713,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
     streamMetaResetTaskStatus(pMeta);
     streamMetaWUnLock(pMeta);
 
-    streamMetaStartAllTasks(pMeta);
+    streamMetaStartAllTasks(pMeta, tqExpandStreamTask);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
     streamMetaWUnLock(pMeta);
@@ -724,10 +731,10 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   int32_t vgId = pMeta->vgId;
 
   if (type == STREAM_EXEC_T_START_ONE_TASK) {
-    streamMetaStartOneTask(pMeta, pReq->streamId, pReq->taskId);
+    streamMetaStartOneTask(pMeta, pReq->streamId, pReq->taskId, tqExpandStreamTask);
     return 0;
   } else if (type == STREAM_EXEC_T_START_ALL_TASKS) {
-    streamMetaStartAllTasks(pMeta);
+    streamMetaStartAllTasks(pMeta, tqExpandStreamTask);
     return 0;
   } else if (type == STREAM_EXEC_T_RESTART_ALL_TASKS) {
     restartStreamTasks(pMeta, isLeader);
@@ -740,11 +747,8 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     return code;
   } else if (type == STREAM_EXEC_T_LOAD_AND_START_ALL_TASKS) {
     streamMetaLoadAllTasks(pMeta);
-    int32_t code = streamMetaStartAllTasks(pMeta);
+    int32_t code = streamMetaStartAllTasks(pMeta, tqExpandStreamTask);
     return code;
-  } else if (type == STREAM_EXEC_T_LOAD_ALL_TASKS) {
-    streamMetaLoadAllTasks(pMeta);
-    return 0;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
 

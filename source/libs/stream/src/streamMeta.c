@@ -239,9 +239,7 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
-  SStreamTask* pTask = arg;
-
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key) {
   int64_t chkpId = pTask->chkInfo.checkpointId;
 
   taosThreadMutexLock(&pMeta->backendMutex);
@@ -1358,7 +1356,7 @@ static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
+int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expandFn) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
   int64_t now = taosGetTimestampMs();
@@ -1392,8 +1390,17 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    // fill-history task can only be launched by related stream tasks.
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
+
+    code = expandFn(pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:0x%x vgId:%d failed to build stream backend", pTaskId->taskId, vgId);
+      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    // fill-history task can only be launched by related stream tasks.
     if (pTask->info.fillHistory == 1) {
       stDebug("s-task:%s fill-history task wait related stream task start", pTask->id.idStr);
       streamMetaReleaseTask(pMeta, pTask);
@@ -1481,9 +1488,9 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   return true;
 }
 
-int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn expandFn) {
   int32_t vgId = pMeta->vgId;
-  stInfo("vgId:%d start to task:0x%x by checking downstream status", vgId, taskId);
+  stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
   if (pTask == NULL) {
@@ -1500,6 +1507,10 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
+
+  if (pTask->pBackend == NULL) {  // todo handle the error code
+    int32_t code = expandFn(pTask);
+  }
 
   int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
   if (ret != TSDB_CODE_SUCCESS) {
