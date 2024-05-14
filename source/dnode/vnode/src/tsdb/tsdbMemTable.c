@@ -664,7 +664,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   }
 
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData, &lRow);
   }
 
   // SMemTable
@@ -727,7 +727,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     pTbData->maxKey = key.key.ts;
   }
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, nRow, aRow, &lRow);
   }
 
   // SMemTable

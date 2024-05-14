@@ -774,7 +774,7 @@ void tRowIterClose(SRowIter **ppIter) {
   *ppIter = NULL;
 }
 
-SColVal *tRowIterNext(SRowIter *pIter) {
+static SColVal *tRowIterGetValue(SRowIter *pIter) {
   if (pIter->iTColumn >= pIter->pTSchema->numOfCols) {
     return NULL;
   }
@@ -896,8 +896,23 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   }
 
 _exit:
-  pIter->iTColumn++;
   return &pIter->cv;
+}
+
+SColVal* tRowIterNext(SRowIter *pIter) {
+  SColVal* pColVal = tRowIterGetValue(pIter);
+  if (pColVal) {
+    pIter->iTColumn++;
+  }
+  return pColVal;
+}
+
+SColVal *tRowIterMoveTo(SRowIter *pIter, int32_t iTColum) {
+  pIter->iTColumn = iTColum;
+  if (pIter->iTColumn < 0 || pIter->iTColumn >= pIter->pTSchema->numOfCols) {
+    return NULL;
+  }
+  return tRowIterGetValue(pIter);
 }
 
 static int32_t tRowNoneUpsertColData(SColData *aColData, int32_t nColData, int32_t flag) {

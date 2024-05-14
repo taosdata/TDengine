@@ -601,17 +601,21 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
-  ASSERT(iCol > 0);
-
   if (pRow->type == TSDBROW_ROW_FMT) {
     tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
-    if (pColData) {
-      tColDataGetValue(pColData, pRow->iRow, pColVal);
+    if (iCol == 0) {
+      *pColVal =
+          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
+                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
     } else {
-      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
+
+      if (pColData) {
+        tColDataGetValue(pColData, pRow->iRow, pColVal);
+      } else {
+        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      }
     }
   } else {
     ASSERT(0);
@@ -701,25 +705,51 @@ void tsdbRowClose(STSDBRowIter *pIter) {
   }
 }
 
+static SColVal *tsdbRowColIterGetValue(STSDBRowIter *pIter) {
+  if (pIter->iColData == 0) {
+    pIter->cv = COL_VAL_VALUE(
+        PRIMARYKEY_TIMESTAMP_COL_ID,
+        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
+    return &pIter->cv;
+  }
+
+  if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
+    tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
+    return &pIter->cv;
+  } else {
+    return NULL;
+  }
+}
+
+static SColVal *tsdbRowColIterNext(STSDBRowIter *pIter) {
+  SColVal* pColVal = tsdbRowColIterGetValue(pIter);
+  if (pColVal) {
+    ++pIter->iColData;
+  }
+  return pColVal;
+}
+
+static SColVal* tsdbRowColIterMoveTo(STSDBRowIter *pIter, int32_t iCol) {
+  pIter->iColData = iCol;
+  return tsdbRowColIterGetValue(pIter);
+}
+
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == TSDBROW_ROW_FMT) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
-    if (pIter->iColData == 0) {
-      pIter->cv = COL_VAL_VALUE(
-          PRIMARYKEY_TIMESTAMP_COL_ID,
-          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
-      ++pIter->iColData;
-      return &pIter->cv;
-    }
+    return tsdbRowColIterNext(pIter);
+  } else {
+    ASSERT(0);
+    return NULL;  // suppress error report by compiler
+  }
+}
 
-    if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
-      ++pIter->iColData;
-      return &pIter->cv;
-    } else {
-      return NULL;
-    }
+SColVal *tsdbRowIterMoveTo(STSDBRowIter *pIter, int32_t iCol) {
+  if (pIter->pRow->type == TSDBROW_ROW_FMT) {
+    return tRowIterMoveTo(pIter->pIter, iCol);
+  } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
+    return tsdbRowColIterMoveTo(pIter, iCol);
   } else {
     ASSERT(0);
     return NULL;  // suppress error report by compiler

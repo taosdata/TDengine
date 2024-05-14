@@ -133,6 +133,7 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
 void     tRowIterClose(SRowIter **ppIter);
 SColVal *tRowIterNext(SRowIter *pIter);
+SColVal *tRowIterMoveTo(SRowIter *pIter, int32_t iTColum);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
