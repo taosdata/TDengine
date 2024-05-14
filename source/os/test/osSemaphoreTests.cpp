@@ -49,12 +49,12 @@ TEST(osSemaphoreTests, Destroy) {
 }
 
 // skip, tsem_wait can not stopped, will block test.
-// TEST(osSemaphoreTests, Wait) {
-//   tsem_t sem;
-//   tsem_init(&sem, 0, 0);
-//   ASSERT_EQ(tsem_wait(&sem), -1);
-//   tsem_destroy(&sem);
-// }
+TEST(osSemaphoreTests, Wait) {
+  tsem_t sem;
+  tsem_init(&sem, 0, 0);
+  ASSERT_EQ(tsem_wait(&sem), -1);
+  tsem_destroy(&sem);
+}
 
 TEST(osSemaphoreTests, WaitTime0) {
   tsem_t sem;
@@ -67,7 +67,7 @@ TEST(osSemaphoreTests, WaitTime1) {
   tsem_t sem;
   tsem_init(&sem, 0, 1);
   EXPECT_EQ(tsem_timewait(&sem, 1000), 0);
-  EXPECT_NE(tsem_timewait(&sem, 1000), 0);
+  EXPECT_NE(tsem_timewait(&sem, 10000), 0);
   tsem_destroy(&sem);
 }
 
