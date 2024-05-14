@@ -452,9 +452,9 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   int8_t tableType;
   SStmtTableInfo* pTbInfo = NULL;
 
-  //if (pStmt->sql.staticMode && pStmt->sql.runTimes > 50) {
-  //  pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
-  //} 
+  if (pStmt->sql.staticMode && pStmt->sql.runTimes > 50) {
+    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  } 
 
   if (NULL == pTbInfo) {
     STableMeta*      pTableMeta = NULL;
@@ -476,8 +476,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     suid = pTableMeta->suid;
     tableType = pTableMeta->tableType;
 
-    //SStmtTableInfo tbInfo = {.uid = uid, .suid = suid, .tbType = tableType};
-    //tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &tbInfo, sizeof(tbInfo));
+    SStmtTableInfo tbInfo = {.uid = uid, .suid = suid, .tbType = tableType};
+    tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &tbInfo, sizeof(tbInfo));
     
     taosMemoryFree(pTableMeta);
   } else {
@@ -586,7 +586,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
   pStmt->reqid = reqid;
 
   if (pStmt->sql.staticMode) {
-    pStmt->sql.pTbInfo = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    pStmt->sql.pTbInfo = tSimpleHashInit(1000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.pTbInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pStmt);
