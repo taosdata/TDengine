@@ -44,9 +44,16 @@
         </section>
       </el-form>
       <div style="margin-bottom: 18px">
-        <el-button :disabled="requestIng || $COMMUNITY" @click="exportFile" size='mini'
-          >{{ $t("console.export") }}
-        </el-button>
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+        >
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button :disabled="requestIng || $COMMUNITY" @click="exportFile" size='mini' type="primary" plain
+            >{{ $t("console.export") }}
+          </el-button>
+        </el-tooltip>
       </div>
     </section>
     <!-- <div class="flexEnd">
@@ -230,8 +237,10 @@ export default {
       this.getAuditData();
     },
     handlePageReset() {
-      Object.assign(this.$data, this.$options.data());
-      this.getAuditData();
+      if (!this.$COMMUNITY) {
+        Object.assign(this.$data, this.$options.data());
+        this.getAuditData();
+      }
     },
     async getAuditData() {
       try {

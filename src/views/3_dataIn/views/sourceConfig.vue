@@ -44,7 +44,8 @@
                 <div>
                   <span>{{ $t('agent') }}</span>
                   <span style="margin-left: 4px">
-                    <i class="el-icon-info"></i>
+                    <!-- <i class="el-icon-info"></i> -->
+                    <Icon name="label_info" class="info_icon_custom"></Icon>
                   </span>
                 </div>
               </el-tooltip>

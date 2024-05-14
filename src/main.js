@@ -57,7 +57,7 @@ export function getBrowserLang() {
 }
 function setTitle() {
   const lang = getBrowserLang()
-  const title = lang === 'en' ? Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine Enterprise' : Vue.prototype.$COMMUNITY ? 'TDengine社区版' : 'TDengine企业版'
+  const title = lang === 'en' ? Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine Enterprise' : Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine企业版'
   document.title = title
 }
 function checkFirefox() {

@@ -17,7 +17,7 @@
         <template slot="content">
           <span v-html="$t('communityTip')"></span>
         </template>
-        <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
           $t("taosagents.createnewagent")
         }}</el-button>
       </el-tooltip>
@@ -698,12 +698,13 @@ export default {
   z-index: 9;
   right: 10px;
   .el-button {
-    // border: 1px solid transparent;
-    // background: transparent;
+    border: 1px solid transparent;
+    background: transparent;
     // color: #4259ce;
     font-size: 14px;
     &:hover {
-      background: #fff;
+      // background: #fff;
+      color: #4259ce;
       border: 1px solid #4259ce;
     }
   }

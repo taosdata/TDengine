@@ -894,7 +894,7 @@ export default {
     nameError: "名称中不允许有特殊字符，长度为 4~32",
     demoData: "示例数据",
     demoDataText: "预先创建了一个包含一亿个数据点的数据库",
-    titleTip: '为了提供更好的技术支持，使用 TDeninge 图形化管理系统需要先进行注册',
+    titleTip: '为了提供更好的技术支持，请您在使用 TDeninge 图形化管理系统前先行注册',
     title: 'TDengine 管理系统',
     phone: '手机号',
     email: '邮箱',

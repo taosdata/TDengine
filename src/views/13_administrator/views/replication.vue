@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
+      <el-button plain type="primary" @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
         {{ $t("refresh") }}
       </el-button>
       <el-tooltip
@@ -10,7 +10,7 @@
         <template slot="content">
           <span v-html="$t('communityTip')"></span>
         </template>
-        <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
       </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
