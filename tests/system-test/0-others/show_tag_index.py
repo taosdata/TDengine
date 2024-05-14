@@ -121,6 +121,11 @@ class TDTestCase:
         tdSql.error(f'show tags from tb_undef from db', expectErrInfo='Fail to get table info, error: Table does not exist')
         tdSql.error(f'show tags from db.tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
         tdSql.error(f'show tags from tb_undef', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'show tags from ntb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb1', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtb2', expectErrInfo='Tags can only applied to super table and child table')
+        tdSql.error(f'show tags from vtbn', expectErrInfo='Tags can only applied to super table and child table')
 
         # show table tags
         tdSql.query(f'show table tags from stb')
