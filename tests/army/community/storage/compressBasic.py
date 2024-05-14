@@ -47,14 +47,20 @@ class TDTestCase(TBase):
     dtypes = [ "tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned",
             "bigint","bigint unsigned","timestamp","bool","float","double","binary(16)","nchar(16)",
             "varchar(16)","varbinary(16)"]
+    
+    def combineValid(self, datatype, encode, compress):
+        if datatype != "float" and datatype != "double":
+            if compress == "tsz":
+                return False
+        return True
 
     def genAllSqls(self, stbName, max):
         # encode
         encodes = [
-            [["tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned","bigint","bigint unsigned"], ["simple8b"]],
-            [["timestamp","bigint","bigint unsigned"],  ["delta-i"]],
-            [["bool"],                                  ["bit-packing"]],
-            [["float","double"],                        ["delta-d"]]
+            [["tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned","bigint","bigint unsigned"], ["simple8B"]],
+            [["timestamp","bigint","bigint unsigned"],  ["Delta-i"]],
+            [["bool"],                                  ["Bit-packing"]],
+            [["float","double"],                        ["Delta-d"]]
         ]
 
         c = 0 # column number
@@ -65,7 +71,6 @@ class TDTestCase(TBase):
 
         # loop append sqls
         for lines in encodes:
-            print(lines)
             for datatype in lines[0]:
                 for encode in lines[1]:
                     for compress in self.compresses:
@@ -74,8 +79,9 @@ class TDTestCase(TBase):
                                 # first
                                 sql = f"create table {self.db}.st{t} (ts timestamp"
                             else:
-                                sql += f", c{c} {datatype} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}'"
-                                c += 1
+                                if self.combineValid(datatype, encode, compress):
+                                    sql += f", c{c} {datatype} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}'"
+                                    c += 1
                             
                             if c >= max:
                                 # append sqls
@@ -97,9 +103,11 @@ class TDTestCase(TBase):
     # check error create
     def errorCreate(self):
         sqls = [
-            f"create table terr(ts timestamp, c0 int ENCODE 'abc') ",
-            f""
+            f"create table terr(ts timestamp, c0 int ENCODE 'simple8B' COMPRESS 'tsz' LEVEL 'high') ",
+            f"create table terr(ts timestamp, bi bigint encode 'bit-packing') tags (area int);"
+            f"create table terr(ts timestamp, ic int encode 'delta-d') tags (area int);"
         ]
+        tdSql.errors(sqls)
 
         for dtype in self.dtypes:
             # encode
@@ -111,6 +119,11 @@ class TDTestCase(TBase):
             # level
             sql = f"create table terr(ts timestamp, c0 {dtype} LEVEL 'hig') "
             tdSql.error(sql)
+
+            # tsz check
+            if dtype != "float" and dtype != "double":
+                sql = f"create table terr(ts timestamp, c0 {dtype} COMPRESS 'tsz') "
+                tdSql.error(sql)
     
     # default value correct
     def defaultCorrect(self):
