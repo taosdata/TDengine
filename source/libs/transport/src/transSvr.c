@@ -391,6 +391,12 @@ static bool uvHandleReq(SSvrConn* pConn) {
       tDebug("conn %p acquired by server app", pConn);
     }
   }
+
+  if (transMsg.msgType == TDMT_SCH_MERGE_FETCH) {
+    tError("show merge fetch req");
+    // uvDestroyConn((uv_handle_t*)pConn->pTcp);
+    return false;
+  }
   STraceId* trace = &pHead->traceId;
 
   int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
