@@ -223,11 +223,25 @@ int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
   int ret = taosThreadMutexInit(&sem->mutex, NULL);
   if (ret != 0) return ret;
   ret = taosThreadCondAttrInit(&sem->attr);
-  if (ret != 0) return ret;
+  if (ret != 0)
+  {
+    taosThreadMutexDestroy(&sem->mutex);
+    return ret;
+  }
   ret = taosThreadCondAttrSetclock(&sem->attr, CLOCK_MONOTONIC);
-  if (ret != 0) return ret;
+  if (ret != 0)
+  {
+    taosThreadMutexDestroy(&sem->mutex);
+    taosThreadCondAttrDestroy(&sem->attr);
+    return ret;
+  }
   ret = taosThreadCondInit(&sem->cond, &sem->attr);
-  if (ret != 0) return ret;
+  if (ret != 0)
+  {
+    taosThreadMutexDestroy(&sem->mutex);
+    taosThreadCondAttrDestroy(&sem->attr);
+    return ret;
+  }
 
   sem->count = value;
   return 0;
@@ -242,12 +256,10 @@ int tsem_post(tsem_t *sem) {
 }
 
 int tsem_destroy(tsem_t* sem) {
-  int ret = taosThreadMutexDestroy(&sem->mutex);
-  if (ret != 0) return ret;
-  ret = taosThreadCondDestroy(&sem->cond);
-  return ret;
-  ret = taosThreadCondAttrDestroy(&sem->attr);
-  return ret;
+  taosThreadMutexDestroy(&sem->mutex);
+  taosThreadCondDestroy(&sem->cond);
+  taosThreadCondAttrDestroy(&sem->attr);
+  return 0;
 }
 
 int32_t tsem_wait(tsem_t* sem) {
