@@ -786,7 +786,7 @@ static FORCE_INLINE int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj
   void* pIter = taosHashIterate(pHashJsonTemplate, NULL);
   while (pIter != NULL) {
     int32_t* colId = (int32_t*)taosHashGetKey(pIter, NULL);
-    SArray* pArray = (SArray*)(pIter);
+    SArray* pArray = *(SArray**)(pIter);
     if (tEncodeI32(pEncoder, *colId) < 0) return -1;
     if (tEncodeI32(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
     for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {

@@ -10612,7 +10612,7 @@ void tFreeFetchTtlExpiredTbsRsp(void *p) {
 }
 
 void destroyJsonTemplateArray(void *data){
-  SArray* array = (SArray*)data;
+  SArray* array = *(SArray**)data;
   for(int i = 0; i < taosArrayGetSize(array); i++){
     SJsonTemplate* tmp = (SJsonTemplate*)taosArrayGet(array, i);
     taosMemoryFreeClear(tmp->templateJsonString);

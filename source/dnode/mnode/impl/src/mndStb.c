@@ -195,7 +195,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     pIter = taosHashIterate(pStb->pHashJsonTemplate, NULL);
     while (pIter != NULL) {
       int32_t* colId = taosHashGetKey(pIter, NULL);
-      SArray* pArray = (SArray*)(pIter);
+      SArray* pArray = *(SArray**)(pIter);
       SDB_SET_INT32(pRaw, dataPos, *colId, _OVER);
       SDB_SET_INT32(pRaw, dataPos, taosArrayGetSize(pArray), _OVER);
       for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
@@ -994,7 +994,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
 
   if (hasJsonCol){
     pDst->pHashJsonTemplate = taosHashInit(pDst->numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    if(pDst->pHashJsonTemplate){
+    if(pDst->pHashJsonTemplate == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -2557,7 +2557,7 @@ static int32_t mndUpdateSuperTableJsonTemplate(const SStbObj *pOld, SStbObj *pNe
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  SArray* templateArray = taosHashGet(pNew->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
+  SArray* templateArray = *(SArray**)taosHashGet(pNew->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
   ASSERT(templateArray != NULL);
 
   if(pAlter->alterType == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){

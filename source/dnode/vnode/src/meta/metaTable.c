@@ -959,7 +959,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     }
 
     me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    if(me.pHashJsonTemplate){
+    if(me.pHashJsonTemplate == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
@@ -991,7 +991,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         taosArrayDestroy(arr);
         goto _err;
       }
-      metaDebug("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
+      metaInfo("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
                 me.ntbEntry.schemaRow.pSchema[i].colId, tmp.templateJsonString);
     }
   }
@@ -1431,7 +1431,7 @@ static int32_t metaUpdateTableJsonTemplate(SVAlterTbReq *pAlterTbReq, SSchema* p
     return -1;
   }
 
-  SArray* templateArray = taosHashGet(entry->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
+  SArray* templateArray = *(SArray**)taosHashGet(entry->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
   ASSERT(templateArray != NULL);
 
   if(pAlterTbReq->type == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
