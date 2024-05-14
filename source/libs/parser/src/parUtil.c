@@ -159,8 +159,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Window query not supported, since not valid primary timestamp column as input";
     case TSDB_CODE_PAR_INVALID_DROP_COL:
       return "No columns can be dropped";
-    case TSDB_CODE_PAR_INVALID_COL_JSON:
-      return "Only tag can be json type";
+//    case TSDB_CODE_PAR_INVALID_COL_JSON:
+//      return "Only tag can be json type";
     case TSDB_CODE_PAR_VALUE_TOO_LONG:
       return "Value too long for column/tag: %s";
     case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
