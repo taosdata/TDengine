@@ -6,7 +6,7 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, DsnError, TaosBuilder};
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -478,7 +478,7 @@ fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
 
 /// 获取 opc 点位
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from: Dsn = req.from.parse().map_err(|err| {
+    let from: Dsn = req.from.parse().map_err(|err: DsnError| {
         anyhow::anyhow!(
             "failed to parse dsn: {}, cause: {}",
             req.from,

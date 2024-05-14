@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_invalid_driver() {
-        let dsn = Dsn::from_str("postgresx://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("postgresx://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn);
         dbg!(&config);
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
@@ -332,8 +332,8 @@ mod tests {
         assert_eq!(config.connect.port, 5432);
         assert_eq!(config.connect.username, "postgres");
         assert_eq!(config.connect.password, "tbase125!");
-        assert_eq!(config.connect.subject, "postgres");
-        assert_eq!(config.task.sql, "select * from information_schema.tables");
+        assert_eq!(config.connect.subject, "test_taosx");
+        assert_eq!(config.task.sql, "select * from public.t_metric");
         assert_eq!(
             config.task.start,
             "2021-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_generate_sql() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
@@ -356,7 +356,7 @@ mod tests {
         assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
         assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
 
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_no_tz} and ts<${end_no_tz}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_no_tz} and ts<${end_no_tz}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
@@ -364,7 +364,7 @@ mod tests {
         assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
         assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
 
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
@@ -372,12 +372,12 @@ mod tests {
         assert!(sql.contains("'2021-01-01'"));
         assert!(sql.contains("'2021-01-02'"));
 
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = PostgresConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
         assert!(sql.contains("'00:00:00+00:00'"));
-        assert!(sql.contains("'00:00:00+00:00'"));
+        assert!(sql.contains("'24:00:00+00:00'"));
     }
 }

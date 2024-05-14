@@ -726,37 +726,126 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::mysql::{config::connect::ConnectConfig, query::MySqlQuery};
+    use sqlx::Executor;
+    use std::str::FromStr;
     use taos::Dsn;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_to_schema() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/information_schema").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let row = query
-            .select_one_for_schema("select * from t_metric where 1 = 0")
-            .await
-            .unwrap();
-
-        match row {
-            Some(row) => {
-                let schema = to_schema(row).await.unwrap();
-                dbg!(schema);
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
             }
-            None => {
-                println!("no row");
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data =
+                    "insert into t_metric (name, value, ts) values ('cpu', 0.8, now())";
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
     }
 
     #[tokio::test]
-    #[ignore]
+    async fn test_to_schema() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(1).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let row = query
+                    .select_one_for_schema("select * from t_metric")
+                    .await
+                    .unwrap();
+                match row {
+                    Some(row) => {
+                        let schema = to_schema(row).await.unwrap();
+                        dbg!(&schema);
+                        assert_eq!(schema.fields().len(), 4);
+                    }
+                    None => {
+                        println!("no row");
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
     async fn test_to_record_batch() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
@@ -765,27 +854,32 @@ mod tests {
         let rows = query.select_all("select * from t_metric").await.unwrap();
 
         let batch = to_record_batch(rows, String::from("+08:00")).await.unwrap();
-        dbg!(batch);
+        assert_eq!(batch.num_columns(), 4);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_to_record_batches() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let rows = query
-            .select_all("select * from t_full_columns")
-            .await
-            .unwrap();
+        let rows = query.select_all("select * from t_metric").await.unwrap();
 
         let batches = to_record_batches(rows, 3, String::from("+08:00"))
             .await
             .unwrap();
-        dbg!(batches);
+        dbg!(&batches);
+        assert_eq!(batches.len(), 3);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[test]

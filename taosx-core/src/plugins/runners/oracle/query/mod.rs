@@ -8,7 +8,7 @@ use oracle::{
 };
 
 pub struct OracleQuery {
-    pool: Pool,
+    pub pool: Pool,
     time_zone: String,
 }
 
@@ -195,8 +195,69 @@ mod tests {
     use std::str::FromStr;
     use taos::Dsn;
 
+    fn test_create_table() {
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql_create_table = "create table t_metric (id NUMBER(10, 0) PRIMARY KEY, name VARCHAR2(255), value NUMBER(10, 2), ts timestamp)";
+                let x = conn.execute(sql_create_table, &[]);
+                println!("create table: {:?}", x);
+                let y = conn.commit();
+                println!("commit: {:?}", y);
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_insert_data(len: usize) {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
+                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                }
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_clear_data() {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = conn.execute(sql, &[]);
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[test]
-    #[ignore]
     fn test_connect() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
@@ -207,64 +268,159 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_select_for_schema() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(1);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let col_map = query.select_for_schema("select * from TEST").unwrap();
-        dbg!(col_map);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_for_schema("select * from t_metric");
+                match query_result {
+                    Ok(col_map) => {
+                        dbg!(&col_map);
+                        assert_eq!(col_map.len(), 4);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]
-    #[ignore]
     fn test_select_all() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(7);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let (col_map, rows) = query.select_all("select * from TEST").unwrap();
-        dbg!(col_map);
-        dbg!(rows);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from t_metric");
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 7);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]
-    #[ignore]
     fn test_select_all_and_to_record_batches() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(7);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let batches = query
-            .select_all_and_to_record_batches("select * from TEST", 2)
-            .unwrap();
-        dbg!(batches);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result =
+                    query.select_all_and_to_record_batches("select * from t_metric", 3);
+                match query_result {
+                    Ok(batches) => {
+                        dbg!(&batches);
+                        assert_eq!(batches.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]
-    #[ignore]
     fn test_top_n() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(3);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let (col_map, rows) = query.top_n("select * from TEST", 1).unwrap();
-        dbg!(col_map);
-        dbg!(&rows);
-        assert_eq!(rows.len(), 1);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.top_n("select * from t_metric", 5);
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]
-    #[ignore]
     fn test_top_n_with_tz() {
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_insert_data(3);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+06:00")).unwrap();
 
-        let (col_map, rows) = query.top_n("select * from TEST", 1).unwrap();
-        dbg!(col_map);
-        dbg!(&rows);
-        assert_eq!(rows.len(), 1);
+        let result = OracleQuery::try_new(config, String::from("+06:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.top_n("select * from t_metric", 5);
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
     }
 }
