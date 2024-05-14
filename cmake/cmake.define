@@ -84,7 +84,7 @@ ELSE ()
 ENDIF ()
 
 # force set all platform to JEMALLOC_ENABLED = false
-SET(JEMALLOC_ENABLED OFF)
+#SET(JEMALLOC_ENABLED OFF)
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     IF (${CMAKE_BUILD_TYPE} MATCHES "Release")
