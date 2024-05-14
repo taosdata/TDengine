@@ -495,7 +495,7 @@ static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* ch
   }
 
   if (taosIsDir(checkpointPath) && isValidCheckpoint(checkpointPath)) {
-    stDebug("%s local checkpoint data existed, checkpointId:%d copy to backend dir", pTaskIdStr, checkpointId);
+    stDebug("%s local checkpoint data existed, checkpointId:%" PRId64 " copy to backend dir", pTaskIdStr, checkpointId);
 
     code = backendCopyFiles(checkpointPath, defaultPath);
     if (code != TSDB_CODE_SUCCESS) {
