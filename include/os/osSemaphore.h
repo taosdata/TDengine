@@ -35,12 +35,19 @@ int tsem_destroy(tsem_t *sem);
 
 #else
 
-#define tsem_t       sem_t
-#define tsem_init    sem_init
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-#define tsem_post    sem_post
-#define tsem_destroy sem_destroy
+typedef struct tsem_t {
+  TdThreadMutex    mutex;
+  TdThreadCond     cond;
+  TdThreadCondAttr attr;
+  int              count;
+} tsem_t;
+
+// #define tsem_t       sem_t
+int tsem_init(tsem_t* sem, int pshared, unsigned int value);
+int tsem_wait(tsem_t* sem);
+int tsem_timewait(tsem_t* sem, int64_t milis);
+int tsem_post(tsem_t* sem);
+int tsem_destroy(tsem_t* sem);
 
 #endif
 
