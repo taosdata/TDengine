@@ -3,6 +3,7 @@
     <div class="flexEnd">
       <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
@@ -10,7 +11,7 @@
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
+      <el-button plain type="primary" @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
         $t("taosuser.activationLicense")
       }}</el-button>
     </div>

@@ -10,6 +10,7 @@
         <el-button
           class="big-button"
           plain
+          type="primary"
           :disabled='localUser!=="root" || $COMMUNITY'
           @click="addShareTopicUser"
           size="small"

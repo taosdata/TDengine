@@ -194,7 +194,8 @@ export default {
                 ) < 0
               ) {
                 this.databaseList.push(item.name);
-                this.$set(this.selectedDatabasePrivileges, item.name, ["Read"]);
+                let privilege = this.$COMMUNITY ? ['Read', 'Write'] : ['Read']
+                this.$set(this.selectedDatabasePrivileges, item.name, privilege);
               }
             });
           })

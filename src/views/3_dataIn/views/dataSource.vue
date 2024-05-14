@@ -5,12 +5,14 @@
       <div class="flexEnd">
         <el-button
           @click="refresh"
+          plain
+          type="primary"
           size="small"
           icon="el-icon-refresh"
           :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button @click="addDbSource" size="small" icon="el-icon-plus" type="text">{{
+        <el-button @click="addDbSource" size="small" icon="el-icon-plus" plain  type="primary">{{
           $t("datasource.addsource")
         }}</el-button>
       </div>
@@ -966,12 +968,13 @@ export default {
   z-index: 9;
   right: 10px;
   .el-button {
-    // border: 1px solid transparent;
-    // background: transparent;
+    border: 1px solid transparent;
+    background: transparent;
     // color: #4259ce;
     font-size: 14px;
     &:hover {
-      background: #fff;
+      // background: #fff;
+      color: #4259ce;
       border: 1px solid #4259ce;
     }
   }

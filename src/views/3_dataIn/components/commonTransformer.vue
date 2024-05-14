@@ -114,7 +114,7 @@
             <span style="margin-left: 6px"
               slot="reference"
               v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
-              ><i class="el-icon-info" @click="handleClickPop('1')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -243,7 +243,7 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              ><i class="el-icon-info" @click="handleClickPop('2')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -293,7 +293,7 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              ><i class="el-icon-info" @click="handleClickPop('3')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -423,7 +423,7 @@
                       :content="$t('datasource.transformer.expressiondesc')"
                     />
                   </template>
-                  <span>Expression <i class="el-icon-info" style="color: #4259ce"></i></span>
+                  <span>Expression <Icon name="label_info" class="info_icon_custom"></Icon></span>
                 </el-tooltip>
               </template>
                 <div class="box-expression" slot-scope="scope">
