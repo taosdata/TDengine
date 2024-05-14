@@ -566,33 +566,35 @@ export default {
       }
     },
     async expandChange(row, expandedRows) {
-      console.log('expandedRows',expandedRows);
-      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-      if (row.id == this.expandRowKeys[0]) {
-        this.expandRowKeys = [];
-        return;
-      }
-      this.agentActivities = [];
-      let res = await getAgentActivities(row.id);
-      this.expandRowKeys = [row.id];
-      if (res && res.code && res.code != 0) {
-        Message({
-          type: "error",
-          message: res && res.message,
+      if (!this.$COMMUNITY) {
+        console.log('expandedRows',expandedRows);
+        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+        if (row.id == this.expandRowKeys[0]) {
+          this.expandRowKeys = [];
+          return;
+        }
+        this.agentActivities = [];
+        let res = await getAgentActivities(row.id);
+        this.expandRowKeys = [row.id];
+        if (res && res.code && res.code != 0) {
+          Message({
+            type: "error",
+            message: res && res.message,
+          });
+          return;
+        }
+        this.refresh();
+        let activitList = res.map((item) => {
+          if (item.status == "failed") {
+            item.context = item.context.message;
+          }
+          if (typeof item.context == "object") {
+            item.context = null;
+          }
+          return item;
         });
-        return;
+        this.agentActivities = activitList;
       }
-      this.refresh();
-      let activitList = res.map((item) => {
-        if (item.status == "failed") {
-          item.context = item.context.message;
-        }
-        if (typeof item.context == "object") {
-          item.context = null;
-        }
-        return item;
-      });
-      this.agentActivities = activitList;
     },
     getLevelStyle(level) {
       let style = "";

@@ -231,7 +231,9 @@ export default {
   },
   methods: {
     handlePageChange() {
-      this.getAuditData();
+      if (!this.$COMMUNITY) {
+        this.getAuditData();
+      }
     },
     refresh() {
       this.getAuditData();
