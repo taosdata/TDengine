@@ -32,7 +32,8 @@
           <span>
             <span>{{ labelText }}</span>
             <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <i class="el-icon-info"></i>
+              <!-- <i class="el-icon-info"></i> -->
+              <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>
         </el-tooltip>
@@ -354,6 +355,7 @@ export default {
         case "taos":
         case "postgres":
         case "mysql":
+        case "oracle":
           this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
           this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;

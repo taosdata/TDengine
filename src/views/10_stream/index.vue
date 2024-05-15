@@ -4,7 +4,7 @@
     <section class="content">
       <div>
         <div class="flexEnd">
-          <el-button class="big-button" @click="dialog = true" v-permission plain size="small" icon="el-icon-plus">{{
+          <el-button class="big-button" @click="dialog = true" v-permission plain type="primary" size="small" icon="el-icon-plus">{{
             $t("stream.createStream")
           }}</el-button>
         </div>
