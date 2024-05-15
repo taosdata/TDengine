@@ -404,39 +404,14 @@ typedef struct {
     int64_t p7;
     struct {
       int64_t bakRstExpireSec : 40;
-      int64_t showOptStream : 1;
-      int64_t showOptSubscription : 1;
-      int64_t showOptAudit : 1;
-      int64_t showOptCSV : 1;
-      int64_t showOptView : 1;
-      int64_t showOptStorage : 1;
-      int64_t showOptBakRst : 1;
-      int64_t showOptObjectStorage : 1;
-      int64_t showOptActiveActive : 1;
-      int64_t showOptDualReplicaHA : 1;
-      int64_t showOptDbEncryption : 1;
-      int64_t reserve5 : 13;
+      int64_t reserve5 : 24;
     };
   };
   union {
     int64_t p8;
     struct {
       int64_t serviceExpireSec : 40;
-      int64_t showConnFutureDataIn : 1;
-      int64_t showConnOPC_DA : 1;
-      int64_t showConnOPC_UA : 1;
-      int64_t showConnPI : 1;
-      int64_t showConnKafka : 1;
-      int64_t showConnInfluxDB : 1;
-      int64_t showConnMQTT : 1;
-      int64_t showConnAvevaHistorian : 1;
-      int64_t showConnOpenTSDB : 1;
-      int64_t showConnTDengine_2_6 : 1;
-      int64_t showConnTDengine_3_0 : 1;
-      int64_t showConnMySQL : 1;
-      int64_t showConnPostgres : 1;
-      int64_t showConnOracle : 1;
-      int64_t reserve6 : 10;
+      int64_t reserve6 : 24;
     };
   };
   union {

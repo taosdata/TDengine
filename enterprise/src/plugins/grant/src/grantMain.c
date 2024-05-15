@@ -148,6 +148,25 @@
            (item), (int64_t)(cv), (int64_t)(lv));                      \
   } while (0)
 
+#define GRANT_OPT_EXPIRE_INIT(ev, idx)                                                   \
+  do {                                                                                   \
+    (ev) = grantHandle.showDataIns[(idx)] ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_UNDEFINED; \
+  } while (0)
+
+#define GRANT_OPT_EXPIRE_RESET(es, esv, ed, edv, idx) \
+  do {                                                \
+    if (grantHandle.showOpts[(idx)]) {                \
+      (es) = (esv);                                   \
+      (ed) = (edv);                                   \
+    }                                                 \
+  } while (0)
+#define GRANT_OPT_EXPIRE_RESET1(es, esv, idx) \
+  do {                                        \
+    if (grantHandle.showOpts[(idx)]) {        \
+      (es) = (esv);                           \
+    }                                         \
+  } while (0)
+
 #ifdef GRANTS_CFG
 #define GRANT_VERSION ("cloud")
 #else
@@ -233,20 +252,6 @@ SGrantStatus gStatus = {
     .limitStreams = GRANT_UNIQ_UNLIMITED,
     .limitSubscriptions = GRANT_UNIQ_UNLIMITED,
     .limitViews = GRANT_UNIQ_UNLIMITED,
-
-    .basicExpireSec = GRANT_UNIQ_UNLIMITED,
-    .streamExpireSec = GRANT_UNIQ_UNLIMITED,
-    .subscriptionExpireSec = GRANT_UNIQ_UNLIMITED,
-    .multiTierExpireSec = GRANT_UNIQ_UNLIMITED,
-    .auditExpireSec = GRANT_UNIQ_UNLIMITED,
-    .csvExpireSec = GRANT_UNIQ_UNLIMITED,
-    .bakRstExpireSec = GRANT_UNIQ_UNLIMITED,
-    .viewExpireSec = GRANT_UNIQ_UNLIMITED,
-    .revokedExpireSec = GRANT_UNIQ_UNLIMITED,
-    .objectStorageExpireSec = GRANT_UNIQ_UNLIMITED,
-    .activeActiveExpireSec = GRANT_UNIQ_UNLIMITED,
-    .dualReplicaHAExpireSec = GRANT_UNIQ_UNLIMITED,
-    .dbEncryptionExpireSec = GRANT_UNIQ_UNLIMITED,
 };
 
 typedef SGrantNotify GrantNotify;
@@ -262,6 +267,7 @@ static void    grantResetMaster(SMnode *pMnode, int64_t upgradeSec);
 static void    grantSetClusterInfo(SMnode *pMnode);
 static void    grantObjInit(SGrantUniqObj *pObj, bool official);
 static void    grantStatusInit(SGrantStatus *pStatus);
+static void    grantDataInsSetDefault(SGrantDataIn *pDataIns, int32_t num, int64_t expireSec);
 static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel);
 static int64_t grantGetClusterCreateTime(SMnode *pMnode);
 static int32_t mndProcessGrantHB(SRpcMsg *pReq);
@@ -293,6 +299,9 @@ typedef struct {
   SMnode    *pMnode;
   int32_t    nDiskCfg;
   SRWLatch   rwLock;
+  int8_t     showOpts[GRANT_OPT_DYN_MAX];
+  int8_t     showDataIns[CONN_TYPE_DYN_MAX];
+  int8_t     showDataInsFuture;
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -304,9 +313,10 @@ static SGrantHandle grantHandle = {0};
 
 int32_t mndInitGrant(SMnode *pMnode) {
   terrno = 0;
-  tsGrantHBInterval = 1;
-  grantHandle.pMnode = pMnode;
   grantStatusInit(&gStatus);
+  grantHandle.pMnode = pMnode;
+  tsGrantHBInterval = 1;
+
 
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
@@ -365,42 +375,105 @@ void tResetGrantUniqObj(SGrantUniqObj *pObj) {
   taosArrayClear(grantObj.pItemI64);
 }
 
+static void grantInitShowFlags() {
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
+  grantHandle.showOpts[GRANT_OPT_STREAM] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_SUBSCRIPTION)
+  grantHandle.showOpts[GRANT_OPT_SUBSCRIPTION] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_AUDIT)
+  grantHandle.showOpts[GRANT_OPT_AUDIT] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_CSV)
+  grantHandle.showOpts[GRANT_OPT_CSV] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_VIEW)
+  grantHandle.showOpts[GRANT_OPT_VIEW] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_MULTI_TIER_STORAGE)
+  grantHandle.showOpts[GRANT_OPT_STORAGE] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DATA_BAK_RESTORE)
+  grantHandle.showOpts[GRANT_OPT_DATA_BAK_RST] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_OBJECT_STORAGE)
+  grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_ACTIVE_ACTIVE)
+  grantHandle.showOpts[GRANT_OPT_ACTIVE_ACTIVE] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DUAL_REPLICA_HA)
+  grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DB_ENCRYPTION)
+  grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION] = 1;
+#endif
+
+// DataIns
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_DA)
+  grantHandle.showDataIns[CONN_TYPE_OPC_DA] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_UA)
+  grantHandle.showDataIns[CONN_TYPE_OPC_UA] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_PI)
+  grantHandle.showDataIns[CONN_TYPE_PI] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_KAFKA)
+  grantHandle.showDataIns[CONN_TYPE_KAFKA] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_INFUXDB)
+  grantHandle.showDataIns[CONN_TYPE_INFLUXDB] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_MQTT)
+  grantHandle.showDataIns[CONN_TYPE_MQTT] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_AVEVAHISTORIAN)
+  grantHandle.showDataIns[CONN_TYPE_AVEVAHISTORIAN] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPENTSDB)
+  grantHandle.showDataIns[CONN_TYPE_OPENTSDB] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_TDENGINE_2_6)
+  grantHandle.showDataIns[CONN_TYPE_TDENGINE_2_6] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_TDENGINE_3_0)
+  grantHandle.showDataIns[CONN_TYPE_TDENGINE_3_0] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_MYSQL)
+  grantHandle.showDataIns[CONN_TYPE_MYSQL] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_POSTGRES)
+  grantHandle.showDataIns[CONN_TYPE_POSTGRES] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_ORACLE)
+  grantHandle.showDataIns[CONN_TYPE_ORACLE] = 1;
+#endif
+
+  // add future datains here ...
+
+#if !defined(TD_INDUSTRY)
+  grantHandle.showDataInsFuture = 1;
+#endif
+}
+
 static void grantStatusInit(SGrantStatus *pStatus) {
-#ifdef TD_INDUSTRY
-#ifndef TD_FUNC_STREAM
-  pStatus->streamExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_SUBSCRIPTION
-  pStatus->subscriptionExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_AUDIT
-  pStatus->auditExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_CSV
-  pStatus->csvExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_VIEW
-  pStatus->viewExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_MULTI_TIER_STORAGE
-  pStatus->multiTierExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_DATA_BAK_RESTORE
-  pStatus->bakRstExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_OBJECT_STORAGE
-  pStatus->objectStorageExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_ACTIVE_ACTIVE
-  pStatus->activeActiveExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_DUAL_REPLICA_HA
-  pStatus->dualReplicaHAExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#ifndef TD_FUNC_DB_ENCRYPTION
-  pStatus->dbEncryptionExpireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#endif
+  grantInitShowFlags();
+
+  GRANT_OPT_EXPIRE_INIT(pStatus->basicExpireSec, true);
+  GRANT_OPT_EXPIRE_INIT(pStatus->streamExpireSec, GRANT_OPT_STREAM);
+  GRANT_OPT_EXPIRE_INIT(pStatus->subscriptionExpireSec, GRANT_OPT_SUBSCRIPTION);
+  GRANT_OPT_EXPIRE_INIT(pStatus->auditExpireSec, GRANT_OPT_AUDIT);
+  GRANT_OPT_EXPIRE_INIT(pStatus->csvExpireSec, GRANT_OPT_CSV);
+  GRANT_OPT_EXPIRE_INIT(pStatus->viewExpireSec, GRANT_OPT_VIEW);
+  GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, GRANT_OPT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, GRANT_OPT_DATA_BAK_RST);
+  GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, GRANT_OPT_OBJECT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, GRANT_OPT_ACTIVE_ACTIVE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, GRANT_OPT_DUAL_REPLICA_HA);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, GRANT_OPT_DB_ENCRYPTION);
+
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 }
 
@@ -711,72 +784,54 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
   GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
   GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 86400, dftExpireSec, false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 86400, dftExpireSec, true);
-#endif
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 86400, dftExpireSec,
+                       grantHandle.showOpts[GRANT_OPT_STREAM]);
   GRANT_VALUE_CONVERT(grantObj.limitStreams, gStatus.limitStreams, 1, GRANT_UNIQ_DFT_STREAM_NUM);
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SUBSCRIPTION], gStatus.subscriptionExpireSec, 86400, dftExpireSec,
-                       false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_SUBSCRIPTION], gStatus.subscriptionExpireSec, 86400, dftExpireSec,
-                       true);
-#endif
+                       grantHandle.showOpts[GRANT_OPT_SUBSCRIPTION]);
   GRANT_VALUE_CONVERT(grantObj.limitSubscriptions, gStatus.limitSubscriptions, 1, GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
   GRANT_VALUE_CONVERT(grantObj.limitViews, gStatus.limitViews, 1, GRANT_UNIQ_DFT_VIEW_NUM);
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireSec, false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireSec, true);
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireSec, false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireSec, true);
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireSec, false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireSec, true);
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireSec, false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireSec, true);
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireSec,
+                       grantHandle.showOpts[GRANT_OPT_STORAGE]);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireSec,
+                       grantHandle.showOpts[GRANT_OPT_AUDIT]);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireSec,
+                       grantHandle.showOpts[GRANT_OPT_CSV]);
+  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireSec,
+                       grantHandle.showOpts[GRANT_OPT_VIEW]);
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireSec,
-                       false);
-#else
-  GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireSec, true);
-#endif
+                       grantHandle.showOpts[GRANT_OPT_DATA_BAK_RST]);
 
   int32_t nVariantGrantItems = taosArrayGetSize(pObj->pItemI64);
   for (int32_t i = 0; i < nVariantGrantItems; ++i) {
     SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
     switch (pItemI64->index) {
-      case GRANT_OPT_OBJECT_STORAGE:
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.objectStorageExpireSec, 86400, dftExpireSec);
-        break;
-      case GRANT_OPT_ACTIVE_ACTIVE:
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.activeActiveExpireSec, 86400, dftExpireSec);
-        break;
-      case GRANT_OPT_DUAL_REPLICA_HA:
+      case GRANT_OPT_OBJECT_STORAGE: {
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.objectStorageExpireSec, 86400, dftExpireSec,
+                             grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE]);
+      } break;
+      case GRANT_OPT_ACTIVE_ACTIVE: {
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.activeActiveExpireSec, 86400, dftExpireSec,
+                             grantHandle.showOpts[GRANT_OPT_ACTIVE_ACTIVE]);
+      } break;
+      case GRANT_OPT_DUAL_REPLICA_HA: {
 #ifndef ASSERT_NOT_CORE
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireSec);
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireSec,
+                             grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
 #else  // release version
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, grantClusterEpoch);
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, grantClusterEpoch,
+                             grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
 #endif
-        break;
-      case GRANT_OPT_DB_ENCRYPTION:
+      } break;
+      case GRANT_OPT_DB_ENCRYPTION: {
 #ifndef ASSERT_NOT_CORE
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireSec);
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireSec,
+                             grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
 #else  // release version
-        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, grantClusterEpoch);
+        GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, grantClusterEpoch,
+                             grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
 #endif
-        break;
+      } break;
       default:
         break;
     }
@@ -784,7 +839,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
 
   for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
     int32_t j = i * 3;
-    GRANT_EXPIRE_CONVERT(grantObj.dataIns[j], gStatus.dataIns[i].expireSec, 86400, dftExpireSec);            // expire
+    GRANT_EXPIRE_CONVERT(grantObj.dataIns[j], gStatus.dataIns[i].expireSec, 86400, dftExpireSec,
+                         grantHandle.showDataIns[i]);                                                        // expire
     GRANT_VALUE_CONVERT(grantObj.dataIns[j + 1], gStatus.dataIns[i].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
     GRANT_VALUE_CONVERT(grantObj.dataIns[j + 2], gStatus.dataIns[i].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);   // number
   }
@@ -819,7 +875,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
       SGrantDataIns *pDataIns = TARRAY_GET_ELEM(pObj->pDataIns, i);
       int32_t        j = tGetConnIndex(pDataIns->name);
       if (j >= CONN_TYPE_MAX && j < CONN_TYPE_DYN_MAX) {
-        GRANT_EXPIRE_CONVERT(pDataIns->expire, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
+        GRANT_EXPIRE_CONVERT(pDataIns->expire, gStatus.dataIns[j].expireSec, 86400, dftExpireSec,
+                             grantHandle.showDataIns[j]);
         GRANT_VALUE_CONVERT(pDataIns->speed, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
         GRANT_VALUE_CONVERT(pDataIns->number, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
 
@@ -830,7 +887,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   }
   for (int32_t j = CONN_TYPE_MAX; j < CONN_TYPE_DYN_MAX; ++j) {
     if (knownDataInAssigned[j] == 0) {
-      GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec);
+      GRANT_EXPIRE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].expireSec, 86400, dftExpireSec,
+                           grantHandle.showDataIns[j]);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
       GRANT_VALUE_CONVERT(GRANT_UNIQ_UNDEFINED, gStatus.dataIns[j].number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
     }
@@ -1511,74 +1569,10 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
 
 static void grantDataInsSetDefault(SGrantDataIn *pDataIns, int32_t num, int64_t expireSec) {
   for (int32_t i = 0; i < num; ++i) {
+    (pDataIns + i)->expireSec = grantHandle.showDataIns[i] ? expireSec : GRANT_UNIQ_UNDEFINED;
     (pDataIns + i)->speed = GRANT_UNIQ_DFT_DATAIN_SPEED;
     (pDataIns + i)->number = GRANT_UNIQ_DFT_DATAIN_NUM;
   }
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_DA)
-  (pDataIns + CONN_TYPE_OPC_DA)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_OPC_DA)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_UA)
-  (pDataIns + CONN_TYPE_OPC_UA)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_OPC_UA)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_PI)
-  (pDataIns + CONN_TYPE_PI)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_PI)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_KAFKA)
-  (pDataIns + CONN_TYPE_KAFKA)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_KAFKA)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_INFLUXDB)
-  (pDataIns + CONN_TYPE_INFLUXDB)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_INFLUXDB)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_MQTT)
-  (pDataIns + CONN_TYPE_MQTT)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_MQTT)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_AVEVAHISTORIAN)
-  (pDataIns + CONN_TYPE_AVEVAHISTORIAN)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_AVEVAHISTORIAN)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPENTSDB)
-  (pDataIns + CONN_TYPE_OPENTSDB)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_OPENTSDB)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_TDengine_2_6)
-  (pDataIns + CONN_TYPE_TDENGINE_2_6)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_TDENGINE_2_6)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_TDengine_3_0)
-  (pDataIns + CONN_TYPE_TDENGINE_3_0)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_TDENGINE_3_0)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_MYSQL)
-  (pDataIns + CONN_TYPE_MYSQL)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_MYSQL)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_POSTGRES)
-  (pDataIns + CONN_TYPE_POSTGRES)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_POSTGRES)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_ORACLE)
-  (pDataIns + CONN_TYPE_ORACLE)->expireSec = expireSec;
-#else
-  (pDataIns + CONN_TYPE_ORACLE)->expireSec = GRANT_UNIQ_UNDEFINED;
-#endif
 }
 
 /**
@@ -1621,72 +1615,47 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
         revoked ? TMIN(gStatus.revokedExpireSec, (int64_t)gStatus.basicExpireSec) : gStatus.basicExpireSec;
     if (optExpireSec == GRANT_UNIQ_UNDEFINED) --optExpireSec;  // make sure optExpireSec is not GRANT_UNIQ_UNDEFINED
     int8_t optExpired = optExpireSec > grantCurTime ? 0 : 1;
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_MULTI_TIER_STORAGE)
-    gStatus.multiTierExpireSec = optExpireSec;
-    gStatus.multiTierExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
-    gStatus.streamExpireSec = optExpireSec;
-    gStatus.streamExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_SUBSCRIPTION)
-    gStatus.subscriptionExpireSec = optExpireSec;
-    gStatus.subscriptionExpired = optExpired;
-#endif
-    gStatus.auditExpireSec = optExpireSec;
-    gStatus.auditExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_CSV)
-    gStatus.csvExpireSec = optExpireSec;
-    gStatus.csvExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DATA_BAK_RESTORE)
-    gStatus.bakRstExpireSec = optExpireSec;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_VIEW)
-    gStatus.viewExpireSec = optExpireSec;
-    gStatus.viewExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_OBJECT_STORAGE)
-    gStatus.objectStorageExpireSec = optExpireSec;
-    gStatus.objectStorageExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_ACTIVE_ACTIVE)
-    gStatus.activeActiveExpireSec = optExpireSec;
-#endif
+
+    if (grantHandle.showOpts[GRANT_OPT_STORAGE]) {
+      gStatus.multiTierExpireSec = optExpireSec;
+      gStatus.multiTierExpired = optExpired;
+    }
+    GRANT_OPT_EXPIRE_RESET(gStatus.multiTierExpireSec, optExpireSec, gStatus.multiTierExpired, optExpired,
+                           GRANT_OPT_STORAGE);
+    GRANT_OPT_EXPIRE_RESET(gStatus.streamExpireSec, optExpireSec, gStatus.streamExpired, optExpired, GRANT_OPT_STREAM);
+    GRANT_OPT_EXPIRE_RESET(gStatus.subscriptionExpireSec, optExpireSec, gStatus.subscriptionExpired, optExpired,
+                           GRANT_OPT_SUBSCRIPTION);
+    GRANT_OPT_EXPIRE_RESET(gStatus.streamExpireSec, optExpireSec, gStatus.auditExpired, optExpired, GRANT_OPT_AUDIT);
+    GRANT_OPT_EXPIRE_RESET(gStatus.csvExpireSec, optExpireSec, gStatus.csvExpired, optExpired, GRANT_OPT_CSV);
+    GRANT_OPT_EXPIRE_RESET1(gStatus.bakRstExpireSec, optExpireSec, GRANT_OPT_DATA_BAK_RST);
+    GRANT_OPT_EXPIRE_RESET(gStatus.viewExpireSec, optExpireSec, gStatus.viewExpired, optExpired, GRANT_OPT_VIEW);
+    GRANT_OPT_EXPIRE_RESET(gStatus.objectStorageExpireSec, optExpireSec, gStatus.objectStorageExpired, optExpired,
+                           GRANT_OPT_OBJECT_STORAGE);
+    GRANT_OPT_EXPIRE_RESET1(gStatus.activeActiveExpireSec, optExpireSec, GRANT_OPT_ACTIVE_ACTIVE);
 
 #ifndef ASSERT_NOT_CORE
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DUAL_REPLICA_HA)
-    gStatus.dualReplicaHAExpireSec = optExpireSec;
-    gStatus.dualReplicaHAExpired = optExpired;
-#endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DB_ENCRYPTION)
-    gStatus.dbEncryptionExpireSec = optExpireSec;
-    gStatus.dbEncryptionExpired = optExpired;
-#endif
-#else  // ASSERT_NOT_CORE - release version
-  int64_t grantClusterEpochTuned = grantClusterEpoch;
+    GRANT_OPT_EXPIRE_RESET(gStatus.dualReplicaHAExpireSec, optExpireSec, gStatus.dualReplicaHAExpired, optExpired,
+                           GRANT_OPT_DUAL_REPLICA_HA);
+    GRANT_OPT_EXPIRE_RESET(gStatus.dbEncryptionExpireSec, optExpireSec, gStatus.dbEncryptionExpired, optExpired,
+                           GRANT_OPT_DB_ENCRYPTION);
+#else  // release version
+    int64_t optExpireSecTuned = grantClusterEpoch;
 #ifdef TD_INDUSTRY
-  if (grantClusterEpochTuned == GRANT_UNIQ_UNDEFINED) --grantClusterEpochTuned;
+    if (optExpireSecTuned == GRANT_UNIQ_UNDEFINED) --grantClusterEpochTuned;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DUAL_REPLICA_HA)
-  gStatus.dualReplicaHAExpireSec = grantClusterEpochTuned;
-  gStatus.dualReplicaHAExpired = true;
+    GRANT_OPT_EXPIRE_RESET(gStatus.dualReplicaHAExpireSec, optExpireSecTuned, gStatus.dualReplicaHAExpired, optExpired,
+                           GRANT_OPT_DUAL_REPLICA_HA);
+    GRANT_OPT_EXPIRE_RESET(gStatus.dbEncryptionExpireSec, optExpireSecTuned, gStatus.dbEncryptionExpired, optExpired,
+                           GRANT_OPT_DB_ENCRYPTION);
 #endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_DB_ENCRYPTION)
-  gStatus.dbEncryptionExpireSec = grantClusterEpochTuned;
-  gStatus.dbEncryptionExpired = true;
-#endif
-#endif  // ASSERT_NOT_CORE
 
     // fixed dataIns
     grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
-#endif
   }
-#else  // GRANTS_CFG
+#else
   gStatus.serviceExpireSec = GRANT_UNIQ_UNLIMITED;
   grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_DFT_DATAIN_EXPIRE);
-#endif  // GRANTS_CFG
+#endif
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
