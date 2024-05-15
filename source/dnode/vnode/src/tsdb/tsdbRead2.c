@@ -24,14 +24,14 @@
 
 #define ASCENDING_TRAVERSE(o)       (o == TSDB_ORDER_ASC)
 #define getCurrentKeyInSttBlock(_r) (&((_r)->currentKey))
-#define  tColRowGetKeyDeepCopy(_pBlock, _irow, _slotId, _pKey)     \
+#define tColRowGetKeyDeepCopy(_pBlock, _irow, _slotId, _pKey)      \
   do {                                                             \
     (_pKey)->ts = (_pBlock)->aTSKEY[(_irow)];                      \
     (_pKey)->numOfPKs = 0;                                         \
     if ((_slotId) != -1) {                                         \
       tColRowGetPriamyKeyDeepCopy(_pBlock, _irow, _slotId, _pKey); \
     }                                                              \
-  } while(0)
+  } while (0)
 
 #define outOfTimeWindow(_ts, _window) (((_ts) > (_window)->ekey) || ((_ts) < (_window)->skey))
 
