@@ -372,19 +372,19 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
+        self.tdSql.checkIn("Duplicated column names", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_tag, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
+        self.tdSql.checkIn("Duplicated column names", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_col = input_sql.replace("c5", "c6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_col, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
+        self.tdSql.checkIn("Duplicated column names", res.text)
 
     ##### stb exist #####
     def duplicate_insert_exist_check(self):
