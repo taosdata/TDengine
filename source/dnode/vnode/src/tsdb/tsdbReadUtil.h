@@ -47,9 +47,7 @@ extern "C" {
       }                                                                    \
     } else {                                                               \
       (_pKey)->ts = (_pRow)->pBlockData->aTSKEY[(_pRow)->iRow];            \
-      if ((_pRow)->pBlockData->nColData > 0) {                             \
-        tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
-      }                                                                    \
+      tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey));   \
     }                                                                      \
   }
 
