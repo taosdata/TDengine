@@ -2424,6 +2424,11 @@ void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId
   }
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
+  for(int i = 0; i < strlen(ctbName); i++){
+    if(ctbName[i] == '.'){
+      ctbName[i] = '_';
+    }
+  }
 }
 
 // auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
