@@ -807,7 +807,10 @@ export default {
     table_name: "Table Name",
     create_time: "Creation Time",
     columns: "Columns",
-    tags: "Tags"
+    tags: "Tags",
+    encode: "Encoding",
+    compress: "Compression Algorithm",
+    level: "Compression Level"
   },
   sql: {
     analysis: "Analysis",

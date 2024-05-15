@@ -88,9 +88,10 @@
               default-first-option
               :placeholder="$t('Data') + $t('type')"
               class="columnPrependBtn"
+              @change="() => handleTypeChange(column, index)"
             >
               <el-option
-                v-for="item in handleTypeList(column.type, 'dataType')"
+                v-for="item in handleTypeList(column.type, index == 0 ? 'parmaryKeyType' : 'dataType')"
                 :key="item.value"
                 v-bind="item"
               ></el-option>
@@ -112,17 +113,62 @@
               controls-position="right"
               class="custom-length"
             ></el-input-number>
+            <el-tag effect="plain" type="info" v-if="!index">
+              <el-checkbox :disabled="isEdit" v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
+            </el-tag>
+            <el-select
+              size="small"
+              v-model="column.encode"
+              placeholder="ENCODE"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['encodeList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.compress"
+              placeholder="COMPRESS"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['compressList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.level"
+              placeholder="LEVEL"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in levelList"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
             <el-input
               size="small"
               v-model="column.field"
               :maxlength="64"
               :disabled="isEdit"
               :placeholder="$t('data.columnNameTip')"
+              class="action"
             >
               <template slot="append">
                 <el-button
                   icon="el-icon-minus"
                   @click="minusColumn(index)"
+                  style="width:20px"
+                  :disabled="!index"
                 ></el-button>
                 <el-button
                   v-if="!isEdit"
@@ -131,7 +177,7 @@
                 ></el-button>
                 <el-button
                   v-else
-                  :disabled="typeHasSpe(column.type)"
+                  :disabled="!isEdit"
                   icon="el-icon-check"
                   @click="typeChange(column, 'column')"
                 ></el-button>
@@ -170,6 +216,45 @@
               controls-position="right"
               class="custom-length"
             ></el-input-number>
+            <el-select
+              size="small"
+              v-model="currentData.encode"
+              placeholder="ENCODE"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(currentData.type)['encodeList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="currentData.compress"
+              placeholder="COMPRESS"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(currentData.type)['compressList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="currentData.level"
+              placeholder="LEVEL"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in levelList"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
             <el-input
               size="small"
               v-model="currentData.field"
@@ -360,8 +445,8 @@
 
 <script>
 import { mapState } from "vuex";
-import { dataType, tagType } from "../../utils";
-import { changeStableStruct } from "@/api/gateway/data/stables";
+import { dataType, tagType, parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive } from "../../utils";
+import { changeStableStruct, changeStableStructOther } from "@/api/gateway/data/stables";
 import { VariableTableColumnType } from "@/const";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
@@ -376,6 +461,9 @@ export default {
     this.dataType = dataType;
     this.tagType = tagType;
     this.rollupList = ["avg", " sum", "min", "max", "last", "first"];
+    this.parmaryKeyType = parmaryKeyType;
+    this.storageCompression = storageCompression;
+    this.levelList = levelList;
     return {
       isColumnsFold: false,
       isTagsFold: false,
@@ -482,6 +570,11 @@ export default {
         this.$set(this.stable_form.tags[index], "ncharLength", newVal);
       }
     },
+    // columns 修改时encode/compress 变更
+    handleTypeChange(column, index) {
+      this.$set(this.stable_form.columns[index], "encode", '');
+      this.$set(this.stable_form.columns[index], "compress", '');
+    },
     // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
     handleTypeList(currentType, name) {
       if (!this.isEdit) return this[name];
@@ -493,11 +586,27 @@ export default {
       return this[name].filter((item) => {
         let cur = item.value.match(/\d+/);
         return (
-          item.value.startsWith(VariableTableColumnType[index]) &&
-          cur &&
-          +cur[0] > +currentType.match(/\d+/)?.[0]
+          item.value.startsWith(VariableTableColumnType[index]) 
+          // &&
+          // cur &&
+          // +cur[0] > +currentType.match(/\d+/)?.[0]
         );
       });
+    },
+    handleEncodeList(type) {
+      if (groupOne.includes(type)) {
+        return this.storageCompression.groupOne
+      } else if (groupTwo.includes(type)) {
+        return this.storageCompression.groupTwo
+      } else if (groupThree.includes(type)) {
+        return this.storageCompression.groupThree
+      } else if (groupFour.findIndex((item) =>
+        type.startsWith(item)
+      )) {
+        return this.storageCompression.groupFour
+      } else if (groupFive.includes(type)) {
+        return this.storageCompression.groupFive
+      }
     },
     // 判断类型是不是可以修改的类型
     typeHasSpe(currentType) {
@@ -509,10 +618,21 @@ export default {
     typeChange(data, type, index) {
       // 不是修改状态就不处理
       if (!this.isEdit) return;
+      let isVariable =  VariableTableColumnType.some((item) =>
+        data.type.startsWith(item)
+      );
+      console.log('data',data, isVariable);
+
       let params = {
+        isVariable,
         operation: "modify " + type,
         first_field: data.field,
-        second_field: data.type,
+        second_field: data.type == 'VARCHAR'
+          ? data.varcharLength ? `${data.type}(${data.varcharLength})` : data.type
+          : data.ncharLength ? `${data.type}(${data.ncharLength})` : data.type,
+        encode: data.encode,
+        compress: data.compress,
+        level: data.level
       };
       if (type == "tag") {
         //这里区分tag修改的是啥
@@ -524,7 +644,12 @@ export default {
           };
         }
       }
-      this.updateData(params);
+      if (isVariable) {
+        this.updateData(params);
+      }
+
+      this.updateDataOther(params)
+
     },
     // 当修改时更新数据的接口，与新增无关
     async updateData(params) {
@@ -543,6 +668,25 @@ export default {
         .catch(() => false);
       this.loading = false;
     },
+    async updateDataOther(params) {
+      this.loading = true;
+      // 改压缩方法
+      if (!params.operation.startsWith('rename')) {
+        await changeStableStructOther(
+          params,
+          `\`${this.selected_db }\`.\`${this.stable_form.name}\``
+        )
+          .then(() => {
+            this.$message.success(this.$t("operateSucc"));
+          })
+          .catch(err => this.$error(err.desc));
+      }
+      // 无论修改成功或失败都应该刷新数据
+      await this.$store
+        .dispatch("stables/getStatleStruct", this.stable_form.name)
+        .catch(() => false);
+      this.loading = false;
+    },
     foldColumns() {
       this.isColumnsFold = !this.isColumnsFold;
     },
@@ -554,6 +698,9 @@ export default {
           field: "",
           varcharLength: 8,
           ncharLength: 8,
+          encode: "",
+          compress: "",
+          level: ""
         });
       }
       this.currentEdit = "column";
@@ -562,6 +709,9 @@ export default {
         type: "INT",
         varcharLength: 8,
         ncharLength: 8,
+        encode: "",
+        compress: "",
+        level: ""
       };
     },
     minusColumn(index) {
@@ -664,10 +814,13 @@ export default {
         first_field: this.currentData.field,
         second_field: this.currentData.type=='VARCHAR'?`VARCHAR(${this.currentData.varcharLength})`:this.currentData.type=='NCHAR'?
         `NCHAR(${this.currentData.ncharLength})`:this.currentData.type,
+        encode: this.currentData.encode,
+        compress: this.currentData.compress,
+        level: this.currentData.level
       };
       this.currentData = {};
       this.currentEdit = "";
-      this.updateData(params);
+      this.updateDataOther(params);
     },
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
@@ -684,7 +837,7 @@ export default {
 
 .formWrapper {
   padding-right: 18px;
-  max-width: 680px;
+  // max-width: 920px;
 }
 
 .name_input {
@@ -698,6 +851,10 @@ export default {
 
 .columnPrependBtn {
   width: 150px;
+  flex-shrink: 0;
+}
+.columnWidth120 {
+  width: 110px;
   flex-shrink: 0;
 }
 .add-btn {
@@ -727,6 +884,8 @@ export default {
   font-size: 14px;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;
@@ -741,4 +900,9 @@ export default {
     }
   }
 }
+// .action {
+//   ::v-deep .el-input-group__append {
+//     padding: 0 8px;
+//   }
+// }
 </style>

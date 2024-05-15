@@ -259,9 +259,9 @@ export default {
     },
     convertTsToMilliseconds(timestamp) {
       // 判断时间戳位数
-      if (timestamp.toString().length >= 19) {
+      if (timestamp && timestamp.toString().length >= 19) {
         return Number(String((timestamp / 1000000)).split('.')[0]); 
-      } else if (timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
+      } else if (timestamp && timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
         return Number(String((timestamp / 1000)).split('.')[0]);
       } else {
         return timestamp; 

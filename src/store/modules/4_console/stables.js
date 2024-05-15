@@ -38,7 +38,8 @@ const mutations = {
       rollup: "",
       columns: [{
         type: "INT", field: "", value: "",
-        varcharLength: 8, ncharLength: 8
+        encode: "", compress: "", level: "",
+        varcharLength: 8, ncharLength: 8, primaryKey: false,
       }],
       tags: [{
         type: "INT", field: "", value: "",
@@ -108,7 +109,7 @@ const actions = {
       })
       .catch((err) => {
         if (!state.stable_form.columns.length) {
-          state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
+          state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8, encode: "", compress: "", level: "", primaryKey: false});
         }
         if (!state.stable_form.tags.length) {
           state.stable_form.tags.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
