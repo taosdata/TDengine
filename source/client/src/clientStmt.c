@@ -302,6 +302,8 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
     pStmt->exec.tbBlkNum = 0;
     if (deepClean) {
       //taosArrayDestroyEx(pStmt->exec.pTbBlkList, FDelete fp);
+    } else {
+      pStmt->exec.pTbBlkList->size = 0;
     }
   } else {
     size_t keyLen = 0;
