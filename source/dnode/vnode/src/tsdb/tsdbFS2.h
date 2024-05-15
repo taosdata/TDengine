@@ -51,7 +51,7 @@ int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
-int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid);
+int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
 int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
 
 /* Exposed Structs */

@@ -80,9 +80,9 @@ struct STFileSet {
   TSttLvlArray lvlArr[1];             // level array
 
   // background task
-  bool         mergeScheduled;
-  bool         isChannOpen;
+  bool         channelOpened;
   SVAChannelID channel;
+  bool         mergeScheduled;
 
   // sttTrigger = 1
   TdThreadCond canDoTask;

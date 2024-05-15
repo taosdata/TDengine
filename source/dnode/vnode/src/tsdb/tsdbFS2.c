@@ -749,8 +749,8 @@ extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
-  SArray       *channArray = taosArrayInit(0, sizeof(SVAChannelID));
-  if (channArray == NULL) {
+  SArray       *channelArray = taosArrayInit(0, sizeof(SVAChannelID));
+  if (channelArray == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -762,23 +762,23 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    if (fset->isChannOpen) {
-      taosArrayPush(channArray, &fset->channel);
+    if (fset->channelOpened) {
+      taosArrayPush(channelArray, &fset->channel);
       fset->channel = (SVAChannelID){0};
       fset->mergeScheduled = false;
       tsdbFSSetBlockCommit(fset, false);
-      fset->isChannOpen = false;
+      fset->channelOpened = false;
     }
   }
 
   taosThreadMutexUnlock(&pTsdb->mutex);
 
   // destroy all channels
-  for (int32_t i = 0; i < taosArrayGetSize(channArray); i++) {
-    SVAChannelID *channel = taosArrayGet(channArray, i);
+  for (int32_t i = 0; i < taosArrayGetSize(channelArray); i++) {
+    SVAChannelID *channel = taosArrayGet(channelArray, i);
     vnodeAChannelDestroy(channel, true);
   }
-  taosArrayDestroy(channArray);
+  taosArrayDestroy(channelArray);
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
@@ -1048,23 +1048,21 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid) {
-  STFileSet *fset = NULL;
-
-  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
+  tsdbFSGetFSet(tsdb->pFS, fid, fset);
   if (fset != NULL) {
     for (;;) {
-      if (fset->hasTaskRunning) {
-        fset->numWaitDoTask++;
+      if ((*fset)->hasTaskRunning) {
+        (*fset)->numWaitDoTask++;
 
-        taosThreadCondWait(&fset->canDoTask, &tsdb->mutex);
+        taosThreadCondWait(&(*fset)->canDoTask, &tsdb->mutex);
 
-        tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+        tsdbFSGetFSet(tsdb->pFS, fid, fset);
         ASSERT(fset != NULL);
 
-        fset->numWaitDoTask--;
+        (*fset)->numWaitDoTask--;
       } else {
-        fset->hasTaskRunning = true;
+        (*fset)->hasTaskRunning = true;
         break;
       }
     }
