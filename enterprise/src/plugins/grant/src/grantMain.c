@@ -148,9 +148,9 @@
            (item), (int64_t)(cv), (int64_t)(lv));                      \
   } while (0)
 
-#define GRANT_OPT_EXPIRE_INIT(ev, idx)                                                   \
-  do {                                                                                   \
-    (ev) = grantHandle.showDataIns[(idx)] ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_UNDEFINED; \
+#define GRANT_OPT_EXPIRE_INIT(ev, idx)                                                \
+  do {                                                                                \
+    (ev) = grantHandle.showOpts[(idx)] ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_UNDEFINED; \
   } while (0)
 
 #define GRANT_OPT_EXPIRE_RESET(es, esv, ed, edv, idx) \
@@ -1616,10 +1616,6 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     if (optExpireSec == GRANT_UNIQ_UNDEFINED) --optExpireSec;  // make sure optExpireSec is not GRANT_UNIQ_UNDEFINED
     int8_t optExpired = optExpireSec > grantCurTime ? 0 : 1;
 
-    if (grantHandle.showOpts[GRANT_OPT_STORAGE]) {
-      gStatus.multiTierExpireSec = optExpireSec;
-      gStatus.multiTierExpired = optExpired;
-    }
     GRANT_OPT_EXPIRE_RESET(gStatus.multiTierExpireSec, optExpireSec, gStatus.multiTierExpired, optExpired,
                            GRANT_OPT_STORAGE);
     GRANT_OPT_EXPIRE_RESET(gStatus.streamExpireSec, optExpireSec, gStatus.streamExpired, optExpired, GRANT_OPT_STREAM);
@@ -2270,13 +2266,19 @@ static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
-                                        int64_t expire, int64_t curVal, int64_t limit, bool isDataIn) {
+                                        int64_t expire, int64_t curVal, int64_t limit, bool isDataIn, bool optional) {
   int32_t cols = 0;
   int32_t colLen = GRANTS_COL_MAX_LEN - VARSTR_HEADER_SIZE;
   char    tmp[GRANTS_COL_MAX_LEN];
   char   *pBuf = &tmp[0];
   char   *qBuf = NULL;
   char    ts[GRANT_TS_SEC_LEN] = {0};
+
+#ifdef TD_INDUSTRY
+  if (optional && (expire == GRANT_UNIQ_UNDEFINED)) {
+    return 0;
+  }
+#endif
 
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
@@ -2333,46 +2335,46 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   if (pShow->numOfRows < 1) {
     // sevice
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE], gGrantDisplay[GRANT_OPT_SERVICE],
-                             pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+                             pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, false);
     // with expire and limits
     int64_t basicExpireSec =
         pStatus->grantState == GRANT_STATE_REVOKED ? pStatus->revokedExpireSec : pStatus->basicExpireSec;
     mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "Timeseries", basicExpireSec, pStatus->curTimeSeries,
-                             pStatus->limitTimeSeries, false);
+                             pStatus->limitTimeSeries, false, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "Dnodes", basicExpireSec, pStatus->curDnodes,
-                             pStatus->limitDnodes, false);
+                             pStatus->limitDnodes, false, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "CPU Cores", basicExpireSec, pStatus->curCpuCores,
-                             pStatus->limitCpuCores, false);
+                             pStatus->limitCpuCores, false, false);
 
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
-                             pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false);
+                             pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
                              gGrantDisplay[GRANT_OPT_SUBSCRIPTION], pStatus->subscriptionExpireSec,
-                             pStatus->curSubscriptions, pStatus->limitSubscriptions, false);
+                             pStatus->curSubscriptions, pStatus->limitSubscriptions, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
-                             pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false);
+                             pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false, true);
     // with expire and no limits
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT], gGrantDisplay[GRANT_OPT_AUDIT],
-                             pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+                             pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV], gGrantDisplay[GRANT_OPT_CSV],
-                             pStatus->csvExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+                             pStatus->csvExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STORAGE], gGrantDisplay[GRANT_OPT_STORAGE],
-                             pStatus->multiTierExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+                             pStatus->multiTierExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
                              gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->bakRstExpireSec, 0, GRANT_UNIQ_UNUTILIZED,
-                             false);
+                             false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_OBJECT_STORAGE],
                              gGrantDisplay[GRANT_OPT_OBJECT_STORAGE], pStatus->objectStorageExpireSec, 0,
-                             GRANT_UNIQ_UNUTILIZED, false);
+                             GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_ACTIVE_ACTIVE],
                              gGrantDisplay[GRANT_OPT_ACTIVE_ACTIVE], pStatus->activeActiveExpireSec, 0,
-                             GRANT_UNIQ_UNUTILIZED, false);
+                             GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DUAL_REPLICA_HA],
                              gGrantDisplay[GRANT_OPT_DUAL_REPLICA_HA], pStatus->dualReplicaHAExpireSec, 0,
-                             GRANT_UNIQ_UNUTILIZED, false);
+                             GRANT_UNIQ_UNUTILIZED, false, true);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DB_ENCRYPTION],
                              gGrantDisplay[GRANT_OPT_DB_ENCRYPTION], pStatus->dbEncryptionExpireSec, 0,
-                             GRANT_UNIQ_UNUTILIZED, false);
+                             GRANT_UNIQ_UNUTILIZED, false, true);
 
     taosRLockLatch(&grantHandle.rwLock);
 
@@ -2389,7 +2391,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     // known dataIns
     for (int32_t i = 0; i < CONN_TYPE_DYN_MAX; ++i) {
       mndRetrieveGrantFullItem(pBlock, &numOfRows, gConnName[i], gConnDisplay[i], pStatus->dataIns[i].expireSec,
-                               pStatus->dataIns[i].number, pStatus->dataIns[i].speed, true);
+                               pStatus->dataIns[i].number, pStatus->dataIns[i].speed, true, true);
     }
     // dynamic dataIns
     int32_t nDynamic = taosArrayGetSize(pStatus->pDataIns);
@@ -2398,7 +2400,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       mndRetrieveGrantFullItem(
           pBlock, &numOfRows, pDataIn->name, tGetConnDisplay(pDataIn->name),
           pDataIn->expire == GRANT_UNIQ_UNLIMITED ? pDataIn->expire : (int64_t)pDataIn->expire * 86400, pDataIn->number,
-          pDataIn->speed, true);
+          pDataIn->speed, true, true);
     }
 
     taosRUnLockLatch(&grantHandle.rwLock);
