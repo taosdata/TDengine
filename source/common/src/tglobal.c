@@ -296,6 +296,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+int8_t tsS3EnabledCfg = false;
 int8_t tsS3Oss = false;
 int8_t tsS3StreamEnabled = false;
 
@@ -375,6 +376,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
 #if defined(USE_COS) || defined(USE_S3)
 #ifdef TD_ENTERPRISE
     /*if (tsDiskCfgNum > 1) */ tsS3Enabled = true;
+    tsS3EnabledCfg = true;
 #endif
     tsS3StreamEnabled = true;
 #endif
