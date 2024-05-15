@@ -51,6 +51,27 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx, int32_t tbNum) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SArray*             pVgDataBlocks = NULL;
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+
+  // merge according to vgId
+  if (tbNum > 0) {
+    code = insMergeStmtTableDataCxt(pTbCtx, pBlockList, &pVgDataBlocks, true, tbNum);
+  }
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = insBuildVgDataBlocks(pVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
+  }
+
+  if (pStmt->freeArrayFunc) {
+    pStmt->freeArrayFunc(pVgDataBlocks);
+  }
+  return code;
+}
+
+
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SArray*             pVgDataBlocks = NULL;
@@ -60,6 +81,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
   if (taosHashGetSize(pBlockHash) > 0) {
     code = insMergeTableDataCxt(pBlockHash, &pVgDataBlocks, true);
   }
+  
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
   }

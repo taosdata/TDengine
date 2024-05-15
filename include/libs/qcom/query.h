@@ -193,6 +193,12 @@ typedef struct SBoundColInfo {
   int32_t  numOfBound;
 } SBoundColInfo;
 
+typedef struct STableColsData {
+  int32_t vgId;
+  int64_t uid;
+  SArray* aCol;
+} STableColsData;
+
 typedef struct STableDataCxt {
   STableMeta*    pMeta;
   STSchema*      pSchema;

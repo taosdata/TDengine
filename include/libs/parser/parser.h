@@ -118,6 +118,7 @@ int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** p
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
 void    qCleanupKeywordsTable();
 
+int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx, int32_t tbNum);
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
 int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
