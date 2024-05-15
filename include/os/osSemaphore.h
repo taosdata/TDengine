@@ -33,12 +33,12 @@ int tsem_timewait(tsem_t *sim, int64_t milis);
 int tsem_post(tsem_t *sem);
 int tsem_destroy(tsem_t *sem);
 
-#define tsem2_t        sem_t
-#define tsem2_init     sem_init
+#define tsem2_t        tsem_t
+#define tsem2_init     tsem_init
 #define tsem2_wait     tsem_wait
 #define tsem2_timewait tsem_timewait
-#define tsem2_post     sem_post
-#define tsem2_destroy  sem_destroy
+#define tsem2_post     tsem_post
+#define tsem2_destroy  tsem_destroy
 
 #elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
@@ -49,12 +49,12 @@ int tsem_timewait(tsem_t *sim, int64_t milis);
 #define tsem_post    sem_post
 #define tsem_destroy sem_destroy
 
-#define tsem2_t        sem_t
-#define tsem2_init     sem_init
+#define tsem2_t        tsem_t
+#define tsem2_init     tsem_init
 #define tsem2_wait     tsem_wait
 #define tsem2_timewait tsem_timewait
-#define tsem2_post     sem_post
-#define tsem2_destroy  sem_destroy
+#define tsem2_post     tsem_post
+#define tsem2_destroy  tsem_destroy
 
 #else
 
