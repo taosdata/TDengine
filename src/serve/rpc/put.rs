@@ -365,7 +365,7 @@ impl PutStream {
                                     );
                                     bail!("IPC worker will be stopped since {err:#}");
                                 }
-                                tracing::debug!("Abort record {trace_id_str}");
+                                tracing::warn!("Abort record {trace_id_str}");
                                 // if let Some(tx) = tx.upgrade() {
                                 //     tracing::warn!(
                                 //         trace_id = trace_id_str,
