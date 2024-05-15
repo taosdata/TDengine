@@ -66,29 +66,6 @@ int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid);
 SRowInfo    *tsdbIterMergerGetData(SIterMerger *merger);
 STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger);
 
-FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
-  if (pIter == NULL) return NULL;
-
-  if (pIter->pRow) {
-    return pIter->pRow;
-  }
-
-  if (pIter->backward) {
-    if (pIter->pNode == pIter->pTbData->sl.pHead) {
-      return NULL;
-    }
-  } else {
-    if (pIter->pNode == pIter->pTbData->sl.pTail) {
-      return NULL;
-    }
-  }
-
-  pIter->pRow = &pIter->row;
-  pIter->row = pIter->pNode->row;
-
-  return pIter->pRow;
-}
-
 #ifdef __cplusplus
 }
 #endif
