@@ -1047,3 +1047,39 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   }
   return 0;
 }
+
+int32_t tsdbWaitToDoTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+  STFileSet *fset = NULL;
+
+  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  if (fset != NULL) {
+    for (;;) {
+      if (fset->hasTaskRunning) {
+        fset->numWaitDoTask++;
+
+        taosThreadCondWait(&fset->canDoTask, &tsdb->mutex);
+
+        tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+        ASSERT(fset != NULL);
+
+        fset->numWaitDoTask--;
+      } else {
+        fset->hasTaskRunning = true;
+        break;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+  STFileSet *fset;
+
+  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  if (fset != NULL && fset->numWaitDoTask > 0) {
+    taosThreadCondSignal(&fset->canDoTask);
+  }
+
+  return 0;
+}
