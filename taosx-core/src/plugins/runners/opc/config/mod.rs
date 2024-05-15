@@ -168,7 +168,15 @@ impl OPCConfig {
     }
 
     pub fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("csv_config_file").map(|v| v.to_string())
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+                Some(v.to_string())
+            })
+            .flatten()
     }
 
     /// 从 dsn 中解析参数 select_all_points 参数
