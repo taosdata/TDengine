@@ -123,7 +123,7 @@ typedef struct {
   STransMsg* pRsp;
   SEpSet     epSet;
   int8_t     hasEpSet;
-  tsem_t*    pSem;
+  tsem2_t*   pSem;
   int8_t     inited;
   SRWLatch   latch;
 } STransSyncMsg;
