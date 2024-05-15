@@ -739,6 +739,42 @@ typedef struct {
   SLastKey key;
 } SIdxKey;
 
+static void tsdbCacheUpdateLastCol(SLastCol *pLastCol, TSKEY ts, SColVal *pColVal) {
+  uint8_t *pFree = NULL;
+  int      nData = 0;
+
+  SColVal* pLastColVal = &pLastCol->colVal;
+  if (IS_VAR_DATA_TYPE(pLastColVal->type)) {
+    pFree = pLastColVal->value.pData;
+    nData = pLastColVal->value.nData;
+  }
+
+  pLastCol->ts = ts;
+
+  *pLastColVal = *pColVal;
+  if (IS_VAR_DATA_TYPE(pColVal->type)) {
+    if (nData < pColVal->value.nData) {
+      pLastColVal->value.pData = taosMemoryCalloc(1, pColVal->value.nData);
+    } else {
+      pLastColVal->value.pData = pFree;
+      pFree = NULL;
+    }
+
+    if (pColVal->value.nData) {
+      memcpy(pLastColVal->value.pData, pColVal->value.pData, pColVal->value.nData);
+    } else {
+      pFree = pLastColVal->value.pData;
+      pLastColVal->value.pData = NULL;
+    }
+  }
+
+  if (!pLastCol->dirty) {
+    pLastCol->dirty = 1;
+  }
+
+  taosMemoryFreeClear(pFree);
+}
+
 int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow) {
   int32_t code = 0;
 
@@ -782,28 +818,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
       if (pLastCol->ts < keyTs || (pLastCol->ts == keyTs && !COL_VAL_IS_NONE(pColVal))) {
-        uint8_t *pVal = NULL;
-        int      nData = pLastCol->colVal.value.nData;
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
-          pVal = pLastCol->colVal.value.pData;
-        }
-        pLastCol->ts = keyTs;
-        pLastCol->colVal = *pColVal;
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
-          if (nData < pColVal->value.nData) {
-            taosMemoryFree(pVal);
-            pLastCol->colVal.value.pData = taosMemoryCalloc(1, pColVal->value.nData);
-          } else {
-            pLastCol->colVal.value.pData = pVal;
-          }
-          if (pColVal->value.nData) {
-            memcpy(pLastCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-          }
-        }
-
-        if (!pLastCol->dirty) {
-          pLastCol->dirty = 1;
-        }
+        tsdbCacheUpdateLastCol(pLastCol, keyTs, pColVal);
       }
 
       taosLRUCacheRelease(pCache, h, false);
@@ -821,28 +836,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
         if (pLastCol->ts <= keyTs) {
-          uint8_t *pVal = NULL;
-          int      nData = pLastCol->colVal.value.nData;
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
-            pVal = pLastCol->colVal.value.pData;
-          }
-          pLastCol->ts = keyTs;
-          pLastCol->colVal = *pColVal;
-          if (IS_VAR_DATA_TYPE(pColVal->type)) {
-            if (nData < pColVal->value.nData) {
-              taosMemoryFree(pVal);
-              pLastCol->colVal.value.pData = taosMemoryCalloc(1, pColVal->value.nData);
-            } else {
-              pLastCol->colVal.value.pData = pVal;
-            }
-            if (pColVal->value.nData) {
-              memcpy(pLastCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
-            }
-          }
-
-          if (!pLastCol->dirty) {
-            pLastCol->dirty = 1;
-          }
+          tsdbCacheUpdateLastCol(pLastCol, keyTs, pColVal);
         }
 
         taosLRUCacheRelease(pCache, h, false);
