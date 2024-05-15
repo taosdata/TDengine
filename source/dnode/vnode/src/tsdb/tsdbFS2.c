@@ -1048,7 +1048,7 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbWaitToDoTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid) {
   STFileSet *fset = NULL;
 
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);

@@ -388,46 +388,43 @@ _exit:
 
 static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
 
-int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&tsdb->mutex);
+  if (!tsdb->bgTaskDisabled) {
+    STFileSet *fset;
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      code = tsdbTFileSetOpenChannel(fset);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (tsdb->bgTaskDisabled) {
-    goto _exit;
-  }
+      SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+      if (arg == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
 
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    code = tsdbTFileSetOpenChannel(fset);
-    if (code) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
-    }
+      arg->tsdb = tsdb;
+      arg->now = now;
+      arg->fid = fset->fid;
 
-    SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
-    if (arg == NULL) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    arg->tsdb = tsdb;
-    arg->now = now;
-    arg->fid = fset->fid;
-
-    code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbFreeRtnArg, arg, NULL);
-    if (code) {
-      tsdbFreeRtnArg(arg);
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
+      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbFreeRtnArg, arg, NULL))) {
+        tsdbFreeRtnArg(arg);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 
 _exit:
-  taosThreadMutexUnlock(&tsdb->mutex);
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
   }
+  return code;
+}
+
+int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
+  int32_t code = 0;
+  taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbAsyncRetentionImpl(tsdb, now);
+  taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
