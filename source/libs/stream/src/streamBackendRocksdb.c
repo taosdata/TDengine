@@ -1588,7 +1588,7 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
   if (*dest == NULL) {
     size_t size = sizeof(key.unixTimestamp) + sizeof(key.len) + sizeof(key.rawLen) + sizeof(key.compress) + key.len;
     char*  p = taosMemoryCalloc(1, size);
-    char* buf = p;
+    char*  buf = p;
     len += taosEncodeFixedI64((void**)&buf, key.unixTimestamp);
     len += taosEncodeFixedI32((void**)&buf, key.len);
     len += taosEncodeFixedI32((void**)&buf, key.rawLen);
@@ -2740,7 +2740,7 @@ int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey,
     if (pKey->groupId == groupId) {
       return 0;
     }
-    taosMemoryFree((void*)*pVal);
+    if (pVal != NULL) taosMemoryFree((void*)*pVal);
     *pVal = NULL;
   }
   return -1;
