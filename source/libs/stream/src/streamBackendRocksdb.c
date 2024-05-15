@@ -1968,11 +1968,15 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     if (cfNames != NULL) {
       rocksdb_list_column_families_destroy(cfNames, nCf);
     }
+
     taosMemoryFree(err);
     err = NULL;
 
     cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
-    ASSERT(err == NULL);
+    if (err != NULL) {
+      stError("%s failed to create column-family, %s, %d, reason:%s", key, dbPath, nCf, err);
+      goto _EXIT;
+    }
   }
 
   if (taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf) != 0) {

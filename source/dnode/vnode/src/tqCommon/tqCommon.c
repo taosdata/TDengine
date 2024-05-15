@@ -584,18 +584,6 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
-static void tqStreamRemoveTaskBackend(SStreamMeta* pMeta, const STaskId* pId) {
-  char taskKey[128] = {0};
-  sprintf(taskKey, "0x%" PRIx64 "-0x%x", pId->streamId, (int32_t)pId->taskId);
-
-  char* path = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(path, "%s%s%s", pMeta->path, TD_DIRSEP, taskKey);
-  taosRemoveDir(path);
-
-  tqInfo("vgId:%d drop stream task:0x%x file:%s", pMeta->vgId, (int32_t)pId->taskId, path);
-  taosMemoryFree(path);
-}
-
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
 
@@ -616,6 +604,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
       hTaskId.taskId = pTask->hTaskInfo.id.taskId;
     }
 
+    streamTaskSetRemoveBackendFiles(pTask);
     streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt);
     streamMetaReleaseTask(pMeta, pTask);
   }
@@ -642,7 +631,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
 
   streamMetaWUnLock(pMeta);
 
-  tqStreamRemoveTaskBackend(pMeta, &id);
+//  tqStreamRemoveTaskBackend(pMeta, &id);
   return 0;
 }
 

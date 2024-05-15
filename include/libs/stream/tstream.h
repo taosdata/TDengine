@@ -290,6 +290,7 @@ typedef struct SStreamStatus {
   int64_t        lastExecTs;     // last exec time stamp
   int32_t        inScanHistorySentinel;
   bool           appendTranstateBlock;  // has append the transfer state data block already
+  bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -675,6 +676,7 @@ void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
+void    streamTaskSetRemoveBackendFiles(SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);

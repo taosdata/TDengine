@@ -187,8 +187,9 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  char*                p = NULL;
-  int32_t              taskId = pTask->id.taskId;
+  char*   p = NULL;
+  int32_t taskId = pTask->id.taskId;
+
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
@@ -200,7 +201,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
   taosThreadMutexUnlock(&pTask->lock);
 
-  stDebug("start to free s-task:0x%x, %p, state:%s", taskId, pTask, p);
+  stDebug("start to free s-task:0x%x %p, state:%s", taskId, pTask, p);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
@@ -275,10 +276,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taskDbRemoveRef(pTask->pBackend);
   }
 
-  if (pTask->id.idStr != NULL) {
-    taosMemoryFree((void*)pTask->id.idStr);
-  }
-
   if (pTask->pNameMap) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
@@ -291,6 +288,19 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosThreadMutexDestroy(&pTask->lock);
 
   pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+
+  if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
+    char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
+    sprintf(path, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, pTask->id.idStr);
+    taosRemoveDir(path);
+
+    stInfo("s-task:0x%x vgId:%d remove all backend files:%s", taskId, pTask->pMeta->vgId, path);
+    taosMemoryFree(path);
+  }
+
+  if (pTask->id.idStr != NULL) {
+    taosMemoryFree((void*)pTask->id.idStr);
+  }
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -896,4 +906,8 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
     return code;
   }
   return streamTrySchedExec(pTask);
+}
+
+void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) {
+  pTask->status.removeBackendFiles = true;
 }

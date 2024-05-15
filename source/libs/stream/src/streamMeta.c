@@ -1521,7 +1521,9 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
           code = expandFn(pHTask);
           if (code != TSDB_CODE_SUCCESS) {
             streamMetaAddFailedTaskSelf(pHTask, pInfo->readyTs);
+
             streamMetaReleaseTask(pMeta, pHTask);
+            streamMetaReleaseTask(pMeta, pTask);
             return code;
           }
         }
