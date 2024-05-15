@@ -17,7 +17,6 @@
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
 #define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
-#define WAIT_FOR_DURATION                         10
 
 // todo refactor:
 // read data from input queue
@@ -145,7 +144,7 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
   }
 }
 
-int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                     int32_t* blockSize) {
   const char* id = pTask->id.idStr;
   int32_t     taskLevel = pTask->info.taskLevel;
@@ -157,13 +156,13 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, id))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
-    return TSDB_CODE_SUCCESS;
+    return EXEC_AFTER_IDLE;
   }
 
   while (1) {
     if (streamTaskShouldPause(pTask) || streamTaskShouldStop(pTask)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", id, *numOfBlocks);
-      return TSDB_CODE_SUCCESS;
+      return EXEC_CONTINUE;
     }
 
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputq.queue);
@@ -179,7 +178,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         streamTaskPutbackToken(pTask->outputInfo.pTokenBucket);
       }
 
-      return TSDB_CODE_SUCCESS;
+      return EXEC_CONTINUE;
     }
 
     // do not merge blocks for sink node and check point data block
@@ -196,7 +195,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         *blockSize = 0;
         *numOfBlocks = 1;
         *pInput = qItem;
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       } else { // previous existed blocks needs to be handle, before handle the checkpoint msg block
         stDebug("s-task:%s %s msg extracted, handle previous blocks, numOfBlocks:%d", id, p, *numOfBlocks);
         *blockSize = streamQueueItemGetSize(*pInput);
@@ -205,7 +204,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         }
 
         streamQueueProcessFail(pTask->inputq.queue);
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       }
     } else {
       if (*pInput == NULL) {
@@ -226,7 +225,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
           }
 
           streamQueueProcessFail(pTask->inputq.queue);
-          return TSDB_CODE_SUCCESS;
+          return EXEC_CONTINUE;
         }
 
         *pInput = newRet;
@@ -243,7 +242,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
           streamTaskConsumeQuota(pTask->outputInfo.pTokenBucket, *blockSize);
         }
 
-        return TSDB_CODE_SUCCESS;
+        return EXEC_CONTINUE;
       }
     }
   }
@@ -329,6 +328,36 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   }
 
   return 0;
+}
+
+int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
+  SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
+  if (pTranstate == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    taosFreeQitem(pTranstate);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTranstate->type = STREAM_INPUT__TRANS_STATE;
+
+  pBlock->info.type = STREAM_TRANS_STATE;
+  pBlock->info.rows = 1;
+  pBlock->info.childId = pTask->info.selfChildId;
+
+  pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
+  taosArrayPush(pTranstate->blocks, pBlock);
+
+  taosMemoryFree(pBlock);
+  if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTranstate) < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTask->status.appendTranstateBlock = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 // the result should be put into the outputQ in any cases, the result may be lost otherwise.
@@ -426,3 +455,5 @@ void streamTaskPutbackToken(STokenBucket* pBucket) {
 void streamTaskConsumeQuota(STokenBucket* pBucket, int32_t bytes) {
   pBucket->quotaRemain -= SIZE_IN_MiB(bytes);
 }
+
+void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }

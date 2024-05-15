@@ -156,6 +156,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
       pPos->beUsed = true;
+      pPos->beFlushed = false;
       *pKey = *pDestWinKey;
       goto _end;
     }
@@ -167,6 +168,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
       pPos->beUsed = true;
+      pPos->beFlushed = false;
       *pKey = *pDestWinKey;
       goto _end;
     }
@@ -198,6 +200,13 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
 
 _end:
   return code;
+}
+
+int32_t getSessionRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen) {
+  SWinKey* pTmpkey = pKey;
+  ASSERT(keyLen == sizeof(SWinKey));
+  SSessionKey pWinKey = {.groupId = pTmpkey->groupId, .win.skey = pTmpkey->ts, .win.ekey = pTmpkey->ts};
+  return getSessionWinResultBuff(pFileState, &pWinKey, 0, pVal, pVLen);
 }
 
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
@@ -308,7 +317,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
   int32_t size = taosArrayGetSize(pWinStates);
   if (pCur->buffIndex >= 0) {
     if (pCur->buffIndex >= size) {
-      pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, size);
+      pNewPos = addNewSessionWindow(pFileState, pWinStates, pWinKey);
       goto _end;
     }
     pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, pCur->buffIndex);
@@ -325,12 +334,12 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
       }
     }
     pNewPos = getNewRowPosForWrite(pFileState);
+    memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
     pNewPos->needFree = true;
     pNewPos->beFlushed = true;
   }
 
 _end:
-  memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
   (*ppVal) = pNewPos;
   return TSDB_CODE_SUCCESS;
 }
@@ -380,6 +389,14 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
     (*pWins) = pWinStates;
   }
 
+  if (size > 0 && index == -1) {
+    SRowBuffPos* pPos = taosArrayGetP(pWinStates, 0);
+    SSessionKey* pWin = (SSessionKey*)pPos->pKey;
+    if (pWinKey->win.skey == pWin->win.skey) {
+      index = 0;
+    }
+  }
+
   if (index >= 0) {
     pCur = createSessionStateCursor(pFileState);
     pCur->buffIndex = index;
@@ -387,6 +404,7 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
       *pIndex = index;
     }
   }
+
   return pCur;
 }
 
@@ -666,6 +684,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
       pPos->beUsed = true;
+      pPos->beFlushed = false;
       *key = *pDestWinKey;
       goto _end;
     }
@@ -679,6 +698,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
       pPos->beUsed = true;
+      pPos->beFlushed = false;
       *key = *pDestWinKey;
       goto _end;
     }
@@ -771,6 +791,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
       pPos->beUsed = true;
+      pPos->beFlushed = false;
       *pWinKey = *pDestWinKey;
       goto _end;
     }
@@ -799,6 +820,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
     (*pVal) = pPos;
     SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
     pPos->beUsed = true;
+    pPos->beFlushed = false;
     *pWinKey = *pDestWinKey;
     goto _end;
   }

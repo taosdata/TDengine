@@ -1,5 +1,5 @@
 ---
-title: Stream Processing
+title: Stream Processing SQL Reference
 sidebar_label: Stream Processing
 description: This document describes the SQL statements related to the stream processing component of TDengine.
 ---
@@ -11,13 +11,14 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
  FILL_HISTORY   [0|1]
+ IGNORE UPDATE  [0|1]
 }
 
 ```
@@ -32,7 +33,7 @@ subquery: SELECT [DISTINCT] select_list
     [window_clause]
 ```
 
-Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME.
+Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME. If the source table has a composite primary key, state windows, event windows, and count windows are not supported.
 
 Subtable Clause defines the naming rules of auto-created subtable, you can see more details in below part: Partitions of Stream.
 
@@ -57,6 +58,12 @@ For example, the following SQL statement creates a stream and automatically crea
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+
+CREATE STREAM streams0 INTO streamt0 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WINDOW START WITH voltage < 0 END WITH voltage > 9;
+
+CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
+SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
 ## Partitions of Stream
@@ -146,7 +153,7 @@ T = latest event time - watermark
 
 The window closing time for each batch of data that arrives at the system is updated using the preceding formula, and all windows are closed whose closing time is less than T. If the triggering method is WINDOW_CLOSE or MAX_DELAY, the aggregate result for the window is pushed.
 
-Stream processing strategy for expired data
+## Stream processing strategy for expired data
 The data in expired windows is tagged as expired. TDengine stream processing provides two methods for handling such data:
 
 1. Drop the data. This is the default and often only handling method for most stream processing engines.
@@ -154,6 +161,14 @@ The data in expired windows is tagged as expired. TDengine stream processing pro
 2. Recalculate the data. In this method, all data in the window is reobtained from the database and recalculated. The latest results are then returned.
 
 In both of these methods, configuring the watermark is essential for obtaining accurate results (if expired data is dropped) and avoiding repeated triggers that affect system performance (if expired data is recalculated).
+
+## Stream processing strategy for modifying data
+
+TDengine provides two ways to handle modified data, which are specified by the IGNORE UPDATE option:
+
+1. Check whether the data has been modified, i.e. IGNORE UPDATE 0, and recalculate the corresponding window if the data has been modified.
+
+2. Do not check whether the data has been modified, and calculate all the data as incremental data, i.e. IGNORE UPDATE 1, the default configuration.
 
 ## Supported functions
 

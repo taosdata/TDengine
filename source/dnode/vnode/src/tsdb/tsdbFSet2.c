@@ -386,7 +386,11 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
           fobj2->f[0] = fobj1->f[0];
         }
       } else {
-        tsdbTFileObjRemove(fobj2);
+        if (fobj1->f->cid != fobj2->f->cid) {
+          tsdbTFileObjRemove(fobj2);
+        } else {
+          tsdbTFileObjRemoveUpdateLC(fobj2);
+        }
         code = tsdbTFileObjInit(pTsdb, fobj1->f, &fset2->farr[ftype]);
         if (code) return code;
       }
@@ -585,7 +589,7 @@ int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr) {
   return 0;
 }
 
-int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray** ppArr) {
+int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr) {
   if (ppArr && ppArr[0]) {
     TARRAY2_DESTROY(ppArr[0], tsdbTFileSetRangeClear);
     taosMemoryFree(ppArr[0]);

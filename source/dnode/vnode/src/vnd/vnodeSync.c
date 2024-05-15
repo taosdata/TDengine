@@ -372,8 +372,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, failed to process sync msg:%p type:%s since %s", pVnode->config.vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), terrstr());
+    vGError("vgId:%d, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pVnode->config.vgId, pMsg,
+            TMSG_INFO(pMsg->msgType), terrstr(), code);
   }
 
   return code;
@@ -579,12 +579,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
       int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
       if (numOfTasks > 0) {
-        if (pMeta->startInfo.taskStarting == 1) {
+        if (pMeta->startInfo.startAllTasks == 1) {
           pMeta->startInfo.restartCount += 1;
           tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
                   pMeta->startInfo.restartCount);
         } else {
-          pMeta->startInfo.taskStarting = 1;
+          pMeta->startInfo.startAllTasks = 1;
 
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
@@ -638,6 +638,14 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   }
 }
 
+static void vnodeBecomeAssignedLeader(const SSyncFSM* pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, true);
+  }
+}
+
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
 
@@ -674,6 +682,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeAssignedLeaderCb = vnodeBecomeAssignedLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;
@@ -809,6 +818,16 @@ bool vnodeIsLeader(SVnode *pVnode) {
   }
 
   return true;
+}
+
+int64_t vnodeClusterId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].clusterId;
+}
+
+int32_t vnodeNodeId(SVnode *pVnode) {
+  SSyncCfg *syncCfg = &pVnode->config.syncCfg;
+  return syncCfg->nodeInfo[syncCfg->myIndex].nodeId;
 }
 
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {

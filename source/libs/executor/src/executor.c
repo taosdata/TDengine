@@ -824,14 +824,17 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode) {
   qDebug("%s sync killed execTask", GET_TASKID(pTaskInfo));
   setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
 
-  taosWLockLatch(&pTaskInfo->lock);
-  while (qTaskIsExecuting(pTaskInfo)) {
-    taosMsleep(10);
+  while(1) {
+    taosWLockLatch(&pTaskInfo->lock);
+    if (qTaskIsExecuting(pTaskInfo)) { // let's wait for 100 ms and try again
+      taosWUnLockLatch(&pTaskInfo->lock);
+      taosMsleep(100);
+    } else { // not running now
+      pTaskInfo->code = rspCode;
+      taosWUnLockLatch(&pTaskInfo->lock);
+      return TSDB_CODE_SUCCESS;
+    }
   }
-  pTaskInfo->code = rspCode;
-  taosWUnLockLatch(&pTaskInfo->lock);
-
-  return TSDB_CODE_SUCCESS;
 }
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo) {
@@ -926,8 +929,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->fillHistoryWindow = *pWindow;
   pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
 
-  qDebug("%s step 2. set param for stream scanner scan wal, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
-         " - %" PRId64,
+  qDebug("%s step 2. set param for stream scanner scan wal, verRange:%" PRId64 "-%" PRId64 ", window:%" PRId64
+         "-%" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
   return 0;
@@ -1009,6 +1012,22 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
       pSup->deleteMark = INT64_MAX;
       pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
       pInfo->ignoreExpiredData = false;
+    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT) {
+      SStreamCountAggOperatorInfo* pInfo = pOperator->info;
+      STimeWindowAggSupp* pSup = &pInfo->twAggSup;
+
+      ASSERT(pSup->calTrigger == STREAM_TRIGGER_AT_ONCE || pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
+      ASSERT(pSup->calTriggerSaved == 0 && pSup->deleteMarkSaved == 0);
+
+      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
+
+      pSup->calTriggerSaved = pSup->calTrigger;
+      pSup->deleteMarkSaved = pSup->deleteMark;
+      pSup->calTrigger = STREAM_TRIGGER_AT_ONCE;
+      pSup->deleteMark = INT64_MAX;
+      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
+      pInfo->ignoreExpiredData = false;
+      qInfo("save stream task:%s, param for state: %d", GET_TASKID(pTaskInfo), pInfo->ignoreExpiredData);
     }
 
     // iterate operator tree
@@ -1066,7 +1085,7 @@ SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  memcpy(pOffset, &pTaskInfo->streamInfo.currentOffset, sizeof(STqOffsetVal));
+  tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1093,6 +1112,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     pColInfo->type = pMtInfo->schema->pSchema[i].type;
     pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
     pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
+    pColInfo->pk = pMtInfo->schema->pSchema[i].flags & COL_IS_KEY;
 
     pCond->pSlotList[i] = i;
   }
@@ -1145,7 +1165,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
-      // todo refactor: move away
       pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
@@ -1180,6 +1199,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           return -1;
         }
       }
+      pTaskInfo->storageAPI.tqReaderFn.tqSetTablePrimaryKey(pInfo->tqReader, uid);
 
       qDebug("switch to table uid:%" PRId64 " ts:%" PRId64 "% " PRId64 " rows returned", uid, ts,
              pInfo->pTableScanOp->resultInfo.totalRows);
@@ -1204,7 +1224,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       int64_t       oldSkey = pScanBaseInfo->cond.twindows.skey;
 
       // let's start from the next ts that returned to consumer.
-      pScanBaseInfo->cond.twindows.skey = ts + 1;
+      if(pTaskInfo->storageAPI.tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader)){
+        pScanBaseInfo->cond.twindows.skey = ts;
+      }else{
+        pScanBaseInfo->cond.twindows.skey = ts + 1;
+      }
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
@@ -1235,7 +1259,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     }
 
   } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
-
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
@@ -1260,8 +1283,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         goto end;  // no data
       }
 
+      pAPI->snapshotFn.taosXSetTablePrimaryKey(sContext, mtInfo.uid);
       initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
-      pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
+      if(pAPI->snapshotFn.taosXGetTablePrimaryKey(sContext)){
+        pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
+      }else{
+        pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts + 1;
+      }
 
       tableListAddTableInfo(pTableListInfo, mtInfo.uid, 0);
 
@@ -1296,7 +1324,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
 end:
-  pTaskInfo->streamInfo.currentOffset = *pOffset;
+  tOffsetCopy(&pTaskInfo->streamInfo.currentOffset, pOffset);
 
   return 0;
 }

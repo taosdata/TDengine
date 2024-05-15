@@ -25,7 +25,7 @@ create_definition:
     col_name column_definition
 
 column_definition:
-    type_name [comment 'string_value']
+    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type'] 
 
 table_options:
     table_option ...
@@ -41,15 +41,17 @@ table_option: {
 **More explanations**
 
 1. The first column of a table MUST be of type TIMESTAMP. It is automatically set as the primary key.
-2. The maximum length of the table name is 192 bytes.
-3. The maximum length of each row is 48k(64k since version 3.0.5.0) bytes, please note that the extra 2 bytes used by each BINARY/NCHAR/GEOMETRY column are also counted.
-4. The name of the subtable can only consist of characters from the English alphabet, digits and underscore. Table names can't start with a digit. Table names are case insensitive.
-5. The maximum length in bytes must be specified when using BINARY/NCHAR/GEOMETRY types.
-6. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive.
+2. In addition to the timestamp primary key column, an additional primary key column can be specified using the `PRIMARY KEY` keyword. The second column specified as the primary key must be of type integer or string (varchar).
+3. The maximum length of the table name is 192 bytes.
+4. The maximum length of each row is 48k(64k since version 3.0.5.0) bytes, please note that the extra 2 bytes used by each BINARY/NCHAR/GEOMETRY column are also counted.
+5. The name of the subtable can only consist of characters from the English alphabet, digits and underscore. Table names can't start with a digit. Table names are case insensitive.
+6. The maximum length in bytes must be specified when using BINARY/NCHAR/GEOMETRY types.
+7. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive.
    For example \`aBc\` and \`abc\` are different table names but `abc` and `aBc` are same table names because they are both converted to `abc` internally.
    Only ASCII visible characters can be used with escape character.
 
 **Parameter description**
+
 1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables.
 2. SMA: specifies functions on which to enable small materialized aggregates (SMA). SMA is user-defined precomputation of aggregates based on data blocks. Enter one of the following values: max, min, or sum This parameter can be used with supertables and standard tables.
 3. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The default value is 0, i.e. never expire.
@@ -103,10 +105,12 @@ alter_table_option: {
 
 **More explanations**
 You can perform the following modifications on existing tables:
+
 1. ADD COLUMN: adds a column to the supertable.
 2. DROP COLUMN: deletes a column from the supertable.
 3. MODIFY COLUMN: changes the length of the data type specified for the column. Note that you can only specify a length greater than the current length.
 4. RENAME COLUMN: renames a specified column in the table.
+5. The primary key column of a table cannot be modified or added or deleted using ADD/DROP COLUMN.
 
 ### Add a Column
 
@@ -152,6 +156,7 @@ alter_table_option: {
 ```
 
 **More explanations**
+
 1. Only the value of a tag can be modified directly. For all other modifications, you must modify the supertable from which the subtable was created.
 
 ### Change Tag Value Of Sub Table

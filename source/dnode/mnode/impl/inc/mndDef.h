@@ -104,6 +104,7 @@ typedef enum {
   TRN_CONFLICT_DB_INSIDE = 3,
   TRN_CONFLICT_TOPIC = 4,
   TRN_CONFLICT_TOPIC_INSIDE = 5,
+  TRN_CONFLICT_ARBGROUP = 6,
 } ETrnConflct;
 
 typedef enum {
@@ -140,6 +141,7 @@ typedef enum {
   DND_REASON_CHARSET_NOT_MATCH,
   DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH,
   DND_REASON_ENABLE_WHITELIST_NOT_MATCH,
+  DND_REASON_ENCRYPTION_KEY_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
 
@@ -149,6 +151,7 @@ typedef enum {
   CONSUMER_REMOVE_REB,      // remove after rebalance
   CONSUMER_UPDATE_REC,      // update after recover
   CONSUMER_UPDATE_SUB,      // update after subscribe req
+  CONSUMER_INSERT_SUB,
 } ECsmUpdateType;
 
 typedef struct {
@@ -158,11 +161,12 @@ typedef struct {
   ETrnConflct   conflict;
   ETrnExec      exec;
   EOperType     oper;
+  bool          changeless;
   int32_t       code;
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
-  int32_t       redoActionPos;
+  int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;
   SArray*       undoActions;
@@ -176,6 +180,7 @@ typedef struct {
   tmsg_t        originRpcType;
   char          dbname[TSDB_TABLE_FNAME_LEN];
   char          stbname[TSDB_TABLE_FNAME_LEN];
+  int32_t       arbGroupId;
   int32_t       startFunc;
   int32_t       stopFunc;
   int32_t       paramLen;
@@ -211,11 +216,11 @@ typedef struct {
   int64_t    memAvail;
   int64_t    memUsed;
   EDndReason offlineReason;
+  uint32_t   encryptionKeyChksum;
+  int8_t     encryptionKeyStat;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
-  char       active[TSDB_ACTIVE_KEY_LEN];
-  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
   char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
 
@@ -246,6 +251,40 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  int32_t dnodeId;
+  char    token[TSDB_ARB_TOKEN_SIZE];
+} SArbAssignedLeader;
+
+typedef struct {
+  int32_t dnodeId;
+} SArbMemberInfo;
+
+typedef struct {
+  int32_t nextHbSeq;
+  int32_t responsedHbSeq;
+  char    token[TSDB_ARB_TOKEN_SIZE];
+  int64_t lastHbMs;
+} SArbMemberState;
+
+typedef struct {
+  SArbMemberInfo  info;
+  SArbMemberState state;
+} SArbGroupMember;
+
+typedef struct {
+  int32_t            vgId;
+  int64_t            dbUid;
+  SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
+  int8_t             isSync;
+  SArbAssignedLeader assignedLeader;
+  int64_t            version;
+
+  // following fields will not be duplicated
+  bool          mutexInited;
+  TdThreadMutex mutex;
+} SArbGroup;
 
 typedef struct {
   int32_t maxUsers;
@@ -343,6 +382,11 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
+  int32_t s3ChunkSize;
+  int32_t s3KeepLocal;
+  int8_t  s3Compact;
+  int8_t  withArbitrator;
+  int8_t  encryptAlgorithm;
 } SDbCfg;
 
 typedef struct {
@@ -358,6 +402,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
+  int32_t  tsmaVersion;
 } SDbObj;
 
 typedef struct {
@@ -417,12 +462,14 @@ typedef struct {
   int32_t        tagsFilterLen;
   int32_t        sqlLen;
   int32_t        astLen;
+  int32_t        version;
   char*          expr;
   char*          tagsFilter;
   char*          sql;
   char*          ast;
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
+  char           baseSmaName[TSDB_TABLE_FNAME_LEN];
 } SSmaObj;
 
 typedef struct {
@@ -438,33 +485,38 @@ typedef struct {
 } SIdxObj;
 
 typedef struct {
-  char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  tagVer;
-  int32_t  colVer;
-  int32_t  smaVer;
-  int32_t  nextColId;
-  int64_t  maxdelay[2];
-  int64_t  watermark[2];
-  int32_t  ttl;
-  int32_t  numOfColumns;
-  int32_t  numOfTags;
-  int32_t  numOfFuncs;
-  int32_t  commentLen;
-  int32_t  ast1Len;
-  int32_t  ast2Len;
-  SArray*  pFuncs;
-  SSchema* pColumns;
-  SSchema* pTags;
-  char*    comment;
-  char*    pAst1;
-  char*    pAst2;
-  SRWLatch lock;
-  int8_t   source;
+  col_id_t colId;
+  int32_t  cmprAlg;
+} SCmprObj;
+typedef struct {
+  char      name[TSDB_TABLE_FNAME_LEN];
+  char      db[TSDB_DB_FNAME_LEN];
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int64_t   uid;
+  int64_t   dbUid;
+  int32_t   tagVer;
+  int32_t   colVer;
+  int32_t   smaVer;
+  int32_t   nextColId;
+  int64_t   maxdelay[2];
+  int64_t   watermark[2];
+  int32_t   ttl;
+  int32_t   numOfColumns;
+  int32_t   numOfTags;
+  int32_t   numOfFuncs;
+  int32_t   commentLen;
+  int32_t   ast1Len;
+  int32_t   ast2Len;
+  SArray*   pFuncs;
+  SSchema*  pColumns;
+  SSchema*  pTags;
+  char*     comment;
+  char*     pAst1;
+  char*     pAst2;
+  SRWLatch  lock;
+  int8_t    source;
+  SColCmpr* pCmpr;
 } SStbObj;
 
 typedef struct {
@@ -556,8 +608,9 @@ typedef struct {
   int32_t resetOffsetCfg;
 } SMqConsumerObj;
 
-SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer, bool isDeleted);
+SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe);
+void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 

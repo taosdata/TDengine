@@ -83,6 +83,7 @@ typedef struct SColMatchItem {
   bool      needOutput;
   SDataType dataType;
   int32_t   funcType;
+  bool      isPk;
 } SColMatchItem;
 
 typedef struct SColMatchInfo {
@@ -161,6 +162,7 @@ bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
+int32_t      prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
 int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId, SStorageAPI* pAPI);

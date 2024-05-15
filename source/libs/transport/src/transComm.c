@@ -70,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
@@ -158,6 +158,10 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->left = -1;
     p->total = 0;
     p->len = 0;
+    if (p->cap > BUFFER_CAP) {
+      p->cap = BUFFER_CAP;
+      p->buf = taosMemoryRealloc(p->buf, p->cap);
+    }
   } else {
     ASSERTS(0, "invalid read from sock buf");
     return -1;

@@ -33,6 +33,20 @@ void vnodeQueryPreClose(SVnode *pVnode) { qWorkerStopAllTasks((void *)pVnode->pQ
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
+int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
+  int8_t tblType = reader->me.type;
+  if (useCompress(tblType)) {
+    SColCmprWrapper *p = &(reader->me.colCmpr);
+    ASSERT(numOfCol == p->nCols);
+    for (int i = 0; i < p->nCols; i++) {
+      SColCmpr *pCmpr = &p->pColCmpr[i];
+      pExt[i].colId = pCmpr->id;
+      pExt[i].compress = pCmpr->alg;
+    }
+  }
+  return 0;
+}
+
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -99,10 +113,21 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.sversion = schema.version;
   metaRsp.tversion = schemaTag.version;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
+  metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SSchemaExt));
 
   memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
   if (schemaTag.nCols) {
     memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  }
+  if (metaRsp.pSchemaExt) {
+    code = fillTableColCmpr(&mer1, metaRsp.pSchemaExt, metaRsp.numOfColumns);
+    if (code < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  } else {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
   // encode and send response
@@ -126,6 +151,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
 _exit:
   taosMemoryFree(metaRsp.pSchemas);
+  taosMemoryFree(metaRsp.pSchemaExt);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:
@@ -221,10 +247,21 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.numOfTags = schemaTag.nCols;
   cfgRsp.numOfColumns = schema.nCols;
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
+  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
 
   memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
   if (schemaTag.nCols) {
     memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  }
+
+  if (useCompress(cfgRsp.tableType)) {
+    SColCmprWrapper *pColCmpr = &mer1.me.colCmpr;
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
+      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+      pSchExt->colId = pCmpr->id;
+      pSchExt->compress = pCmpr->alg;
+    }
   }
 
   // encode and send response
@@ -323,6 +360,9 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
       case TDMT_VND_TABLE_CFG:
         vnodeGetTableCfg(pVnode, &reqMsg, false);
         break;
+      case TDMT_VND_GET_STREAM_PROGRESS:
+        vnodeGetStreamProgress(pVnode, &reqMsg, false);
+        break;
       default:
         qError("invalid req msgType %d", req->msgType);
         reqMsg.code = TSDB_CODE_INVALID_MSG;
@@ -406,7 +446,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
 
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
   SSyncState syncState = syncGetState(pVnode->sync);
-  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+  if (syncState.state == TAOS_SYNC_STATE_LEADER || syncState.state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     pLoad->vgId = TD_VID(pVnode);
     pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
     return 0;
@@ -710,4 +750,55 @@ void *vnodeGetIvtIdx(void *pVnode) {
 
 int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+}
+
+int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct) {
+  int32_t             code = 0;
+  SStreamProgressReq  req;
+  SStreamProgressRsp  rsp = {0};
+  SRpcMsg             rpcMsg = {.info = pMsg->info, .code = 0};
+  char *              buf = NULL;
+  int32_t rspLen = 0;
+  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    rsp.fetchIdx = req.fetchIdx;
+    rsp.subFetchIdx = req.subFetchIdx;
+    rsp.vgId = req.vgId;
+    rsp.streamId = req.streamId;
+    rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
+    if (direct) {
+      buf = rpcMallocCont(rspLen);
+    } else {
+      buf = taosMemoryCalloc(1, rspLen);
+    }
+    if (!buf) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      goto _OVER;
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tqGetStreamExecInfo(pVnode, req.streamId, &rsp.progressDelay, &rsp.fillHisFinished);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    tSerializeStreamProgressRsp(buf, rspLen, &rsp);
+    rpcMsg.pCont = buf;
+    buf = NULL;
+    rpcMsg.contLen = rspLen;
+    rpcMsg.code = code;
+    rpcMsg.msgType = pMsg->msgType;
+    if (direct) {
+      tmsgSendRsp(&rpcMsg);
+    } else {
+      *pMsg = rpcMsg;
+    }
+  }
+
+_OVER:
+  if (buf) {
+    taosMemoryFree(buf);
+  }
+  return code;
 }

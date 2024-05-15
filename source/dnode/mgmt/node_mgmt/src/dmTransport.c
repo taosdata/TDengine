@@ -331,7 +331,13 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
     return false;
   }
 }
-
+static bool rpcNoDelayMsg(tmsg_t msgType) {
+  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_S3MIGRATE || msgType == TDMT_VND_S3MIGRATE ||
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+    return true;
+  }
+  return false;
+}
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -346,6 +352,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.dfp = destroyAhandle;
 
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
@@ -356,6 +363,8 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.failFastThreshold = 3;    // failed threshold
   rpcInit.ffp = dmFailFastFp;
 
+  rpcInit.noDelayFp = rpcNoDelayMsg;
+
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3) / 2;
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
@@ -365,6 +374,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+
   taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
@@ -538,6 +548,7 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartup,
       .updateDnodeInfoFp = dmUpdateDnodeInfo,
+      .getDnodeEpFp = dmGetDnodeEp,
       .data = &pDnode->data,
   };
   return msgCb;

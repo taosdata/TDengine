@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "libs/function/tudf.h"
 #include "tfs.h"
 #include "vnd.h"
-#include "libs/function/tudf.h"
 
 int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   int32_t    diskId = -1;
@@ -234,6 +234,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
     dInfo("vgId:%d, commit data finished", pVnode->vgId);
   }
 
+  int32_t nodeId = vnodeNodeId(pVnode->pImpl);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
 
@@ -250,7 +251,7 @@ _closed:
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
-    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
+    vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs, nodeId);
   }
 
   vmFreeVnodeObj(&pVnode);

@@ -70,7 +70,9 @@ const char *sdbTableName(ESdbType type) {
       return "compact";
     case SDB_COMPACT_DETAIL:
       return "compact_detail";
-     default:
+    case SDB_ARBGROUP:
+      return "arb_group";
+    default:
       return "undefine";
   }
 }
@@ -507,4 +509,16 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
   }
 
   return pSdb->tableVer[type];
+}
+
+bool countValid(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  int32_t* pInt = p1;
+  (*pInt) += 1;
+  return true;
+}
+
+int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type) {
+  int32_t num = 0;
+  sdbTraverse(pSdb, type, countValid, &num, 0, 0);
+  return num;
 }

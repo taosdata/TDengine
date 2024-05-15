@@ -1,6 +1,9 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
+if(${TD_DARWIN})
+target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
+endif(${TD_DARWIN})
 set(
   VNODE_SOURCE_FILES
   "src/vnd/vnodeOpen.c"
@@ -121,6 +124,7 @@ if (${BUILD_CONTRIB})
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
         PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
@@ -130,10 +134,11 @@ else()
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
     if (${TD_LINUX})
-        target_include_directories(
+    target_include_directories(
             vnode 
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )
@@ -143,6 +148,11 @@ else()
         )
     endif()
 endif()
+
+target_link_directories(
+    vnode 
+    PUBLIC "${CMAKE_BINARY_DIR}/build/lib"
+)
 
 target_link_libraries(
     vnode
@@ -157,9 +167,11 @@ target_link_libraries(
     PUBLIC scheduler
     PUBLIC tdb
     PUBLIC audit
+    PUBLIC crypt
 
     # PUBLIC bdb
     # PUBLIC scalar
+    #PUBLIC zstd
     PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream

@@ -15,11 +15,13 @@
 
 #include "functionMgt.h"
 #include "planInt.h"
+#include "scalar.h"
+#include "filter.h"
 
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
-      return "left.ts = right.ts is expected in join expression";
+      return "primary timestamp equal condition is expected in join conditions";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
@@ -466,7 +468,7 @@ bool getOptHint(SNodeList* pList, EHintOption hint) {
   return false;
 }
 
-bool getparaTablesSortOptHint(SNodeList* pList) {
+bool getParaTablesSortOptHint(SNodeList* pList) {
   if (!pList) return false;
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -477,6 +479,31 @@ bool getparaTablesSortOptHint(SNodeList* pList) {
   }
   return false;
 }
+
+bool getSmallDataTsSortOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SMALLDATA_TS_SORT) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getHashJoinOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_HASH_JOIN) {
+      return true;
+    }
+  }
+  return false;
+}
+
 
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -554,3 +581,95 @@ bool keysHasCol(SNodeList* pKeys) {
   nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
+
+SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (pFunc) {
+    strcpy(pFunc->functionName, "_group_key");
+    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
+    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode((SNode*)pGroupCol));
+    if (code == TSDB_CODE_SUCCESS) {
+      code = fmGetFuncInfo(pFunc, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pFunc);
+      pFunc = NULL;
+    }
+    char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+    taosCreateMD5Hash(name, len);
+    strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  }
+  return pFunc;
+}
+
+int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict) {
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pNew;
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+  }
+  return code;
+}
+
+
+static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
+        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool tagScanNodeListHasTbname(SNodeList* pCols) {
+  bool hasTbname = false;
+  nodesWalkExprs(pCols, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+static bool tagScanNodeHasTbname(SNode* pKeys) {
+  bool hasTbname = false;
+  nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+
+
+int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
+  pScan->onlyMetaCtbIdx = false;
+
+  if (pScan->tableType == TSDB_CHILD_TABLE) {
+    pScan->onlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
+    pScan->onlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pScan->node.pConditions == NULL) {
+    pScan->onlyMetaCtbIdx = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pCond = nodesCloneNode(pScan->node.pConditions);
+  SNode* pTagCond = NULL;
+  SNode* pTagIndexCond = NULL;
+  filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
+  if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
+    pScan->onlyMetaCtbIdx = false;
+  } else {
+    pScan->onlyMetaCtbIdx = true;
+  }
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTagIndexCond);
+  nodesDestroyNode(pTagCond);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+

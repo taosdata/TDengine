@@ -1,6 +1,6 @@
 package com.taosdata.example;
 
-import com.taosdata.jdbc.SchemalessWriter;
+import com.taosdata.jdbc.AbstractConnection;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
 
@@ -17,15 +17,15 @@ public class SchemalessWsTest {
     private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
-        final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata&batchfetch=true";
+        final String url = "jdbc:TAOS-RS://" + host + ":6041/power?user=root&password=taosdata&batchfetch=true";
         try(Connection connection = DriverManager.getConnection(url)){
             init(connection);
 
-            try(SchemalessWriter writer = new SchemalessWriter(connection, "power")){
-                writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
-                writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
-                writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
-            }
+            AbstractConnection conn = connection.unwrap(AbstractConnection.class);
+
+            conn.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
         }
     }
 

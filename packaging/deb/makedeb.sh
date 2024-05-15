@@ -76,6 +76,13 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
+if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
+    cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+fi
+if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
+    cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
+fi
+
 cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
 #cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
@@ -91,6 +98,10 @@ cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
+fi
+
+if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then
+    cp ${compile_dir}/../../../explorer/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin

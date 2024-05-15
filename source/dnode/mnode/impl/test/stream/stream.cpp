@@ -62,8 +62,8 @@ SRpcMsg buildHbReq() {
     entry.id.taskId = 5;
     entry.id.streamId = defStreamId;
 
-    entry.checkpointId = 1;
-    entry.checkpointFailed = true;
+    entry.checkpointInfo.activeId = 1;
+    entry.checkpointInfo.failed = true;
 
     taosArrayPush(msg.pTaskStatus, &entry);
   }
@@ -92,7 +92,11 @@ SRpcMsg buildHbReq() {
   }
   tEncoderClear(&encoder);
 
-  initRpcMsg(&msg1, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
+  {
+    msg1.msgType = TDMT_MND_STREAM_HEARTBEAT;
+    msg1.pCont = buf;
+    msg1.contLen = tlen;
+  }
 
   taosArrayDestroy(msg.pTaskStatus);
   return msg1;

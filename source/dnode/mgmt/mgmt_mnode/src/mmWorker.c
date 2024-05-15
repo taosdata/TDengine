@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+#define PROCESS_THRESHOLD (2000 * 1000)
+
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
   int32_t code = 0;
   taosThreadRwlockRdlock(&pMgmt->lock);
@@ -52,6 +54,14 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = mndProcessRpcMsg(pMsg);
+
+  if (pInfo->timestamp != 0) {
+    int64_t cost = taosGetTimestampUs() - pInfo->timestamp;
+    if (cost > PROCESS_THRESHOLD) {
+      dGWarn("worker:%d,message has been processed for too long, type:%s, cost: %" PRId64 "s", pInfo->threadNum,
+             TMSG_INFO(pMsg->msgType), cost / (1000 * 1000));
+    }
+  }
 
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
@@ -107,6 +117,10 @@ int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
 
+int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->arbWorker, pMsg);
+}
+
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
@@ -152,6 +166,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case READ_QUEUE:
       pWorker = &pMgmt->readWorker;
+      break;
+    case ARB_QUEUE:
+      pWorker = &pMgmt->arbWorker;
       break;
     case SYNC_QUEUE:
       pWorker = &pMgmt->syncWorker;
@@ -252,6 +269,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return -1;
   }
 
+  SSingleWorkerCfg arbCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-arb",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->arbWorker, &arbCfg) != 0) {
+    dError("failed to start mnode mnode-arb worker since %s", terrstr());
+    return -1;
+  }
+
   dDebug("mnode workers are initialized");
   return 0;
 }
@@ -263,6 +292,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
+  tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   tSingleWorkerCleanup(&pMgmt->syncRdWorker);
   dDebug("mnode workers are closed");

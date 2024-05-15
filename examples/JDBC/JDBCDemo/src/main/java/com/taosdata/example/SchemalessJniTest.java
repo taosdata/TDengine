@@ -1,6 +1,6 @@
 package com.taosdata.example;
 
-import com.taosdata.jdbc.SchemalessWriter;
+import com.taosdata.jdbc.AbstractConnection;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
 
@@ -20,11 +20,11 @@ public class SchemalessJniTest {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         try (Connection connection = DriverManager.getConnection(url)) {
             init(connection);
+            AbstractConnection conn = connection.unwrap(AbstractConnection.class);
 
-            SchemalessWriter writer = new SchemalessWriter(connection);
-            writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
-            writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
-            writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+            conn.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
         }
     }
 

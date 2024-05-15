@@ -27,6 +27,8 @@ static S3UriStyle uriStyleG = S3UriStylePath;
 static int        retriesG = 5;
 static int        timeoutMsG = 0;
 
+extern int8_t tsS3Oss;
+
 int32_t s3Begin() {
   S3Status    status;
   const char *hostname = tsS3Hostname;
@@ -42,6 +44,9 @@ int32_t s3Begin() {
   }
 
   protocolG = !tsS3Https;
+  if (tsS3Oss) {
+    uriStyleG = S3UriStyleVirtualHost;
+  }
 
   return 0;
 }
@@ -51,6 +56,105 @@ void s3End() { S3_deinitialize(); }
 int32_t s3Init() { return 0; /*s3Begin();*/ }
 
 void s3CleanUp() { /*s3End();*/
+}
+
+static int32_t s3ListBucket(char const *bucketname);
+
+int32_t s3CheckCfg() {
+  int32_t code = 0;
+
+  if (!tsS3Enabled) {
+    fprintf(stderr, "s3 not configured.\n");
+    goto _exit;
+  }
+
+  code = s3Begin();
+  if (code != 0) {
+    fprintf(stderr, "failed to initialize s3.\n");
+    goto _exit;
+  }
+
+  // test put
+  char        testdata[17] = "0123456789abcdef";
+  const char *objectname[] = {"s3test.txt"};
+  char        path[PATH_MAX] = {0};
+  int         ds_len = strlen(TD_DIRSEP);
+  int         tmp_len = strlen(tsTempDir);
+
+  snprintf(path, PATH_MAX, "%s", tsTempDir);
+  if (strncmp(tsTempDir + tmp_len - ds_len, TD_DIRSEP, ds_len) != 0) {
+    snprintf(path + tmp_len, PATH_MAX, "%s", TD_DIRSEP);
+    snprintf(path + tmp_len + ds_len, PATH_MAX, "%s", objectname[0]);
+  } else {
+    snprintf(path + tmp_len, PATH_MAX, "%s", objectname[0]);
+  }
+
+  TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  if (!fp) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    fprintf(stderr, "failed to open test file: %s.\n", path);
+    // uError("ERROR: %s Failed to open %s", __func__, path);
+    goto _exit;
+  }
+  if (taosWriteFile(fp, testdata, strlen(testdata)) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    fprintf(stderr, "failed to write test file: %s.\n", path);
+    goto _exit;
+  }
+  if (taosFsyncFile(fp) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    fprintf(stderr, "failed to fsync test file: %s.\n", path);
+    goto _exit;
+  }
+  taosCloseFile(&fp);
+
+  fprintf(stderr, "\nstart to put object: %s, file: %s content: %s\n", objectname[0], path, testdata);
+  code = s3PutObjectFromFileOffset(path, objectname[0], 0, 16);
+  if (code != 0) {
+    fprintf(stderr, "put object %s : failed.\n", objectname[0]);
+    goto _exit;
+  }
+  fprintf(stderr, "put object %s: success.\n\n", objectname[0]);
+
+  // list buckets
+  fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName);
+  code = s3ListBucket(tsS3BucketName);
+  if (code != 0) {
+    fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
+    goto _exit;
+  }
+  fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName);
+
+  // test range get
+  uint8_t *pBlock = NULL;
+  int      c_offset = 10;
+  int      c_len = 6;
+
+  fprintf(stderr, "start to range get object %s offset: %d len: %d.\n", objectname[0], c_offset, c_len);
+  code = s3GetObjectBlock(objectname[0], c_offset, c_len, true, &pBlock);
+  if (code != 0) {
+    fprintf(stderr, "get object %s : failed.\n", objectname[0]);
+    goto _exit;
+  }
+  char buf[7] = {0};
+  memcpy(buf, pBlock, c_len);
+  taosMemoryFree(pBlock);
+  fprintf(stderr, "object content: %s\n", buf);
+  fprintf(stderr, "get object %s: success.\n\n", objectname[0]);
+
+  // delete test object
+  fprintf(stderr, "start to delete object: %s.\n", objectname[0]);
+  code = s3DeleteObjects(objectname, 1);
+  if (code != 0) {
+    fprintf(stderr, "delete object %s : failed.\n", objectname[0]);
+    goto _exit;
+  }
+  fprintf(stderr, "delete object %s: success.\n\n", objectname[0]);
+
+  s3End();
+
+_exit:
+  return code;
 }
 
 static int should_retry() {
@@ -85,7 +189,7 @@ typedef struct {
 } TS3GetData;
 
 typedef struct {
-  char     err_msg[128];
+  char     err_msg[512];
   S3Status status;
   uint64_t content_length;
   char    *buf;
@@ -135,6 +239,30 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
       }
     }
   }
+}
+
+static SArray *getListByPrefix(const char *prefix);
+static void    s3FreeObjectKey(void *pItem);
+
+static int32_t s3ListBucket(char const *bucketname) {
+  int32_t code = 0;
+
+  SArray *objectArray = getListByPrefix("s3");
+  if (objectArray == NULL) {
+    return -1;
+  }
+
+  const char **object_name = TARRAY_DATA(objectArray);
+  int          size = TARRAY_SIZE(objectArray);
+
+  fprintf(stderr, "objects:\n");
+  for (int i = 0; i < size; ++i) {
+    fprintf(stderr, "%s\n", object_name[i]);
+  }
+
+  taosArrayDestroyEx(objectArray, s3FreeObjectKey);
+
+  return code;
 }
 
 typedef struct growbuffer {
@@ -471,10 +599,11 @@ static int32_t s3PutObjectFromFileSimple(S3BucketContext *bucket_context, char c
   } while (S3_status_is_retryable(data->status) && should_retry());
 
   if (data->status != S3StatusOK) {
-    s3PrintError(__FILE__, __LINE__, __func__, data->status, data->err_msg);
+    // s3PrintError(__FILE__, __LINE__, __func__, data->status, data->err_msg);
+    s3PrintError(NULL, __LINE__, __func__, data->status, data->err_msg);
     code = TAOS_SYSTEM_ERROR(EIO);
   } else if (data->contentLength) {
-    uError("%s Failed to read remaining %llu bytes from input", __func__, (unsigned long long)data->contentLength);
+    uError("%s Failed to put remaining %llu bytes", __func__, (unsigned long long)data->contentLength);
     code = TAOS_SYSTEM_ERROR(EIO);
   }
 
@@ -830,6 +959,66 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t w
   return code;
 }
 
+int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
+  int32_t                  code = 0;
+  int32_t                  lmtime = 0;
+  const char              *filename = 0;
+  uint64_t                 contentLength = 0;
+  const char              *cacheControl = 0, *contentType = 0, *md5 = 0;
+  const char              *contentDispositionFilename = 0, *contentEncoding = 0;
+  int64_t                  expires = -1;
+  S3CannedAcl              cannedAcl = S3CannedAclPrivate;
+  int                      metaPropertiesCount = 0;
+  S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
+  char                     useServerSideEncryption = 0;
+  put_object_callback_data data = {0};
+
+  if (taosStatFile(file, &contentLength, &lmtime, NULL) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
+    return code;
+  }
+
+  contentLength = size;
+
+  if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to open file %s: ", __func__, file);
+    return code;
+  }
+  if (taosLSeekFile(data.infileFD, offset, SEEK_SET) < 0) {
+    taosCloseFile(&data.infileFD);
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+
+  data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
+      contentLength;
+
+  S3BucketContext bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                   0, awsRegionG};
+
+  S3PutProperties putProperties = {contentType,     md5,
+                                   cacheControl,    contentDispositionFilename,
+                                   contentEncoding, expires,
+                                   cannedAcl,       metaPropertiesCount,
+                                   metaProperties,  useServerSideEncryption};
+
+  if (contentLength <= MULTIPART_CHUNK_SIZE) {
+    code = s3PutObjectFromFileSimple(&bucketContext, object_name, contentLength, &putProperties, &data);
+  } else {
+    code = s3PutObjectFromFileWithoutCp(&bucketContext, object_name, contentLength, &putProperties, &data);
+  }
+
+  if (data.infileFD) {
+    taosCloseFile(&data.infileFD);
+  } else if (data.gb) {
+    growbuffer_destroy(data.gb);
+  }
+
+  return code;
+}
+
 typedef struct list_bucket_callback_data {
   char     err_msg[512];
   S3Status status;
@@ -888,7 +1077,7 @@ static SArray *getListByPrefix(const char *prefix) {
 
   const char               *marker = 0, *delimiter = 0;
   int                       maxkeys = 0, allDetails = 0;
-  list_bucket_callback_data data;
+  list_bucket_callback_data data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
     uError("%s: %s", __func__, "out of memoty");
@@ -918,14 +1107,17 @@ static SArray *getListByPrefix(const char *prefix) {
       return data.objectArray;
     }
   } else {
-    s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
+    uError("failed to list with prefix %s: %s", prefix, S3_get_status_name(data.status));
+    // s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
   }
 
   taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
   return NULL;
 }
 
-void s3DeleteObjects(const char *object_name[], int nobject) {
+int32_t s3DeleteObjects(const char *object_name[], int nobject) {
+  int32_t code = 0;
+
   S3BucketContext   bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                      0, awsRegionG};
   S3ResponseHandler responseHandler = {0, &responseCompleteCallback};
@@ -938,8 +1130,11 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
 
     if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
       s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
+      code = -1;
     }
   }
+
+  return code;
 }
 
 void s3DeleteObjectsByPrefix(const char *prefix) {
@@ -991,12 +1186,12 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if (cbd.status != S3StatusOK) {
-    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    uError("%s: %d/%s(%s)", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }
 
   if (check && cbd.buf_pos != size) {
-    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    uError("%s: %d/%s(%s)", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }
 
@@ -1011,7 +1206,7 @@ static S3Status getObjectCallback(int bufferSize, const char *buffer, void *call
   return ((wrote < (size_t)bufferSize) ? S3StatusAbortedByCallback : S3StatusOK);
 }
 
-int32_t s3GetObjectToFile(const char *object_name, char *fileName) {
+int32_t s3GetObjectToFile(const char *object_name, const char *fileName) {
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
@@ -1023,9 +1218,11 @@ int32_t s3GetObjectToFile(const char *object_name, char *fileName) {
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    uError("[s3] open file error, errno:%d, fileName:%s", errno, fileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("[s3] open file error, errno:%d, fileName:%s", terrno, fileName);
     return -1;
   }
+
   TS3GetData cbd = {0};
   cbd.file = pFile;
   do {
@@ -1233,7 +1430,7 @@ void s3DeleteObjectsByPrefix(const char *prefix_str) {
   cos_pool_destroy(p);
 }
 
-void s3DeleteObjects(const char *object_name[], int nobject) {
+int32_t s3DeleteObjects(const char *object_name[], int nobject) {
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
   cos_string_t           bucket;
@@ -1267,6 +1464,8 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
   } else {
     cos_warn_log("delete objects failed\n");
   }
+
+  return 0;
 }
 
 bool s3Exists(const char *object_name) {
@@ -1535,8 +1734,9 @@ int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
 int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
+int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) { return 0; }
 void    s3DeleteObjectsByPrefix(const char *prefix) {}
-void    s3DeleteObjects(const char *object_name[], int nobject) {}
+int32_t s3DeleteObjects(const char *object_name[], int nobject) { return 0; }
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }
 int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
@@ -1545,6 +1745,6 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 void    s3EvictCache(const char *path, long object_size) {}
 long    s3Size(const char *object_name) { return 0; }
 int32_t s3GetObjectsByPrefix(const char *prefix, const char *path) { return 0; }
-int32_t s3GetObjectToFile(const char *object_name, char *fileName) { return 0; }
+int32_t s3GetObjectToFile(const char *object_name, const char *fileName) { return 0; }
 
 #endif

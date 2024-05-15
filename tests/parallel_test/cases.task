@@ -11,15 +11,18 @@
 # army-test
 #
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f community/query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+,,n,army,python3 ./test.py -f community/query/show.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
 
 #
 # system test
@@ -44,6 +47,10 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_varchar.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
@@ -104,6 +111,15 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -119,6 +135,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_primary_key.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
@@ -238,7 +255,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
@@ -303,6 +321,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
@@ -326,6 +347,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
@@ -359,6 +381,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
@@ -588,6 +611,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -936,6 +960,7 @@
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
+,,y,script,./test.sh -f tsim/join/join.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
 ,,y,script,./test.sh -f tsim/parser/join_manyblocks.sim
@@ -1055,6 +1080,13 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_uint.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_timestamp.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_nchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varbinary.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_json.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_geometry.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
 ,,y,script,./test.sh -f tsim/parser/condition_scl.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
@@ -1085,6 +1117,7 @@
 ,,y,script,./test.sh -f tsim/parser/join_multivnode.sim
 ,,y,script,./test.sh -f tsim/parser/join.sim
 ,,y,script,./test.sh -f tsim/parser/last_cache.sim
+,,y,script,./test.sh -f tsim/parser/last_both.sim
 ,,y,script,./test.sh -f tsim/parser/last_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow.sim
 ,,y,script,./test.sh -f tsim/parser/lastrow2.sim
@@ -1155,6 +1188,7 @@
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
 ,,y,script,./test.sh -f tsim/query/query_count0.sim
 ,,y,script,./test.sh -f tsim/query/query_count_sliding0.sim
+,,y,script,./test.sh -f tsim/query/union_precision.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1207,10 +1241,12 @@
 ,,y,script,./test.sh -f tsim/stream/countSliding1.sim
 ,,y,script,./test.sh -f tsim/stream/countSliding2.sim
 ,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
+,,y,script,./test.sh -f tsim/stream/deleteScalar.sim
 ,,y,script,./test.sh -f tsim/stream/deleteSession.sim
 ,,y,script,./test.sh -f tsim/stream/deleteState.sim
 ,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+,,y,script,./test.sh -f tsim/stream/distributeMultiLevelInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/event0.sim
@@ -1231,6 +1267,7 @@
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
@@ -1241,8 +1278,13 @@
 ,,y,script,./test.sh -f tsim/stream/sliding.sim
 ,,y,script,./test.sh -f tsim/stream/state0.sim
 ,,y,script,./test.sh -f tsim/stream/state1.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
 ,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
 ,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
@@ -1324,6 +1366,7 @@
 ,,y,script,./test.sh -f tsim/compress/commitlog.sim
 ,,y,script,./test.sh -f tsim/compress/compress2.sim
 ,,y,script,./test.sh -f tsim/compress/compress.sim
+,,y,script,./test.sh -f tsim/compress/compress_col.sim
 ,,y,script,./test.sh -f tsim/compress/uncompress.sim
 ,,y,script,./test.sh -f tsim/compute/avg.sim
 ,,y,script,./test.sh -f tsim/compute/block_dist.sim

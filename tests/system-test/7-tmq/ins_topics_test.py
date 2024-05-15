@@ -38,6 +38,14 @@ class TDTestCase:
         tdSql.execute("create topic topic_2 with meta as stable db1.st")
         tdSql.execute("create topic topic_3 as select * from db1.nt")
         tdSql.execute("create topic topic_4 as select ts,c3,c5,t2 from db1.st")
+        for i in range(5, 21):
+            tdSql.execute(f"create topic topic_{i} as select ts,c3,c5,t2 from db1.st")
+
+        tdSql.error("create topic topic_21 as select * from db1.nt")
+        tdSql.execute("create topic if not exists topic_1 as database db1")
+        for i in range(5, 21):
+            tdSql.execute(f"drop topic topic_{i}")
+
 
         tdSql.query("select * from information_schema.ins_topics order by topic_name")
         tdSql.checkRows(4)

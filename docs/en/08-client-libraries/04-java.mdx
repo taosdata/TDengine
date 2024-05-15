@@ -26,11 +26,11 @@ TDengine's JDBC driver implementation is as consistent as possible with the rela
 - **REST connection**, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported. 
 - **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.   
 
-For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
 ## Compatibility with JDBC and JRE Versions
 
-- JDBC: mainly supports JDBC 4.2 version, some features like schemaless and data subscription are provided individually.  
+- JDBC: implements JDBC 4.2 version, some features like schemaless and data subscription are provided individually.  
 - JRE: supports JRE 8 or higher.  
 
 ## Supported platforms
@@ -42,6 +42,9 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.2.11         | Fixed the result set closing bug when using a native connection.|        -         |
+|          3.2.10         | 1. Automatic compression/decompression for data transmission, disabled by default; 2.Automatic reconnection for websocket with configurable parameter, disabled by default; 3. A new method for schemaless writing is added in the connection class; 4. Optimized performance for data fetching on native connection; 5. Fixing for some known issues; 6. The list of supported functions can be returned by the API for retrieving metadata|        -         |
+|          3.2.9          |  Fixed websocket prepareStatement closing bug.                                                                                                         |        -         |
 |          3.2.8          |  Improved autocommit, fixed commit offset on websocket connection bug, websocket prepareStatement uses one connection and meta data supports view. |        -         |
 |          3.2.7          |  Support VARBINARY and GEOMETRY types, and add time zone support for native connections. Support websocket auto reconnection                       | 3.2.0.0 or later |
 |          3.2.5          |                                                Subscription add committed() and assignment() method                                                | 3.1.0.3 or later |
@@ -51,7 +54,7 @@ REST connection supports all platforms that can run Java.
 |          3.2.1          |                                      JDBC REST connection supports schemaless/prepareStatement over WebSocket                                      | 3.0.3.0 or later |
 |          3.2.0          |                                                          This version has been deprecated                                                          |        -         |
 |          3.1.0          |                                             JDBC REST connection supports subscription over WebSocket                                              |        -         |
-|      3.0.1 - 3.0.4      | fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |        -         |
+|      3.0.1 - 3.0.4      | Fixed the issue of result set data sometimes parsing incorrectly. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |        -         |
 |          3.0.0          |                                                              Support for TDengine 3.0                                                              | 3.0.0.0 or later |
 |         2.0.42          |                                             Fix wasNull interface return value in WebSocket connection                                             |        -         |
 |         2.0.41          |                                           Fix decode method of username and password in REST connection                                            |        -         |
@@ -156,7 +159,7 @@ For Java connector, the jts library can be used to easily create GEOMETRY type o
 Before using Java client library to connect to the database, the following conditions are required.
 
 - Java 1.8 or above runtime environment and Maven 3.6 or above installed
-- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](../#Install-Client-Driver)
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Install Client Driver](../#install-client-driver)
 
 ### Install the client library
 
@@ -175,7 +178,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.2.8</version>
+ <version>3.2.11</version>
 </dependency>
 ```
 
@@ -334,7 +337,6 @@ public Connection getConn() throws Exception{
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
   connProps.setProperty("debugFlag", "135");
-  connProps.setProperty("maxSQLLength", "1048576");
   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
   return conn;
 }
@@ -366,8 +368,15 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection. It only takes effect when using JDBC REST connection.
 - TSDBDriver.HTTP_POOL_SIZE: size of REST concurrent requests. The default value is 20.
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: Whether to enable compression during transmission. It only takes effect when using REST/Websocket connections. true: enabled, false: disabled. The default is false.
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. It only takes effect when using Websocket connections. true: enabled, false: disabled. The default is false.
+> **Note**：Enabling automatic reconnection is only effective for simple SQL statement execution, schemaless writing, and data subscription. It is not effective for parameter binding. Automatic reconnection is only effective for the database specified by parameters when the connection is established, and it is not effective for the `use db` statement to switch databases later.
 
-For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#Client-Only).
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: The interval for automatic reconnection retries, in milliseconds, with a default value of 2000. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The number of automatic reconnection retries, with a default value of 3. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+
+
+For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#configuration-file-on-client-side).
 
 ### Priority of configuration parameters
 
@@ -523,12 +532,8 @@ The TDengine Java client library supports subscription functionality with the fo
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopImp.java:create_topic}}
 ```
 
-The three parameters of the `subscribe()` method have the following meanings.
-
-- topic_meters: the subscribed topic (name). This is the unique identifier of the subscription.
-- sql: the query statement of the subscription which can only be a _SELECT_ statement. Only the original data should be queried, and data can only be queried in temporal order..
-
-The preceding example uses the SQL statement `SELECT ts, current, voltage, phase, groupid, location FROM meters` and creates a subscription named `topic_meters`.
+The preceding example uses the SQL statement `SELECT ts, current, voltage, phase, groupid, location FROM meters` and creates a topic named `topic_meters`.
+> **Note**: the query statement of the topic which can only be a _SELECT_ statement. Only the original data should be queried, and data can only be queried in temporal order.
 
 #### Create a Consumer
 
@@ -544,8 +549,12 @@ The preceding example uses the SQL statement `SELECT ts, current, voltage, phase
 - httpConnectTimeout: WebSocket connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using WebSocket type.
 - messageWaitTimeout: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
 - httpPoolSize: Maximum number of concurrent requests on the a connection。It only takes effect when using WebSocket type.  
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: Whether to enable compression during transmission. It only takes effect when using Websocket connections. true: enabled, false: disabled. The default is false.
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. It only takes effect when using Websocket connections. true: enabled, false: disabled. The default is false.
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: The interval for automatic reconnection retries, in milliseconds, with a default value of 2000. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The number of automatic reconnection retries, with a default value of 3. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 
-For more information, see [Consumer Parameters](../../develop/tmq). Note that the default value of auto.offset.reset in data subscription on the TDengine server has changed since version 3.2.0.0.
+For more information, see [Consumer Parameters](../../develop/tmq/#create-a-consumer). Note that the default value of auto.offset.reset in data subscription on the TDengine server has changed since version 3.2.0.0.
 
 #### Subscribe to consume data
 
@@ -553,7 +562,8 @@ For more information, see [Consumer Parameters](../../develop/tmq). Note that th
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:poll_data}}
 ```
 
-`poll` obtains one message each time it is run.
+The parameters of the subscribe method are defined as: a list of topics to subscribe, and it supports subscribing to multiple topics at the same time. 
+`poll` retrieves a single message with each execution, and a single message may contain multiple records.
 
 #### Assignment subscription Offset
 

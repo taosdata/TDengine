@@ -22,20 +22,21 @@
 #ifdef TD_JEMALLOC_ENABLED
 #include "jemalloc/jemalloc.h"
 #endif
+#include "dmUtil.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
 #else
 #ifndef CUS_NAME
-    #define CUS_NAME      "TDengine"
+#define CUS_NAME "TDengine"
 #endif
 
 #ifndef CUS_PROMPT
-    #define CUS_PROMPT    "taos"
+#define CUS_PROMPT "taos"
 #endif
 
 #ifndef CUS_EMAIL
-    #define CUS_EMAIL     "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 #endif
 // clang-format off
@@ -49,6 +50,8 @@
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
+#define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
+
 // clang-format on
 static struct {
 #ifdef WINDOWS
@@ -58,6 +61,7 @@ static struct {
   bool         dumpSdb;
   bool         generateGrant;
   bool         memDbg;
+  bool         checkS3;
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -66,9 +70,11 @@ static struct {
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
   int64_t      startTime;
+  bool         generateCode;
+  char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
-static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143); }
+static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
@@ -169,7 +175,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("apollo url overflow");
           return -1;
@@ -182,7 +188,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("env file path overflow");
           return -1;
@@ -194,6 +200,23 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-y") == 0) {
+      global.generateCode = true;
+      if(i < argc - 1) {
+        int32_t len = strlen(argv[++i]);
+        if (len < ENCRYPT_KEY_LEN_MIN) {
+          printf("Error: Encrypt key should be at least %d characters\n", ENCRYPT_KEY_LEN_MIN);
+          return -1;
+        }
+        if (len > ENCRYPT_KEY_LEN) {
+          printf("Error: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
+          return -1;
+        }
+        tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
+      } else {
+        printf("'-y' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -207,6 +230,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
+    } else if (strcmp(argv[i], "--checks3") == 0) {
+      global.checkS3 = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
@@ -256,6 +281,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+  printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
@@ -267,8 +293,21 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
+static int32_t dmCheckS3() {
+  int32_t  code = 0;
+  SConfig *pCfg = taosGetCfg();
+  cfgDumpCfgS3(pCfg, 0, true);
+#if defined(USE_S3)
+  extern int32_t s3CheckCfg();
+
+  code = s3CheckCfg();
+#endif
+  return code;
+}
+
 static int32_t dmInitLog() {
-  return taosCreateLog(CUS_PROMPT"dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
+  return taosCreateLog(CUS_PROMPT "dlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
+                       0);
 }
 
 static void taosCleanupArgs() {
@@ -286,7 +325,7 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmParseArgs(argc, argv) != 0) {
-    printf("failed to start since parse args error\n");
+    //printf("failed to start since parse args error\n");
     taosCleanupArgs();
     return -1;
   }
@@ -341,18 +380,49 @@ int mainWindows(int argc, char **argv) {
 
   dmPrintArgs(argc, argv);
 
-  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
+  bool isDumpCfg = true;
+  if(global.generateCode) {
+    isDumpCfg = false;
+  }
+  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0, isDumpCfg) != 0) {
     dError("failed to start since read config error");
     taosCloseLog();
     taosCleanupArgs();
     return -1;
   }
 
+  if(global.generateCode) {
+    if(dmCheckRunning(tsDataDir) == NULL) {
+      dError("failed to generate encrypt code since taosd is running, please stop it first");
+      return -1;
+    }
+    int ret = dmUpdateEncryptKey(global.encryptKey);
+    taosCloseLog();
+    taosCleanupArgs();
+    return ret;
+  }
+
+  if(dmGetEncryptKey() != 0){
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return -1;
+  };
+
   if (taosConvInit() != 0) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
     return -1;
+  }
+
+  if (global.checkS3) {
+    int32_t code = dmCheckS3();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return code;
   }
 
   if (global.dumpConfig) {
