@@ -111,7 +111,7 @@ TEST(osSemaphoreTests, Performance1_1) {
   const int count = 100000;
 
   tsem_init(&sem, 0, 0);
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem_post(&sem);
     }
@@ -128,7 +128,7 @@ TEST(osSemaphoreTests, Performance1_2) {
   const int count = 100000;
 
   tsem2_init(&sem, 0, 0);
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem2_post(&sem);
     }
@@ -145,13 +145,13 @@ TEST(osSemaphoreTests, Performance2_1) {
   const int count = 50000;
 
   tsem_init(&sem, 0, 0);
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem_post(&sem);
     }
   }).detach();
   
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem_post(&sem);
     }
@@ -168,13 +168,13 @@ TEST(osSemaphoreTests, Performance2_2) {
   const int count = 50000;
 
   tsem2_init(&sem, 0, 0);
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem2_post(&sem);
     }
   }).detach();
   
-  std::thread([&sem]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       tsem2_post(&sem);
     }
@@ -213,7 +213,7 @@ TEST(osSemaphoreTests, Performance4_1) {
   for (int i = 0; i < count; ++i) {
     tsem_t sem;
     tsem_init(&sem, 0, 0);
-    std::thread([&sem]() {
+    std::thread([&sem, count]() {
       tsem_post(&sem);
     }).detach();
 
@@ -228,7 +228,7 @@ TEST(osSemaphoreTests, Performance4_2) {
   for (int i = 0; i < count; ++i) {
     tsem2_t sem;
     tsem2_init(&sem, 0, 0);
-    std::thread([&sem]() {
+    std::thread([&sem, count]() {
       tsem2_post(&sem);
     }).detach();
 
