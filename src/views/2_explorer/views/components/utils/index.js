@@ -296,55 +296,6 @@ export const storageCompression = {
   
 }
 
-// {
-//   label: "simple8b",
-//   value: "simple8b",
-// },
-// {
-//   label: "bit-packing",
-//   value: "bit-packing",
-// },
-// {
-//   label: "delta-i",
-//   value: "delta-i",
-// },
-// {
-//   label: "delta-d",
-//   value: "delta-d",
-// },
-// {
-//   label: "disabled",
-//   value: "disabled",
-// }
-
-export const compressList = [
-  {
-    label: "lz4",
-    value: "lz4",
-  },
-  {
-    label: "zlib",
-    value: "zlib",
-  },
-  {
-    label: "zstd",
-    value: "zstd",
-  },
-  {
-    label: "tsz",
-    value: "tsz",
-  },
-  {
-    label: "xz",
-    value: "xz",
-  },
-  {
-    label: "disabled",
-    value: "disabled",
-  },
-  // 'lz4','zlib','zstd','tsz','xz','disabled' 
-]
-
 export const levelList = [
   {
     label: "high",
@@ -358,5 +309,4 @@ export const levelList = [
     label: "medium",
     value: "medium",
   },
-  // 'high', 'low', 'medium'
 ]
