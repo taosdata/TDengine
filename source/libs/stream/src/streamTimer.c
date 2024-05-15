@@ -13,36 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_GEOS_CTX_H_
-#define _TD_UTIL_GEOS_CTX_H_
+#include "streamInt.h"
+#include "ttimer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void* streamTimer = NULL;
 
-#include <geos_c.h>
-#include <tpcre2.h>
+int32_t streamTimerInit() {
+  streamTimer = taosTmrInit(1000, 100, 10000, "STREAM");
+  if (streamTimer == NULL) {
+    stError("init stream timer failed, code:%s", tstrerror(terrno));
+    return -1;
+  }
 
-typedef struct SGeosContext {
-  GEOSContextHandle_t handle;
-
-  GEOSWKTReader *WKTReader;
-  GEOSWKTWriter *WKTWriter;
-
-  GEOSWKBReader *WKBReader;
-  GEOSWKBWriter *WKBWriter;
-
-  pcre2_code *WKTRegex;
-  pcre2_match_data *WKTMatchData;
-
-  char errMsg[512];
-} SGeosContext;
-
-SGeosContext* getThreadLocalGeosCtx();
-void destroyThreadLocalGeosCtx();
-
-#ifdef __cplusplus
+  stInfo("init stream timer, %p", streamTimer);
+  return 0;
 }
-#endif
 
-#endif /*_TD_UTIL_GEOS_CTX_H_*/
+void streamTimerCleanUp() {
+  stInfo("cleanup stream timer, %p", streamTimer);
+  taosTmrCleanUp(streamTimer);
+  streamTimer = NULL;
+}
+
+tmr_h streamTimerGetInstance() {
+  return streamTimer;
+}

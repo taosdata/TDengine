@@ -842,7 +842,7 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osDataSpaceAvailable()) {
     terrno = TSDB_CODE_NO_DISKSPACE;
-    fnError("udfd create shared library failed since %s", terrstr(terrno));
+    fnError("udfd create shared library failed since %s", terrstr());
     return terrno;
   }
 
@@ -1424,7 +1424,7 @@ int main(int argc, char *argv[]) {
     printf("failed to start since init log error\n");
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0, true) != 0) {
     fnError("failed to start since read config error");
     return -2;
   }

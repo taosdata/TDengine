@@ -39,7 +39,7 @@ static int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId
 static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId);
 
 // check status
-void streamTaskCheckDownstream(SStreamTask* pTask) {
+void streamTaskSendCheckMsg(SStreamTask* pTask) {
   SDataRange*  pRange = &pTask->dataRange;
   STimeWindow* pWindow = &pRange->window;
   const char*  idstr = pTask->id.idStr;
@@ -97,7 +97,47 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
   }
 }
 
-int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
+void streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp) {
+  int32_t taskId = pReq->downstreamTaskId;
+
+  *pRsp = (SStreamTaskCheckRsp){
+      .reqId = pReq->reqId,
+      .streamId = pReq->streamId,
+      .childId = pReq->childId,
+      .downstreamNodeId = pReq->downstreamNodeId,
+      .downstreamTaskId = pReq->downstreamTaskId,
+      .upstreamNodeId = pReq->upstreamNodeId,
+      .upstreamTaskId = pReq->upstreamTaskId,
+  };
+
+  // only the leader node handle the check request
+  if (pMeta->role == NODE_ROLE_FOLLOWER) {
+    stError(
+        "s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check status msg",
+        taskId, pReq->upstreamTaskId, pReq->upstreamNodeId, pMeta->vgId);
+    pRsp->status = TASK_DOWNSTREAM_NOT_LEADER;
+  } else {
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, taskId);
+    if (pTask != NULL) {
+      pRsp->status = streamTaskCheckStatus(pTask, pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->stage, &pRsp->oldStage);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      SStreamTaskState* pState = streamTaskGetStatus(pTask);
+      stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(reqId:0x%" PRIx64
+              ") task:0x%x (vgId:%d), check_status:%d",
+              pTask->id.idStr, pState->name, pRsp->oldStage, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId,
+              pRsp->status);
+    } else {
+      pRsp->status = TASK_DOWNSTREAM_NOT_READY;
+      stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
+              ") from task:0x%x (vgId:%d), rsp check_status %d",
+              pReq->streamId, taskId, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId, pRsp->status);
+    }
+  }
+
+}
+
+int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
 
   int64_t         now = taosGetTimestampMs();
@@ -152,13 +192,39 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         STaskId* pId = &pTask->hTaskInfo.id;
         streamMetaAddTaskLaunchResult(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
       }
-    } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
+    } else {  // TASK_DOWNSTREAM_NOT_READY, rsp-check monitor will retry in 300 ms
       ASSERT(left > 0);
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
               pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
     }
   }
 
+  return 0;
+}
+
+int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTaskCheckRsp* pRsp,
+                           SRpcHandleInfo* pRpcInfo, int32_t taskId) {
+  SEncoder encoder;
+  int32_t  code;
+  int32_t  len;
+
+  tEncodeSize(tEncodeStreamTaskCheckRsp, pRsp, len, code);
+  if (code < 0) {
+    stError("vgId:%d failed to encode task check rsp, s-task:0x%x", pMeta->vgId, taskId);
+    return -1;
+  }
+
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
+  ((SMsgHead*)buf)->vgId = htonl(vgId);
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tEncoderInit(&encoder, (uint8_t*)abuf, len);
+  tEncodeStreamTaskCheckRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
+
+  SRpcMsg rspMsg = {.code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = *pRpcInfo};
+
+  tmsgSendRsp(&rspMsg);
   return 0;
 }
 
@@ -341,23 +407,23 @@ int32_t streamTaskCompleteCheckRsp(STaskCheckInfo* pInfo, bool lock, const char*
     taosThreadMutexLock(&pInfo->checkInfoLock);
   }
 
-  if (!pInfo->inCheckProcess) {
-//    stWarn("s-task:%s already not in-check-procedure", id);
+  if (pInfo->inCheckProcess) {
+    int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
+    stDebug("s-task:%s clear the in check-rsp flag, set the check-rsp done, elapsed time:%" PRId64 " ms", id, el);
+
+    pInfo->startTs = 0;
+    pInfo->timeoutStartTs = 0;
+    pInfo->notReadyTasks = 0;
+    pInfo->inCheckProcess = 0;
+    pInfo->stopCheckProcess = 0;
+
+    pInfo->notReadyRetryCount = 0;
+    pInfo->timeoutRetryCount = 0;
+
+    taosArrayClear(pInfo->pList);
+  } else {
+    stDebug("s-task:%s already not in check-rsp procedure", id);
   }
-
-  int64_t el = (pInfo->startTs != 0) ? (taosGetTimestampMs() - pInfo->startTs) : 0;
-  stDebug("s-task:%s clear the in check-rsp flag, not in check-rsp anymore, elapsed time:%" PRId64 " ms", id, el);
-
-  pInfo->startTs = 0;
-  pInfo->timeoutStartTs = 0;
-  pInfo->notReadyTasks = 0;
-  pInfo->inCheckProcess = 0;
-  pInfo->stopCheckProcess = 0;
-
-  pInfo->notReadyRetryCount = 0;
-  pInfo->timeoutRetryCount = 0;
-
-  taosArrayClear(pInfo->pList);
 
   if (lock) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
@@ -393,6 +459,9 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
       .childId = pTask->info.selfChildId,
       .stage = pTask->pMeta->stage,
   };
+
+  // update the reqId for the new check msg
+  p->reqId = tGenIdPI64();
 
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
   if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
@@ -527,23 +596,7 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
 // The restart of all tasks requires that all tasks should not have active timer for now. Therefore, the execution
 // of restart in timer thread will result in a dead lock.
 int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId) {
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    stError("vgId:%d failed to create msg to stop tasks async, code:%s", vgId, terrstr());
-    return -1;
-  }
-
-  stDebug("vgId:%d create msg add failed s-task:0x%x", vgId, taskId);
-
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = STREAM_EXEC_T_ADD_FAILED_TASK;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  return 0;
+  return streamTaskSchedTask(pMsgCb, vgId, streamId, taskId, STREAM_EXEC_T_ADD_FAILED_TASK);
 }
 
 // this function is executed in timer thread
@@ -667,60 +720,3 @@ void rspMonitorFn(void* param, void* tmrId) {
   taosArrayDestroy(pTimeoutList);
 }
 
-int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->reqId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->reqId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->stage) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->reqId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->downstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->childId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->oldStage) < 0) return -1;
-  if (tEncodeI8(pEncoder, pRsp->status) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->reqId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->oldStage) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pRsp->status) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}

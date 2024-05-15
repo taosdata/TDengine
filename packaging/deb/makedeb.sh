@@ -76,11 +76,11 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
-if [ -f "%{_compiledir}/../../../explorer/target/taos-explorer.service" ]; then
-    cp %{_compiledir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
+    cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
 fi
-if [ -f "%{_compiledir}/../../../explorer/server/example/explorer.toml" ]; then
-    cp %{_compiledir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
+    cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin

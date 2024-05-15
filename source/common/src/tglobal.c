@@ -60,15 +60,15 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 10;
-int32_t tsNumOfMnodeQueryThreads = 4;
+int32_t tsNumOfTaskQueueThreads = 16;
+int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
-int32_t tsNumOfVnodeQueryThreads = 4;
+int32_t tsNumOfVnodeQueryThreads = 16;
 float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
-int32_t tsNumOfQnodeQueryThreads = 4;
+int32_t tsNumOfQnodeQueryThreads = 16;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
@@ -296,6 +296,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+int8_t tsS3Oss = false;
 int8_t tsS3StreamEnabled = false;
 
 int8_t tsS3Https = true;
@@ -365,6 +366,10 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
     } else {
       tstrncpy(tsS3AppId, appid + 1, TSDB_FQDN_LEN);
     }
+  }
+  char *oss = strstr(tsS3Endpoint, "aliyuncs.");
+  if (oss) {
+    tsS3Oss = true;
   }
   if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
@@ -554,7 +559,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores;
-  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 10);
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
 
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
@@ -647,7 +652,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   tsNumOfVnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 16);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) !=
       0)
     return -1;
@@ -668,7 +673,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 16);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) !=
       0)
     return -1;
@@ -918,7 +923,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfVnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeQueryThreads = numOfCores * 2;
-    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 16);
     pItem->i32 = tsNumOfVnodeQueryThreads;
     pItem->stype = stype;
   }
@@ -948,7 +953,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfQnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfQnodeQueryThreads = numOfCores * 2;
-    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 16);
     pItem->i32 = tsNumOfQnodeQueryThreads;
     pItem->stype = stype;
   }
@@ -1387,7 +1392,7 @@ static int32_t taosCheckGlobalCfg() {
 }
 
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc) {
+                    bool tsc, bool isDumpCfg) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -1434,7 +1439,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
-  cfgDumpCfg(tsCfg, tsc, false);
+  if(isDumpCfg) cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
     return -1;

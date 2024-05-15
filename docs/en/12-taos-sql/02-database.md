@@ -60,7 +60,7 @@ database_option: {
 - PAGES: specifies the number of pages in the metadata storage engine cache on each vnode. Enter a value greater than or equal to 64. The default value is 256. The space occupied by metadata storage on each vnode is equal to the product of the values of the PAGESIZE and PAGES parameters. The space occupied by default is 1 MB.
 - PAGESIZE: specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.
 - PRECISION: specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.
-- REPLICA: specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is 1. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.
+- REPLICA: specifies the number of replicas that are made of the database. Enter 1, 2 or 3. The default value is 1. 2 is only available in TDengine Enterprise since version 3.3.0.0. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.
 - WAL_LEVEL: specifies whether fsync is enabled. The default value is 1.
   - 1: WAL is enabled but fsync is disabled.
   - 2: WAL and fsync are both enabled.
