@@ -542,7 +542,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     }
 
     memcpy(*pTableMeta, tbMeta, metaSize);
-    (*pTableMeta)->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
+    (*pTableMeta)->pHashJsonTemplate = taosHashCopyJsonTemplate(tbMeta->pHashJsonTemplate);
     if (tbMeta->schemaExt != NULL) {
       (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
       memcpy((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
@@ -597,7 +597,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   memcpy(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
-  (*pTableMeta)->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
+  (*pTableMeta)->pHashJsonTemplate = taosHashCopyJsonTemplate(tbMeta->pHashJsonTemplate);
   (*pTableMeta)->schemaExt =  NULL;
 
   return TSDB_CODE_SUCCESS;
@@ -2906,7 +2906,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->schemaExt = NULL;
       }
 
-      pTableMeta->pHashJsonTemplate = taosHashCopy(tbMeta->pHashJsonTemplate);
+      pTableMeta->pHashJsonTemplate = taosHashCopyJsonTemplate(tbMeta->pHashJsonTemplate);
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
 

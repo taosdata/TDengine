@@ -68,7 +68,7 @@ TEST_F(BuildJsonTemplateTest, TemplateArrayIsEmpty) {
 
 TEST_F(BuildJsonTemplateTest, TemplateArrayHasElements) {
   // Arrange
-  SHashObj* pHashJsonTemplate = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);;
+  SHashObj* pHashJsonTemplate = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);;
   col_id_t colId = 0;
   char jsonBuf[20];
   int jsonBufLen = 20;

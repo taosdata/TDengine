@@ -17,18 +17,18 @@ class TDTestCase:
         self.dbname = "test"
         self.jsonTemplate = '''{
             "k1": "string",
-            "k2": "int",
+            "k2": "long",
             "k3": ["double"],
             "k4": "long",
             "k5": {
                 "k6": "boolean",
                 "k7": "double"
-                }，
+                },
             "k8": "string"
         }'''
         self.jsonTemplate1 = '''{
             "k1": "string",
-            "k2": "int"
+            "k2": "long"
         }'''
 
     def check_create_table_result(self):

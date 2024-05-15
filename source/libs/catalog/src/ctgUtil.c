@@ -1558,7 +1558,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
     }
-    (*pOutput)->tbMeta->pHashJsonTemplate = taosHashCopy(output->tbMeta->pHashJsonTemplate);
+    (*pOutput)->tbMeta->pHashJsonTemplate = taosHashCopyJsonTemplate(output->tbMeta->pHashJsonTemplate);
   }
 
   return TSDB_CODE_SUCCESS;

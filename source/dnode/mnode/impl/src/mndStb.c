@@ -194,9 +194,9 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_INT32(pRaw, dataPos, taosHashGetSize(pStb->pHashJsonTemplate), _OVER);
     pIter = taosHashIterate(pStb->pHashJsonTemplate, NULL);
     while (pIter != NULL) {
-      int32_t* colId = taosHashGetKey(pIter, NULL);
+      col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);
       SArray* pArray = *(SArray**)(pIter);
-      SDB_SET_INT32(pRaw, dataPos, *colId, _OVER);
+      SDB_SET_INT16(pRaw, dataPos, *colId, _OVER);
       SDB_SET_INT32(pRaw, dataPos, taosArrayGetSize(pArray), _OVER);
       for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
         SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
@@ -337,14 +337,14 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   int32_t len = 0;
   SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
   if (len > 0) {
-    pStb->pHashJsonTemplate = taosHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    pStb->pHashJsonTemplate = taosHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
     if (pStb->pHashJsonTemplate == NULL) {
       goto _OVER;
     }
     taosHashSetFreeFp(pStb->pHashJsonTemplate, destroyJsonTemplateArray);
     for (int32_t i = 0; i < len; ++i) {
-      int32_t colId = 0;
-      SDB_GET_INT32(pRaw, dataPos, &colId, _OVER);
+      col_id_t colId = 0;
+      SDB_GET_INT16(pRaw, dataPos, &colId, _OVER);
       int32_t arrLen = 0;
       SDB_GET_INT32(pRaw, dataPos, &arrLen, _OVER);
       SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
@@ -993,7 +993,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
 
   if (hasJsonCol){
-    pDst->pHashJsonTemplate = taosHashInit(pDst->numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    pDst->pHashJsonTemplate = taosHashInit(pDst->numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
     if(pDst->pHashJsonTemplate == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -2181,7 +2181,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     pSchEx->compress = pCmpr->alg;
   }
 
-  pRsp->pHashJsonTemplate = taosHashCopy(pStb->pHashJsonTemplate);
+  pRsp->pHashJsonTemplate = taosHashCopyJsonTemplate(pStb->pHashJsonTemplate);
   taosRUnLockLatch(&pStb->lock);
   return 0;
 }
@@ -2552,7 +2552,7 @@ static int32_t mndUpdateSuperTableJsonTemplate(const SStbObj *pOld, SStbObj *pNe
     return -1;
   }
 
-  pNew->pHashJsonTemplate = taosHashCopy(pOld->pHashJsonTemplate);
+  pNew->pHashJsonTemplate = taosHashCopyJsonTemplate(pOld->pHashJsonTemplate);
   if(pNew->pHashJsonTemplate){
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

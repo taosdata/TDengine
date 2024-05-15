@@ -958,7 +958,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
       tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
     }
 
-    me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
     if(me.pHashJsonTemplate == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;

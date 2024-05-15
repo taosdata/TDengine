@@ -222,8 +222,6 @@ void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj);
 
-SHashObj *taosHashCopy(SHashObj *pHashObj);
-
 #ifdef __cplusplus
 }
 #endif

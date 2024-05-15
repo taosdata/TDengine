@@ -854,25 +854,3 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return 0 /*atomic_load_64(&pHashObj->compTimes)*/; }
-
-SHashObj *taosHashCopy(SHashObj *pHashObj){
-  if(pHashObj == NULL) return NULL;
-  SHashObj *pNewHashObj = taosHashInit(pHashObj->capacity, pHashObj->hashFp, pHashObj->enableUpdate, pHashObj->type);
-  if (pNewHashObj == NULL) {
-    return NULL;
-  }
-
-  pNewHashObj->freeFp = pHashObj->freeFp;
-  taosHashRLock(pHashObj);
-  void *p = taosHashIterate(pHashObj, NULL);
-  while (p) {
-    void *key = taosHashGetKey(p, NULL);
-    void *data = taosHashAcquire(pHashObj, key, strlen(key));
-    taosHashPut(pNewHashObj, key, strlen(key), data, taosHashGetValueSize(data));
-    taosHashRelease(pHashObj, data);
-    p = taosHashIterate(pHashObj, p);
-  }
-  taosHashRUnlock(pHashObj);
-
-  return pNewHashObj;
-}

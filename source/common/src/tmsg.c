@@ -10618,6 +10618,82 @@ void destroyJsonTemplateArray(void *data){
     taosMemoryFreeClear(tmp->templateJsonString);
   }
 
-  taosArrayDestroy(data);
+  taosArrayDestroy(array);
 }
 
+SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
+  if(pHashObj == NULL) return NULL;
+  SHashObj *pNewHashObj = taosHashInit(taosHashGetSize(pHashObj), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+  if(pNewHashObj == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  taosHashSetFreeFp(pNewHashObj, destroyJsonTemplateArray);
+  void *p = taosHashIterate(pHashObj, NULL);
+  while (p) {
+    void *key = taosHashGetKey(p, NULL);
+    SArray *data = *(SArray **)p;
+    SArray *dataDup = taosArrayDup(data, NULL);
+    taosHashPut(pNewHashObj, key, strlen(key), &dataDup, POINTER_BYTES);
+    p = taosHashIterate(pHashObj, p);
+  }
+
+  return pNewHashObj;
+}
+
+int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate) {
+  if (tEncodeI32v(pEncoder, taosHashGetSize(pHashJsonTemplate)) < 0) return -1;
+  void* pIter = taosHashIterate(pHashJsonTemplate, NULL);
+  while (pIter != NULL) {
+    col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);
+    SArray* pArray = *(SArray**)(pIter);
+    if (tEncodeI16v(pEncoder, *colId) < 0) return -1;
+    if (tEncodeI32v(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
+    for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
+      if (tEncodeI32v(pEncoder, pTemplate->templateId) < 0) return -1;
+      if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString) + 1) < 0) return -1;
+      if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
+    }
+    pIter = taosHashIterate(pHashJsonTemplate, pIter);
+  }
+
+  return 0;
+}
+
+int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate) {
+  int32_t len = 0;
+  if (tDecodeI32v(pDecoder, &len) < 0) return -1;
+  if (len > 0) {
+    *pHashJsonTemplate = taosHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+    if (*pHashJsonTemplate == NULL) {
+      return -1;
+    }
+    taosHashSetFreeFp(*pHashJsonTemplate, destroyJsonTemplateArray);
+    for (int32_t i = 0; i < len; ++i) {
+      col_id_t colId = 0;
+      if (tDecodeI16v(pDecoder, &colId) < 0) return -1;
+      int32_t arrLen = 0;
+      if (tDecodeI32v(pDecoder, &arrLen) < 0) return -1;
+      SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
+      if (arr == NULL) {
+        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+        return -1;
+      }
+      if(taosHashPut(*pHashJsonTemplate, &colId, sizeof(colId), &arr, POINTER_BYTES) != 0){
+        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+        taosArrayDestroy(arr);
+        return -1;
+      }
+      for (int32_t j = 0; j < arrLen; ++j) {
+        SJsonTemplate pTemplate = {0};
+        if (tDecodeI32v(pDecoder, &pTemplate.templateId) < 0) return -1;
+        if (tDecodeBinaryAlloc(pDecoder, (void**)&pTemplate.templateJsonString, NULL) < 0) return -1;
+        taosArrayPush(arr, &pTemplate);
+        if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
+      }
+    }
+  }
+  return 0;
+}
