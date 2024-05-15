@@ -8,7 +8,7 @@ taos-explorer 为用户提供 TDengine 实例的可视化管理交互界面。
 
 ## 安装
 
-无需单独安装，随着 TDengine 服务一起安装，安装完成后，您可以看到 `taos-explorer` 服务。
+taos-explorer 无需单独安装，它随着 TDengine Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
 
 ## 配置
 
@@ -21,14 +21,14 @@ cluster = "http://localhost:6041"
 
 配置文件中只需要关注这两项即可：
 
-- port：explorer 服务端口
-- cluster：explorer 连接的 TDengine 实例(taosAdpter)
+- port：explorer 对外的服务端口
+- cluster：explorer 连接的 TDengine 实例，只支持 websocket 连接，所以该地址为 TDengine 集群中 taosAdapter 服务的地址
 
-## 启动&停止
+## 启动 & 停止
 
 ### Linux 系统
 
-如下 `systemctl` 命令可以帮助你管理 taos-explorer 服务：
+使用 `systemctl` 命令可以管理 taos-explorer 服务：
 
 - 启动服务进程：`systemctl start taos-explorer`
 
@@ -42,11 +42,11 @@ cluster = "http://localhost:6041"
 
 安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taos-explorer` 或在 `C:\TDengine` 目录下，运行 `taos-explorer.exe` 来启动 explorer 服务进程。
 
-## 注册&登录
+## 注册 & 登录
 
 ### 注册流程
 
-安装好，您可以打开浏览器，默认访问`http://ip:6060`来访问 explorer 平台。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
+安装好，打开浏览器，默认访问`http://ip:6060`来访问 explorer 平台。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
 
 ### 登录
 
