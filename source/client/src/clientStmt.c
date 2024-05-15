@@ -855,10 +855,12 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       pCurrBlock->pData->aCol = pTbData->aCol;
       STMT_ERR_RET(qResetStmtDataBlock(pCurrBlock, true));
     } else {
-      pCurrBlock->pData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
-      if (NULL == pCurrBlock->pData->aCol) {
-        STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-      }      
+      if (pStmt->sql.pCache) {
+        pCurrBlock->pData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
+        if (NULL == pCurrBlock->pData->aCol) {
+          STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        }      
+      }
 
       STableColsData tbData = {.vgId = pStmt->bInfo.tbVgId, .uid = pStmt->bInfo.tbUid, .aCol = pCurrBlock->pData->aCol};
       taosArrayPush(pStmt->exec.pTbBlkList, &tbData);
