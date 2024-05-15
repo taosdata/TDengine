@@ -120,19 +120,19 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) \
   ((TSDBROW){.type = TSDBROW_COL_FMT, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 
-#define TSDBROW_INIT_KEY(_ROW, _KEY)                 \
-  { \
-    if ((_ROW)->type == TSDBROW_ROW_FMT) { \
-      _KEY.version = (_ROW)->version; \
-      _KEY.ts = (_ROW)->pTSRow->ts; \
-    } else { \
-      _KEY.version = (_ROW)->pBlockData->aVersion[(_ROW)->iRow];    \
-      _KEY.ts = (_ROW)->pBlockData->aTSKEY[(_ROW)->iRow];           \
-    } \
+#define TSDBROW_INIT_KEY(_ROW, _KEY)                             \
+  {                                                              \
+    if ((_ROW)->type == TSDBROW_ROW_FMT) {                       \
+      _KEY.version = (_ROW)->version;                            \
+      _KEY.ts = (_ROW)->pTSRow->ts;                              \
+    } else {                                                     \
+      _KEY.version = (_ROW)->pBlockData->aVersion[(_ROW)->iRow]; \
+      _KEY.ts = (_ROW)->pBlockData->aTSKEY[(_ROW)->iRow];        \
+    }                                                            \
   }
 
 #define tColRowGetKey(_pBlock, _irow, _key)             \
-  {                                                  \
+  {                                                     \
     (_key)->ts = (_pBlock)->aTSKEY[(_irow)];            \
     (_key)->numOfPKs = 0;                               \
     if ((_pBlock)->nColData > 0) {                      \
