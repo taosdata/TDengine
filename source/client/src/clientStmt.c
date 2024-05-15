@@ -638,6 +638,9 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+  strncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName) - 1);
+  pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
+
   STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                             pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
   tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName);
@@ -645,9 +648,6 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STMT_ERR_RET(stmtGetFromCache(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    strncpy(pStmt->bInfo.tbName, tbName, sizeof(pStmt->bInfo.tbName) - 1);
-    pStmt->bInfo.tbName[sizeof(pStmt->bInfo.tbName) - 1] = 0;
-
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
