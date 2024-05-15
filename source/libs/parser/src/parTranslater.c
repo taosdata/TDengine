@@ -4338,7 +4338,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
 #ifdef TD_ENTERPRISE
-        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType && !pCurrSmt->tagScan) {
           return translateView(pCxt, pTable, &name);
         }
         translateAudit(pCxt, pRealTable, &name);
@@ -11867,6 +11867,37 @@ static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
+  int32_t     code = 0;
+  SName       name;
+  STableMeta* pTableMeta = NULL;
+  code = getTargetMeta(pCxt,
+                       toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal,
+                              ((SValueNode*)pShow->pTbName)->literal, &name),
+                       &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    goto _exit;
+  }
+  if (TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
+    goto _exit;
+  }
+
+_exit:
+  taosMemoryFreeClear(pTableMeta);
+  return code;
+}
+
+static int32_t rewriteShowTags(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowTags(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
+  }
+  return code;
+}
+
 static SNode* createTagsFunction() {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -13170,7 +13201,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
@@ -13180,6 +13210,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      code = rewriteShowTags(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       code = rewriteShowVgroups(pCxt, pQuery);

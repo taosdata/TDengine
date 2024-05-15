@@ -27,6 +27,8 @@ static S3UriStyle uriStyleG = S3UriStylePath;
 static int        retriesG = 5;
 static int        timeoutMsG = 0;
 
+extern int8_t tsS3Oss;
+
 int32_t s3Begin() {
   S3Status    status;
   const char *hostname = tsS3Hostname;
@@ -42,6 +44,9 @@ int32_t s3Begin() {
   }
 
   protocolG = !tsS3Https;
+  if (tsS3Oss) {
+    uriStyleG = S3UriStyleVirtualHost;
+  }
 
   return 0;
 }
@@ -57,6 +62,11 @@ static int32_t s3ListBucket(char const *bucketname);
 
 int32_t s3CheckCfg() {
   int32_t code = 0;
+
+  if (!tsS3Enabled) {
+    fprintf(stderr, "s3 not configured.\n");
+    goto _exit;
+  }
 
   code = s3Begin();
   if (code != 0) {
