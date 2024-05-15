@@ -8,7 +8,7 @@ taos-explorer 为用户提供 TDengine 实例的可视化管理交互界面。
 
 ## 安装
 
-taos-explorer 无需单独安装，它随着 TDengine Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
+taos-explorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
 
 ## 配置
 
