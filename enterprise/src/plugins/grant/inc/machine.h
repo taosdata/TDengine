@@ -259,9 +259,11 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  // GRANT_OPT_FUTURE_EXPIRE = 9,
-  // GRANT_OPT_FUTURE_EXPIRE_NUM = 10,
-  GRANT_OPT_DYN_MAX = 9,
+  GRANT_OPT_OBJECT_STORAGE = 9,
+  GRANT_OPT_ACTIVE_ACTIVE = 10,
+  GRANT_OPT_DUAL_REPLICA_HA = 11,
+  GRANT_OPT_DB_ENCRYPTION = 12,
+  GRANT_OPT_DYN_MAX = 13,
 } SGrantOpt;
 
 typedef struct {
@@ -288,6 +290,12 @@ typedef struct {
   int32_t expire;
   int64_t number;
 } SGrantItem64;
+
+typedef struct {
+  int16_t index;
+  int32_t expire;
+  int64_t number;
+} SGrantItemI64;
 
 typedef struct {
   char    *active;
@@ -322,6 +330,7 @@ typedef struct {
   // variant fields
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem64;   // SGrantItem64
+  SArray *pItemI64;  // SGrantItemI64
 
   // extension
   char *encrypt;
@@ -369,7 +378,10 @@ typedef struct {
     struct {
       int64_t multiTierExpireSec : 40;
       int64_t curDnodes : 16;
-      int64_t reserve2 : 8;
+      int64_t objectStorageExpired : 1;
+      int64_t dualReplicaHAExpired : 1;
+      int64_t dbEncryptionExpired : 1;
+      int64_t reserve2 : 5;
     };
   };
   union {
@@ -409,6 +421,34 @@ typedef struct {
       int64_t nDiskCfg : 24;
     };
   };
+  union {
+    int64_t p10;  // since 3.3.0.0
+    struct {
+      int64_t objectStorageExpireSec : 40;
+      int64_t reserve7 : 24;
+    };
+  };
+  union {
+    int64_t p11;  // since 3.3.0.0
+    struct {
+      int64_t activeActiveExpireSec : 40;
+      int64_t reserve8 : 24;
+    };
+  };
+  union {
+    int64_t p12;  // since 3.3.0.0
+    struct {
+      int64_t dualReplicaHAExpireSec : 40;
+      int64_t reserve9 : 24;
+    };
+  };
+  union {
+    int64_t p13;  // since 3.3.0.0
+    struct {
+      int64_t dbEncryptionExpireSec : 40;
+      int64_t reserve10 : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
@@ -420,7 +460,7 @@ typedef struct {
   SGrantDataIn dataIns[CONN_TYPE_DYN_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem64;   // SGrantItem64
+  SArray *pItem64;   // SGrantItem64, deprecated
 } SGrantStatus;
 
 typedef struct {
