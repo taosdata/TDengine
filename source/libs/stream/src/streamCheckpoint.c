@@ -30,94 +30,9 @@ typedef struct {
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
-static int32_t streamTaskBackupCheckpoint(char* id, char* path);
-static int32_t deleteCheckpoint(char* id);
-
-int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
-  if (tEncodeSEpSet(pEncoder, &pReq->mgmtEps) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->mnodeId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->expireTime) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
-  if (tEncodeI8(pEncoder, pReq->mndTrigger) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSourceReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &pReq->mgmtEps) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->mnodeId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->expireTime) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pReq->mndTrigger) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckpointSourceRsp* pRsp) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->streamId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->checkpointId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->nodeId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->expireTime) < 0) return -1;
-  if (tEncodeI8(pEncoder, pRsp->success) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->streamId) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->checkpointId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
-  tEndEncode(pEncoder);
-  return 0;
-}
-
-int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
+static int32_t streamTaskBackupCheckpoint(const char* id, const char* path);
+static int32_t deleteCheckpoint(const char* id);
+static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 
 static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
@@ -157,7 +72,7 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  streamSchedExec(pTask);
+  streamTrySchedExec(pTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -444,14 +359,15 @@ int32_t uploadCheckpointData(void* param) {
                                       (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", taskStr, arg->chkpId);
   }
+
   if (arg->type == DATA_UPLOAD_S3) {
     if (code == 0 && (code = getCheckpointDataMeta(arg->taskId, path, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", taskStr, arg->chkpId);
+      stError("s-task:%s failed to get checkpointId:%" PRId64 " meta", taskStr, arg->chkpId);
     }
   }
 
   if (code == 0 && (code = streamTaskBackupCheckpoint(arg->taskId, path)) != 0) {
-    stError("s-task:%s failed to upload checkpoint:%" PRId64, taskStr, arg->chkpId);
+    stError("s-task:%s failed to upload checkpointId:%" PRId64, taskStr, arg->chkpId);
   }
 
   taskReleaseDb(arg->dbRefId);
@@ -578,7 +494,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   return code;
 }
 
-static int32_t uploadCheckpointToS3(char* id, char* path) {
+static int32_t uploadCheckpointToS3(const char* id, const char* path) {
   TdDirPtr pDir = taosOpenDir(path);
   if (pDir == NULL) return -1;
 
@@ -610,13 +526,19 @@ static int32_t uploadCheckpointToS3(char* id, char* path) {
   return 0;
 }
 
-static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
   int32_t code = 0;
   char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  if (buf == NULL) {
+    code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
+  }
+
   sprintf(buf, "%s/%s", id, fname);
   if (s3GetObjectToFile(buf, dstName) != 0) {
-    code = -1;
+    code = errno;
   }
+
   taosMemoryFree(buf);
   return code;
 }
@@ -631,16 +553,18 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   }
 }
 
-int32_t streamTaskBackupCheckpoint(char* id, char* path) {
+int32_t streamTaskBackupCheckpoint(const char* id, const char* path) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("streamTaskBackupCheckpoint parameters invalid");
     return -1;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
     return uploadRsync(id, path);
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
   }
+
   return 0;
 }
 
@@ -675,7 +599,7 @@ int32_t streamTaskDownloadCheckpointData(char* id, char* path) {
   return 0;
 }
 
-int32_t deleteCheckpoint(char* id) {
+int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
     return -1;

@@ -488,6 +488,8 @@ int32_t shellReadCommand(char *command) {
     c = taosGetConsoleChar();
 
     if (c == (char)EOF) {
+      taosMemoryFreeClear(cmd.buffer);
+      taosMemoryFreeClear(cmd.command);
       return c;
     }
 
@@ -524,6 +526,8 @@ int32_t shellReadCommand(char *command) {
         case 4:  // EOF or Ctrl+D
           taosResetTerminalMode();
           printf("\r\n");
+          taosMemoryFreeClear(cmd.buffer);
+          taosMemoryFreeClear(cmd.command);
           return -1;
         case 5:  // ctrl E
           shellPositionCursorEnd(&cmd);

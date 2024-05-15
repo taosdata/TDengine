@@ -4320,6 +4320,7 @@ void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo*
 int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t numOfTable = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
 
@@ -4339,6 +4340,7 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
       return code;
     }
   }
+
   tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
   tsortSetMergeLimitReachedFp(pInfo->pSortHandle, tableMergeScanDoSkipTable, pInfo);
   tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
