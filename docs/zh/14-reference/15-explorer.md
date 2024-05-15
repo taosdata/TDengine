@@ -4,7 +4,7 @@ sidebar_label: 可视化管理工具
 description: taosExplorer 的使用说明，包括安装、配置、使用等。
 ---
 
-taos-explorer 为用户提供 TDengine 实例的可视化管理交互界面。
+taos-explorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。
 
 ## 安装
 
@@ -25,6 +25,8 @@ cluster = "http://localhost:6041"
 - cluster：explorer 连接的 TDengine 实例，只支持 websocket 连接，所以该地址为 TDengine 集群中 taosAdapter 服务的地址
 
 ## 启动 & 停止
+
+在启动之前，请先确保 TDengine 集群（主要服务是 `taosd` 和 `taosAdapter`）已经启动并在正确运行，并确保 taos-explorer 的配置正确。
 
 ### Linux 系统
 
