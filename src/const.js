@@ -1405,7 +1405,7 @@ export const auditMockData = [{
 export const dataInMockData = [{
   taskid: 1,
   id: 1,
-  name: "td3",
+  name: "td3-demo",
   localname: "td3",
   localtype: "TDengine 3.x",
   target: 'targetDatabse',
