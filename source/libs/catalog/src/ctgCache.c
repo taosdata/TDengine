@@ -576,6 +576,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
   if (NULL == tbCache) {
     catalogFreeSTableMeta(*pTableMeta);
+    *pTableMeta = NULL;
     *pDb = NULL;
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
     return TSDB_CODE_SUCCESS;
@@ -587,6 +588,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (stbMeta->suid != ctx->tbInfo.suid) {
     ctgError("stb suid 0x%" PRIx64 " in stbCache mis-match, expected suid 0x%" PRIx64, stbMeta->suid, ctx->tbInfo.suid);
     catalogFreeSTableMeta(*pTableMeta);
+    *pTableMeta = NULL;
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 

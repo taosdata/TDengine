@@ -91,6 +91,10 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 7);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_MAX_JSON_TEMPLATE_LEN - 1, 8);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
@@ -122,20 +126,19 @@ void buildJsonTemplate(SHashObj* pHashJsonTemplate, col_id_t colId, char* jsonBu
 }
 
 static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta,
-                                          int8_t biMode) {
+                                          int8_t biMode, int32_t* index) {
   int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
   blockDataEnsureCapacity(pBlock, blockCap);
   pBlock->info.rows = 0;
 
-  int index = 0;
   // field
-  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, index++);
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   // Type
-  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, index++);
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   // Length
-  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, index++);
+  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   // Note
-  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, index++);
+  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   // encode
   SColumnInfoData* pCol5 = NULL;
   // compress
@@ -146,13 +149,13 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol8 = NULL;
 
   if (useCompress(pMeta->tableType)) {
-    pCol5 = taosArrayGet(pBlock->pDataBlock, index++);
-    pCol6 = taosArrayGet(pBlock->pDataBlock, index++);
-    pCol7 = taosArrayGet(pBlock->pDataBlock, index++);
+    pCol5 = taosArrayGet(pBlock->pDataBlock, (*index)++);
+    pCol6 = taosArrayGet(pBlock->pDataBlock, (*index)++);
+    pCol7 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   }
 
   if (taosHashGetSize(pMeta->pHashJsonTemplate) > 0){
-    pCol8 = taosArrayGet(pBlock->pDataBlock, index++);
+    pCol8 = taosArrayGet(pBlock->pDataBlock, (*index)++);
   }
   int32_t fillTagCol = 0;
   char    buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
@@ -233,15 +236,12 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildDescResultDataBlock(&pBlock);
+  int32_t      index = 0;
   if (TSDB_CODE_SUCCESS == code) {
-    code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
+    code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode, &index);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType)) {
-      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
-    } else {
-      code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
-    }
+    code = buildRetrieveTableRsp(pBlock, index, pRsp);
   }
   blockDataDestroy(pBlock);
   return code;

@@ -245,6 +245,7 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
       CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     }
     catalogFreeSTableMeta(pCache->pMeta);
+    pCache->pMeta = NULL;
     if (lock) { 
       CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
     }
@@ -1805,6 +1806,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 
   while (true) {
     catalogFreeSTableMeta(pMeta);
+    pMeta = NULL;
 
     char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName) + 1);
     if (pCond) {

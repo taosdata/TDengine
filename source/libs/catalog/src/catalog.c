@@ -225,12 +225,14 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
       ctgError("invalid metaType:%d", output->metaType);
       catalogFreeSTableMeta(output->tbMeta);
+      output->tbMeta = NULL;
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
     // HANDLE ONLY CHILD TABLE META
 
     catalogFreeSTableMeta(output->tbMeta);
+    output->tbMeta = NULL;
 
     SName stbName = *ctx->pName;
     strcpy(stbName.tname, output->tbName);
