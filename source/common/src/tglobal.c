@@ -240,8 +240,8 @@ int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 
 // lossy compress 7
-char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
-                               // can close lossy compress.
+char tsLossyColumns[32] = "float|double";  // "float|double" means all float and double columns can be lossy compressed.
+                                           // set empty can close lossy compress.
 // below option can take effect when tsLossyColumns not empty
 float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
@@ -815,7 +815,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1276,7 +1275,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
-  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "lossyColumns")->str, sizeof(tsLossyColumns));
   tsFPrecision = cfgGetItem(pCfg, "fPrecision")->fval;
   tsDPrecision = cfgGetItem(pCfg, "dPrecision")->fval;
   tsMaxRange = cfgGetItem(pCfg, "maxRange")->i32;
