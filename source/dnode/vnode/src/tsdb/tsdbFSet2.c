@@ -555,6 +555,12 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
 }
 
 int32_t tsdbTFileSetOpenChannel(STFileSet *fset) {
-  // TODO: if (VNODE_ASYNC_VALID_CHANNEL_ID(&fset->channel)) return 0;
-  return vnodeAChannelInit(2, &fset->channel);
+  int32_t code = 0;
+  if (!fset->isChannOpen) {
+    if ((code = vnodeAChannelInit(2, &fset->channel))) {
+      return code;
+    }
+    fset->isChannOpen = true;
+  }
+  return 0;
 }

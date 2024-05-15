@@ -416,7 +416,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
     arg->now = now;
     arg->fid = fset->fid;
 
-    code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbFreeRtnArg, arg, &fset->retentionTask);
+    code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbFreeRtnArg, arg, NULL);
     if (code) {
       tsdbFreeRtnArg(arg);
       taosThreadMutexUnlock(&tsdb->mutex);

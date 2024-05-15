@@ -81,10 +81,13 @@ struct STFileSet {
 
   // background task
   bool         mergeScheduled;
+  bool         isChannOpen;
   SVAChannelID channel;
-  SVATaskID    compactTask;
-  SVATaskID    mergeTask;
-  SVATaskID    retentionTask;
+
+  // sttTrigger = 1
+  TdThreadCond canDoTask;
+  bool         hasTaskRunning;
+  int32_t      numWaitDoTask;
 
   // block commit variables
   TdThreadCond canCommit;

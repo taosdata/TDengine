@@ -762,10 +762,13 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    taosArrayPush(channArray, &fset->channel);
-    fset->channel = (SVAChannelID){0};
-    fset->mergeScheduled = false;
-    tsdbFSSetBlockCommit(fset, false);
+    if (fset->isChannOpen) {
+      taosArrayPush(channArray, &fset->channel);
+      fset->channel = (SVAChannelID){0};
+      fset->mergeScheduled = false;
+      tsdbFSSetBlockCommit(fset, false);
+      fset->isChannOpen = false;
+    }
   }
 
   taosThreadMutexUnlock(&pTsdb->mutex);
@@ -916,7 +919,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         arg->tsdb = fs->tsdb;
         arg->fid = fset->fid;
 
-        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg, &fset->mergeTask);
+        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg, NULL);
         TSDB_CHECK_CODE(code, lino, _exit);
         fset->mergeScheduled = true;
       }
