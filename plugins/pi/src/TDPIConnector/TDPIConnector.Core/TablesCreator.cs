@@ -7,6 +7,8 @@ using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.TDEngine.Models;
+using System.Threading;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace TDPIConnector.Core
@@ -225,7 +227,7 @@ namespace TDPIConnector.Core
                 List<TDTable> tables = new List<TDTable>();
                 foreach (var element in template.Value)
                 {
-                    TDTable table = ElemenetTableConverter.Convert(element, superTableName, templateAttributeColumns);
+                    TDTable table = ElemenetTableConverter.Convert(element, superTableName, ref templateAttributeColumns);
                     log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
                     if (!elementsCollection.ContainsKey(table.Id))
                     {
@@ -254,11 +256,11 @@ namespace TDPIConnector.Core
             return await GetElementsInfoByIds(tdBase, afDatabaseName, AppSettings.tomlConfig.ElementIDList);
         }
 
-        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTables(string tdDatabaseName, string afDatabaseName)
+        public async Task<ConcurrentDictionary<string, AFElementWrapper>> CreateAFElementTables(string tdDatabaseName, string afDatabaseName)
         {
             return await CreateAFElementTablesV2(tdDatabaseName, afDatabaseName);
         }
-        public async Task<Dictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
+        public async Task<ConcurrentDictionary<string, AFElementWrapper>> CreateAFElementTablesV2(string tdDatabaseName, string afDatabaseName)
         {
             if (AppSettings.tomlConfig.TemplateForAFElement.Count == 0
                 && AppSettings.tomlConfig.ElementList.Count == 0)
@@ -270,14 +272,33 @@ namespace TDPIConnector.Core
             IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, AppSettings.tomlConfig.TemplateForAFElement).ToList();
 
             //get all AF Templates based on settings
-            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+            ConcurrentDictionary<string, AFElementWrapper> elementsCollection = new ConcurrentDictionary<string, AFElementWrapper>();
 
+            List<Task> tasks = new List<Task>();
+
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(15);
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {
-                var elements = await CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
-                if (null == elements) continue;
-                elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
+                tasks.Add(Task.Run(async () =>
+                {
+                    await concurrencySemaphore.WaitAsync();
+                    try
+                    {
+                        var elements = await CreateTaosxClientForElementTemplate(tdDatabaseName, elementTemplate);
+                        if (null == elements) return;
+                        foreach (var kv in elements)
+                        {
+                            elementsCollection[kv.Key] = kv.Value;  // Thread-safe addition or update
+                        }
+                    }
+                    finally
+                    {
+                        concurrencySemaphore.Release();
+                    }
+                }));
+
             }
+
             foreach (string elementName in AppSettings.tomlConfig.ElementList) {
                 var wrappers = piSystemManager.GetElementByName(afDatabaseName, elementName);
                 foreach (AFElementWrapper element in wrappers)
@@ -289,14 +310,19 @@ namespace TDPIConnector.Core
                     }
                     var elements = await CreateTaosxClientForSingleElement(tdDatabaseName, element);
                     if (null == elements) continue;
-                    elementsCollection = elementsCollection.Concat(elements).ToDictionary(pair => pair.Key, pair => pair.Value);
+                    foreach (var kv in elements)
+                    {
+                        elementsCollection[kv.Key] = kv.Value;  // Thread-safe addition or update
+                    }
                 }
 
             }
+            Task.WaitAll(tasks.ToArray());
+
             return elementsCollection;
         }
 
-        public async Task<Dictionary<string, AFElementWrapper>> CreateTaosxClientForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
+        public async Task<ConcurrentDictionary<string, AFElementWrapper>> CreateTaosxClientForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
         {
             //check for associated supertable, create if needed
             var superTable = TemplateSTableConverter.Convert(elementTemplate);
@@ -304,24 +330,37 @@ namespace TDPIConnector.Core
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
             //get all elements based on template
-            IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
-            log.Info($"Found {elements.Count()} elements.");
+            List<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate).ToList();
+            log.Info($"Found {elements.Count()} elements in template:{elementTemplate.Name}.");
 
             var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
 
-            Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
+            ConcurrentDictionary<string, AFElementWrapper> elementsCollection = new ConcurrentDictionary<string, AFElementWrapper>();
             List<TDTable> tables = new List<TDTable>();
-            foreach (var element in elements)
-            {
-                TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
-                log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                if (!elementsCollection.ContainsKey(table.Name))
+
+            List<Task> tasks = new List<Task>();
+            int groups = 5;
+            for (int i = 0; i < groups; ++i) {
+                int groupIndex = i;
+                tasks.Add(Task.Run(async () =>
                 {
-                    tables.Add(table);
-                    elementsCollection.Add(table.Name, element);
-                }
-            };
+                    for (int j = groupIndex; j < elements.Count(); j += groups)
+                    {
+                        var element = elements[j];
+                        TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
+                        log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
+                        if (!elementsCollection.ContainsKey(table.Id))
+                        {
+                            tables.Add(table);
+                            elementsCollection[table.Id] = element;
+                        }
+                    }
+                }));
+            }
+            Task.WaitAll(tasks.ToArray());
+
             await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            log.Info($"Send subtables info: {elements.Count()} elements in template:{elementTemplate.Name}.");
             return elementsCollection;
         }
         public async Task<bool> CreateOrUpdateSuperTables(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
@@ -420,7 +459,7 @@ namespace TDPIConnector.Core
             Dictionary<string, AFElementWrapper> elementsCollection = new Dictionary<string, AFElementWrapper>();
             List<TDTable> tables = new List<TDTable>();
 
-            TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, attributeColumns);
+            TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, ref attributeColumns);
             log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
             if (!elementsCollection.ContainsKey(table.Name))
             {

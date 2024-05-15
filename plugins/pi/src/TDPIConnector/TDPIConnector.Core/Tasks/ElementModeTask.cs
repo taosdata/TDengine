@@ -1,12 +1,12 @@
 ﻿using log4net;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TDPIConnector.Core.Monitoring;
 using TDPIConnector.PI;
 using TDPIConnector.PI.Exceptions;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core.Tasks
 {
@@ -14,7 +14,7 @@ namespace TDPIConnector.Core.Tasks
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private readonly IMonitoringService monitoringService;
-        private readonly Dictionary<string, AFElementWrapper> elements;
+        private readonly ConcurrentDictionary<string, AFElementWrapper> elements;
         private readonly Task task;
         private readonly PISystemManager piSystemManager;
         private AFDataPipeManager afDataPipeWrapper;
@@ -24,7 +24,7 @@ namespace TDPIConnector.Core.Tasks
         public ElementModeTask(PISystemManager piSystemManager,
             IMonitoringService monitoringService,
             ElementModeObserver elementModeObserver,
-            Dictionary<string, AFElementWrapper> elements)
+            ConcurrentDictionary<string, AFElementWrapper> elements)
         {
             stopTaskRequested = false;
             this.piSystemManager = piSystemManager;

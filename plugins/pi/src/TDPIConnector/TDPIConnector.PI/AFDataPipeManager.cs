@@ -3,6 +3,9 @@ using OSIsoft.AF.Asset;
 using OSIsoft.AF.Data;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.PI
 {
@@ -34,21 +37,34 @@ namespace TDPIConnector.PI
         }
         public void AddSignups(List<AFElementWrapper> elements)
         {
-            for (int i = 0; i < elements.Count; i++)
-            {
-                int k = i % afDataPipes.Count;
-                // if (elements[i].HasInvalidAttr()) continue;
-                foreach (AFAttributeWrapper attr in elements[i].Attributes ) {
-                    if (attr.Valid() && attr.signUpValid() && !attr.Unsupported()) {
-                        attributeSetLists[k].Add(attr.AFSDKObject);
-                    }
-                }
-            }
+            List<Task> tasks = new List<Task>();
 
             for (int i = 0; i < afDataPipes.Count; i++)
             {
-                afDataPipes[i].AddSignups(attributeSetLists[i]);     
+                int batchNum = i;
+                tasks.Add(Task.Run(async () =>
+                {
+                    int thisBatchSize = 0;
+                    for (int num = batchNum; num < elements.Count; num += afDataPipes.Count)
+                    {
+                        foreach (AFAttributeWrapper attr in elements[num].Attributes)
+                        {
+                            if (attr.Valid() && attr.signUpValid() && !attr.Unsupported())
+                            {
+                                attributeSetLists[batchNum].Add(attr.AFSDKObject);
+                            }
+                        }
+                        thisBatchSize++;
+                        if (thisBatchSize % 100 == 0)
+                        {
+                            log.Info($"AddSignups check thread:{batchNum} {thisBatchSize} element finished.");
+                        }
+                    }
+                    afDataPipes[batchNum].AddSignups(attributeSetLists[batchNum]);
+                    log.Info($"AddSignups check thread:{batchNum} all element({thisBatchSize}) finished.");
+                }));
             }
+            Task.WaitAll(tasks.ToArray());
         }
 
         public void GetObserverEvents()

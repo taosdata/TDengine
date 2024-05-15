@@ -7,6 +7,7 @@ using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.TDEngine.Models;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core
 {
@@ -72,7 +73,7 @@ namespace TDPIConnector.Core
             });
         }
 
-        public Task BackfillAFElementsFromService(string tdDatabaseName, Dictionary<string, AFElementWrapper> elements, DateTime backfillStartLimit)
+        public Task BackfillAFElementsFromService(string tdDatabaseName, ConcurrentDictionary<string, AFElementWrapper> elements, DateTime backfillStartLimit)
         {
             return Task.Run(async () =>
             {
@@ -182,7 +183,7 @@ namespace TDPIConnector.Core
                 foreach (AFElementWrapper element in elements)
                 {
                     //check for associated table, create if needed
-                    var table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
+                    var table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
                     if (elementLookup.ContainsKey(table.Name))
                     {
                         log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
@@ -251,7 +252,7 @@ namespace TDPIConnector.Core
 
                     var attributeColumns = AttributeColumnConverter.Convert(element.Attributes);
 
-                    var table = ElemenetTableConverter.Convert(element, superTable.Name, attributeColumns);
+                    var table = ElemenetTableConverter.Convert(element, superTable.Name, ref attributeColumns);
                     if (elementLookup.ContainsKey(table.Name))
                     {
                         log.Info($"BackfillAFElement, found duplicate element:{table.Name}");

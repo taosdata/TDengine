@@ -10,6 +10,7 @@ using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
 using System.Threading.Tasks;
 using TDPIConnector.TDEngine.Models;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core
 {
@@ -28,11 +29,9 @@ namespace TDPIConnector.Core
         private StandByModeTask standByModeTask;
         private TablesCreator tablesCreator;
         private List<TDTable> piPoints;
-        private Dictionary<string, AFElementWrapper> elements;
+        private ConcurrentDictionary<string, AFElementWrapper> elements;
         private EventsSender eventsSender;
         private EventsSenderTask eventsSenderTask;
-        private Task backfillPIPointsTask;
-        private Task backfillAFElementsTask;
         BackfillManager backfillManager;
 
         public AppService()
@@ -173,8 +172,7 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    elements = await tablesCreator.CreateAFElementTablesByElementIds(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
-                    // elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     if (elements == null)
                     {
                         log.Info($"No any AF Elements template found.");
@@ -263,13 +261,11 @@ namespace TDPIConnector.Core
 
         private void BackfillData()
         {
-            var backfillStartLimit = DateTime.Now.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
-            this.backfillPIPointsTask = null;
-            this.backfillAFElementsTask = null;
+            var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
             if (this.piPoints != null && this.piPoints.Count > 0)
-                this.backfillPIPointsTask = backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
+                backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
             if (this.elements != null && this.elements.Count > 0)
-                this.backfillAFElementsTask = backfillManager.BackfillAFElementsFromService(AppSettings.tomlConfig.TDDataBase, elements, backfillStartLimit);
+                backfillManager.BackfillAFElementsFromService(AppSettings.tomlConfig.TDDataBase, elements, backfillStartLimit);
         }
 
         public void StartDataPipe()
