@@ -1,13 +1,7 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    io::Write,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::{collections::HashMap, fmt::Debug, io::Write, sync::Arc};
 
 use anyhow::Context as _;
+use async_backtrace::framed;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
@@ -15,8 +9,8 @@ use futures_util::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncRows, BorrowedValue, ResultSet, Taos, TaosPool};
 use tokio::{
-    sync::oneshot,
-    task::{JoinError, JoinHandle},
+    sync::{oneshot, Mutex},
+    task::{JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -55,12 +49,13 @@ pub struct Scheduler {
     #[allow(dead_code)]
     target: TaosPool,
     opts: Arc<TargetOpts>,
-    sender: Sender<Todo>,
+    pub sender: Sender<Todo>,
     receiver: Receiver<Todo>,
-    handles: Vec<JoinHandle<anyhow::Result<()>>>,
+    handle: Mutex<Option<JoinHandle<anyhow::Result<()>>>>,
+    abort: tokio::task::AbortHandle,
     #[allow(dead_code)]
     task_id: Option<String>,
-    breakpoints: Option<BreakpointDb>,
+    pub breakpoints: Option<BreakpointDb>,
 }
 
 impl Debug for Scheduler {
@@ -72,7 +67,6 @@ impl Debug for Scheduler {
             .field("opts", &self.opts)
             .field("sender", &self.sender)
             .field("receiver", &self.receiver)
-            .field("handles", &self.handles)
             .finish()
     }
 }
@@ -89,24 +83,23 @@ async fn worker(
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
-    task_id: Option<String>,
-    file_mutex: Arc<tokio::sync::Mutex<()>>,
     breakpoints: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
     let mut to = target.get().await?;
-    from.exec("select 1")
+    from.exec("select server_status()")
         .await
         .map_err(|err| anyhow::format_err!("check source connection error: {err:?}"))?;
-    to.exec("select 1")
+    to.exec("select server_status()")
         .await
         .map_err(|err| anyhow::format_err!("check target connection error: {err:?}"))?;
     let smooth_fold = (worker as f64 + 1.0).log2() as u32;
     tokio::time::sleep(query.smooth_init * smooth_fold).await;
-    loop {
-        let todo = receiver.recv_async().await?;
+
+    tracing::debug!("Worker {worker} started");
+    while let Ok(todo) = receiver.recv_async().await {
         match todo {
             Todo::STable(stable, sender) => {
                 let mut retries = MAX_WS_RETRIES;
@@ -152,7 +145,7 @@ async fn worker(
                                     );
 
                             if let Some(path) = opts.fails_to.as_ref() {
-                                path.lock().unwrap().write_fmt(format_args!(
+                                path.lock().await.write_fmt(format_args!(
                                     "meta\t{}:\t\t{}\n",
                                     stable.as_str(),
                                     format!("{err:#}").replace("\n", " ")
@@ -226,7 +219,7 @@ async fn worker(
                                     );
 
                                     if let Some(path) = opts.fails_to.as_ref() {
-                                        path.lock().unwrap().write_fmt(format_args!(
+                                        path.lock().await.write_fmt(format_args!(
                                             "meta\t{}:{}\t\t{}\n",
                                             stable.as_str(),
                                             tables.join(","),
@@ -259,15 +252,15 @@ async fn worker(
                             {
                                 tracing::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
-                                    path.lock().unwrap().write_fmt(format_args!(
+                                    path.lock().await.write_fmt(format_args!(
                                         "meta\t{}\t\t{}\n",
-                                        table.as_str(),
+                                        table,
                                         format!("{err:?}").replace("\n", " ")
                                     ))?;
                                 } else {
                                     println!(
                                         "meta\t{}\t\t{}",
-                                        table.as_str(),
+                                        table,
                                         format!("{err:?}").replace("\n", " ")
                                     );
                                 }
@@ -295,14 +288,14 @@ async fn worker(
                     tracing::info_span!("sync_data", table = table.as_str(), range = ?time_range);
                 let _entered = span.enter();
                 // get breakpoints use breakpoints_get
-                if task_id.is_some() {
+                if let Some(breakpoints) = breakpoints.as_ref() {
                     const MAX_RETRIES: usize = 5;
                     let mut retries = MAX_RETRIES;
                     loop {
-                        let _lock = file_mutex.lock().await;
                         let breakpoint = breakpoints
-                            .as_ref()
-                            .and_then(|db| db.get(&table).transpose())
+                            .get(&table)
+                            .await
+                            .transpose()
                             .transpose()
                             .and_then(|v| {
                                 v.map(|bp| {
@@ -326,7 +319,6 @@ async fn worker(
                                 );
                                 if retries > 0 {
                                     retries -= 1;
-                                    drop(_lock);
                                     std::thread::sleep(std::time::Duration::from_secs(1));
                                     continue;
                                 } else {
@@ -365,7 +357,7 @@ async fn worker(
                     Ok(chunks) => {
                         let chunks_len = chunks.len();
                         span.record("chunks", &chunks_len);
-                        tracing::info!("Syncing start with {} chunks", chunks_len);
+                        tracing::debug!("Syncing table {table} with {} chunks", chunks_len);
                         let mut chunk_err: Option<String> = None;
                         // chunks
                         'chunks: for (idx, chunk) in chunks.into_iter().enumerate() {
@@ -403,31 +395,22 @@ async fn worker(
                                         if let Some(breakpoints) = breakpoints.clone() {
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
-                                                // dbg!(&breakpoint);
-                                                tokio::task::spawn_blocking(move || {
-                                                    let max_retries = 5;
-                                                    let mut retries = 0;
-                                                    loop {
-                                                        if let Err(err) =
-                                                            breakpoints.set(
-                                                                &table_inner,
-                                                                &breakpoint,
-                                                            )
-                                                        {
-                                                            retries += 1;
-                                                            if retries >= max_retries {
-                                                                tracing::warn!(
-                                                                    breakpoints.key = %table_inner,
-                                                                    breakpoints.value = breakpoint,
-                                                                    "set breakpoint failed, err: {err:#}"
-                                                                );
-                                                            }
-                                                        };
+                                                let max_retries = 5;
+                                                let mut retries = 0;
+                                                while let Err(err) =
+                                                    breakpoints.set(&table_inner, &breakpoint).await
+                                                {
+                                                    retries += 1;
+                                                    if retries >= max_retries {
+                                                        tracing::warn!(
+                                                            chunk.id = idx, chunk.range = ?chunk,
+                                                            breakpoints.key = %table_inner,
+                                                            breakpoints.value = breakpoint,
+                                                            "set breakpoint failed, err: {err:#}"
+                                                        );
+                                                        break;
                                                     }
-                                                })
-                                                .instrument(
-                                                    tracing::info_span!("set_breakpoint", chunk.id = idx, chunk.range = ?chunk))
-                                                .await?;
+                                                }
                                             }
                                         }
                                         break;
@@ -461,7 +444,7 @@ async fn worker(
 
                                         tracing::error!("[worker:{worker}] sync table {table} with range {chunk} error: {err:?}, continue next");
                                         if let Some(path) = opts.fails_to.as_ref() {
-                                            path.lock().unwrap().write_fmt(format_args!(
+                                            path.lock().await.write_fmt(format_args!(
                                                 "data\t{}\t{:?}\t{}\n",
                                                 table.as_str(),
                                                 query.time_range,
@@ -511,7 +494,7 @@ async fn worker(
                             "[worker:{worker}] sync table {table} error: {err:?}, continue next"
                         );
                         if let Some(path) = opts.fails_to.as_ref() {
-                            path.lock().unwrap().write_fmt(format_args!(
+                            path.lock().await.write_fmt(format_args!(
                                 "data\t{}\t{:?}\t{}\n",
                                 table.as_str(),
                                 query.time_range,
@@ -600,7 +583,7 @@ async fn worker(
                                 "[worker:{worker}] sync table {table} error: {err:?}, continue next"
                                         );
                             if let Some(path) = opts.fails_to.as_ref() {
-                                path.lock().unwrap().write_fmt(format_args!(
+                                path.lock().await.write_fmt(format_args!(
                                     "data\t{}\t{:?}\t{}\n",
                                     table.as_str(),
                                     query.time_range,
@@ -638,6 +621,9 @@ async fn worker(
             }
         }
     }
+
+    tracing::info!("Worker {worker} finished", worker = worker);
+    Ok(())
 }
 
 pub async fn sync_add_column(
@@ -674,6 +660,7 @@ pub async fn sync_add_column(
 }
 
 impl Scheduler {
+    #[framed]
     pub async fn new(
         source: TaosPool,
         target: TaosPool,
@@ -686,7 +673,6 @@ impl Scheduler {
         target_is_v3: bool,
         task_id: Option<String>,
         cancellation: CancellationToken,
-        file_mutex: Arc<tokio::sync::Mutex<()>>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
@@ -699,38 +685,49 @@ impl Scheduler {
         } else {
             None
         };
+        let mut task_set = JoinSet::new();
 
-        let handles = (0..workers)
-            .map(|i| {
-                let cancellation = cancellation.clone();
-                let future = worker(
-                    i,
-                    source.clone(),
-                    target.clone(),
-                    receiver.clone(),
-                    query.clone(),
-                    opts.clone(),
-                    metrics.clone(),
-                    actions.clone(),
-                    source_is_v3,
-                    target_is_v3,
-                    task_id.clone(),
-                    file_mutex.clone(),
-                    breakpoints.clone(),
-                )
-                .in_current_span();
-                tokio::spawn(async move {
-                    tokio::select! {
-                        _ = future => {
-                            Ok(())
-                        }
-                        _ = cancellation.cancelled() => {
-                            Ok(())
-                        }
+        for i in 0..workers {
+            let future = worker(
+                i,
+                source.clone(),
+                target.clone(),
+                receiver.clone(),
+                query.clone(),
+                opts.clone(),
+                metrics.clone(),
+                actions.clone(),
+                source_is_v3,
+                target_is_v3,
+                breakpoints.clone(),
+            )
+            .in_current_span();
+            task_set.spawn(future);
+        }
+
+        let handle = tokio::task::spawn(async move {
+            let cancellation = cancellation.child_token();
+            let _drop = cancellation.clone().drop_guard();
+            let futures = async {
+                while let Some(_) = task_set.join_next().await.transpose()?.transpose()? {}
+                anyhow::Ok(())
+            };
+            tokio::select! {
+                res = futures => {
+                    drop(_drop);
+                    if let Err(err) = &res {
+                        tracing::error!("Scheduler runtime error: {err:#}");
                     }
-                })
-            })
-            .collect_vec();
+                    return res;
+                },
+                _ = cancellation.cancelled() => {
+                    tracing::debug!("Scheduler cancelled");
+                    task_set.abort_all();
+                    return Ok(())
+                }
+            }
+        });
+        let abort = handle.abort_handle();
 
         Self {
             workers,
@@ -739,7 +736,8 @@ impl Scheduler {
             opts,
             sender,
             receiver,
-            handles,
+            handle: Mutex::new(Some(handle)),
+            abort,
             task_id,
             breakpoints,
         }
@@ -749,49 +747,29 @@ impl Scheduler {
         self.breakpoints.clone()
     }
 
+    pub fn breakpoints_ref(&self) -> Option<&BreakpointDb> {
+        self.breakpoints.as_ref()
+    }
+
     pub fn abort(&self) {
-        self.handles.iter().for_each(|h| h.abort());
+        // self.handle.abort();
+        self.abort.abort();
     }
 
     pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
         self.sender.send_async(todo).await
     }
 
-    pub fn send_blocking(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
-        self.sender.send(todo)
-    }
-
-    // pub fn abort(&self) {
-    //     for h in self.handles.iter() {
-    //         h.abort();
-    //     }
-    // }
-
-    // pub fn is_empty(&self) -> bool {
-    //     self.receiver.is_empty()
-    // }
-}
-impl std::future::Future for Scheduler {
-    type Output = Result<(), JoinError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        for h in self.handles.iter_mut() {
-            match h.poll_unpin(cx) {
-                Poll::Ready(Err(err)) => {
-                    return Poll::Ready(Err(err));
-                }
-                Poll::Ready(Ok(_)) => {
-                    continue;
-                }
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
-            }
+    pub async fn wait(&self) -> anyhow::Result<()> {
+        if let Some(handle) = { self.handle.lock().await.take() } {
+            handle
+                .await
+                .context("Scheduler join error")?
+                .context("Scheduler runtime error")?;
         }
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 }
-
 #[async_backtrace::framed]
 async fn sync_sparse_stable(
     _source: TaosPool,
