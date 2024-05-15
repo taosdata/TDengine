@@ -1,9 +1,16 @@
 <template>
   <div class="">
     <section class="flexEnd">
-      <el-button class="medium-btn" @click="add" icon="el-icon-plus" plain>{{
-        $t("accessControl.addAccess")
-      }}</el-button>
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button class="medium-btn" @click="add" icon="el-icon-plus" plain :disabled="$COMMUNITY">{{
+          $t("accessControl.addAccess")
+        }}</el-button>
+      </el-tooltip>
     </section>
     <el-table
       :max-height="height"

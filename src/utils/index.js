@@ -425,6 +425,14 @@ export function parsinginZone(value, format) {
   return momentTimezone(value).tz(timezone).format(format);
 }
 
+export function formatTime(time) {
+  let timezone = getLocalTimezone();
+  let str = moment.tz(timezone).format("Z")
+  let time1 = moment(time).format()
+  let arr = time1.split('+')
+  return arr[0] + str
+}
+
 export function getBrowserLang() {
   return i18n.locale.includes("zh") ? "zh" : "en";
 }

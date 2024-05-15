@@ -8,22 +8,29 @@
               :class="['label required', language.includes('zh') ? 'zh' : 'en']"
               >{{ $t("datasource.upfile") }}</span
             >
-            <el-upload
-              class="upload-demo"
-              ref="upload"
-              accept=".csv"
-              :on-remove="handleRemove"
-              :data="uploadData"
-              :action="uploadUrl"
-              :on-success="handleSuccess"
-              :file-list="fileList"
-              :auto-upload="true"
-              size="small"
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
-              <el-button slot="trigger" size="small" type="primary" plain>{{
-                $t("datasource.selectfile")
-              }}</el-button>
-            </el-upload>
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-upload
+                class="upload-demo"
+                ref="upload"
+                accept=".csv"
+                :on-remove="handleRemove"
+                :data="uploadData"
+                :action="uploadUrl"
+                :on-success="handleSuccess"
+                :file-list="fileList"
+                :auto-upload="true"
+                size="small"
+              >
+                <el-button slot="trigger" size="small" type="primary" plain :disabled="$COMMUNITY">{{
+                  $t("datasource.selectfile")
+                }}</el-button>
+              </el-upload>
+            </el-tooltip>
             <span
               style="color: red; font-size: 12px; margin-left: 10px"
               v-if="showfiletip"
@@ -60,14 +67,22 @@
         </el-tab-pane>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
-            <el-button
-              type="primary"
-              @click="getCsvColumnsData"
-              size="small"
-              class="nextbtn"
-              :loading="loading"
-              >{{ $t("datasource.csvNext") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                type="primary"
+                @click="getCsvColumnsData"
+                size="small"
+                class="nextbtn"
+                :loading="loading"
+                :disabled="$COMMUNITY"
+                >{{ $t("datasource.csvNext") }}</el-button
+              >
+            </el-tooltip>
             <CommonTransformer
               ref="transform"
               :parserColumns="extractArr"
