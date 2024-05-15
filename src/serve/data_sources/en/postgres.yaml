@@ -77,10 +77,10 @@ groups:
         description: |
           SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.
           SQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:
-          1. ${start}, ${end}: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800
-          2. ${start_no_tz}, ${end_no_tz}: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00
-          3. ${start_date}, ${end_date}: Represents only the date, such as: 2024-03-14
-          4. ${start_time}, ${end_time}: Represents only the time, such as: 08:00:00
+          1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800
+          2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00
+          3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14
+          4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00
         required: true
         placeholder: "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
         hint:
