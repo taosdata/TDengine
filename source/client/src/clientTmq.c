@@ -112,7 +112,7 @@ struct tmq_t {
   STaosQueue* mqueue;        // queue of rsp
   STaosQall*  qall;
   STaosQueue* delayedTask;  // delayed task queue for heartbeat and auto commit
-  tsem_t      rspSem;
+  tsem2_t      rspSem;
 };
 
 typedef struct SAskEpInfo {
@@ -736,7 +736,7 @@ static void generateTimedTask(int64_t refId, int32_t type) {
 
   *pTaskType = type;
   taosWriteQitem(tmq->delayedTask, pTaskType);
-  tsem_post(&tmq->rspSem);
+  tsem2_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -1049,7 +1049,7 @@ void tmqFreeImpl(void* handle) {
   }
 
   taosFreeQall(tmq->qall);
-  tsem_destroy(&tmq->rspSem);
+  tsem2_destroy(&tmq->rspSem);
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
@@ -1133,7 +1133,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->consumerId = tGenIdPI64();
 
   // init semaphore
-  if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
+  if (tsem2_init(&pTmq->rspSem, 0, 0) != 0) {
     tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
     SET_ERROR_MSG_TMQ("init t_sem failed")
@@ -1144,7 +1144,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) {
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-    tsem_destroy(&pTmq->rspSem);
+    tsem2_destroy(&pTmq->rspSem);
     SET_ERROR_MSG_TMQ("init tscObj failed")
     goto _failed;
   }
@@ -1397,7 +1397,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
             " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
             tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
 
-    tsem_post(&tmq->rspSem);
+    tsem2_post(&tmq->rspSem);
     taosReleaseRef(tmqMgmt.rsetId, refId);
 
     taosMemoryFree(pMsg->pData);
@@ -1467,7 +1467,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   tscDebug("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d, reqId:0x%" PRIx64,
            tmq->consumerId, rspType, vgId, total, requestId);
 
-  tsem_post(&tmq->rspSem);
+  tsem2_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
   taosMemoryFree(pParam);
 
@@ -1483,7 +1483,7 @@ CREATE_MSG_FAIL:
     taosWUnLockLatch(&tmq->lock);
   }
 
-  tsem_post(&tmq->rspSem);
+  tsem2_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
   taosMemoryFree(pParam);
 
@@ -1805,7 +1805,7 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClie
 
 static int32_t handleErrorBeforePoll(SMqClientVg* pVg, tmq_t* pTmq) {
   atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-  tsem_post(&pTmq->rspSem);
+  tsem2_post(&pTmq->rspSem);
   return -1;
 }
 
@@ -2190,10 +2190,10 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
                  tmq->consumerId, tmq->epoch, startTime, currentTime);
         return NULL;
       }
-      tsem_timewait(&tmq->rspSem, (timeout - elapsedTime));
+      tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
     } else {
       // use tsem_timewait instead of tsem_wait to avoid unexpected stuck
-      tsem_timewait(&tmq->rspSem, 1000);
+      tsem2_timewait(&tmq->rspSem, 1000);
     }
   }
 }
