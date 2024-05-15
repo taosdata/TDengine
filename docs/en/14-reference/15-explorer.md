@@ -26,7 +26,7 @@ The description of these two parameters:
 
 ## Start & Stop
 
-Before starting the service, please first make sure the configuration is correct, and the TDengine cluster (majorly including `taosd` and `taosAdapte` services) are already alive and working well.
+Before starting the service, please first make sure the configuration is correct, and the TDengine cluster (majorly including `taosd` and `taosAdapter` services) are already alive and working well.
 
 ### Linux
 
