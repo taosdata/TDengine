@@ -257,19 +257,18 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
     return 0;
   }
 
-  STaskDbWrapper* pBackend = taskDbOpen(pMeta->path, key, chkpId);
+  STaskDbWrapper* pBackend = NULL;
   while (1) {
-    if (pBackend == NULL) {
-      taosThreadMutexUnlock(&pMeta->backendMutex);
-      taosMsleep(1000);
-      stDebug("backend held by other task, restart later, path:%s, key:%s", pMeta->path, key);
-    } else {
-      taosThreadMutexUnlock(&pMeta->backendMutex);
+    pBackend = taskDbOpen(pMeta->path, key, chkpId);
+    if (pBackend != NULL) {
       break;
     }
 
+    taosThreadMutexUnlock(&pMeta->backendMutex);
+    taosMsleep(1000);
+
+    stDebug("backend held by other task, restart later, path:%s, key:%s", pMeta->path, key);
     taosThreadMutexLock(&pMeta->backendMutex);
-    pBackend = taskDbOpen(pMeta->path, key, chkpId);
   }
 
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
