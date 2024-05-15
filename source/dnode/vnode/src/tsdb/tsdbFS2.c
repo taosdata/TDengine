@@ -22,9 +22,6 @@
 
 extern void remove_file(const char *fname);
 
-#define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
-#define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
-
 typedef struct STFileHashEntry {
   struct STFileHashEntry *next;
   char                    fname[TSDB_FILENAME_LEN];
@@ -305,10 +302,8 @@ static int32_t commit_edit(STFileSystem *fs) {
   current_fname(fs->tsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
-  } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   } else {
-    ASSERT(0);
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
   int32_t code;
@@ -339,11 +334,8 @@ static int32_t abort_edit(STFileSystem *fs) {
 
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_C);
-  } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   } else {
-    tsdbError("vgId:%d %s failed since invalid etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
-    ASSERT(0);
+    current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   }
 
   int32_t code;
@@ -820,15 +812,10 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
 
-  switch (etype) {
-    case TSDB_FEDIT_COMMIT:
-      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
-      break;
-    case TSDB_FEDIT_MERGE:
-      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
-      break;
-    default:
-      ASSERT(0);
+  if (etype == TSDB_FEDIT_COMMIT) {
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
+  } else {
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
   tsem_wait(&fs->canEdit);
@@ -1049,20 +1036,23 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
 }
 
 int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
-  tsdbFSGetFSet(tsdb->pFS, fid, fset);
-  if (fset != NULL) {
-    for (;;) {
-      if ((*fset)->hasTaskRunning) {
-        (*fset)->numWaitDoTask++;
+  int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
 
-        taosThreadCondWait(&(*fset)->canDoTask, &tsdb->mutex);
+  tsdbFSGetFSet(tsdb->pFS, fid, fset);
+  if (sttTrigger == 1 && fset) {
+    for (;;) {
+      if ((*fset)->taskRunning) {
+        (*fset)->numWaitTask++;
+
+        taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
 
         tsdbFSGetFSet(tsdb->pFS, fid, fset);
         ASSERT(fset != NULL);
 
-        (*fset)->numWaitDoTask--;
+        (*fset)->numWaitTask--;
+        ASSERT((*fset)->numWaitTask >= 0);
       } else {
-        (*fset)->hasTaskRunning = true;
+        (*fset)->taskRunning = true;
         break;
       }
     }
@@ -1072,12 +1062,14 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
 }
 
 int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
-  STFileSet *fset = NULL;
-
-  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
-  if (fset != NULL && fset->numWaitDoTask > 0) {
-    fset->hasTaskRunning = false;
-    taosThreadCondSignal(&fset->canDoTask);
+  int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
+  if (sttTrigger == 1) {
+    STFileSet *fset = NULL;
+    tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+    if (fset != NULL && fset->numWaitTask > 0) {
+      fset->taskRunning = false;
+      taosThreadCondSignal(&fset->beginTask);
+    }
   }
 
   return 0;

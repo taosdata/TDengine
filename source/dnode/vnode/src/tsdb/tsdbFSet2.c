@@ -423,11 +423,14 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // background task queue
+  taosThreadCondInit(&(*fset)->beginTask, NULL);
+  (*fset)->taskRunning = false;
+  (*fset)->numWaitTask = 0;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);
-  fset[0]->numWaitCommit = 0;
-  fset[0]->blockCommit = false;
+  (*fset)->numWaitCommit = 0;
+  (*fset)->blockCommit = false;
 
   return 0;
 }
@@ -499,6 +502,7 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
 
   TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlClear);
 
+  taosThreadCondDestroy(&(*fset)->beginTask);
   taosThreadCondDestroy(&fset[0]->canCommit);
   taosMemoryFree(fset[0]);
   fset[0] = NULL;

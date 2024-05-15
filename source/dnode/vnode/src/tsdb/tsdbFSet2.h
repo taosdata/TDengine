@@ -85,9 +85,9 @@ struct STFileSet {
   bool         mergeScheduled;
 
   // sttTrigger = 1
-  TdThreadCond canDoTask;
-  bool         hasTaskRunning;
-  int32_t      numWaitDoTask;
+  TdThreadCond beginTask;
+  bool         taskRunning;
+  int32_t      numWaitTask;
 
   // block commit variables
   TdThreadCond canCommit;

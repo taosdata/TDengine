@@ -226,20 +226,20 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (TARRAY2_SIZE(&rtner->fopArr) == 0) goto _exit;
-
-  code = tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadMutexLock(&rtner->tsdb->mutex);
-
-  code = tsdbFSEditCommit(rtner->tsdb->pFS);
-  if (code) {
-    taosThreadMutexUnlock(&rtner->tsdb->mutex);
+  if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
+    code = tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, TSDB_FEDIT_RETENTION);
     TSDB_CHECK_CODE(code, lino, _exit);
-  }
 
-  taosThreadMutexUnlock(&rtner->tsdb->mutex);
+    taosThreadMutexLock(&rtner->tsdb->mutex);
+
+    code = tsdbFSEditCommit(rtner->tsdb->pFS);
+    if (code) {
+      taosThreadMutexUnlock(&rtner->tsdb->mutex);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    taosThreadMutexUnlock(&rtner->tsdb->mutex);
+  }
 
 _exit:
   if (code) {
@@ -250,10 +250,11 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
+static int32_t tsdbDoRetention(SRTNer *rtner) {
   int32_t    code = 0;
   int32_t    lino = 0;
   STFileObj *fobj = NULL;
+  STFileSet *fset = rtner->fset;
   int32_t    expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
 
   if (expLevel < 0) {  // remove the fileset
@@ -349,20 +350,18 @@ static int32_t tsdbRetention(void *arg) {
           .cid = tsdbFSAllocEid(pTsdb->pFS),
   };
 
+  // begin task
   taosThreadMutexLock(&pTsdb->mutex);
-
   tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
-  if (fset) {
-    if ((code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
-      taosThreadMutexUnlock(&pTsdb->mutex);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+  if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
+    taosThreadMutexUnlock(&pTsdb->mutex);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
   taosThreadMutexUnlock(&pTsdb->mutex);
 
+  // do retention
   if (rtner.fset) {
-    code = tsdbDoRetentionOnFileSet(&rtner, fset);
+    code = tsdbDoRetention(&rtner);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbDoRetentionEnd(&rtner);
@@ -370,12 +369,19 @@ static int32_t tsdbRetention(void *arg) {
   }
 
 _exit:
-  tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+  // finish task
+  if (rtner.fset) {
+    taosThreadMutexLock(&pTsdb->mutex);
+    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    taosThreadMutexUnlock(&pTsdb->mutex);
+  }
+
+  // clear resources
+  tsdbTFileSetClear(&rtner.fset);
+  TARRAY2_DESTROY(&rtner.fopArr, NULL);
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
-  tsdbTFileSetClear(&rtner.fset);
-  TARRAY2_DESTROY(&rtner.fopArr, NULL);
   return code;
 }
 
@@ -400,7 +406,6 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
       arg->now = now;
       arg->fid = fset->fid;
 
-      // TODO: do not schedule if there is already a retention task for the same fileset
       if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionComplete, arg, NULL))) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);

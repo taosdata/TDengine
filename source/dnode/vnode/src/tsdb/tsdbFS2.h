@@ -24,7 +24,9 @@ extern "C" {
 
 typedef enum {
   TSDB_FEDIT_COMMIT = 1,  //
-  TSDB_FEDIT_MERGE
+  TSDB_FEDIT_MERGE,
+  TSDB_FEDIT_COMPACT,
+  TSDB_FEDIT_RETENTION,
 } EFEditT;
 
 typedef enum {
