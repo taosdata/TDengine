@@ -55,7 +55,7 @@ impl OPCConfig {
         let model_config = if csv_config_file.is_some() {
             let parser = CsvParser::from_dsn(dsn).await?;
 
-            let table_to_drop = parser.get_tables_to_drop();
+            let table_to_drop = parser.get_tables_to_drop().await;
             for child_table_name in table_to_drop.iter() {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
@@ -75,7 +75,7 @@ impl OPCConfig {
         } else {
             let points = opc_datasets_impl(dsn.clone()).await?;
             let mut opc_model_config = OpcModelConfig::new();
-            opc_model_config.add_points(points, dsn)?;
+            opc_model_config.add_points(points, dsn).await?;
 
             opc_model_config
         };

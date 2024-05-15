@@ -150,9 +150,9 @@ impl CsvParser {
         self.model_config.clone()
     }
 
-    pub fn get_point_ids(&self) -> Vec<String> {
-        let point_config_map = &self.model_config.point_config_map;
-        let table_config_map = &self.model_config.table_config_map;
+    pub async fn get_point_ids(&self) -> Vec<String> {
+        let point_config_map = &self.model_config.get_point_config_map().await;
+        let table_config_map = &self.model_config.get_table_config_map().await;
         let mut node_config = Vec::new();
 
         for point_id in point_config_map.keys() {
@@ -169,9 +169,9 @@ impl CsvParser {
         node_config
     }
 
-    pub fn get_tables_to_drop(&self) -> Vec<String> {
-        let point_config_map = &self.model_config.point_config_map;
-        let table_config_map = &self.model_config.table_config_map;
+    pub async fn get_tables_to_drop(&self) -> Vec<String> {
+        let point_config_map = &self.model_config.get_point_config_map().await;
+        let table_config_map = &self.model_config.get_table_config_map().await;
 
         let mut tables_to_drop = Vec::new();
         for point_id in point_config_map.keys() {
@@ -239,13 +239,15 @@ mod tests {
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let ua_config = csv_parser.get_model_config();
-        assert_eq!(ua_config.point_config_map.len(), 3);
+        let point_config_map = ua_config.get_point_config_map().await;
+        assert_eq!(point_config_map.len(), 3);
 
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
         let da_config = csv_parser.get_model_config();
-        assert_eq!(da_config.point_config_map.len(), 3);
+        let point_config_map = da_config.get_point_config_map().await;
+        assert_eq!(point_config_map.len(), 3);
     }
 
     #[tokio::test]
@@ -253,7 +255,7 @@ mod tests {
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let ua_config = csv_parser.get_point_ids();
+        let ua_config = csv_parser.get_point_ids().await;
         assert_eq!(ua_config.len(), 2);
         assert_eq!(ua_config.get(0).unwrap(), "ns=3;i=1005::t_3_1005");
         assert_eq!(ua_config.get(1).unwrap(), "ns=3;i=1006::t_3_1006");
@@ -261,7 +263,7 @@ mod tests {
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let da_config = csv_parser.get_point_ids();
+        let da_config = csv_parser.get_point_ids().await;
         assert_eq!(da_config.len(), 2);
         assert_eq!(
             da_config.get(0).unwrap(),
@@ -279,14 +281,14 @@ mod tests {
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let tables_to_drop = csv_parser.get_tables_to_drop();
+        let tables_to_drop = csv_parser.get_tables_to_drop().await;
         assert_eq!(tables_to_drop.len(), 1);
         assert_eq!(tables_to_drop.get(0).unwrap(), "t_3_1007");
 
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
-        let tables_to_drop = csv_parser.get_tables_to_drop();
+        let tables_to_drop = csv_parser.get_tables_to_drop().await;
         assert_eq!(tables_to_drop.len(), 1);
         assert_eq!(tables_to_drop.get(0).unwrap(), "t_pressure");
     }
@@ -339,7 +341,7 @@ mod tests {
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-name-error.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
 
-        let point_config_map = &csv_parser.model_config.point_config_map;
+        let point_config_map = &csv_parser.model_config.get_point_config_map().await;
 
         assert_eq!(3, point_config_map.len());
 

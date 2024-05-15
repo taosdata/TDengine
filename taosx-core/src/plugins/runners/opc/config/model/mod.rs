@@ -23,9 +23,49 @@ pub struct OpcModelConfig {
     /// id, (code, stable, enabled)
     /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
+    #[serde(with = "RwLockLinkedHashMapPointConfig")]
     point_config_map: Arc<RwLock<LinkedHashMap<String, PointConfig>>>,
+    #[serde(with = "RwLockLinkedHashMapTableConfig")]
     table_config_map: Arc<RwLock<LinkedHashMap<String, TableConfig>>>,
 }
+
+serde_with::serde_conv!(
+    RwLockLinkedHashMapPointConfig,
+    Arc<RwLock<LinkedHashMap<String, PointConfig>>>,
+    |value: &Arc<RwLock<LinkedHashMap<String, PointConfig>>>| -> Option<LinkedHashMap<String, PointConfig>> {
+        let v = value.blocking_read();
+        if v.is_empty() {
+            return None;
+        } else {
+            return Some(v.clone());
+        }
+    },
+    |value: Option<LinkedHashMap<String, PointConfig>>| -> Result<_, String> {
+        match value {
+            Some(value) => Ok(Arc::new(RwLock::new(value))),
+            None => Ok(Arc::new(RwLock::new(LinkedHashMap::new()))),
+        }
+    }
+);
+
+serde_with::serde_conv!(
+    RwLockLinkedHashMapTableConfig,
+    Arc<RwLock<LinkedHashMap<String, TableConfig>>>,
+    |value: &Arc<RwLock<LinkedHashMap<String, TableConfig>>>| -> Option<LinkedHashMap<String, TableConfig>> {
+        let v = value.blocking_read();
+        if v.is_empty() {
+            return None;
+        } else {
+            return Some(v.clone());
+        }
+    },
+    |value: Option<LinkedHashMap<String, TableConfig>>| -> Result<_, String> {
+        match value {
+            Some(value) => Ok(Arc::new(RwLock::new(value))),
+            None => Ok(Arc::new(RwLock::new(LinkedHashMap::new()))),
+        }
+    }
+);
 
 impl OpcModelConfig {
     pub fn new() -> Self {
@@ -50,7 +90,7 @@ impl OpcModelConfig {
         table_config_map.get(point_id).map(|v| v.clone())
     }
 
-    pub fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
+    pub async fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
         let stable_expr = OPCConfig::parse_stable_expression(dsn)?;
         let tbname_expr = OPCConfig::parse_tbname_expression(dsn)?;
         let primary_key =
@@ -79,7 +119,8 @@ impl OpcModelConfig {
                 tag_values: None,
                 value_type,
             };
-            self.point_config_map.insert(point_id.clone(), point_config);
+            let mut point_config_map = self.point_config_map.write().await;
+            point_config_map.insert(point_id.clone(), point_config);
 
             // table_config
             let mut column_configs = vec![];
@@ -127,7 +168,8 @@ impl OpcModelConfig {
                 column_configs,
                 tag_configs: None,
             };
-            self.table_config_map.insert(point_id.clone(), table_config);
+            let mut table_config_map = self.table_config_map.write().await;
+            table_config_map.insert(point_id.clone(), table_config);
 
             index += 1;
         }
@@ -186,10 +228,15 @@ impl OpcModelConfig {
         Ok(())
     }
 
-    pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
+    pub async fn get_column_config_map_by_name(
+        &self,
+        col_name: &str,
+    ) -> HashMap<String, ColumnConfig> {
         let mut column_config_map = HashMap::new();
 
-        for (point_id, table_config) in &self.table_config_map {
+        let table_config_map = self.table_config_map.read().await;
+
+        for (point_id, table_config) in table_config_map.iter() {
             let column_config = table_config.column_config(col_name);
             if let Some(column_config) = column_config {
                 column_config_map.insert(point_id.clone(), column_config.clone());
@@ -334,7 +381,7 @@ mod model_config_tests {
 
         // when
         let mut config = OpcModelConfig::new();
-        config.add_points(points, &dsn).unwrap();
+        config.add_points(points, &dsn).await.unwrap();
 
         // then
         let point_config_map = config.point_config_map.read().await;

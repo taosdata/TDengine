@@ -766,7 +766,7 @@ struct ModifyStructForPointMessage {
 }
 
 /// handle value_transform, ts_transform, rts_transform
-fn handle_transform(
+async fn handle_transform(
     message: &RecordMessage,
     config: &OpcModelConfig,
 ) -> anyhow::Result<RecordMessage> {
@@ -777,17 +777,23 @@ fn handle_transform(
     let name_col = message.clone_column_by_name("name")?;
 
     // transform ts
-    let ts_config_map = config.get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS);
+    let ts_config_map = config
+        .get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS)
+        .await;
     let ts_transform = to_record_transform_map(&ts_config_map);
     let transformed_ts_col = transform_by_name(message.record(), "ts", ts_transform)?;
 
     // transform received_ts
-    let rts_config_map = config.get_column_config_map_by_name(ColumnConfig::RECEIVED_TS);
+    let rts_config_map = config
+        .get_column_config_map_by_name(ColumnConfig::RECEIVED_TS)
+        .await;
     let rts_transform = to_record_transform_map(&rts_config_map);
     let transformed_received_col = transform_by_name(message.record(), "received", rts_transform)?;
 
     // transform value
-    let val_config_map = config.get_column_config_map_by_name(ColumnConfig::VALUE);
+    let val_config_map = config
+        .get_column_config_map_by_name(ColumnConfig::VALUE)
+        .await;
     let value_transform = to_record_transform_map(&val_config_map);
     let transformed_value_col = transform_by_name(message.record(), "value", value_transform)?;
 
@@ -1313,7 +1319,7 @@ mod handle_transform_tests {
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
 
-        let transformed_msg = handle_transform(&message, &model_config).unwrap();
+        let transformed_msg = handle_transform(&message, &model_config).await.unwrap();
 
         let value = transformed_msg
             .record()
@@ -1486,7 +1492,7 @@ async fn consume_point_record(
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
         // handle value_transform, ts_transform, rts_transform
-        let message = handle_transform(message, config)?;
+        let message = handle_transform(message, config).await?;
 
         let cv_vec = record_batch_to_column_view(message.record(), target_precision);
 
