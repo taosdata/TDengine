@@ -67,7 +67,7 @@ TEST_F(CfgTest, 02_Basic) {
 
   SConfigItem* pItem = NULL;
   SConfigIter* pIter = cfgCreateIter(pConfig);
-  while((pItem == cfgNextIter(pIter)) != NULL) {
+  while((pItem = cfgNextIter(pIter)) != NULL) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
         printf("index:%d, cfg:%s value:%d\n", size, pItem->name, pItem->bval);

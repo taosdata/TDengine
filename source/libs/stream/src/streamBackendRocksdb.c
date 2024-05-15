@@ -1974,7 +1974,7 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
 
     cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
     if (err != NULL) {
-      stError("%s failed to create column-family, %s, %d, reason:%s", key, dbPath, nCf, err);
+      stError("%s failed to create column-family, %s, %" PRIzu ", reason:%s", key, dbPath, nCf, err);
       goto _EXIT;
     }
   }
