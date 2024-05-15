@@ -1074,10 +1074,11 @@ int32_t tsdbWaitToDoTaskOnFileSet(STsdb *tsdb, int32_t fid) {
 }
 
 int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
-  STFileSet *fset;
+  STFileSet *fset = NULL;
 
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
   if (fset != NULL && fset->numWaitDoTask > 0) {
+    fset->hasTaskRunning = false;
     taosThreadCondSignal(&fset->canDoTask);
   }
 
