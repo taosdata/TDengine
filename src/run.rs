@@ -67,6 +67,10 @@ pub(super) struct Cli {
 
     #[clap(flatten)]
     pub verbose: Option<Verbosity<InfoLevel>>,
+
+    /// Task id, default is -1.
+    #[clap(long, hide = true)]
+    task_id: Option<i64>,
 }
 
 #[config]
@@ -148,7 +152,7 @@ impl Cli {
             breakpoints: None,
             transferred: Default::default(),
             span: span.clone(),
-            task_id: None,
+            task_id: args.task_id.clone().map(|v| v.to_string()),
             notify,
         };
 
@@ -157,8 +161,13 @@ impl Cli {
         debugging_recorder.install()?;
 
         let timer_run = Arc::new(AtomicBool::new(true));
-        let _metrics =
-            init_task_metrics(task_opt.from.clone(), task_opt.to.clone(), -1, None).await;
+        let _metrics = init_task_metrics(
+            task_opt.from.clone(),
+            task_opt.to.clone(),
+            args.task_id.unwrap_or(-1),
+            None,
+        )
+        .await;
         let port_pool = Default::default();
         tokio::select! {
             res = task_opt.run(&port_pool).in_current_span() => {

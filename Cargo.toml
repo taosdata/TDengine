@@ -31,7 +31,7 @@ bytes = "1.4.0"
 sysinfo = "0.30.5"
 
 [workspace.package]
-version = "1.6.0"
+version = "1.6.1"
 rust-version = "1.78.0"
 
 [package]
