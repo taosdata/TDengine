@@ -215,7 +215,33 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
-int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
+int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
+  int ret = 0;
+
+  struct timespec ts = {0};
+
+  if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+    return -1;
+  }
+
+  ts.tv_nsec += ms * 1000000;
+  ts.tv_sec += ts.tv_nsec / 1000000000;
+  ts.tv_nsec %= 1000000000;
+
+  while ((ret = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
+
+  return ret;
+}
+
+int32_t tsem_wait(tsem_t* sem) {
+  int ret = 0;
+  do {
+    ret = sem_wait(sem);
+  } while (ret != 0 && errno == EINTR);
+  return ret;
+}
+
+int tsem2_init(tsem2_t* sem, int pshared, unsigned int value) {
   int ret = taosThreadMutexInit(&sem->mutex, NULL);
   if (ret != 0) return ret;
   ret = taosThreadCondAttrInit(&sem->attr);
@@ -243,7 +269,7 @@ int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
   return 0;
 }
 
-int tsem_post(tsem_t *sem) {
+int tsem2_post(tsem2_t *sem) {
   taosThreadMutexLock(&sem->mutex);
   sem->count++;
   taosThreadCondSignal(&sem->cond);
@@ -251,14 +277,14 @@ int tsem_post(tsem_t *sem) {
   return 0;
 }
 
-int tsem_destroy(tsem_t* sem) {
+int tsem2_destroy(tsem2_t* sem) {
   taosThreadMutexDestroy(&sem->mutex);
   taosThreadCondDestroy(&sem->cond);
   taosThreadCondAttrDestroy(&sem->attr);
   return 0;
 }
 
-int32_t tsem_wait(tsem_t* sem) {
+int32_t tsem2_wait(tsem2_t* sem) {
   taosThreadMutexLock(&sem->mutex);
   while (sem->count <= 0) {
     int ret = taosThreadCondWait(&sem->cond, &sem->mutex);
@@ -274,7 +300,7 @@ int32_t tsem_wait(tsem_t* sem) {
   return 0;
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
+int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
   int ret = 0;
 
   taosThreadMutexLock(&sem->mutex);
