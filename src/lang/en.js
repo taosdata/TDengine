@@ -216,6 +216,7 @@ export default {
   dontDisturbMe: 'No more reminders within 7 days',
   communityTip: "Only available in TDengine Enterprise or Cloud. To learn more, please visit the TDengine <a href='https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>official website</a>.",
   communityDemoDataTip: 'The current list data is only sample data',
+  fullscreen: "Full screen",
   statuses: {
     created: "Created",
     queued: "Queued",

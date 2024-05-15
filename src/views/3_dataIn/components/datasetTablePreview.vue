@@ -2,7 +2,10 @@
   <div class="dataset-result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight, 'top': defaultTop}">
     <div class="title-block">
       <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
-      <span class='el-icon-close' @click="showtable=false"></span>
+      <span class="title-block">
+        <el-button size="mini" type="text" @click="drawer=true">{{ $t('fullscreen')}}</el-button>
+        <span class='el-icon-close' @click="showtable=false"></span>
+      </span>
     </div>
     <el-table
       border
@@ -73,6 +76,81 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
+    <el-drawer
+      id="my-drawer"
+      :title="$t('datasource.transformer.resulttb')"
+      :visible.sync="drawer"
+      direction="rtl"
+      size="90%">
+      <el-table
+        border
+        style="width: 100%"
+        :max-height="fullTableHeight"
+        ref='table'
+        :data="tableData.filter(data => (!searchName || data.name.toLowerCase().includes(searchName.toLowerCase())) &&
+        (!searchId || data.id.toLowerCase().includes(searchId.toLowerCase())) &&
+        (!searchEnabled || data.enabled.toString().toLowerCase().includes(searchEnabled.toLowerCase())))"
+        size="small">
+        <el-table-column
+          prop="id"
+          show-overflow-tooltip
+          label="id"
+        >
+          <template #header>
+            <el-input
+              style="width: 80%"
+              v-model="searchId"
+              size="mini"
+              :placeholder="$t('filter')"
+            >
+              <template slot="prepend">id</template>
+            </el-input>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="name"
+          show-overflow-tooltip
+          label="name"
+        >
+          <template #header>
+            <el-input
+              style="width: 80%"
+              v-model="searchName"
+              size="mini"
+              :placeholder="$t('filter')"
+            >
+              <template slot="prepend">name</template>
+            </el-input>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="enabled"
+          show-overflow-tooltip
+          label="enabled"
+        >
+          <template #header>
+            <el-input
+              style="width: 80%"
+              v-model="searchEnabled"
+              size="mini"
+              :placeholder="$t('filter')"
+            >
+              <template slot="prepend">enabled</template>
+            </el-input>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        class="pagination"
+        layout="total, prev, pager, next"
+        :current-page.sync="currentPage"
+        :page-size="pageSize"
+        :hide-on-single-page="true"
+        :total="total"
+        @current-change="handlePageChange"
+      ></el-pagination>
+    </el-drawer>
   </div>
 </template>
 <script>
@@ -99,7 +177,9 @@ export default {
       defaultTop: '50%',
       searchName: '',
       searchId: '',
-      searchEnabled: ''
+      searchEnabled: '',
+      drawer: false,
+      fullTableHeight: 600,
     };
   },
   mounted() {
@@ -117,6 +197,13 @@ export default {
         this.currentPage = 1
         this.getDatasetsData()
         this.showtable = true
+      }
+    },
+    drawer(val) {
+      if (val) {
+        this.$nextTick(()=> {
+          this.fullTableHeight = this.getFullTableHeight()
+        })
       }
     }
   },
@@ -145,6 +232,11 @@ export default {
       let rect1 = dom1?.getBoundingClientRect()
       let rect2 = dom2?.getBoundingClientRect()
       this.defaultTop = rect1.top - rect2.top + 'px'
+    },
+    getFullTableHeight() {
+      let dom = document.getElementById('my-drawer')
+      let rect = dom.getBoundingClientRect()
+      return rect.height - 150
     }
   },
 };
@@ -198,6 +290,9 @@ export default {
       &::before {
         background-color: transparent;
       }
+    }
+    .el-drawer__body {
+      padding: 0 20px 20px;
     }
   }
 }

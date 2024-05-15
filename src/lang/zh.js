@@ -196,6 +196,7 @@ export default {
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
   communityDemoDataTip: '当前列表数据仅为示例数据',
+  fullscreen: "全屏显示",
   statuses: {
     created: "已创建",
     queued: "排队中",

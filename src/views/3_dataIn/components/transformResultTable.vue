@@ -2,7 +2,10 @@
   <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight}">
     <div class="title-block">
       <span class="title">{{ $t(`datasource.transformer.${title}`) }}</span>
-      <span class='el-icon-close' @click="showtable=false"></span>
+      <span class="title-block">
+        <el-button size="mini" type="text" @click="fullScreen">{{ $t('fullscreen')}}</el-button>
+        <span class='el-icon-close' @click="showtable=false"></span>
+      </span>
     </div>
     <el-table
       border
@@ -11,6 +14,7 @@
       :data="pageTableData"
       :row-class-name="tableRowClassName"
       ref='table'
+      v-if="!drawer"
     >
       <el-table-column
         v-for="item in columns"
@@ -27,6 +31,35 @@
       </template>
     </el-table-column>
     </el-table>
+    <el-drawer
+      :title="$t(`datasource.transformer.${title}`)"
+      :visible.sync="drawer"
+      direction="rtl"
+      size="90%">
+      <el-table
+        border
+        style="width: 100%"
+        :data="pageTableData"
+        :row-class-name="tableRowClassName"
+        ref='table'
+        size='small'
+        v-if="drawer">
+        <el-table-column
+          v-for="item in columns"
+          :key="item"
+          :prop="item"
+          :sortable="item == 'Name' ? true : false"
+          show-overflow-tooltip
+          :label="item"
+        >
+        <template slot="header">
+          <el-tooltip :content="item" placement="top-start">
+            <span>{{ item }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      </el-table>
+    </el-drawer>
     <!-- <div class="block-page">
       <el-pagination
         :class="['pagination', totalCount < 10 ? 'hide' : '']"
@@ -63,7 +96,8 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       mappingCol: "SubTableName",
-      defaultHeight:510
+      defaultHeight:510,
+      drawer: false
     };
   },
   mounted() {
@@ -193,6 +227,9 @@ export default {
       }, 200);
       this.setPageTableData();
     },
+    fullScreen() {
+      this.drawer = true;
+    }
   },
   computed: {
     title() {
@@ -300,6 +337,9 @@ export default {
       &::before {
         background-color: transparent;
       }
+    }
+    .el-drawer__body {
+      padding: 0 20px 20px;
     }
   }
 }
