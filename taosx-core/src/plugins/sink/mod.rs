@@ -835,6 +835,7 @@ async fn consume_lush_record_with_transform(
                             *count += lush::write_transformed_records_with_sql(
                                 pool,
                                 taos,
+                                super_table.as_str(),
                                 taos::Precision::Millisecond,
                                 &req_id,
                                 message,

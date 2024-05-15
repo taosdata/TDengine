@@ -8,7 +8,12 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{borrow::Cow, ops::Range, str::FromStr, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    ops::Range,
+    str::FromStr,
+    sync::Arc,
+};
 
 use arrow::{
     array::{Array, BinaryArray, StringArray},
@@ -1618,7 +1623,7 @@ impl MessageArrowRecords {
             return Some(format!("`{}` {}", tbname, col_values));
         }
         let using = self.table.using.as_ref().unwrap();
-        let names = self
+        let tag_names = self
             .table
             .tags
             .as_ref()
@@ -1641,8 +1646,27 @@ impl MessageArrowRecords {
 
         Some(format!(
             "`{}` using `{}` ({}) tags({}) {}",
-            tbname, using, names, tag_values, col_values
+            tbname, using, tag_names, tag_values, col_values
         ))
+    }
+
+    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Option<String> {
+        if self.records.num_rows() == 0 {
+            return None;
+        }
+
+        let primary_key_null_count = self.records.column(0).null_count();
+        if primary_key_null_count == self.records.num_rows() {
+            return None;
+        }
+        let tbname = self.opts.canonical_table_name(self.table.name.as_str());
+        // panic on ArrowError
+        crate::utils::sql::sql_values_from_record_batch_skip_null(
+            tbname.borrow(),
+            &self.records,
+            target_precision,
+        )
+        .expect("Sql values should be recognizable")
     }
 
     pub fn stable_name(&self) -> Option<&str> {

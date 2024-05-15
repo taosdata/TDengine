@@ -338,6 +338,7 @@ pub fn get_stream_id_u64(stream_id: &str) -> u64 {
     id << 48
 }
 
+#[derive(Debug)]
 pub struct RequestID {
     inner: AtomicU64,
 }
@@ -355,6 +356,10 @@ impl RequestID {
 
     pub fn next(&self) -> u64 {
         self.inner.fetch_add(1, Ordering::Acquire) + 1
+    }
+
+    pub fn get(&self) -> u64 {
+        self.inner.load(Ordering::SeqCst)
     }
 }
 

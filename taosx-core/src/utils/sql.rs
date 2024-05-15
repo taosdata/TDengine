@@ -1,5 +1,5 @@
 use arrow::{array::Array, record_batch::RecordBatch};
-use arrow_schema::ArrowError;
+use arrow_schema::{ArrowError, Schema};
 use itertools::Itertools;
 
 /// Escape a string value for SQL.
@@ -339,6 +339,311 @@ pub fn sql_values_from_record_batch(
     Ok(Some(values))
 }
 
+/// 对于属于同一个子表的一批 Records，生成一条 SQL 插入语句的 insert into 后面的部分，不使用自动建表语法。
+/// 如果某个字段的值为 NULL，则跳过该字段。
+/// 如：tablename (col_names) values (col_values) tablename (col_names) values (col_values) ...
+pub fn sql_values_from_record_batch_skip_null(
+    table_name: &str,
+    batch: &RecordBatch,
+    target_precision: taos::Precision,
+) -> Result<Option<String>, arrow::error::ArrowError> {
+    let schema = batch.schema();
+    let col_names = schema
+        .fields()
+        .iter()
+        .map(|f| format!("`{}`", f.name()))
+        .collect::<Vec<_>>();
+    let columns = batch.columns();
+    let mut sql = String::new();
+    for row in 0..batch.num_rows() {
+        if columns[0].is_null(row) {
+            continue;
+        }
+        let mut insert_col_names = String::new();
+        let mut insert_col_values = String::new();
+        for col in 0..batch.num_columns() {
+            let array = &columns[col];
+            if array.is_null(row) {
+                continue;
+            }
+            let column_data_type = columns[col].data_type();
+            match column_data_type {
+                arrow_schema::DataType::Null => {
+                    continue;
+                }
+                _ => (),
+            }
+            insert_col_names.push_str(&col_names[col]);
+            match column_data_type {
+                arrow_schema::DataType::Boolean => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::BooleanArray>()
+                        .unwrap();
+                    insert_col_values.push_str(if array.value(row) { "true" } else { "false" });
+                }
+                arrow_schema::DataType::Int8 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int8Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Int16 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int16Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Int32 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int32Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Int64 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int64Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::UInt8 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::UInt8Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::UInt16 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::UInt16Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::UInt32 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::UInt32Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::UInt64 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::UInt64Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Float16 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Float16Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Float32 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Float32Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Float64 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Float64Array>()
+                        .unwrap();
+                    insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Timestamp(unit, _) => match unit {
+                    arrow_schema::TimeUnit::Second => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::TimestampSecondArray>()
+                            .unwrap();
+                        match target_precision {
+                            taos::Precision::Millisecond => {
+                                insert_col_values.push_str(&(array.value(row) * 1000).to_string());
+                            }
+                            taos::Precision::Microsecond => {
+                                insert_col_values
+                                    .push_str(&(array.value(row) * 1000_000).to_string());
+                            }
+                            taos::Precision::Nanosecond => {
+                                insert_col_values
+                                    .push_str(&(array.value(row) * 1000_000_000).to_string());
+                            }
+                        }
+                    }
+                    arrow_schema::TimeUnit::Millisecond => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::TimestampMillisecondArray>()
+                            .unwrap();
+
+                        match target_precision {
+                            taos::Precision::Millisecond => {
+                                insert_col_values.push_str(&(array.value(row)).to_string());
+                            }
+                            taos::Precision::Microsecond => {
+                                insert_col_values.push_str(&(array.value(row) * 1000).to_string());
+                            }
+                            taos::Precision::Nanosecond => {
+                                insert_col_values
+                                    .push_str(&(array.value(row) * 1000_000).to_string());
+                            }
+                        }
+                    }
+                    arrow_schema::TimeUnit::Microsecond => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::TimestampMicrosecondArray>()
+                            .unwrap();
+
+                        match target_precision {
+                            taos::Precision::Millisecond => {
+                                insert_col_values.push_str(&(array.value(row) / 1000).to_string());
+                            }
+                            taos::Precision::Microsecond => {
+                                insert_col_values.push_str(&(array.value(row)).to_string());
+                            }
+                            taos::Precision::Nanosecond => {
+                                insert_col_values.push_str(&(array.value(row) * 1000).to_string());
+                            }
+                        }
+                    }
+                    arrow_schema::TimeUnit::Nanosecond => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::TimestampNanosecondArray>()
+                            .unwrap();
+
+                        match target_precision {
+                            taos::Precision::Millisecond => {
+                                insert_col_values
+                                    .push_str(&(array.value(row) / 1000_000).to_string());
+                            }
+                            taos::Precision::Microsecond => {
+                                insert_col_values.push_str(&(array.value(row) / 1000).to_string());
+                            }
+                            taos::Precision::Nanosecond => {
+                                insert_col_values.push_str(&(array.value(row)).to_string());
+                            }
+                        }
+                    }
+                },
+                arrow_schema::DataType::Binary => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::BinaryArray>()
+                        .unwrap();
+                    insert_col_values.push_str(&sql_value_escape(&String::from_utf8_lossy(
+                        array.value(row),
+                    )));
+                }
+                arrow_schema::DataType::FixedSizeBinary(_) => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::FixedSizeBinaryArray>()
+                        .unwrap();
+                    insert_col_values.push_str(&sql_value_escape(&String::from_utf8_lossy(
+                        array.value(row),
+                    )));
+                }
+                arrow_schema::DataType::LargeBinary => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::LargeBinaryArray>()
+                        .unwrap();
+                    insert_col_values.push_str(&sql_value_escape(&String::from_utf8_lossy(
+                        array.value(row),
+                    )));
+                }
+                arrow_schema::DataType::Utf8 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                        .unwrap();
+                    insert_col_values.push_str(&sql_value_escape(&array.value(row)));
+                }
+                arrow_schema::DataType::LargeUtf8 => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::LargeStringArray>()
+                        .unwrap();
+                    insert_col_values.push_str(&sql_value_escape(&array.value(row)));
+                }
+                dt => {
+                    return Err(ArrowError::NotYetImplemented(format!(
+                        "Convert `{dt:?}` to sql value"
+                    )));
+                }
+            }
+            insert_col_values.push(',');
+            insert_col_names.push(',');
+        }
+        insert_col_values.pop();
+        insert_col_names.pop();
+        sql.push_str(&format!(
+            " {} ({}) values ({})",
+            table_name, insert_col_names, insert_col_values
+        ));
+    }
+    Ok(Some(sql))
+}
+
+const MAX_SQL_LENGTH: usize = 1_000_000;
+
+/// 二分法递归拼装 SQL 语句
+/// 输入是一个元组数组，元组的第一个元素是一个 SQL 片段，只包含 insert into 后面的部分，第二个元素是记录数， 比如 ("table_name using super_table tags(a int) (c1, c2, c3) values (1,2,3) (4, 5, 6),(7, 8, 9)", 3)
+/// 返回值是一个元组，第一个元素是完整的 SQL 语句，第二个元素是表的数量，第三个元素 SQL 的记录数
+pub fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
+    if slice.len() == 0 {
+        return vec![];
+    }
+    if let Some(sql) = valid_sql_or_none(slice) {
+        return vec![sql];
+    }
+    let p = (slice.len() + 1) / 2;
+    let (left, right) = slice.split_at(p);
+    let mut sqls = values_to_sqls(left);
+    sqls.extend(values_to_sqls(right));
+    sqls
+}
+
+/// 拼装 SQL 语句
+/// 尝试将多个 table 的 values 部分拼装到一起，如果长度超过 MAX_SQL_LENGTH，则返回 None
+fn valid_sql_or_none(
+    slice: &[(
+        String, // One table values SQL
+        usize,  // One table records
+    )],
+) -> Option<(
+    String, // SQL to insert into.
+    usize,  // number of tables
+    usize,  // number of records
+)> {
+    if slice.len() == 1 {
+        return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
+    }
+    let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
+    if len < MAX_SQL_LENGTH {
+        let mut sql = String::with_capacity(len + 12);
+        sql.push_str("INSERT INTO ");
+        let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
+            sql.push_str(s);
+            (sql, records + n)
+        });
+        Some((sql, slice.len(), records))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use arrow::array::*;
@@ -484,5 +789,18 @@ mod tests {
 
             // taos.query("select * from {}")
         }
+    }
+
+    #[test]
+    fn record_to_sql_skip_null() {
+        let batch = valid_values_record();
+        let sql = sql_values_from_record_batch_skip_null(
+            "test_table",
+            &batch,
+            taos::Precision::Millisecond,
+        )
+        .unwrap()
+        .unwrap();
+        println!("{}", sql);
     }
 }
