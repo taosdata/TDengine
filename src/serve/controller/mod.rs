@@ -30,6 +30,7 @@ use uuid::Uuid;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
 
@@ -557,6 +558,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+use crate::serve::rpc::encode_csv_config_file;
 use taosx_core::utils::get_string_content_from_param_value;
 
 async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
@@ -1512,6 +1514,10 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
+        if let Some(csv_config_file) = OPCConfig::parse_csv_config_file(dsn) {
+            let new_value = encode_csv_config_file(csv_config_file)?;
+            dsn.params.insert("csv_config_file".to_string(), new_value);
+        }
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
