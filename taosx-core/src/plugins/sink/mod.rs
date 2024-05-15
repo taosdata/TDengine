@@ -1513,8 +1513,8 @@ async fn consume_point_record(
         let status_index = schema.index_of("status")?;
         let status_column_view = cv_vec.get(status_index).unwrap();
 
-        let point_config_map = &config.point_config_map;
-        let table_config_map = &config.table_config_map;
+        let point_config_map = config.get_point_config_map().await;
+        let table_config_map = config.get_table_config_map().await;
 
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
         let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();

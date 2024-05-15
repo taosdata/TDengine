@@ -68,13 +68,9 @@ impl OPCConfig {
                 })?;
             }
 
+            // 过滤掉 model_config 中 enabled 为 0 的点位
             let mut model_config = parser.get_model_config();
-            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
-                if table_config.enabled == Some(0i8) {
-                    model_config.point_config_map.remove(point_id);
-                }
-            }
-
+            model_config.remove_disabled_points().await;
             model_config
         } else {
             let points = opc_datasets_impl(dsn.clone()).await?;
@@ -89,9 +85,11 @@ impl OPCConfig {
         // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
         // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
-        let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
-            |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
-        ));
+        let point_config_map = model_config.get_point_config_map().await;
+        let points =
+            csv_string_record_from_iter(point_config_map.iter().map(|(point_id, point_config)| {
+                format!("{}::{}", point_id, point_config.code.clone())
+            }));
         if dsn.driver.as_str() == "opcua" {
             dsn_clone.set("ua.nodes", points);
         } else {

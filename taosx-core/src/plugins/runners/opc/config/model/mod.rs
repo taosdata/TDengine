@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::bail;
 use csv_async::StringRecord;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{Dsn, Ty};
+use tokio::sync::RwLock;
 
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
@@ -21,16 +23,31 @@ pub struct OpcModelConfig {
     /// id, (code, stable, enabled)
     /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
-    pub point_config_map: LinkedHashMap<String, PointConfig>,
-    pub table_config_map: LinkedHashMap<String, TableConfig>,
+    point_config_map: Arc<RwLock<LinkedHashMap<String, PointConfig>>>,
+    table_config_map: Arc<RwLock<LinkedHashMap<String, TableConfig>>>,
 }
 
 impl OpcModelConfig {
     pub fn new() -> Self {
         OpcModelConfig {
-            point_config_map: LinkedHashMap::new(),
-            table_config_map: LinkedHashMap::new(),
+            point_config_map: Arc::new(RwLock::new(LinkedHashMap::new())),
+            table_config_map: Arc::new(RwLock::new(LinkedHashMap::new())),
         }
+    }
+
+    pub async fn get_point_config_map(&self) -> LinkedHashMap<String, PointConfig> {
+        let point_config_map = self.point_config_map.read().await;
+        point_config_map.clone()
+    }
+
+    pub async fn get_table_config_map(&self) -> LinkedHashMap<String, TableConfig> {
+        let table_config_map = self.table_config_map.read().await;
+        table_config_map.clone()
+    }
+
+    pub async fn get_table_config(&self, point_id: &str) -> Option<TableConfig> {
+        let table_config_map = self.table_config_map.read().await;
+        table_config_map.get(point_id).map(|v| v.clone())
     }
 
     pub fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
@@ -127,7 +144,7 @@ impl OpcModelConfig {
     ) -> anyhow::Result<()> {
         let point_id = parse_point_id(header, &row)?;
         // check point_id duplicated
-        match self.get_row_index(&point_id) {
+        match self.get_row_index(&point_id).await {
             None => {}
             Some(index) => match header.get_opc_type() {
                 OpcType::OPCUA => {
@@ -147,10 +164,15 @@ impl OpcModelConfig {
         let table_config = TableConfig::from_csv(&header, &row)?;
 
         // check conflict
-        match self.is_conflict(&point_id, &point_config, &table_config) {
+        match self
+            .is_conflict(&point_id, &point_config, &table_config)
+            .await
+        {
             Ok(_) => {
-                self.point_config_map.insert(point_id.clone(), point_config);
-                self.table_config_map.insert(point_id.clone(), table_config);
+                let mut point_config_map = self.point_config_map.write().await;
+                let mut table_config_map = self.table_config_map.write().await;
+                point_config_map.insert(point_id.clone(), point_config);
+                table_config_map.insert(point_id.clone(), table_config);
             }
             Err(err) => {
                 bail!(
@@ -177,11 +199,12 @@ impl OpcModelConfig {
         column_config_map
     }
 
-    pub fn get_row_index(&self, point_id: &str) -> Option<usize> {
-        self.point_config_map.get(point_id).map(|v| v.row_index)
+    pub async fn get_row_index(&self, point_id: &str) -> Option<usize> {
+        let point_config_map = self.point_config_map.read().await;
+        point_config_map.get(point_id).map(|v| v.row_index)
     }
 
-    fn is_conflict(
+    async fn is_conflict(
         &self,
         point_id: &String,
         point_config: &PointConfig,
@@ -209,8 +232,11 @@ impl OpcModelConfig {
             .flatten();
 
         // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
-        for (id, p_config) in &self.point_config_map {
-            if let Some(t_config) = self.table_config_map.get(id) {
+        let point_config_map = self.point_config_map.read().await;
+        let table_config_map = self.table_config_map.read().await;
+
+        for (id, p_config) in point_config_map.iter() {
+            if let Some(t_config) = table_config_map.get(id) {
                 if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
                     if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
                         if v_col.alias.as_ref() == value_col {
@@ -228,6 +254,17 @@ impl OpcModelConfig {
         }
 
         Ok(())
+    }
+
+    pub async fn remove_disabled_points(&mut self) {
+        let table_config_map = self.table_config_map.read().await;
+        let mut point_config_map = self.point_config_map.write().await;
+
+        for (point_id, table_config) in table_config_map.iter() {
+            if table_config.enabled == Some(0i8) {
+                point_config_map.remove(point_id);
+            }
+        }
     }
 }
 
@@ -267,8 +304,8 @@ mod model_config_tests {
 
     use super::*;
 
-    #[test]
-    fn test_add_points() {
+    #[tokio::test]
+    async fn test_add_points() {
         // given
         let dsn = format!(
             "opcua://?super_table_expression={}&child_table_expression={}",
@@ -300,20 +337,22 @@ mod model_config_tests {
         config.add_points(points, &dsn).unwrap();
 
         // then
-        assert_eq!(config.point_config_map.len(), 2);
-        config.point_config_map.get("ns=3;i=1001").map(|v| {
+        let point_config_map = config.point_config_map.read().await;
+        assert_eq!(point_config_map.len(), 2);
+        point_config_map.get("ns=3;i=1001").map(|v| {
             assert_eq!(v.code, "t_3_1001");
             assert_eq!(v.stable, Some("opc_double".to_string()));
             assert_eq!(v.value_type, Some(IpcDataType::Float64));
         });
-        config.point_config_map.get("ns=3;i=1002").map(|v| {
+        point_config_map.get("ns=3;i=1002").map(|v| {
             assert_eq!(v.code, "t_3_1002");
             assert_eq!(v.stable, Some("opc_int".to_string()));
             assert_eq!(v.value_type, Some(IpcDataType::Int32));
         });
 
-        assert_eq!(config.table_config_map.len(), 2);
-        config.table_config_map.get("ns=3;i-1001").map(|v| {
+        let table_config_map = config.table_config_map.read().await;
+        assert_eq!(table_config_map.len(), 2);
+        table_config_map.get("ns=3;i-1001").map(|v| {
             assert_eq!(v.enabled, Some(1));
             assert_eq!(v.stable_prefix, None);
             assert_eq!(v.column_configs.len(), 3);
