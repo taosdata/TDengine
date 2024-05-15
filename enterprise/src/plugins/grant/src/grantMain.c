@@ -167,6 +167,13 @@
     }                                         \
   } while (0)
 
+#define GRANT_EXPIRE_TUNE_INDUSTRY(expire)  \
+  do {                                      \
+    if ((expire) == GRANT_UNIQ_UNDEFINED) { \
+      --(expire);                           \
+    }                                       \
+  } while (0)
+
 #ifdef GRANTS_CFG
 #define GRANT_VERSION ("cloud")
 #else
@@ -766,13 +773,13 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
   return 0;
 }
 
+
+
 static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj, int8_t state) {
   bool revoked = state == GRANT_STATE_REVOKED;
 #ifndef GRANTS_CFG
   int64_t dftExpireSec = grantClusterEpoch + GRANT_DEFAULT;
-#ifdef TD_INDUSTRY
-  if (dftExpireSec == GRANT_UNIQ_UNDEFINED) --dftExpireSec;
-#endif
+  GRANT_EXPIRE_TUNE_INDUSTRY(dftExpireSec);
 #else
   int64_t dftExpireSec = GRANT_UNIQ_UNLIMITED;
 #endif
