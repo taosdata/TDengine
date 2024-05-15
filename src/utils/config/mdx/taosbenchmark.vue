@@ -663,7 +663,7 @@ sudo ./install_client.sh`
     },
     installUrlWindows() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-${this.urlEnterprise}-client-${this.version}-Windows-x64.exe`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${this.version}-Windows-x64.exe`;
     },
   },
 };
