@@ -12,7 +12,7 @@ taos-explorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着
 
 ## 配置
 
-配置文件在 linux 平台上为`/etc/taos/explorer.toml`，windows 平台上为`C:\TDengine\cfg\explorer.toml`。配置内容如下：
+配置文件在 linux 平台上为`/etc/taos/explorer.toml`，配置内容如下：
 
 ``` toml
 port = 6060
@@ -39,10 +39,6 @@ cluster = "http://localhost:6041"
 - 重启服务进程：`systemctl restart taos-explorer`
 
 - 查看服务状态：`systemctl status taos-explorer`
-
-### Windows 系统
-
-安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taos-explorer` 或在 `C:\TDengine` 目录下，运行 `taos-explorer.exe` 来启动 explorer 服务进程。
 
 ## 注册 & 登录
 
