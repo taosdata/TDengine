@@ -74,6 +74,7 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
 }
 
 async fn write_data(
+    topic: &Topic,
     id: usize,
     rows: &mut usize,
     source: &TaosPool,
@@ -88,7 +89,7 @@ async fn write_data(
     metrics.add_messages_of_data(1);
     let mut has_blocks = false;
     let mut last_error = None;
-    if target_is_v3 && actions.is_empty() {
+    if target_is_v3 && !topic.is_query() && actions.is_empty() {
         let raw = data
             .as_raw_data()
             .await
@@ -120,17 +121,27 @@ async fn write_data(
             return Ok(0);
         }
     }
+
     while let Some(mut raw) = data
         .fetch_raw_block()
         .await
         .context("Fetch raw block error")?
     {
         has_blocks = true;
-        let source_table_name = raw
-            .table_name()
-            .ok_or_else(|| anyhow!("Table name not found while subscribing from source"))?
-            .to_string();
-        tracing::trace!("source_table_name: {source_table_name}");
+
+        let source_table_name = raw.table_name().and_then(|name| {
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.to_owned())
+            }
+        });
+        tracing::trace!(
+            source.table = source_table_name,
+            "sync block with {} rows {} cols",
+            raw.nrows(),
+            raw.ncols()
+        );
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
@@ -208,42 +219,61 @@ async fn write_data(
                 if let Err(err) = taos.write_raw_block(&raw).await {
                     let code = *err.code().deref();
                     tracing::debug!("Try to recover from error: {err}");
-                    match code {
-                        0x0118 => {
-                            // sync schema
-                            let source_stable_name = source.get().await?.query_one::<_, String>("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'").await?;
-                            if let Some(mut source_stable_name) = source_stable_name {
-                                if actions.is_empty() {
-                                    migrate_data_schema(&raw.fields(), &taos, &source_table_name)
+                    if let Some(source_table_name) = source_table_name {
+                        match code {
+                            0x0118 => {
+                                let from = source.get().await?;
+                                let database = topic.database.as_str();
+                                // sync schema
+                                let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
+                                if let Some(mut source_stable_name) = source_stable_name {
+                                    if actions.is_empty() {
+                                        migrate_data_schema(
+                                            &raw.fields(),
+                                            &taos,
+                                            &source_table_name,
+                                        )
                                         .await?;
-                                } else {
-                                    for action in actions {
-                                        match action {
-                                            Action::RenameTable(rename)
-                                            | Action::RenameSuperTable(rename) => {
-                                                rename.apply_in_place(&mut source_stable_name)?
+                                    } else {
+                                        for action in actions {
+                                            match action {
+                                                Action::RenameTable(rename)
+                                                | Action::RenameSuperTable(rename) => rename
+                                                    .apply_in_place(&mut source_stable_name)?,
+                                                _ => (),
                                             }
-                                            _ => (),
                                         }
-                                    }
-                                    migrate_data_schema(&raw.fields(), &taos, &source_stable_name)
+                                        migrate_data_schema(
+                                            &raw.fields(),
+                                            &taos,
+                                            &source_stable_name,
+                                        )
                                         .await?;
+                                    }
+                                } else {
+                                    let table = raw.table_name().unwrap();
+                                    migrate_data_schema(&raw.fields(), &taos, table).await?;
                                 }
-                            } else {
-                                let table = raw.table_name().unwrap();
-                                migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                taos.write_raw_block(&raw).await.context(
+                                    "Write raw block into target error after 0x0118 fix",
+                                )?;
                             }
-                            taos.write_raw_block(&raw)
-                                .await
-                                .context("Write raw block into target error after 0x0118 fix")?;
-                        }
-                        0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                            let from = source.get().await?;
-                            let database = from
-                                .query_one::<_, String>("select database()")
-                                .await?
-                                .unwrap();
-                            if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                            0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                                let from = source.get().await?;
+                                let database = topic.database.as_str();
+                                if topic.is_query() {
+                                    // sync as normal table.
+                                    sync_normal_table_schema(
+                                        &from,
+                                        &source_table_name,
+                                        actions,
+                                        None,
+                                        taos,
+                                    )
+                                    .await
+                                    .context("Create table error")?;
+                                }
+                                if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                                 let from = source.get().await?;
                                 let target_opts = Default::default();
                                 sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
@@ -260,8 +290,18 @@ async fn write_data(
                                     .await
                                     .context("Write raw block into target error")?;
                             }
+                            }
+                            _ => Err(err)?,
                         }
-                        _ => Err(err)?,
+                    } else {
+                        if let Some(meta) = raw.to_create() {
+                            let sql = meta.to_string();
+                            taos.exec(&sql)
+                                .await
+                                .with_context(|| format!("SQL: {sql}"))?;
+                        } else {
+                            Err(err)?
+                        }
                     }
                 };
                 anyhow::Ok(())
@@ -499,6 +539,7 @@ async fn write_meta(
 }
 
 async fn sync_msg(
+    topic: &Topic,
     consumer: &Consumer,
     id: usize,
     offset: Offset,
@@ -544,6 +585,7 @@ async fn sync_msg(
         }
         MessageSet::Data(data) => {
             write_data(
+                &topic,
                 id,
                 rows,
                 &source_pool,
@@ -577,6 +619,7 @@ async fn sync_msg(
             }
             if !actions.is_empty() {
                 write_data(
+                    &topic,
                     id,
                     rows,
                     &source_pool,
@@ -601,6 +644,7 @@ async fn sync_msg(
 
 #[instrument(skip_all, fields(consumer.id = id, table))]
 async fn sync(
+    topic: &Topic,
     id: usize,
     consumer: Consumer,
     source_pool: TaosPool,
@@ -633,6 +677,7 @@ async fn sync(
             next = stream.try_next() => {
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
                     sync_msg(
+                        topic,
                         &consumer,
                         id,
                         offset,
@@ -936,6 +981,7 @@ pub async fn tmq_to_td(
                     loop {
                         let taos = target.get().await?;
                         match sync(
+                            &topic,
                             consumer_task_id,
                             consumer,
                             source_pool.clone(),
