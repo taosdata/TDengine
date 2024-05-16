@@ -4242,12 +4242,10 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   SVnodeCfg*  pConf = &(((SVnode*)pVnode)->config);
 
   int32_t capacity = pConf->tsdbCfg.maxRows;
+  capacity = 8192;  // for debug purpose
   if (pResBlock != NULL) {
     blockDataEnsureCapacity(pResBlock, capacity);
   }
-
-  // for debug purpose
-//  capacity = 7;
 
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
   if (code != TSDB_CODE_SUCCESS) {
