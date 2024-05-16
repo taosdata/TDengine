@@ -405,7 +405,7 @@ jobs:
     if: failure()
     steps: 
       - name: Send Feishu Message
-        if: ${{ needs.generate_report.result != 'success' }}
+        # if: ${{ needs.generate_report.result != 'success' }}
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
