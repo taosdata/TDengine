@@ -1057,6 +1057,9 @@ int stmtClose(TAOS_STMT* stmt) {
 
   STMT_DLOG_E("start to free stmt");
 
+  STMT_ELOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64, 
+    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo);
+
   stmtCleanSQLInfo(pStmt);
   taosMemoryFree(stmt);
 
