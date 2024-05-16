@@ -146,6 +146,9 @@ static bool                streamStateIterSeekAndValid(rocksdb_iterator_t* iter,
 static rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName,
                                                  rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt);
 
+void taskDbRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp);
+void taskDbUnRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp);
+
 #define GEN_COLUMN_FAMILY_NAME(name, idstr, SUFFIX) sprintf(name, "%s_%s", idstr, (SUFFIX));
 int32_t  copyFiles(const char* src, const char* dst);
 uint32_t nextPow2(uint32_t x);
@@ -1017,7 +1020,7 @@ int chkpIdComp(const void* a, const void* b) {
 
   return x < y ? -1 : 1;
 }
-int32_t chkpLoadInfo(STaskDbWrapper* pBackend) {
+int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
   int32_t code = 0;
   char*   pChkpDir = taosMemoryCalloc(1, 256);
 
@@ -1087,7 +1090,7 @@ int32_t chkpDoDbCheckpoint(rocksdb_t* db, char* path) {
     taosMemoryFreeClear(err);
     goto _ERROR;
   }
-  rocksdb_checkpoint_create(cp, path, UINT64_MAX, &err);
+  rocksdb_checkpoint_create(cp, path, 0, &err);
   if (err != NULL) {
     stError("failed to do checkpoint at:%s, reason:%s", path, err);
     taosMemoryFreeClear(err);
@@ -1152,8 +1155,11 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
     taskDbAddRef(pTaskDb);
 
-    code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId);
+    int64_t chkpId = pTaskDb->chkpId;
+    code = taskDbDoCheckpoint(pTaskDb, chkpId);
     taskDbRemoveRef(pTaskDb);
+
+    taskDbRefChkp(pTaskDb, pTaskDb->chkpId);
 
     SStreamTask*    pTask = pTaskDb->pTask;
     SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
@@ -1166,6 +1172,28 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   taosThreadMutexUnlock(&pMeta->backendMutex);
 
   return code;
+}
+int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
+  if (pSnapInfo == NULL) return 0;
+  SStreamMeta* pMeta = arg;
+  int32_t      code = 0;
+  taosThreadMutexLock(&pMeta->backendMutex);
+
+  char buf[128] = {0};
+  for (int i = 0; i < taosArrayGetSize(pSnapInfo); i++) {
+    SStreamTaskSnap* pSnap = taosArrayGet(pSnapInfo, i);
+    sprintf(buf, "0x%" PRIx64 "-0x%x", pSnap->streamId, (int32_t)pSnap->taskId);
+    STaskDbWrapper* pTaskDb = taosHashGet(pMeta->pTaskDbUnique, buf, strlen(buf));
+    if (pTaskDb == NULL) {
+      stWarn("stream backend:%p failed to find task db, streamId:% " PRId64 "", pMeta, pSnap->streamId);
+      continue;
+    }
+    memset(buf, 0, sizeof(buf));
+
+    taskDbUnRefChkp(pTaskDb, pSnap->chkpId);
+  }
+  taosThreadMutexUnlock(&pMeta->backendMutex);
+  return 0;
 }
 #ifdef BUILD_NO_CALL
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
@@ -1946,11 +1974,30 @@ void taskDbInitChkpOpt(STaskDbWrapper* pTaskDb) {
   pTaskDb->chkpId = -1;
   pTaskDb->chkpCap = 4;
   pTaskDb->chkpSaved = taosArrayInit(4, sizeof(int64_t));
-  chkpLoadInfo(pTaskDb);
+  taskDbLoadChkpInfo(pTaskDb);
 
   pTaskDb->chkpInUse = taosArrayInit(4, sizeof(int64_t));
 
   taosThreadRwlockInit(&pTaskDb->chkpDirLock, NULL);
+}
+
+void taskDbRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp) {
+  taosThreadRwlockWrlock(&pTaskDb->chkpDirLock);
+  taosArrayPush(pTaskDb->chkpInUse, &chkp);
+  taosArraySort(pTaskDb->chkpInUse, chkpIdComp);
+  taosThreadRwlockUnlock(&pTaskDb->chkpDirLock);
+}
+
+void taskDbUnRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp) {
+  taosThreadRwlockWrlock(&pTaskDb->chkpDirLock);
+  for (int i = 0; i < taosArrayGetSize(pTaskDb->chkpInUse); i++) {
+    int64_t* p = taosArrayGet(pTaskDb->chkpInUse, i);
+    if (*p == chkp) {
+      taosArrayRemove(pTaskDb->chkpInUse, i);
+      break;
+    }
+  }
+  taosThreadRwlockUnlock(&pTaskDb->chkpDirLock);
 }
 
 void taskDbDestroyChkpOpt(STaskDbWrapper* pTaskDb) {
@@ -2179,15 +2226,18 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
+  int32_t                 code = -1;
   STaskDbWrapper*         pDb = arg;
   ECHECKPOINT_BACKUP_TYPE utype = type;
 
+  taskDbRefChkp(pDb, chkpId);
   if (utype == DATA_UPLOAD_RSYNC) {
-    return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
+    code = taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
   } else if (utype == DATA_UPLOAD_S3) {
-    return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
+    code = taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
   }
-  return -1;
+  taskDbUnRefChkp(pDb, chkpId);
+  return code;
 }
 
 int32_t taskDbOpenCfByKey(STaskDbWrapper* pDb, const char* key) {
