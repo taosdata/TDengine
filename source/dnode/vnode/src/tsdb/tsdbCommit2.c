@@ -448,6 +448,71 @@ _exit:
   return code;
 }
 
+typedef struct {
+  int32_t    fid;
+  bool       hasDataToCommit;
+  STFileSet *fset;
+} SFileSetCommitInfo;
+
+static int32_t tsdbGetCommitInfo(STsdb *tsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STFileSet *fset = NULL;
+
+  taosThreadMutexLock(&tsdb->mutex);
+  // TODO
+  taosThreadMutexUnlock(&tsdb->mutex);
+
+  // scan the data in the memory
+  SRBTreeIter iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
+  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+    STbData    *pTbData = TCONTAINER_OF(node, STbData, rbtn);
+    STbDataIter tsDataIter = {0};
+    TSDBKEY     from = {
+        INT64_MIN,
+        INT64_MIN,
+    };
+
+    for (;;) {
+      int64_t  minKey;
+      int64_t  maxKey;
+      TSDBROW *row;
+
+      tsdbTbDataIterOpen(pTbData, &from, 0, &tsDataIter);
+
+      row = tsdbTbDataIterGet(&tsDataIter);
+      if (row == NULL) break;
+
+      int32_t fid = tsdbKeyFid(TSDBROW_TS(row), tsdb->keepCfg.days, tsdb->keepCfg.precision);
+      tsdbFidKeyRange(fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
+
+      SFileSetCommitInfo *info;
+      SFileSetCommitInfo  tinfo = {
+           .fid = fid,
+      };
+      // vHashGet(tsdb->commitInfo.commitFids, &tinfo, &info);
+      if (info == NULL) {
+        // add to commit info
+      } else if (!info->hasDataToCommit) {
+        info->hasDataToCommit = true;
+      }
+
+      from.ts = maxKey + 1;
+    }
+
+    for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
+      // TODO
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -480,6 +545,9 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
       }
     }
   }
+
+  code = tsdbGetCommitInfo(tsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -547,17 +615,17 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     taosThreadMutexUnlock(&tsdb->mutex);
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
-    SCommitter2 committer[1];
+    SCommitter2 committer = {0};
 
-    code = tsdbOpenCommitter(tsdb, info, committer);
+    code = tsdbOpenCommitter(tsdb, info, &committer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    while (committer->ctx->nextKey != TSKEY_MAX) {
-      code = tsdbCommitFileSet(committer);
+    while (committer.ctx->nextKey != TSKEY_MAX) {
+      code = tsdbCommitFileSet(&committer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbCloseCommitter(committer, code);
+    code = tsdbCloseCommitter(&committer, code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -574,22 +642,32 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (tsdb->imem == NULL) goto _exit;
+  if (tsdb->imem) {
+    SMemTable *pMemTable = tsdb->imem;
 
-  SMemTable *pMemTable = tsdb->imem;
-  taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbFSEditCommit(tsdb->pFS);
-  if (code) {
+    taosThreadMutexLock(&tsdb->mutex);
+
+    if ((code = tsdbFSEditCommit(tsdb->pFS))) {
+      taosThreadMutexUnlock(&tsdb->mutex);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    tsdb->imem = NULL;
+
+    // finish commit task on corresponding file set
+    for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo.changeFids); i++) {
+      int32_t fid = *(int32_t *)taosArrayGet(tsdb->commitInfo.changeFids, i);
+      tsdbFinishTaskOnFileSet(tsdb, fid);
+    }
+
     taosThreadMutexUnlock(&tsdb->mutex);
-    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // unref memtable
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
-  tsdb->imem = NULL;
-  taosThreadMutexUnlock(&tsdb->mutex);
-  tsdbUnrefMemTable(pMemTable, NULL, true);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }

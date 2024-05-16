@@ -344,6 +344,8 @@ typedef struct {
   int    flush_count;
 } SCacheFlushState;
 
+typedef struct SCompMonitor SCompMonitor;
+
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -360,8 +362,13 @@ struct STsdb {
   TdThreadMutex        biMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
-  // compact monitor
-  struct SCompMonitor *pCompMonitor;
+  SCompMonitor        *pCompMonitor;
+  struct {
+    // SVHashTable *ht;
+    SArray *commitFidArray;
+    SArray *commitFids;
+    SArray *changeFids;
+  } commitInfo;
 };
 
 struct TSDBKEY {
