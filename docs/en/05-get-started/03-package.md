@@ -163,37 +163,27 @@ After the installation is complete, run the following command to start the TDeng
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
 ```
 
-Run the following command to confirm that TDengine is running normally:
+Or you can run a scrip to start all the above services together
 
 ```bash
+./start-all.sh 
+# For tar.gz package, start-all.sh is located in the decompressed directory of the installation package.
+# For deb, rpm package, start-all.sh is located in the /usr/bin/ directory
+```
+
+systemctl can also be used to stop, restart a specific service or check its status, like below using `taosd` as example:
+
+```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
 systemctl status taosd
 ```
-
-Output similar to the following indicates that TDengine is running normally:
-
-```
-Active: active (running)
-```
-
-Output similar to the following indicates that TDengine has not started successfully:
-
-```
-Active: inactive (dead)
-```
-
-After confirming that TDengine is running, run the `taos` command to access the TDengine CLI.
-
-The following `systemctl` commands can help you manage TDengine service:
-
-- Start TDengine Server: `systemctl start taosd`
-
-- Stop TDengine Server: `systemctl stop taosd`
-
-- Restart TDengine Server: `systemctl restart taosd`
-
-- Check TDengine Server status: `systemctl status taosd`
 
 :::info
 
@@ -221,17 +211,23 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `sudo launchctl start ` to start TDengine services.
 
-The following `launchctl` commands can help you manage TDengine service:
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
-- Start TDengine Server: `sudo launchctl start com.tdengine.taosd`
+The following `launchctl` commands can help you manage TDengine service, using `taosd` service as an example below:
 
-- Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
-
-- Check TDengine Server status: `sudo launchctl list | grep taosd`
-
-- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
 
 :::info
 - Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.

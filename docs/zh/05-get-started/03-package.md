@@ -162,37 +162,26 @@ Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的�
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
 ```
 
-检查服务是否正常工作：
+你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+```bash
+./start-all.sh 
+# tar.gz 安装包 start-all.sh 在安装包解压目录
+# deb, rpm 安装包 start-all.sh 在 /usr/bin 目录 
+```
+
+可以使用 systemctl 来单独管理上面的每一个服务
 
 ```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
 systemctl status taosd
 ```
-
-如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
-
-```
-Active: active (running)
-```
-
-如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
-
-```
-Active: inactive (dead)
-```
-
-如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。
-
-如下 `systemctl` 命令可以帮助你管理 TDengine 服务：
-
-- 启动服务进程：`systemctl start taosd`
-
-- 停止服务进程：`systemctl stop taosd`
-
-- 重启服务进程：`systemctl restart taosd`
-
-- 查看服务状态：`systemctl status taosd`
 
 :::info
 
@@ -220,17 +209,24 @@ Active: inactive (dead)
 
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start com.tdengine.taosd` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
 
-如下 `launchctl` 命令用于管理 TDengine 服务：
 
-- 启动服务进程：`sudo launchctl start com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
-- 停止服务进程：`sudo launchctl stop com.tdengine.taosd`
+可以使用  `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd` ：
 
-- 查看服务状态：`sudo launchctl list | grep taosd`
-
-- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
 
 :::info
 
