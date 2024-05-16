@@ -777,6 +777,7 @@ async fn consume_lush_record_with_transform(
             for record in record {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
+                    tracing::debug!("No data in record");
                     continue;
                 }
                 let name_of_table_name_column = lush_model_config.table_name_column.as_str();

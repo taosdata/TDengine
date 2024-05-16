@@ -327,14 +327,14 @@ pub async fn write_transformed_records_with_sql(
                             tracing::info!(
                                 sql = stable_sql,
                                 stable = stable.as_deref(),
-                                "stable not exists, create stable with sql: {stable_sql}"
+                                "Create stable"
                             );
                             assert_create_table(pool, taos, &stable_sql, req_id).await?;
                         }
 
                         for m in &messages {
                             let sql = m.table_sql();
-                            tracing::info!("create table with sql: {sql}");
+                            tracing::info!(sql = sql, "Create table");
                             assert_create_table(pool, taos, &sql, req_id).await?;
                         }
                     }
@@ -539,7 +539,8 @@ async fn write_stable_with_sql(
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
-    tracing::debug!(req_id = req_id.get(), sql, "Write with SQL"); // debug
+    let debug_sql = if sql.len() > 150 { &sql[0..150] } else { sql };
+    tracing::debug!(req_id = req_id.get(), sql = debug_sql, "Write with SQL"); // debug
     loop {
         match taos
             .as_ref()
@@ -549,7 +550,7 @@ async fn write_stable_with_sql(
         {
             Ok(n) => break Ok(n),
             Err(err) => {
-                tracing::debug!(req_id = req_id.get(), sql, "{err:#}"); // debug
+                tracing::debug!(req_id = req_id.get(), "{err:#}"); // debug
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;

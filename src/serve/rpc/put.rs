@@ -293,7 +293,6 @@ impl PutStream {
                         num.columns = record.num_columns(),
                         "Writing batch {trace_id_str}"
                     );
-                    tracing::debug!(columns = ?record.columns()); // debug
                     anyhow::Ok((
                         record,
                         trace_id,
