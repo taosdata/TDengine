@@ -654,10 +654,10 @@ pub async fn get_pi_default_config(
     tracing::debug!("params: {:?}", params);
     let update = params.update.unwrap_or(false);
     let file_name = match params.task_id {
-        Some(task_id) => format!("./files/default_pi_config_for_task_{}.csv", task_id),
+        Some(task_id) => format!("./files/pi2td_task_{}.csv", task_id),
         None => format!(
-            "./files/default_pi_config_{}.csv",
-            chrono::Local::now().timestamp()
+            "./files/pi2td_{}.csv",
+            chrono::Local::now().format("%y%m%d%H%M")
         ),
     };
     let exists = std::path::Path::new(file_name.as_str()).exists();
