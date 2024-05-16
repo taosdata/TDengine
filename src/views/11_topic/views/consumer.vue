@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng" style="font-size:14px;">{{
+      <el-button plain type="primary" @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng" style="font-size:14px;">{{
         $t("refresh")
       }}</el-button>
     </div>

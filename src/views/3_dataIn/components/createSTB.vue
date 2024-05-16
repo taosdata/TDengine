@@ -1,6 +1,6 @@
 <template>
   <div class="create-stb">
-    <el-form :model="stable_form" :rules="rules"  ref="form">
+    <el-form :model="stable_form" :rules="rules"  ref="form" label-position="left" label-width="150px">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
           <span>{{ $t("name") }}</span>
@@ -29,7 +29,7 @@
           v-model="stable_form.ts_field_name"
           size="small"
         >
-        <div slot="prepend" style="width: 142px">TIMESTAMP</div>
+        <div slot="prepend">TIMESTAMP</div>
         </el-input>
         <div
           class="flexCenter input_row"
@@ -67,6 +67,48 @@
             controls-position="right"
             class="custom-length"
           ></el-input-number>
+          <el-tag effect="plain" type="info" v-if="!index">
+              <el-checkbox v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
+            </el-tag>
+            <el-select
+              size="small"
+              v-model="column.encode"
+              placeholder="ENCODE"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['encodeList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.compress"
+              placeholder="COMPRESS"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in handleEncodeList(column.type)['compressList']"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
+            <el-select
+              size="small"
+              v-model="column.level"
+              placeholder="LEVEL"
+              class="columnWidth120"
+              clearable
+            >
+              <el-option
+                v-for="item in levelList"
+                :key="item.value"
+                v-bind="item"
+              ></el-option>
+            </el-select>
           <el-input
             size="small"
             v-model="column.field"
@@ -156,10 +198,14 @@ import { deepClone } from "@/utils";
 import {
   dataType,
   tagType,
+  parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive
 } from "../../2_explorer/views/components/utils/index";
 export default {
   name: "CreateSTB",
   data() {
+    this.parmaryKeyType = parmaryKeyType;
+    this.storageCompression = storageCompression;
+    this.levelList = levelList;
     return {
       dataType,
       tagType,
@@ -263,7 +309,22 @@ export default {
         let column = this.stable_form.columns.splice(index, 1)[0];
         this.stable_form.tags.push(deepClone(column));
       }
-    }
+    },
+    handleEncodeList(type) {
+      if (groupOne.includes(type)) {
+        return this.storageCompression.groupOne
+      } else if (groupTwo.includes(type)) {
+        return this.storageCompression.groupTwo
+      } else if (groupThree.includes(type)) {
+        return this.storageCompression.groupThree
+      } else if (groupFour.findIndex((item) =>
+        type.startsWith(item)
+      )) {
+        return this.storageCompression.groupFour
+      } else if (groupFive.includes(type)) {
+        return this.storageCompression.groupFive
+      }
+    },
   },
 };
 </script>
@@ -291,6 +352,8 @@ export default {
   flex-shrink: 0;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;
@@ -317,6 +380,10 @@ export default {
     border-color: transparent;
   }
 }
+.create-stb ::v-deep .el-input-group__prepend {
+    width: 150px;
+    padding-left: 15px;
+  }
 .create-stb ::v-deep .flexCenter .el-select .el-input__inner {
   border-color: #dcdfe6;
   border-right: none;
@@ -327,5 +394,9 @@ export default {
   border-color: #dcdfe6;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+.columnWidth120 {
+  width: 110px;
+  flex-shrink: 0;
 }
 </style>
