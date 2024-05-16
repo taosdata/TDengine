@@ -14,6 +14,10 @@ env:
   DIR_PATH: ${{ github.event.number }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_rust:
     runs-on: [self-hosted, linux, x64, qa, rust]
