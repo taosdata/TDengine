@@ -125,6 +125,12 @@ SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(
 
 In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be `\_wstart` which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
 
+## Experience GUI based database manamement
+
+From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
+
+To use taos-explorer in the container, you need to access the host port mapped from container port 6060. Assuming the host name is abc.com, and the port used on host is 10000, you need to access http://abc.com:10000. taos-explorer uses port 6060 by default in the container. When you use it the first time, you need to register with your enterprise email, then can logon using your user name and password in the TDengine database management system.
+
 ## Additional Information
 
 For more information about deploying TDengine in a Docker environment, see [Deploying TDengine with Docker](../../deployment/docker).
