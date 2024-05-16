@@ -1,7 +1,7 @@
 <template>
   <div class="login" v-loading="pageLoading">
 
-    <section class="content">
+    <section :class="['content', {'content-reginster': !registered}]">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -46,10 +46,12 @@
               $t("login.signin") }}</el-button>
           </el-form-item>
         </el-form>
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
       <div class="login-content reginster-box" v-else>
         <div class="login-title">
           <span class="dynamic-title">{{ $t("register.title") }}</span>
+          <span class="activate-tip">{{ $t("register.titleTip") }}</span>
         </div>
         <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
           class="demo-dynamic">
@@ -87,7 +89,7 @@
           :title="$t('register.requirement')"
           type="warning">
         </el-alert>
-
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
       
     </section>
@@ -236,6 +238,13 @@ export default {
   computed: {
     isLocaleLanguageEn() {
       return this.$i18n.locale.includes('en')
+    },
+    locallanguage(){
+      if(this.$i18n.locale=='zh'){
+        return 'EN'
+      }else{
+        return '中'
+      }
     }
   },
   methods: {
@@ -507,6 +516,15 @@ export default {
         }
       });
     },
+    switchLanguage() {
+      if(this.$i18n.locale=='zh'){
+        this.$i18n.locale='en'
+        localStorage.setItem("local_language", "en");
+      }else{
+        this.$i18n.locale='zh'
+        localStorage.setItem("local_language", "zh");
+      }
+    },
   },
   async created() {
     await this.getClusterAndDashboardUrl();
@@ -655,12 +673,18 @@ export default {
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      position: relative;
 
       .dynamic-title {
-        width: 500px;
+        width: 100%;
         overflow: hidden;
         display: block;
         text-overflow: ellipsis;
+      }
+
+      .activate-tip {
+        color: #909399;
+        font-size: 14px !important;
       }
 
       .login-title {
@@ -675,10 +699,13 @@ export default {
       }
     }
     .reginster-box {
-      height: 550px;
+      height: 600px;
+      width: 680px;
     }
   }
-
+  .content-reginster {
+    padding: 60px calc(50vw - 600px);
+  }
   // .plans {
   //   height: 500px;
   // }
@@ -832,6 +859,25 @@ export default {
     span {
       color: #909399;
     }
+  }
+
+  .language {
+    margin-top: 4px;
+    margin-right:20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4d6992;
+    border-radius: 50%;
+    color: #4d6992;
+    display: flex;
+    justify-content: center;
+    position: absolute;
+    top: 20px;
+    right: 10px;
   }
 }
 </style>

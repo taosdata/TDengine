@@ -710,10 +710,12 @@ export default {
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":
-          this.requesting = true;
-          let result = await getRunningTask();
           let task = [];
-          task = result.filter((item) => item.to_expand?.subject == data.name);
+          if (!this.$COMMUNITY) {
+            this.requesting = true;
+            let result = await getRunningTask();
+            task = result.filter((item) => item.to_expand?.subject == data.name);
+          }
           if (task.length > 0) {
             this.$alert(
               this.$t("data.delRunningTaskBb")
@@ -723,6 +725,7 @@ export default {
               {
                 confirmButtonText: this.$t("confirm"),
                 type: "warning",
+                showClose: false
               }
             ).then(() => {
               this.requesting = false;
