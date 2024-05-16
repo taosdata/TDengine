@@ -763,8 +763,6 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash) {
   return 0;
 }
 
-
-
 static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj, int8_t state) {
   bool revoked = state == GRANT_STATE_REVOKED;
 #ifndef GRANTS_CFG
