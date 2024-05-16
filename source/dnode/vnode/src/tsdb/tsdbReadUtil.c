@@ -1056,7 +1056,7 @@ static int32_t sortUidComparFn(const void* p1, const void* p2) {
   const SSttKeyRange* px1 = p1;
   const SSttKeyRange* px2 = p2;
 
-  int32_t ret = tRowKeyCompare(&px1, px2);
+  int32_t ret = tRowKeyCompare(&px1->skey, &px2->skey);
   return ret;
 }
 
