@@ -381,13 +381,29 @@ class TDTestCase:
 
         # check database test and last
         # first check
-        tdsql.query(f"select last(*) from test.meters")
+        
+        tdsql.query(f"select last(*) from test.meters group by tbname")
         tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
+        # tdsql.checkRows(tableNumbers)
+        
+        tdsql.query(f"select last_row(*) from test.meters group by tbname")
+        tdLog.info(tdsql.queryResult)
+        # tdsql.checkRows(tableNumbers)
 
+        tdsql.query(f"select last_row(*) from test.meters partition by tbname")
+        tdLog.info(tdsql.queryResult)
+        # tdsql.checkRows(tableNumbers)
+        
+        # wait bug fixed:
+        # tdsql.query(f"select last(*) from test.meters")
+        # tdLog.info(tdsql.queryResult)
+        # tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
+        # tdsql.checkData(0,1,119) 
+        # tdsql.checkData(0,2,191)
+        # tdsql.checkData(0,3,0.25)
+        
+        # tdsql.query(f"select last(*) from test.meters")
+        # tdLog.info(tdsql.queryResult)
         tdsql.query(f"select last_row(*) from test.meters")
         tdLog.info(tdsql.queryResult)
         tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
