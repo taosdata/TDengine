@@ -936,7 +936,7 @@ TEST(clientCase, projection_query_stables) {
 
     if ( (i / 1000000) > prev) {
       printf("%d\n", i);
-      prev = i;
+      prev = i/1000000;
     }
     //printf("%d\n", i);
   }
