@@ -121,6 +121,12 @@ SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(
 
 在上面的查询中，你选择的是区间内的第一个时间戳（ts），另一种选择方式是 `\_wstart`，它将给出时间窗口的开始。关于窗口查询的更多信息，参见[特色查询](../../taos-sql/distinguished/)。
 
+## 体验可视化管理
+
+从 TDengine 3.3.0.0 开始，TDengine docker image 中增加了一个新的 web 组件：taos-explorer， 可以使用它进行数据库、超级表、子表、数据的查看和管理。其上也有一些只在企业版中才提供的高级特性，如需要可联系 TDengine 销售团队。
+
+使用 taos-explorer，需要从浏览器访问其映射在主机上的端口，假定主机名为 abc.com，映射到主机的端口为 10000，则需从浏览器访问 http://abc.com:10000. taos-explorer 默认在容器内使用 6060 端口。初次使用需要使用企业邮箱进行注册，注册后即可使用数据库中的用户名和密码登录。
+
 ## 其它
 
 更多关于在 Docker 环境下使用 TDengine 的细节，请参考 [用 Docker 部署 TDengine](../../deployment/docker)。
