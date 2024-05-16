@@ -382,11 +382,16 @@ void cliHandleResp(SCliConn* conn) {
 
   STransMsgHead* pHead = NULL;
 
-  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
+  int8_t  resetBuf = conn->status == ConnAcquire ? 0 : 1;
+  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
+  }
+
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), conn);
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
