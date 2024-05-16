@@ -179,25 +179,34 @@ namespace TDPIConnector.Core
 
                 //get all elements based on template
                 IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
-                List<TDTable> tables = new List<TDTable>();
-                foreach (AFElementWrapper element in elements)
+                if (AppSettings.tomlConfig.NeedCreateTable)
                 {
-                    //check for associated table, create if needed
-                    var table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
-                    if (elementLookup.ContainsKey(table.Name))
+                    List<TDTable> tables = new List<TDTable>();
+                    foreach (AFElementWrapper element in elements)
                     {
-                        log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
-                        continue;
+                        //check for associated table, create if needed
+                        var table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
+                        if (elementLookup.ContainsKey(table.ID))
+                        {
+                            log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
+                            continue;
+                        }
+                        tables.Add(table);
+                        if (dropTables)
+                        {
+                            await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
+                        }
+
+                        elementLookup.Add(table.ID, element);
                     }
-                    tables.Add(table);
-                    if (dropTables)
-                    {
-                        await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
-                    }
-                 
-                    elementLookup.Add(table.Name, element);
+                    await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
                 }
-                await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
+                else {
+                    foreach (AFElementWrapper element in elements)
+                    {
+                        elementLookup.Add(element.ID.ToString(), element);
+                    }    
+                }
             }
 
             //backfill elements

@@ -427,6 +427,20 @@ namespace TDPIConnector.Core
                     tmp.UOM = attr.UomName;
                     attributes.Add(tmp);
                 }
+                if (attr.HasChild())
+                {
+                    foreach (var childAttr in attr.childAttributes)
+                    {
+                        if (childAttr.IsTDengineTag()) continue;
+                        ScanAttribute tmp = new ScanAttribute();
+                        tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
+                        if (null == tmp.Type) continue;
+                        tmp.Name = childAttr.Name;
+                        tmp.UOMABB = childAttr.Uom;
+                        tmp.UOM = childAttr.UomName;
+                        attributes.Add(tmp);
+                    }
+                }
             }
             return attributes;
         }
@@ -443,6 +457,20 @@ namespace TDPIConnector.Core
                     tmp.UOMABB = attr.Uom;
                     tmp.UOM = attr.UomName;
                     attributes.Add(tmp);
+                }
+                if (attr.HasChild())
+                {
+                    foreach (var childAttr in attr.childAttributes)
+                    {
+                        if (!attr.IsTDengineTag()) continue;
+                        ScanAttribute tmp = new ScanAttribute();
+                        tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
+                        if (null == tmp.Type) continue;
+                        tmp.Name = childAttr.Name;
+                        tmp.UOMABB = childAttr.Uom;
+                        tmp.UOM = childAttr.UomName;
+                        attributes.Add(tmp);
+                    }
                 }
             }
             return attributes;
@@ -461,6 +489,17 @@ namespace TDPIConnector.Core
                     tmp.UOMABB = attr.Uom;
                     attributes.Add(tmp);
                 }
+                if (attr.HasChild()) {
+                    foreach (var childAttr in attr.childAttributes) {
+                        if (attr.IsTDengineTag()) continue;
+                        ScanAttribute tmp = new ScanAttribute();
+                        tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
+                        if (null == tmp.Type) continue;
+                        tmp.Name = childAttr.Name;
+                        tmp.UOMABB = childAttr.Uom;
+                        attributes.Add(tmp);
+                    }
+                }
             }
             return attributes;
         }
@@ -477,6 +516,19 @@ namespace TDPIConnector.Core
                     tmp.Name = attr.Name;
                     tmp.UOMABB = attr.Uom;
                     attributes.Add(tmp);
+                }
+                if (attr.HasChild())
+                {
+                    foreach (var childAttr in attr.childAttributes)
+                    {
+                        if (attr.IsTDengineTag()) continue;
+                        ScanAttribute tmp = new ScanAttribute();
+                        tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
+                        if (null == tmp.Type) continue;
+                        tmp.Name = childAttr.Name;
+                        tmp.UOMABB = childAttr.Uom;
+                        attributes.Add(tmp);
+                    }
                 }
             }
             return attributes;

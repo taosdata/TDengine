@@ -167,7 +167,7 @@ namespace TDPIConnector.TDEngine
             {
                 var element = elements[i];
                 var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
+                tags.Add(new KeyValuePair<string, string>("element_id", element.ID));
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())
@@ -208,7 +208,7 @@ namespace TDPIConnector.TDEngine
             {
                 var element = elements[i];
                 var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.Id));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.ID));
                 tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name));
                 foreach (TDColumn column in element.Columns)
                 {
@@ -223,7 +223,7 @@ namespace TDPIConnector.TDEngine
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
-                taosxClient.AddAFElementTableTag(element.Id, tags);
+                taosxClient.AddAFElementTableTag(element.ID, tags);
             }
             taosxClient.InitTables();
             return Task.CompletedTask;

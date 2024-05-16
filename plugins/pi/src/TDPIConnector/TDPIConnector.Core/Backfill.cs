@@ -168,10 +168,18 @@ namespace TDPIConnector.Core
 
         internal void BackfillElements(string tdDatabaseName, List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
-            foreach (var element in elements)
-            {
-                BackfillElement(tdDatabaseName, element, startTime, endTime);
+            List<Task> tasks = new List<Task>();
+            int groups = 20;
+            for (int groupIndex = 0; groupIndex < groups; groupIndex++) {
+                for (int i = groupIndex; i < elements.Count; i += groups)
+                {
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        BackfillElement(tdDatabaseName, elements[i], startTime, endTime);
+                    }));
+                }
             }
+            Task.WaitAll(tasks.ToArray());
         }
 
         internal void BackfillElement(string tdDatabaseName, AFElementWrapper element, DateTime startTime, DateTime endTime)

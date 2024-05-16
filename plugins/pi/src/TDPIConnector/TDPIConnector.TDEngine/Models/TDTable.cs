@@ -7,7 +7,7 @@ namespace TDPIConnector.TDEngine.Models
         public TDTable(string name,string id, string sTableName)
         {
             Name = name; 
-            Id = id;
+            ID = id;
             STableName = sTableName;
         }
         public TDTable(string name, int pointId, string sTableName, string columnType, List<TDColumn> columns)
@@ -30,7 +30,7 @@ namespace TDPIConnector.TDEngine.Models
         public string STableName { get; set; }
         public string ColumnType { get; }
         public string Name { get; set; }
-        public string Id { get; set; }
+        public string ID { get; set; }
         public string Location { get; set; }
         public string ElementPath { get; set; }
         public int PointId { get; set; }
