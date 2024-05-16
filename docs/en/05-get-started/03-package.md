@@ -193,19 +193,11 @@ systemctl status taosd
 
 :::
 
-**TDengine Command Line Interface**
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
-
 </TabItem>
 
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server. Please run `sc start taosadapter` or run `C:\TDengine\taosadapter.exe` with administrator privilege to start taosAdapter to provide http/REST service.
-
-**TDengine Command Line Interface**
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
 
 </TabItem>
 
@@ -238,24 +230,20 @@ sudo launchctl print system/com.tdengine.taosd
 
 :::
 
-**TDengine Command Line Interface**
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
 
 </TabItem>
 </Tabs>
 
-```bash
-taos
-```
 
-The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](../../train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
+## TDengine Command Line Interface
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` (Linux/Mac) or `taos.exe` (Windows) in terminal. The prompt of TDengine CLI is like below:
 
 ```cmd
 taos>
 ```
 
-For example, you can create and delete databases and tables and run all types of queries. Each SQL command must be end with a semicolon (;). For example:
+Using TDengine CLI, you can create and delete databases and tables and run all types of queries. Each SQL command must be end with a semicolon (;). For example:
 
 ```sql
 CREATE DATABASE demo;
