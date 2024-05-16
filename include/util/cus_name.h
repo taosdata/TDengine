@@ -28,5 +28,4 @@
 #define CUS_EMAIL   "<support@taosdata.com>"
 #endif
 
-
 #endif  // _CUS_NAME_H_
