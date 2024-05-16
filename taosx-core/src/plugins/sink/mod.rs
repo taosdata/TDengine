@@ -3378,7 +3378,7 @@ impl IpcStreamWorker {
 
         let lush_model_config: OnceCell<LushModelConfig> = OnceCell::const_new();
         match from.driver.as_str() {
-            "pi" | "pi_backfill" => {
+            "pi" | "pibackfill" => {
                 let v: LushModelConfig = LushModelConfig::try_from(from.clone()).unwrap();
                 tracing::info!("LushModelConfig: {}", serde_json::to_string(&v).unwrap());
                 lush_model_config.set(v).unwrap();

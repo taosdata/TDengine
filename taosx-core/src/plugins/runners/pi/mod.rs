@@ -1,10 +1,9 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use itertools::Itertools;
 use serde::Deserialize;
-use serde_json::{Map, Value};
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use serde_json::Value;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
@@ -12,14 +11,12 @@ use tracing::{instrument, Span};
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::model;
 use crate::runners::pi::config::PiConfig;
-use crate::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig};
 use crate::sink::lush::LushModelConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
-    Action, DataSet, DataSetsReq, Transferred,
+    Action, Transferred,
 };
 
 pub mod config;
