@@ -10635,7 +10635,13 @@ SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
     void *key = taosHashGetKey(p, NULL);
     SArray *data = *(SArray **)p;
     SArray *dataDup = taosArrayDup(data, NULL);
-    taosHashPut(pNewHashObj, key, strlen(key), &dataDup, POINTER_BYTES);
+    for(int i = 0; i < taosArrayGetSize(dataDup); i++){
+      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(dataDup, i);
+      char* templateJson = taosStrdup(pTemplate->templateJsonString);
+      pTemplate->templateJsonString = templateJson;
+      uDebug("copy json template:%d %s %d", pTemplate->templateId, templateJson, pTemplate->isValidate);
+    }
+    taosHashPut(pNewHashObj, key, sizeof(col_id_t), &dataDup, POINTER_BYTES);
     p = taosHashIterate(pHashObj, p);
   }
 
@@ -10652,9 +10658,9 @@ int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate)
     if (tEncodeI32v(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
     for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
       SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
+      if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
       if (tEncodeI32v(pEncoder, pTemplate->templateId) < 0) return -1;
       if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString) + 1) < 0) return -1;
-      if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
     }
     pIter = taosHashIterate(pHashJsonTemplate, pIter);
   }
@@ -10688,10 +10694,10 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
       }
       for (int32_t j = 0; j < arrLen; ++j) {
         SJsonTemplate pTemplate = {0};
+        if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
         if (tDecodeI32v(pDecoder, &pTemplate.templateId) < 0) return -1;
         if (tDecodeBinaryAlloc(pDecoder, (void**)&pTemplate.templateJsonString, NULL) < 0) return -1;
         taosArrayPush(arr, &pTemplate);
-        if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
       }
     }
   }

@@ -19,7 +19,7 @@
 #include "trpc.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug           gCTGDebug = {0};
+SCtgDebug           gCTGDebug = {.metaEnable = true};
 
 #if 0
 
@@ -458,6 +458,17 @@ void ctgdShowTableMeta(SCatalog *pCtg, const char *tbName, STableMeta *p) {
   for (int32_t i = 0; i < colNum; ++i) {
     SSchema *s = &p->schema[i];
     ctgDebug("[%d] name:%s, type:%d, colId:%d, bytes:%d", i, s->name, s->type, s->colId, s->bytes);
+  }
+
+  void *iter = taosHashIterate(p->pHashJsonTemplate, NULL);
+  while (iter) {
+    void *key = taosHashGetKey(iter, NULL);
+    SArray *data = *(SArray **)iter;
+    for(int i = 0; i < taosArrayGetSize(data); i++){
+      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(data, i);
+      ctgDebug("cid:%d, index:%d id:%d,template:%s,isvalidate:%d",  *(int16_t*)key, i, pTemplate->templateId, pTemplate->templateJsonString, pTemplate->isValidate);
+    }
+    iter = taosHashIterate(p->pHashJsonTemplate, iter);
   }
 }
 

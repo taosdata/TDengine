@@ -59,6 +59,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  SHashObj*      pHashJsonTemplate = NULL;
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
@@ -92,6 +93,8 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     strcpy(metaRsp.stbName, mer1.me.name);
     schema = mer1.me.stbEntry.schemaRow;
     schemaTag = mer1.me.stbEntry.schemaTag;
+    pHashJsonTemplate = mer1.me.pHashJsonTemplate;
+    mer1.me.pHashJsonTemplate = NULL;
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
@@ -101,8 +104,12 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaRsp.suid = mer2.me.uid;
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
+    pHashJsonTemplate = mer2.me.pHashJsonTemplate;
+    mer2.me.pHashJsonTemplate = NULL;
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
+    pHashJsonTemplate = mer1.me.pHashJsonTemplate;
+    mer1.me.pHashJsonTemplate = NULL;
   } else {
     ASSERT(0);
   }
@@ -130,6 +137,8 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   }
 
+  metaRsp.pHashJsonTemplate = pHashJsonTemplate;
+  pHashJsonTemplate = NULL;
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   if (rspLen < 0) {
@@ -150,11 +159,12 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
 _exit:
-  taosMemoryFree(metaRsp.pSchemas);
-  taosMemoryFree(metaRsp.pSchemaExt);
+  tFreeSTableMetaRsp(&metaRsp);
 _exit2:
+  taosHashCleanup(mer2.me.pHashJsonTemplate);
   metaReaderClear(&mer2);
 _exit3:
+  taosHashCleanup(mer1.me.pHashJsonTemplate);
   metaReaderClear(&mer1);
 _exit4:
   rpcMsg.info = pMsg->info;

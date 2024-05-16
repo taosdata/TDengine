@@ -201,9 +201,9 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
         SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
         SDB_SET_INT32(pRaw, dataPos, pTemplate->templateId, _OVER);
+        SDB_SET_INT8(pRaw, dataPos, pTemplate->isValidate, _OVER);
         SDB_SET_INT32(pRaw, dataPos, strlen(pTemplate->templateJsonString), _OVER);
         SDB_SET_BINARY(pRaw, dataPos, pTemplate->templateJsonString, strlen(pTemplate->templateJsonString), _OVER);
-        SDB_SET_INT8(pRaw, dataPos, pTemplate->isValidate, _OVER);
       }
       pIter = taosHashIterate(pStb->pHashJsonTemplate, pIter);
     }
@@ -226,6 +226,7 @@ _OVER:
 }
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
+  void *template = NULL;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SStbObj *pStb = NULL;
@@ -361,15 +362,18 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
         SJsonTemplate pTemplate = {0};
 
         SDB_GET_INT32(pRaw, dataPos, &pTemplate.templateId, _OVER);
+        SDB_GET_INT8(pRaw, dataPos, (int8_t*)&pTemplate.isValidate, _OVER)
+
         int32_t templateLen = 0;
         SDB_GET_INT32(pRaw, dataPos, &templateLen, _OVER);
-        pTemplate.templateJsonString = taosMemoryCalloc(1, templateLen + 1);
-        if (pTemplate.templateJsonString == NULL) {
+        template = taosMemoryCalloc(1, templateLen + 1);
+        if (template == NULL) {
           goto _OVER;
         }
+        SDB_GET_BINARY(pRaw, dataPos, template, templateLen, _OVER)
+        pTemplate.templateJsonString = template;
+        template = NULL;
         taosArrayPush(arr, &pTemplate);
-        SDB_GET_BINARY(pRaw, dataPos, pTemplate.templateJsonString, templateLen, _OVER)
-        SDB_GET_INT8(pRaw, dataPos, (int8_t*)&pTemplate.isValidate, _OVER)
       }
     }
   }
@@ -379,12 +383,14 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   terrno = 0;
 
 _OVER:
+  taosMemoryFree(template);
   if (terrno != 0) {
     mError("stb:%s, failed to decode from raw:%p since %s", pStb == NULL ? "null" : pStb->name, pRaw, terrstr());
     if (pStb != NULL) {
       taosMemoryFreeClear(pStb->pColumns);
       taosMemoryFreeClear(pStb->pTags);
       taosMemoryFreeClear(pStb->comment);
+      taosHashCleanup(pStb->pHashJsonTemplate);
       taosMemoryFree(pStb->pCmpr);
     }
     taosMemoryFreeClear(pRow);

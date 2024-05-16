@@ -12941,7 +12941,7 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       pReq->newCommentLen = strlen(pStmt->pColOptions->jsonTemplate);
-      break;
+      return TSDB_CODE_SUCCESS;
     }
     default:
       break;
