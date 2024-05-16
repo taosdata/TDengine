@@ -8,7 +8,7 @@ on:
   #pull_request:
   push:
     branches:
-      - ref/3.0-qa-workflow-ref
+      - ref/support-cancel-previous-run
 
 env:
   RELEASE_HOST: 192.168.1.45
@@ -17,6 +17,10 @@ env:
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH_3_0: "3.0"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
   
 jobs:
   remove_artifacts:
