@@ -18,13 +18,14 @@
 #include "planner.h"
 #include "tarray.h"
 
-SDataSinkStat           gDataSinkStat = {0};
+SDataSinkStat gDataSinkStat = {0};
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager) {
   SDataSinkManager* pSinkManager = taosMemoryMalloc(sizeof(SDataSinkManager));
   if (NULL == pSinkManager) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   pSinkManager->cfg = *cfg;
   pSinkManager->pAPI = pAPI;
 

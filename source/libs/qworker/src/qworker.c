@@ -376,11 +376,11 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       break;
     }
 
-//    if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
-//      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks,
-//                   pOutput->numOfRows);
+    if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
+      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks,
+                   pOutput->numOfRows);
       break;
-//    }
+    }
   }
 
   *rspMsg = rsp;
