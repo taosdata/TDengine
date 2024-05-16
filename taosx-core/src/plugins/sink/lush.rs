@@ -313,11 +313,9 @@ pub async fn write_transformed_records_with_sql(
     for records in sqls {
         loop {
             retry += 1;
-            match write_stable_with_sql(pool, taos, req_id, &records).await {
+            match write_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
                     count += n;
-                    metrics.add_inserted_sqls(1 as u64);
-                    metrics.add_written_rows(n as u64);
                     metrics.add_written_points((n * cols) as u64);
                     break;
                 }
@@ -329,15 +327,14 @@ pub async fn write_transformed_records_with_sql(
                                 stable = stable.as_deref(),
                                 "Create stable"
                             );
-                            assert_create_table(pool, taos, &stable_sql, req_id).await?;
-                            metrics.add_created_stables(1);
+                            assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
+                                .await?;
                         }
 
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!(sql = sql, "Create table");
-                            assert_create_table(pool, taos, &sql, req_id).await?;
-                            metrics.add_created_tables(1);
+                            assert_create_table(pool, taos, &sql, req_id, false, metrics).await?;
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
@@ -495,6 +492,8 @@ async fn assert_create_table(
     taos: &mut Option<TaosConnection>,
     sql: &str,
     req_id: &RequestID,
+    is_stable: bool,
+    metrics: &IpcMetrics,
 ) -> Result<(), WriteError> {
     let mut write_retries = 0;
     loop {
@@ -523,12 +522,25 @@ async fn assert_create_table(
                     tracing::error!(
                         sql = sql,
                         req_id = req_id.get(),
-                        "Create table error: {err:#}"
+                        "Create {} error: {err:#}",
+                        if is_stable { "stable" } else { "table" }
                     );
-                    break Err(err).context("Create table error").map_err(Into::into);
+                    break Err(err)
+                        .context(format!(
+                            "Create {} error",
+                            if is_stable { "stable" } else { "table" }
+                        ))
+                        .map_err(Into::into);
                 }
             }
         } else {
+            if is_stable {
+                // stable
+                metrics.add_created_stables(1);
+            } else {
+                // table
+                metrics.add_created_tables(1);
+            }
             break Ok(());
         }
     }
@@ -545,6 +557,7 @@ async fn write_stable_with_sql(
     taos: &mut Option<TaosConnection>,
     req_id: &RequestID,
     records: &Records,
+    metrics: &IpcMetrics,
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
@@ -557,7 +570,11 @@ async fn write_stable_with_sql(
             .exec_with_req_id(sql, req_id.next())
             .await
         {
-            Ok(n) => break Ok(n),
+            Ok(n) => {
+                metrics.add_inserted_sqls(1 as u64);
+                metrics.add_written_rows(n as u64);
+                break Ok(n);
+            }
             Err(err) => {
                 let code = err.code();
                 let errno: i32 = code.into();
