@@ -73,7 +73,6 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
     Ok(())
 }
 
-#[instrument(skip_all, fields(consumer.id=id, table, rows))]
 async fn write_data(
     id: usize,
     rows: &mut usize,
@@ -85,7 +84,7 @@ async fn write_data(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<u64> {
-    tracing::debug!("Start writing data");
+    tracing::trace!("Start writing data");
     metrics.add_messages_of_data(1);
     let mut has_blocks = false;
     let mut last_error = None;
@@ -537,6 +536,7 @@ async fn sync_msg(
                 with_meta_delete,
                 with_meta_drop,
             )
+            .in_current_span()
             .await;
             if let Err(err) = write_meta_result {
                 tracing::warn!("Ignore error: {}", err);
@@ -554,6 +554,7 @@ async fn sync_msg(
                 target_is_v3,
                 metrics,
             )
+            .in_current_span()
             .await
             .with_context(|| format!("[{id}] writing data message error"))?;
         }
@@ -569,6 +570,7 @@ async fn sync_msg(
                 with_meta_delete,
                 with_meta_drop,
             )
+            .in_current_span()
             .await;
             if let Err(err) = write_meta_result {
                 tracing::warn!("Ignore error: {}", err);
@@ -585,6 +587,7 @@ async fn sync_msg(
                     target_is_v3,
                     metrics,
                 )
+                .in_current_span()
                 .await
                 .with_context(|| format!("[{id}] writing metadata message error"))?;
             }
@@ -644,7 +647,9 @@ async fn sync(
                         with_meta_delete,
                         with_meta_drop,
                         target_is_v3
-                    ).await?;
+                    )
+                        .in_current_span()
+                        .await?;
                     if refresh_progress_interval.ticked() {
                         update_progress(&consumer, &metrics).await;
                     }

@@ -65,8 +65,6 @@ impl<'a> LicenseValidator<'a> {
     }
 
     /// Validate the connector license and the enterprise license.
-    #[framed]
-    #[instrument(skip_all, fields(source = %mask_dsn(&self.from), sink = %mask_dsn(&self.to)))]
     pub async fn validate_connector(&self) -> Result<LicenseKind> {
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         {
@@ -107,6 +105,8 @@ impl<'a> LicenseValidator<'a> {
     }
 }
 
+#[framed]
+#[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_task(
     from: &Dsn,
     to: &Dsn,
@@ -118,6 +118,7 @@ pub async fn validate_task(
         LicenseValidator::new(from, to)
     }
     .validate_connector()
+    .in_current_span()
     .await?
     .ok()?;
     Ok(())
@@ -131,8 +132,32 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
         ("tmq" | "taos", "tmq" | "taos") => {
             let mut from = from.clone();
             from.subject.take();
-            let from = TaosBuilder::from_dsn(from)?;
-            let _ = from.build().await?;
+            let from_builder = TaosBuilder::from_dsn(&from)?;
+            let from_conn = from_builder.build().await?;
+
+            if from.driver == "tmq" && from.get("replica").is_some() && !is_cloud(&from) {
+                // Check enterprise license
+                let edition = from_builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check active-active license in data source")?
+                    .assert_enterprise_edition();
+                if let Err(err) = edition {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active feature requires enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                }
+
+                // Check active-active license
+                let (ok, expire) = from_conn
+                        .query_one::<_, (bool, String)>("select `expire` > now as `ok`, `expire` from information_schema.ins_grants_full where grant_name='active_active'")
+                        .await
+                        .context("Failed to check active-active license in data source")?
+                        .ok_or_else(|| anyhow!("You enterprise edition has no active-active license"))?;
+                tracing::debug!(ok, expire, "active-active license check");
+                if !ok {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")));
+                }
+            }
+
             // to.subject.take();
             let to_builder = TaosBuilder::from_dsn(to)?;
             let mut conn = to_builder.build().await?;
