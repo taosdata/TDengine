@@ -163,6 +163,11 @@ After the installation is complete, run the following command to start the TDeng
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
+
+# or you can run start-all.sh to start all above services
 ```
 
 Run the following command to confirm that TDengine is running normally:
@@ -221,7 +226,14 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `sudo launchctl start ` to start TDengine services.
+
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
 The following `launchctl` commands can help you manage TDengine service:
 

@@ -162,6 +162,11 @@ Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的�
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
+
+# 你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
 ```
 
 检查服务是否正常工作：
@@ -220,7 +225,15 @@ Active: inactive (dead)
 
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start com.tdengine.taosd` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
+
+
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
 如下 `launchctl` 命令用于管理 TDengine 服务：
 
