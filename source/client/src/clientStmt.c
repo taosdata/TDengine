@@ -7,6 +7,8 @@
 
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
+SHashObj* gStmtTbCache = NULL;
+static TdThreadOnce stmtTbCacheInit = PTHREAD_ONCE_INIT;
 
 static int32_t stmtCreateRequest(STscStmt* pStmt) {
   int32_t code = 0;
@@ -480,7 +482,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (pStmt->sql.staticMode && pStmt->sql.runTimes > 500) {
 //    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName));
-    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.statbName, strlen(pStmt->bInfo.statbName));
+//    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.statbName, strlen(pStmt->bInfo.statbName));
+    pTbInfo = (SStmtTableInfo*)taosHashGet(gStmtTbCache, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName));
     pStmt->stat.getCacheTbInfo++;
   } 
 
@@ -529,10 +532,11 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     vgId = pTableMeta->vgId;
 
     SStmtTableInfo tbInfo = {.uid = uid, .vgid = pTableMeta->vgId};
-    tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName), &tbInfo, sizeof(tbInfo));
-    if (0 == pStmt->bInfo.statbName[0]) {
-      strcpy(pStmt->bInfo.statbName, pStmt->bInfo.tbName);
-    }
+    //tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName), &tbInfo, sizeof(tbInfo));
+    taosHashPut(gStmtTbCache, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName), &tbInfo, sizeof(tbInfo));
+    //if (0 == pStmt->bInfo.statbName[0]) {
+    //  strcpy(pStmt->bInfo.statbName, pStmt->bInfo.tbName);
+    //}
     
     taosMemoryFree(pTableMeta);
   } else {
@@ -630,9 +634,15 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void stmtInitTableCache(void) {
+  gStmtTbCache = taosHashInit(7000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+}
+
 TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
   STscObj*  pObj = (STscObj*)taos;
   STscStmt* pStmt = NULL;
+
+  taosThreadOnce(&stmtTbCacheInit, stmtInitTableCache);
 
   pStmt = taosMemoryCalloc(1, sizeof(STscStmt));
   if (NULL == pStmt) {
