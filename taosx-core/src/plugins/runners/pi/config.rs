@@ -5,6 +5,8 @@ use chrono::{Local, NaiveDateTime};
 use taos::Dsn;
 use toml::value::Datetime;
 
+use crate::get_data_dir;
+
 #[derive(Debug, serde::Serialize)]
 pub struct PiConfig {
     // system
@@ -113,14 +115,18 @@ impl PiConfig {
                 .params
                 .get("transform_config_file")
                 .ok_or(anyhow!("No param transform_config_file in from DSN"))?;
-            Self::get_points_from_transform_config_file(transform_config_file).with_context(
-                || {
+            let transform_config_file = transform_config_file.trim_start_matches('@');
+            let config_file_full_path = get_data_dir()
+                .join(transform_config_file)
+                .display()
+                .to_string();
+            Self::get_points_from_transform_config_file(config_file_full_path.as_str())
+                .with_context(|| {
                     format!(
                         "Failed to parse transform config file: {}",
                         transform_config_file
                     )
-                },
-            )?
+                })?
         };
 
         if is_real_run && point_list.is_empty() && element_id_list.is_empty() {
@@ -413,7 +419,6 @@ impl PiConfig {
     pub fn get_points_from_transform_config_file(
         transform_config_file: &str,
     ) -> anyhow::Result<(Vec<String>, Vec<String>)> {
-        let transform_config_file = transform_config_file.trim_start_matches('@');
         let content = std::fs::read_to_string(transform_config_file)?;
         let mut element_id_list = Vec::new();
         let mut point_list = Vec::new();
