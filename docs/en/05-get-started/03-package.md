@@ -166,39 +166,22 @@ systemctl start taosd
 systemctl start taosadapter
 systemctl start taoskeeper
 systemctl start taos-explorer
-
-# or you can run start-all.sh to start all above services
 ```
 
-Run the following command to confirm that TDengine is running normally:
+Or you can run a scrip to start all the above services together
 
 ```bash
-systemctl status taosd
+./start-all.sh
 ```
 
-Output similar to the following indicates that TDengine is running normally:
+systemctl can also be used to stop, restart a specific service or check its status, like below using `taosd` as example:
 
+```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
+systemctl sstatus taosd
 ```
-Active: active (running)
-```
-
-Output similar to the following indicates that TDengine has not started successfully:
-
-```
-Active: inactive (dead)
-```
-
-After confirming that TDengine is running, run the `taos` command to access the TDengine CLI.
-
-The following `systemctl` commands can help you manage TDengine service:
-
-- Start TDengine Server: `systemctl start taosd`
-
-- Stop TDengine Server: `systemctl stop taosd`
-
-- Restart TDengine Server: `systemctl restart taosd`
-
-- Check TDengine Server status: `systemctl status taosd`
 
 :::info
 
@@ -235,15 +218,14 @@ sudo launchctl start com.tdengine.taoskeeper
 sudo launchctl start com.tdengine.taos-explorer
 ```
 
-The following `launchctl` commands can help you manage TDengine service:
+The following `launchctl` commands can help you manage TDengine service, using `taosd` service as an example below:
 
-- Start TDengine Server: `sudo launchctl start com.tdengine.taosd`
-
-- Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
-
-- Check TDengine Server status: `sudo launchctl list | grep taosd`
-
-- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
 
 :::info
 - Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
