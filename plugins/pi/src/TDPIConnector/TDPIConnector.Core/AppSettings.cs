@@ -38,6 +38,7 @@ namespace TDPIConnector.Core
             public string PIServerDomain { get; internal set; }
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
+            public bool NeedCreateTable { get; set; } = false;
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
             public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 

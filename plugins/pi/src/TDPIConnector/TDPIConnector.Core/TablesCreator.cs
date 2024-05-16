@@ -229,10 +229,10 @@ namespace TDPIConnector.Core
                 {
                     TDTable table = ElemenetTableConverter.Convert(element, superTableName, ref templateAttributeColumns);
                     log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                    if (!elementsCollection.ContainsKey(table.Id))
+                    if (!elementsCollection.ContainsKey(table.ID))
                     {
                         tables.Add(table);
-                        elementsCollection.Add(table.Id, element);
+                        elementsCollection.Add(table.ID, element);
                     }
                     if (tables.Count() > 500) {
                         log.Info($"Creating TDengine table batch index: {++batchNum} st:{superTableName} ...");
@@ -356,10 +356,10 @@ namespace TDPIConnector.Core
                         var element = elements[j];
                         TDTable table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
                         log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
-                        if (!elementsCollection.ContainsKey(table.Id))
+                        if (!elementsCollection.ContainsKey(table.ID))
                         {
                             tables.Add(table);
-                            elementsCollection[table.Id] = element;
+                            elementsCollection[table.ID] = element;
                         }
                     }
                 }));

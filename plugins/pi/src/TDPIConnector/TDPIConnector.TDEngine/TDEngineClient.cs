@@ -1,6 +1,6 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
-#define NONLY_PI_TEST
+#define ONLY_PI_TEST
 
 using Newtonsoft.Json;
 using System;
@@ -232,7 +232,7 @@ namespace TDPIConnector.TDEngine
                     sb.Append($", {tag.Key}");
                 }
                 sb.Append($", {StaticConfig.Default.AFTreeTagName}");
-                sb.Append($") TAGS ('{element.Id}'");
+                sb.Append($") TAGS ('{element.ID}'");
                 foreach (KeyValuePair<string, string> tag in tags)
                 {
                     sb.Append($", '{tag.Value}'");
