@@ -342,10 +342,14 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   STransMsgHead* pHead = NULL;
 
-  int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
+  int8_t resetBuf = pConn->status == ConnAcquire ? 0 : 1;
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
+  }
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), pConn);
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
@@ -677,17 +681,17 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
 }
 static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
 static void              destroyAllConn(SWorkThrd* pThrd) {
-  tTrace("thread %p destroy all conn ", pThrd);
-  while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
-    queue* h = QUEUE_HEAD(&pThrd->conn);
-    QUEUE_REMOVE(h);
-    QUEUE_INIT(h);
+               tTrace("thread %p destroy all conn ", pThrd);
+               while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
+                 queue* h = QUEUE_HEAD(&pThrd->conn);
+                 QUEUE_REMOVE(h);
+                 QUEUE_INIT(h);
 
-    SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
-    while (T_REF_VAL_GET(c) >= 2) {
-      transUnrefSrvHandle(c);
+                 SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
+                 while (T_REF_VAL_GET(c) >= 2) {
+                   transUnrefSrvHandle(c);
     }
-    transUnrefSrvHandle(c);
+                 transUnrefSrvHandle(c);
   }
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
