@@ -41,7 +41,6 @@ jobs:
           export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           cargo build --target-dir ./target/debug/taosx-build/
       - name: taosx unit test
-        # continue-on-error: true
         run: |
           if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
               echo "run taosx unit test"
