@@ -3247,4 +3247,22 @@ mod tests {
         license::validate_task(&from, &to, Some(&controller.pool)).await?;
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn active_active_edition_check() -> anyhow::Result<()> {
+        let _ = tracing_subscriber_init();
+        let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041/test")?;
+        license::validate_task(&from, &to, None).await?;
+        let from = Dsn::from_str("tmq:///test?replica")?;
+        let to = Dsn::from_str("taos:///test")?;
+        license::validate_task(&from, &to, None).await?;
+
+        let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041/test")?;
+        let res = license::validate_task(&from, &to, None).await;
+        dbg!(&res);
+        assert!(res.is_err());
+        Ok(())
+    }
 }

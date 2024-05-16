@@ -118,7 +118,8 @@ ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
 [tasks.dev-install-taosx]
 script = """
 sudo systemctl stop taosx || true
-sudo install target/release/taosx /usr/local/taos/bin/
+sudo install target/debug/taosx /usr/local/taos/bin/
+sudo ln -sf /usr/local/taos/bin/taosx /usr/bin/taosx
 sudo systemctl start taosx
 """
 
