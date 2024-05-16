@@ -259,7 +259,14 @@ impl PutStream {
                 }
             }
 
-            tracing::info!("Start IPC stream writer");
+            if let Some(parser) = lush_parser {
+                tracing::info!(
+                    "Start IPC stream writer with lush parser: {}",
+                    serde_json::to_string(parser).unwrap()
+                );
+            } else {
+                tracing::info!("Start IPC stream writer");
+            }
 
             let stream = rx.stream();
 
@@ -286,7 +293,7 @@ impl PutStream {
                         num.columns = record.num_columns(),
                         "Writing batch {trace_id_str}"
                     );
-                    tracing::trace!(columns = ?record.columns());
+                    tracing::debug!(columns = ?record.columns()); // debug
                     anyhow::Ok((
                         record,
                         trace_id,
@@ -308,7 +315,7 @@ impl PutStream {
                         worker,
                         parser,
                         notify_sender,
-                        tx,
+                        _tx,
                         abort_message_tx,
                         contiguous_errors,
                     )| {

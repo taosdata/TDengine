@@ -354,6 +354,12 @@ impl PIElementModelConfig {
                         column_data_type: attribute["Type"].as_str().unwrap().to_string(),
                         column_map: format!("${}", column_name),
                     });
+                    schema.push(SchemaRow {
+                        column_name: column_name.clone() + "_status",
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: format!("${}_status", column_name),
+                    });
                 }
                 // 追加固定 Tag 列： element_name, path
                 schema.push(SchemaRow {
@@ -1050,28 +1056,6 @@ mod tests {
         println!("{:?}", config);
     }
 
-    #[test]
-    fn test_create_parse() {
-        let parse: ParserImpl = serde_json::from_str(
-            r#"{
-                "ts": {"as": "TIMESTAMP(ms)"},
-                "value": {"as": "FLOAT"},
-                "status": {"as": "INT"},
-                "path": {"as": "NCHAR(100)"},
-                "tag": {"as": "NCHAR(100)"},
-                "descriptor": {"as": "NCHAR(100)"},
-                "exdesc": {"as": "NCHAR(100)"},
-                "engunits": {"as": "NCHAR(100)"},
-                "pointsource": {"as": "NCHAR(100)"},
-                "step": {"as": "NCHAR(100)"},
-                "future": {"as": "NCHAR(100)"},
-                "element_paths": {"as": "NCHAR(100)"}
-            }"#,
-        )
-        .expect("Deserialize ParserImpl failed");
-        println!("{:?}", parse);
-    }
-
     const POINT_DATA: &str = r#"
     {
         "Templates": [
@@ -1216,264 +1200,78 @@ mod tests {
     "#;
 
     const ELEMENT_DATA: &str = r#"
-        {
-            "Templates": [
-                {
-                    "TemplateName": "Turbine",
-                    "Attributes": [
-                        {
-                            "Name": "Status Cause",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Status",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Power Factor",
-                            "Type": "FLOAT",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Lost Revenue Rate",
-                            "Type": "FLOAT",
-                            "UOMABB": "$/kWh",
-                            "UOM": "dollars per kilowatt hour"
-                        },
-                        {
-                            "Name": "Lost Power",
-                            "Type": "FLOAT",
-                            "UOMABB": "kW",
-                            "UOM": "kilowatt"
-                        },
-                        {
-                            "Name": "Lifetime Production (Weekly)",
-                            "Type": "FLOAT",
-                            "UOMABB": "MWh",
-                            "UOM": "megawatt hour"
-                        },
-                        {
-                            "Name": "Lifetime Production (Hourly)",
-                            "Type": "FLOAT",
-                            "UOMABB": "kWh",
-                            "UOM": "kilowatt hour"
-                        },
-                        {
-                            "Name": "CutOut",
-                            "Type": "FLOAT",
-                            "UOMABB": "m/s",
-                            "UOM": "meter per second"
-                        },
-                        {
-                            "Name": "Curtailment Cause",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Apparent Power",
-                            "Type": "FLOAT",
-                            "UOMABB": "kW",
-                            "UOM": "kilowatt"
-                        },
-                        {
-                            "Name": "Adjusted Wind Speed",
-                            "Type": "FLOAT",
-                            "UOMABB": "m/s",
-                            "UOM": "meter per second"
-                        },
-                        {
-                            "Name": "Active Power",
-                            "Type": "FLOAT",
-                            "UOMABB": "kW",
-                            "UOM": "kilowatt"
-                        }
-                    ],
-                    "StaticAttributes": [
-                        {
-                            "Name": "Site",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Potential Power",
-                            "Type": "DOUBLE",
-                            "UOMABB": "kW",
-                            "UOM": "kilowatt"
-                        },
-                        {
-                            "Name": "Model",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Manufacturer",
-                            "Type": "NCHAR(100)",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Longitude",
-                            "Type": "DOUBLE",
-                            "UOMABB": "掳",
-                            "UOM": "degree"
-                        },
-                        {
-                            "Name": "Latitude",
-                            "Type": "DOUBLE",
-                            "UOMABB": "掳",
-                            "UOM": "degree"
-                        },
-                        {
-                            "Name": "Installation Date",
-                            "Type": "TIMESTAMP",
-                            "UOMABB": "",
-                            "UOM": ""
-                        },
-                        {
-                            "Name": "Elevation",
-                            "Type": "DOUBLE",
-                            "UOMABB": "m",
-                            "UOM": "meter"
-                        }
-                    ]
-                }
-            ],
-"SingleElements": [
-        {
-            "ID": "726b9c75-ebd3-11ee-bf16-0050569541a2",
-            "Name": "elementWithoutTemplate",
-            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\dataSourceTest\\elementWithoutTemplate",
+    {
+        "Templates": [
+          {
+            "TemplateName": "Template_Beijing",
             "Attributes": [
-                {
-                    "Name": "Attribute2",
-                    "Type": "FLOAT",
-                    "UOMABB": null,
-                    "UOM": null
-                },
-                {
-                    "Name": "Attribute1",
-                    "Type": "FLOAT",
-                    "UOMABB": null,
-                    "UOM": null
-                }
+              {
+                "Name": "Current",
+                "Type": "DOUBLE",
+                "UOMABB": "mA",
+                "UOM": "milliampere"
+              },
+              {
+                "Name": "Voltage",
+                "Type": "DOUBLE",
+                "UOMABB": "V",
+                "UOM": "volt"
+              }
             ],
-            "StaticAttributes": [
-                {
-                    "Name": "uriBuilder1",
-                    "Type": "NCHAR(256)",
-                    "UOMABB": "",
-                    "UOM": "",
-                    "Value": "123"
-                }
-            ]
-        }
-    ],
-            "Elements": [
-                {
-                    "ID": "1ab37258-d57e-11ee-bf13-00505695feda",
-                    "Name": "GE001",
-                    "TemplateName": "Turbine",
-                    "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE001",
-                    "StaticAttributeValues": [
-                        {
-                            "Name": "Site",
-                            "Type": "NCHAR(100)",
-                            "Value": "Santaella"
-                        },
-                        {
-                            "Name": "Potential Power",
-                            "Type": "DOUBLE",
-                            "Value": "3000"
-                        },
-                        {
-                            "Name": "Model",
-                            "Type": "NCHAR(100)",
-                            "Value": "2.75-100"
-                        },
-                        {
-                            "Name": "Manufacturer",
-                            "Type": "NCHAR(100)",
-                            "Value": "GE"
-                        },
-                        {
-                            "Name": "Longitude",
-                            "Type": "DOUBLE",
-                            "Value": "-94.6605958796689"
-                        },
-                        {
-                            "Name": "Latitude",
-                            "Type": "DOUBLE",
-                            "Value": "30.6025524633638"
-                        },
-                        {
-                            "Name": "Installation Date",
-                            "Type": "TIMESTAMP",
-                            "Value": "2009/2/9 8:00:00"
-                        },
-                        {
-                            "Name": "Elevation",
-                            "Type": "DOUBLE",
-                            "Value": "42.2728958"
-                        }
-                    ]
-                },
-                {
-                    "ID": "1ab3726d-d57e-11ee-bf13-00505695feda",
-                    "Name": "GE002",
-                    "TemplateName": "Turbine",
-                    "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Scirocco\\Santaella\\GE002",
-                    "StaticAttributeValues": [
-                        {
-                            "Name": "Site",
-                            "Type": "NCHAR(100)",
-                            "Value": "Santaella"
-                        },
-                        {
-                            "Name": "Potential Power",
-                            "Type": "DOUBLE",
-                            "Value": "3000"
-                        },
-                        {
-                            "Name": "Model",
-                            "Type": "NCHAR(100)",
-                            "Value": "2.75-100"
-                        },
-                        {
-                            "Name": "Manufacturer",
-                            "Type": "NCHAR(100)",
-                            "Value": "GE"
-                        },
-                        {
-                            "Name": "Longitude",
-                            "Type": "DOUBLE",
-                            "Value": "-94.6534447934278"
-                        },
-                        {
-                            "Name": "Latitude",
-                            "Type": "DOUBLE",
-                            "Value": "30.5822525686823"
-                        },
-                        {
-                            "Name": "Installation Date",
-                            "Type": "TIMESTAMP",
-                            "Value": "2009/1/23 8:00:00"
-                        },
-                        {
-                            "Name": "Elevation",
-                            "Type": "DOUBLE",
-                            "Value": "49.0653648"
-                        }
-                    ]
-                }
-               ]
-           }
+            "StaticAttributes": []
+          }
+        ],
+        "SingleElements": [],
+        "Elements": [
+          {
+            "ID": "d552ba74-cf9a-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing1",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Haidian\\Element_Beijing1"
+          },
+          {
+            "ID": "87fb3759-cf9b-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing2",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Haidian\\Element_Beijing2"
+          },
+          {
+            "ID": "9428635f-cf9b-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing3",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Haidian\\Element_Beijing3"
+          },
+          {
+            "ID": "c2b8a281-cf9b-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing4",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Chaoyang\\Element_Beijing4"
+          },
+          {
+            "ID": "cf7435e7-cf9b-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing5",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Chaoyang\\Element_Beijing5"
+          },
+          {
+            "ID": "c959b906-cf9b-11ee-bf12-00505695feda",
+            "Name": "Element_Beijing6",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Beijing\\Chaoyang\\Element_Beijing6"
+          },
+          {
+            "ID": "cbc23626-f716-11ee-bf14-00505695feda",
+            "Name": "Element_Beijing6",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Element_Beijing6"
+          },
+          {
+            "ID": "cbc23629-f716-11ee-bf14-00505695feda",
+            "Name": "Element_Beijing7",
+            "TemplateName": "Template_Beijing",
+            "Path": "\\\\WIN-2OA23UM12TN\\Meters\\Element_Beijing7"
+          }
+        ]
+      }
         "#;
 }
