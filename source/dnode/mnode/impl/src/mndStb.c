@@ -201,8 +201,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     }
   }
 
+  SDB_SET_INT32(pRaw, dataPos, taosHashGetSize(pStb->pHashJsonTemplate), _OVER);
   if (pStb->pHashJsonTemplate != NULL) {
-    SDB_SET_INT32(pRaw, dataPos, taosHashGetSize(pStb->pHashJsonTemplate), _OVER);
     pIter = taosHashIterate(pStb->pHashJsonTemplate, NULL);
     while (pIter != NULL) {
       col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);

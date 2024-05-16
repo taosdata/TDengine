@@ -911,7 +911,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COLUMN_OPTIONS: {
       SColumnOptions* pOptions = (SColumnOptions*)pNode;
-      taosMemoryFree(pOptions->jsonTemplate);
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
