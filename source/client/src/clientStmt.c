@@ -262,8 +262,9 @@ int32_t stmtParseSql(STscStmt* pStmt) {
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+  pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
-
+  
   pStmt->bInfo.needParse = false;
 
   if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
@@ -1057,8 +1058,8 @@ int stmtClose(TAOS_STMT* stmt) {
 
   STMT_DLOG_E("start to free stmt");
 
-  STMT_ELOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64, 
-    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo);
+  STMT_ELOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64, 
+    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum);
 
   stmtCleanSQLInfo(pStmt);
   taosMemoryFree(stmt);
