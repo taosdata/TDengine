@@ -55,7 +55,7 @@ struct SVATask {
   int32_t     priorScore;
   SVAChannel *channel;
   int32_t (*execute)(void *);
-  void (*complete)(void *);
+  void (*cancel)(void *);
   void        *arg;
   EVATaskState state;
 
@@ -164,11 +164,6 @@ static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
     ASSERT(0);
   }
   async->numTasks--;
-
-  // call complete callback
-  if (task->complete) {
-    task->complete(task->arg);
-  }
 
   if (task->numWait == 0) {
     taosThreadCondDestroy(&task->waitCond);
@@ -462,7 +457,7 @@ int32_t vnodeAsyncClose() {
   return 0;
 }
 
-int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *),
+int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*execute)(void *), void (*cancel)(void *),
                    void *arg, SVATaskID *taskID) {
   if (channelID == NULL || channelID->async < MIN_ASYNC_ID || channelID->async > MAX_ASYNC_ID || execute == NULL ||
       channelID->id < 0) {
@@ -481,7 +476,7 @@ int32_t vnodeAsync(SVAChannelID *channelID, EVAPriority priority, int32_t (*exec
   task->priority = priority;
   task->priorScore = 0;
   task->execute = execute;
-  task->complete = complete;
+  task->cancel = cancel;
   task->arg = arg;
   task->state = EVA_TASK_STATE_WAITTING;
   task->numWait = 0;
@@ -615,13 +610,16 @@ int32_t vnodeACancel(SVATaskID *taskID) {
   SVATask  task2 = {
        .taskId = taskID->id,
   };
+  void (*cancel)(void *) = NULL;
+  void *arg = NULL;
 
   taosThreadMutexLock(&async->mutex);
 
   vHashGet(async->taskTable, &task2, (void **)&task);
   if (task) {
     if (task->state == EVA_TASK_STATE_WAITTING) {
-      // remove from queue
+      cancel = task->cancel;
+      arg = task->arg;
       task->next->prev = task->prev;
       task->prev->next = task->next;
       vnodeAsyncTaskDone(async, task);
@@ -631,6 +629,10 @@ int32_t vnodeACancel(SVATaskID *taskID) {
   }
 
   taosThreadMutexUnlock(&async->mutex);
+
+  if (cancel) {
+    cancel(arg);
+  }
 
   return ret;
 }
@@ -752,9 +754,6 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         channel->state = EVA_CHANNEL_STATE_CLOSE;
       }
     }
-  } else {
-    taosThreadMutexUnlock(&async->mutex);
-    return TSDB_CODE_INVALID_PARA;
   }
 
   taosThreadMutexUnlock(&async->mutex);

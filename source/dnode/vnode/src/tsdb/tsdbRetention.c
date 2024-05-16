@@ -379,13 +379,14 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&rtner.fset);
   TARRAY2_DESTROY(&rtner.fopArr, NULL);
+  taosMemoryFree(arg);
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
 
-static void tsdbRetentionComplete(void *arg) { taosMemoryFree(arg); }
+static void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
   int32_t    code = 0;
@@ -406,7 +407,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
       arg->now = now;
       arg->fid = fset->fid;
 
-      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionComplete, arg, NULL))) {
+      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, NULL))) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
