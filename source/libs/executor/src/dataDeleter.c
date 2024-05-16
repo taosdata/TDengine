@@ -154,7 +154,7 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pDeleter->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRawLen, bool* pQueryEnd) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (taosQueueEmpty(pDeleter->pDataBlocks)) {
     *pQueryEnd = pDeleter->queryEnd;
@@ -171,6 +171,8 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pDeleter->nextOutput.pData;
   *pLen = pEntry->dataLen;
+  *pRawLen = pEntry->dataLen;
+
   *pQueryEnd = pDeleter->queryEnd;
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
          ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->numOfRows);
@@ -186,6 +188,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     pOutput->queryEnd = pDeleter->queryEnd;
     return TSDB_CODE_SUCCESS;
   }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDeleter->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pDeleter->pParam->pUidList = NULL;

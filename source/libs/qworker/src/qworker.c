@@ -102,7 +102,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     }
 
     if (!ctx->needFetch) {
-      dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL);
+      dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL, NULL);
     }
   }
 
@@ -285,8 +285,10 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
+int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, int32_t *pRawDataLen, void **rspMsg,
+                              SOutputData *pOutput) {
   int64_t            len = 0;
+  int64_t            rawLen = 0;
   SRetrieveTableRsp *rsp = NULL;
   bool               queryEnd = false;
   int32_t            code = 0;
@@ -300,7 +302,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   *dataLen = 0;
 
   while (true) {
-    dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+    dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
 
     if (len < 0) {
       QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
@@ -343,6 +345,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
 
     *dataLen += len;
+    *pRawDataLen += rawLen;
 
     QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &rsp));
 
@@ -375,11 +378,11 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       break;
     }
 
-    if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
-      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks,
-                   pOutput->numOfRows);
+//    if (pOutput->numOfRows >= QW_MIN_RES_ROWS) {
+//      QW_TASK_DLOG("task fetched blocks %d rows %" PRId64 " reaches the min rows", pOutput->numOfBlocks,
+//                   pOutput->numOfRows);
       break;
-    }
+//    }
   }
 
   *rspMsg = rsp;
@@ -389,11 +392,12 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
 int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes) {
   int64_t     len = 0;
+  int64_t     rawLen = 0;
   bool        queryEnd = false;
   int32_t     code = 0;
   SOutputData output = {0};
 
-  dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+  dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
 
   if (len <= 0 || len != sizeof(SDeleterRes)) {
     QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
@@ -433,9 +437,10 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       void       *rsp = NULL;
       int32_t     dataLen = 0;
+      int32_t     rawLen = 0;
       SOutputData sOutput = {0};
       if (TSDB_CODE_SUCCESS == code) {
-        code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput);
+        code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput);
       }
 
       if (NULL == rsp && TSDB_CODE_SUCCESS == code) {
@@ -445,7 +450,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
       if (NULL != rsp) {
         bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-        qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+        qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
         }
@@ -791,6 +796,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   SQWPhaseInput input = {0};
   void         *rsp = NULL;
   int32_t       dataLen = 0;
+  int32_t       rawLen = 0;
   bool          queryStop = false;
   bool          qComplete = false;
 
@@ -810,7 +816,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
-      QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+      QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
       if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
@@ -821,7 +827,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       if (rsp) {
         qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-        qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+        qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
         if (qComplete) {
           atomic_store_8((int8_t *)&ctx->queryEnd, true);
           atomic_store_8((int8_t *)&ctx->queryContinue, 0);
@@ -878,6 +884,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t       code = 0;
   int32_t       dataLen = 0;
+  int32_t       rawDataLen = 0;
+
   bool          locked = false;
   SQWTaskCtx   *ctx = NULL;
   void         *rsp = NULL;
@@ -896,17 +904,17 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-    qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+    qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
 
     {
-      if (dataLen > 8192) {
+      if (/*dataLen > 8192*/ 0) {
         char* p = taosMemoryMalloc(dataLen);
         int32_t len =
             tsCompressString(((SRetrieveTableRsp *)rsp)->data, dataLen, 1, p, dataLen, ONE_STAGE_COMP, NULL, 0);
@@ -918,8 +926,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         ((SRetrieveTableRsp*)rsp)->compressed = 1;
         taosMemoryFree(p);
       } else {
-        ((SRetrieveTableRsp*)rsp)->payloadLen = ((SRetrieveTableRsp*)rsp)->compLen;
-        ((SRetrieveTableRsp*)rsp)->compressed = 0;
+//        ((SRetrieveTableRsp*)rsp)->payloadLen = ((SRetrieveTableRsp*)rsp)->compLen;
+//        ((SRetrieveTableRsp*)rsp)->compressed = 0;
       }
     }
 
@@ -1484,6 +1492,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   SQWorker   *mgmt = (SQWorker *)pMgmt;
   int32_t     code = 0;
   int32_t     dataLen = 0;
+  int32_t     rawLen = 0;
   SQWTaskCtx *ctx = NULL;
   void       *rsp = NULL;
   bool        queryStop = false;
@@ -1491,7 +1500,6 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   SQWPhaseInput input = {0};
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
-
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->fetchMsgType = TDMT_SCH_MERGE_FETCH;
@@ -1500,7 +1508,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   SOutputData sOutput = {0};
 
   while (true) {
-    QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+    QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
     if (NULL == rsp) {
       QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
@@ -1509,7 +1517,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
     } else {
       bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
-      qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+      qwBuildFetchRsp(rsp, &sOutput, dataLen, rawLen, qComplete);
       if (qComplete) {
         atomic_store_8((int8_t *)&ctx->queryEnd, true);
       }

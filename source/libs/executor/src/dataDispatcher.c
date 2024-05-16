@@ -31,6 +31,7 @@ typedef struct SDataDispatchBuf {
 } SDataDispatchBuf;
 
 typedef struct SDataCacheEntry {
+  int32_t rawLen;
   int32_t dataLen;
   int32_t numOfRows;
   int32_t numOfCols;
@@ -78,9 +79,25 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);
-  pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
   //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
   //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+
+  {
+    if (pBuf->allocSize > 8192) {
+      char* p = taosMemoryMalloc(pBuf->allocSize);
+      int32_t dataLen = blockEncode(pInput->pData, p, numOfCols);
+
+      int32_t len = tsCompressString(p, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
+
+      pEntry->compressed = 1;
+      pEntry->dataLen = len;
+      pEntry->rawLen = dataLen;
+      taosMemoryFree(p);
+    } else {
+      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      pEntry->rawLen = pEntry->dataLen;
+    }
+  }
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -165,7 +182,7 @@ static void resetDispatcher(struct SDataSinkHandle* pHandle) {
   taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRowLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
     *pQueryEnd = pDispatcher->queryEnd;
@@ -182,9 +199,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
   *pLen = pEntry->dataLen;
-
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+  *pRowLen = pEntry->rawLen;
 
   *pQueryEnd = pDispatcher->queryEnd;
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
@@ -202,6 +217,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     pOutput->queryEnd = pDispatcher->queryEnd;
     return TSDB_CODE_SUCCESS;
   }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
