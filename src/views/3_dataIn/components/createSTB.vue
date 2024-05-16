@@ -67,73 +67,91 @@
             controls-position="right"
             class="custom-length"
           ></el-input-number>
+          <el-input
+              size="small"
+              v-model="column.field"
+              :maxlength="64"
+              :placeholder="$t('data.columnNameTip')"
+            >
+          </el-input>
           <el-tag effect="plain" type="info" v-if="!index">
               <el-checkbox v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
             </el-tag>
-            <el-select
-              size="small"
-              v-model="column.encode"
-              placeholder="ENCODE"
-              class="columnWidth120"
-              clearable
-            >
-              <el-option
-                v-for="item in handleEncodeList(column.type)['encodeList']"
-                :key="item.value"
-                v-bind="item"
-              ></el-option>
-            </el-select>
-            <el-select
-              size="small"
-              v-model="column.compress"
-              placeholder="COMPRESS"
-              class="columnWidth120"
-              clearable
-            >
-              <el-option
-                v-for="item in handleEncodeList(column.type)['compressList']"
-                :key="item.value"
-                v-bind="item"
-              ></el-option>
-            </el-select>
-            <el-select
-              size="small"
-              v-model="column.level"
-              placeholder="LEVEL"
-              class="columnWidth120"
-              clearable
-            >
-              <el-option
-                v-for="item in levelList"
-                :key="item.value"
-                v-bind="item"
-              ></el-option>
-            </el-select>
-          <el-input
-            size="small"
-            v-model="column.field"
-            :maxlength="64"
-            :placeholder="$t('data.columnNameTip')"
-          >
-            <template slot="append">
-              <el-button
-                icon="el-icon-minus"
-                @click="minusColumn(index)"
-              ></el-button>
-              <el-button @click="addColumn" icon="el-icon-plus"></el-button>
-              <el-tooltip
-                :content="$t('data.clickColumnTip')"
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.encode')">
+              <el-select
+                size="small"
+                default-first-option
+                defaultValue="simple8b"
+                v-model="column.encode"
+                placeholder="ENCODE"
+                class="columnWidth120"
+                clearable
               >
-              <el-button @click="removeToTag(index)">
-                <Icon
-                  :name="'tag'"
-                  class="console-tree-icon"
-                  style="width: 18px; height: 18px"
-                ></Icon>
-              </el-button>
-              </el-tooltip>
-            </template>
-          </el-input>
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['encodeList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+            </el-tooltip>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.compress')">
+              <el-select
+                size="small"
+                default-first-option
+                defaultValue="lz4"
+                v-model="column.compress"
+                placeholder="COMPRESS"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['compressList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+            </el-tooltip>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.level')">
+              <el-select
+                size="small"
+                default-first-option
+                v-model="column.level"
+                placeholder="LEVEL"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in levelList"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option> 
+              </el-select>
+            </el-tooltip>
+        <span class="action-btn">
+          <el-button
+            icon="el-icon-minus"
+            size="small"
+            @click="minusColumn(index)"
+          ></el-button>
+          <el-button @click="addColumn" icon="el-icon-plus" size="small"></el-button>
+          <el-tooltip
+            :content="$t('data.clickColumnTip')"
+          >
+          <el-button @click="removeToTag(index)" size="small">
+            <Icon
+              :name="'tag'"
+              class="console-tree-icon"
+              style="width: 18px; height: 18px"
+            ></Icon>
+          </el-button>
+          </el-tooltip>
+        </span>
         </div>
       </el-collapse-item>
       <el-collapse-item name="2" :title="$t('tags')">
@@ -386,7 +404,7 @@ export default {
   }
 .create-stb ::v-deep .flexCenter .el-select .el-input__inner {
   border-color: #dcdfe6;
-  border-right: none;
+  border-left: none;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -395,8 +413,25 @@ export default {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
+.create-stb ::v-deep .flexCenter .el-select:first-of-type .el-input__inner  {
+  border-left: 1px solid #dcdfe6;
+  border-right: none;
+}
 .columnWidth120 {
   width: 110px;
   flex-shrink: 0;
+}
+
+.create-stb ::v-deep .flexCenter .action-btn {
+  display: flex;
+  margin-left: 10px;
+  .el-button + .el-button {
+    margin-left: 0px;
+    border-left-style: none;
+  }
+}
+
+.create-stb ::v-deep .el-tag {
+  border-left: none;
 }
 </style>
