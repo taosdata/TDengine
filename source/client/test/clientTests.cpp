@@ -907,7 +907,7 @@ TEST(clientCase, projection_query_stables) {
   TAOS_RES* pRes = taos_query(pConn, "use qzdata");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from `X212MGPH018`");
+  pRes = taos_query(pConn, "select * from `QZ_212_DYS_02`");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -920,6 +920,8 @@ TEST(clientCase, projection_query_stables) {
 
   int32_t numOfRows = 0;
   int32_t i = 0;
+  int32_t prev = 0;
+
   char    str[512] = {0};
   while (1) {
     int32_t c = taos_fetch_block_s(pRes, &numOfRows, &pRow);
@@ -927,7 +929,12 @@ TEST(clientCase, projection_query_stables) {
       break;
     }
     i += numOfRows;
-    printf("%d\n", i);
+
+    if ( (i / 1000000) > prev) {
+      printf("%d\n", i);
+      prev = i;
+    }
+    //printf("%d\n", i);
   }
 //  while ((pRow = taos_fetch_row(pRes)) != NULL) {
 //        int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
