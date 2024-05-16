@@ -212,7 +212,6 @@ jobs:
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity mqtt_test.py
 
       - name: Stop taosx-agent & taosx
-        # if: always()
         shell: bash {0}
         run: |
           pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
