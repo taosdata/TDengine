@@ -369,6 +369,14 @@ jobs:
           java -jar $COVERAGE_BASE_DIR/jacococli.jar merge $COVERAGE_BASE_DIR/influxdb/*.exec --destfile $COVERAGE_BASE_DIR/influxdb/influxdb.exec
           java -jar $COVERAGE_BASE_DIR/jacococli.jar report $COVERAGE_BASE_DIR/influxdb/influxdb.exec --classfiles $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/classes --sourcefiles $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/plugins/influxdb/src/main/java --html $COVERAGE_BASE_DIR/$DIR_PATH/influxdb/
           echo "see report at $REPORT_BASE_URL/$DIR_PATH/influxdb/"
+      
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        shell: bash {0}
+        run: |
+          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
+          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
+  
 
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -382,10 +390,3 @@ jobs:
           -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
           https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
         
-      - name: Force stop taosx-agent & taosx
-        if: always()
-        shell: bash {0}
-        run: |
-          pids=$(pgrep taosx-agent); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx-agent $pid"; kill -9 "$pid"; done; else echo "taosx-agent is safe"; fi
-          pids=$(pgrep taosx); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; else echo "tasox is safe"; fi
-
