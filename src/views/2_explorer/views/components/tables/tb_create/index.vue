@@ -172,6 +172,7 @@
                 default-first-option
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
+                @change="handleEditTypeChange"
               >
                 <el-option
                   v-for="item in dataType"
@@ -677,6 +678,10 @@ export default {
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
       }
+    },
+    handleEditTypeChange(column, index) {
+      this.$set(this.currentData, "encode", '');
+      this.$set(this.currentData, "compress", '');
     },
   },
 };

@@ -210,6 +210,7 @@
               default-first-option
               :placeholder="$t('Data') + $t('type')"
               class="columnPrependBtn"
+              @change="handleEditTypeChange"
             >
               <el-option
                 v-for="item in dataType"
@@ -608,6 +609,10 @@ export default {
     handleTypeChange(column, index) {
       this.$set(this.stable_form.columns[index], "encode", '');
       this.$set(this.stable_form.columns[index], "compress", '');
+    },
+    handleEditTypeChange(column, index) {
+      this.$set(this.currentData, "encode", '');
+      this.$set(this.currentData, "compress", '');
     },
     // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
     handleTypeList(currentType, name) {
