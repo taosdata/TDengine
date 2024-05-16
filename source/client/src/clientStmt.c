@@ -414,6 +414,8 @@ int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableD
 }
 
 int32_t stmtGetFromCache(STscStmt* pStmt) {
+  int64_t startUs = taosGetTimestampUs();
+
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
 
@@ -536,6 +538,10 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.tbVgId = pTbInfo->vgid;
     vgId = pTbInfo->vgid;
   }
+
+  int64_t startUs2 = taosGetTimestampUs();
+  pStmt->stat.setTbNameUs1 += startUs2 - startUs;
+
   
   uint64_t cacheUid = (TSDB_CHILD_TABLE == tableType) ? suid : uid;
 
@@ -600,6 +606,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   }
 
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
+
+  pStmt->stat.setTbNameUs2 += taosGetTimestampUs() - startUs2;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -685,7 +693,6 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 }
 
 int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
-  int64_t startUs = taosGetTimestampUs();
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG("start to set tbName: %s", tbName);
@@ -707,17 +714,12 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                             pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
   tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName);
-
-  int64_t startUs2 = taosGetTimestampUs();
-  pStmt->stat.setTbNameUs1 += startUs2 - startUs;
-  
+ 
   STMT_ERR_RET(stmtGetFromCache(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
-
-  pStmt->stat.setTbNameUs2 += taosGetTimestampUs() - startUs2;
 
   return TSDB_CODE_SUCCESS;
 }
