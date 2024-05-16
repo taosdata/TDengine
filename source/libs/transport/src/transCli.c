@@ -1803,13 +1803,13 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
 
-    if (pMsg->type == Quit) {
-      pThrd->stopMsg = pMsg;
+    if (pMsg->type == Normal && REQUEST_NO_RESP(&pMsg->msg)) {
+      cliBuildBatch(pMsg, h, pThrd);
       continue;
     }
 
-    if (pMsg->type == Normal && REQUEST_NO_RESP(&pMsg->msg)) {
-      cliBuildBatch(pMsg, h, pThrd);
+    if (pMsg->type == Quit) {
+      pThrd->stopMsg = pMsg;
       continue;
     }
     (*cliAsyncHandle[pMsg->type])(pMsg, pThrd);
