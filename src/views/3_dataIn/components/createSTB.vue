@@ -1,6 +1,6 @@
 <template>
   <div class="create-stb">
-    <el-form :model="stable_form" :rules="rules"  ref="form">
+    <el-form :model="stable_form" :rules="rules"  ref="form" label-position="left" label-width="150px">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
           <span>{{ $t("name") }}</span>
@@ -29,7 +29,7 @@
           v-model="stable_form.ts_field_name"
           size="small"
         >
-        <div slot="prepend" style="width: 142px">TIMESTAMP</div>
+        <div slot="prepend">TIMESTAMP</div>
         </el-input>
         <div
           class="flexCenter input_row"
@@ -352,6 +352,8 @@ export default {
   flex-shrink: 0;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;
@@ -378,6 +380,10 @@ export default {
     border-color: transparent;
   }
 }
+.create-stb ::v-deep .el-input-group__prepend {
+    width: 150px;
+    padding-left: 15px;
+  }
 .create-stb ::v-deep .flexCenter .el-select .el-input__inner {
   border-color: #dcdfe6;
   border-right: none;
@@ -388,5 +394,9 @@ export default {
   border-color: #dcdfe6;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+.columnWidth120 {
+  width: 110px;
+  flex-shrink: 0;
 }
 </style>
