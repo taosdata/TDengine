@@ -2217,7 +2217,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
     int32_t len = tsDecompressString((void*)pRsp->data, htonl(pRsp->compLen), 1, pResultInfo->decompressBuf, payloadLen,
                                      ONE_STAGE_COMP, NULL, 0);
-//    ASSERT(len == payloadLen);
+    ASSERT(len == payloadLen);
 
     pResultInfo->pData = pResultInfo->decompressBuf;
     pResultInfo->payloadLen = payloadLen;
