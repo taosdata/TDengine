@@ -58,15 +58,6 @@ jobs:
           export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
           cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
 
-      # - name: taosx unit test
-      #   continue-on-error: true
-      #   run: |
-      #     if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
-      #       echo "run unit test"
-      #       export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
-      #       cd taosx-agent && cargo test --target-dir ../target/debug/taosx-agent-build/
-      #     fi
-
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
