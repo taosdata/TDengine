@@ -278,6 +278,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
 int32_t stmtCleanBindInfo(STscStmt* pStmt) {
   pStmt->bInfo.tbUid = 0;
   pStmt->bInfo.tbSuid = 0;
+  pStmt->bInfo.tbVgId = -1;
   pStmt->bInfo.tbType = 0;
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
