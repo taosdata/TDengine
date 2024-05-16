@@ -918,14 +918,23 @@ TEST(clientCase, projection_query_stables) {
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   int32_t     numOfFields = taos_num_fields(pRes);
 
+  int32_t numOfRows = 0;
   int32_t i = 0;
   char    str[512] = {0};
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    //    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    if (i++ % 100000 == 0) {
-      printf("%d\n", i);
+  while (1) {
+    int32_t c = taos_fetch_block_s(pRes, &numOfRows, &pRow);
+    if (numOfRows <= 0) {
+      break;
     }
+    i += numOfRows;
+    printf("%d\n", i);
   }
+//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+//        int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    if (i++ % 100000 == 0) {
+//      printf("%d\n", i);
+//    }
+//  }
 
   taos_free_result(pRes);
   taos_close(pConn);
