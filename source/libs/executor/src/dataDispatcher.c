@@ -63,12 +63,14 @@ typedef struct SDataDispatchHandle {
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
+
   FOREACH(pNode, pHandle->pSchema->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
       ++numOfCols;
     }
   }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;

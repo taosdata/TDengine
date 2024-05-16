@@ -1981,6 +1981,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int8_t  streamBlockType;
+  int32_t payloadLen;
   int32_t compLen;
   int32_t numOfBlocks;
   int64_t numOfRows;  // from int32_t change to int64_t
@@ -2009,6 +2010,7 @@ typedef struct {
   int8_t  compressed;
   int32_t compLen;
   int32_t numOfRows;
+  int32_t fullLen;
   char    data[];
 } SRetrieveMetaTableRsp;
 

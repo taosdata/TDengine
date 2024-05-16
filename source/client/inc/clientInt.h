@@ -195,8 +195,9 @@ typedef struct SReqResultInfo {
   uint64_t       current;
   bool           localResultFetched;
   bool           completed;
-  int32_t        precision;
   bool           convertUcs4;
+  char*          decompressBuf;
+  int32_t        precision;
   int32_t        payloadLen;
   char*          convertJson;
 } SReqResultInfo;
