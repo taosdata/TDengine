@@ -274,6 +274,12 @@ Query OK, 2 row(s) in set (0.003128s)
 
 除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/taos-shell/)。
 
+## TDengine 图形化界面
+
+从 TDengine 3.3.0.0 开始，TDengine 发布包中增加了一个新的 web 组件：taos-explorer， 可以使用它进行数据库、超级表、子表、数据的查看和管理。其上也有一些只在企业版中才提供的高级特性，如需要可联系 TDengine 销售团队。
+
+使用 taos-explorer，需要从浏览器访问其映射在主机上的端口，假定主机名为 abc.com，映射到主机的端口为 6060，则需从浏览器访问 http://abc.com:6060. taos-explorer 默认在容器内使用 6060 端口。初次使用需要使用企业邮箱进行注册，注册后即可使用数据库中的用户名和密码登录
+
 ## 使用 taosBenchmark 体验写入速度
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入速度。
