@@ -83,7 +83,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   {
-    if (pBuf->allocSize > 8192) {
+    if (/*pBuf->allocSize > 8192*/ 0) {
       char* p = taosMemoryMalloc(pBuf->allocSize);
       int32_t dataLen = blockEncode(pInput->pData, p, numOfCols);
 
