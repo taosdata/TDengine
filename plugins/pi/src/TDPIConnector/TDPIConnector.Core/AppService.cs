@@ -28,6 +28,9 @@ namespace TDPIConnector.Core
         private ElementModeTask elementModeTask;
         private StandByModeTask standByModeTask;
         private TablesCreator tablesCreator;
+
+        public Initializer initializer { get; private set; }
+
         private List<TDTable> piPoints;
         private ConcurrentDictionary<string, AFElementWrapper> elements;
         private EventsSender eventsSender;
@@ -140,8 +143,12 @@ namespace TDPIConnector.Core
         {
             //startWebService();
             InitializeConnections();
+            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
+            eventsSender.SetBackfill(backfillManager);
 
             this.tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
+            this.initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
+
             try
             {
                 await tablesCreator.CreateDatabase(AppSettings.tomlConfig.TDDataBase);
@@ -172,7 +179,7 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    await initializer.InitAFModeTask(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     if (elements == null)
                     {
                         log.Info($"No any AF Elements template found.");
@@ -188,9 +195,7 @@ namespace TDPIConnector.Core
                 }
             }
 
-            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
-            eventsSender.SetBackfill(backfillManager);
-            if ((this.piPoints != null && this.piPoints.Count > 0) || (this.elements != null && this.elements.Count > 0))
+            if ((this.piPoints != null && this.piPoints.Count > 0))
             {
                 StartDataPipe();
                 StartBackfill();
@@ -278,7 +283,7 @@ namespace TDPIConnector.Core
 
             if (this.elements != null && this.elements.Count > 0)
             {
-                this.elementModeTask = new ElementModeTask(piSystemManager, monitoringService, elementModeObserver, elements);
+                this.elementModeTask = new ElementModeTask(piSystemManager, elementModeObserver, elements);
                 this.elementModeTask.Start();
             }
 

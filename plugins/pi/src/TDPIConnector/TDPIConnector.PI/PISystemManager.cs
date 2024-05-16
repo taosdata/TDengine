@@ -97,6 +97,15 @@ namespace TDPIConnector.PI
             return afDataPipeManager;
         }
 
+        public AFDataPipeManager InitSignuper(IObserver<AFDataPipeEventWrapper> observerWrapper, int numberOfDataPipes)
+        {
+            AFDataPipeManager afDataPipeManager = new AFDataPipeManager(numberOfDataPipes);
+            afDataPipeManager.Subscribe(observerWrapper);
+            log.Info($"Init Signuper finished.");
+
+            return afDataPipeManager;
+        }
+
         public IEnumerable<AFElementTemplateWrapper> GetElementTemplates(string afDatabaseName, List<string> templates)
         {
             AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
@@ -215,7 +224,8 @@ namespace TDPIConnector.PI
             {
                 throw new Exception($"Could not find AF Database {afDatabaseName}.");
             }
-            using (var search = new AFElementSearch(afDatabase, "*", $"name:{filter}"))
+            string searchFilter = $"Name:\"*{filter}*\"";
+            using (var search = new AFElementSearch(afDatabase, "*", searchFilter))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
                 return elements.Select(e => new AFElementWrapper(e));

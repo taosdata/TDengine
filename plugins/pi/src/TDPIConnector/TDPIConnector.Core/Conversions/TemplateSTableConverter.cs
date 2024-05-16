@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using OSIsoft.AF.Asset;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Helper;
@@ -58,6 +59,56 @@ namespace TDPIConnector.Core.Conversions
                 {
                     var value = attr.ToStringWithUOM();
                     tags.Add(attr.Name.ToTDEngineNamingPattern(), value);
+                }
+            }
+            foreach (var column in elementColumns)
+            {
+                if (tags.ContainsKey(column.Name))
+                {
+                    column.TagValue = tags[column.Name];
+                }
+            }
+            var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
+            {
+                Columns = elementColumns,
+                Location = location
+            };
+            return table;
+        }
+
+        internal static TDTable ConvertV2(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns, ref List<AFAttribute> attries)
+        {
+            var location = getLocation(element.GetPath());
+            Dictionary<string, string> tags = new Dictionary<string, string>();
+            var elementColumns = new List<TDColumn>();
+            foreach (var c in columns)
+            {
+                elementColumns.Add(new TDColumn(c));
+            }
+
+            foreach (var attr in element.Attributes)
+            {
+                if (attr.IsTDengineTag())
+                {
+                    var value = attr.ToStringWithUOM();
+                    tags.Add(attr.Name.ToTDEngineNamingPattern(), value);
+                }
+                if (attr.Valid() && attr.signUpValid() && !attr.Unsupported())
+                {
+                    attries.Add(attr.AFSDKObject);
+                }
+                if (attr.HasChild()) {
+                    foreach (var childAttr in attr.childAttributes) {
+                        if (childAttr.IsTDengineTag())
+                        {
+                            var value = childAttr.ToStringWithUOM();
+                            tags.Add(AttributeColumnConverter.GetChildAttrbuteName(attr, childAttr).ToTDEngineNamingPattern(), value);
+                        }
+                        if (childAttr.Valid() && childAttr.signUpValid() && !childAttr.Unsupported())
+                        {
+                            attries.Add(childAttr.AFSDKObject);
+                        }
+                    }
                 }
             }
             foreach (var column in elementColumns)

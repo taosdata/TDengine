@@ -1,4 +1,4 @@
-﻿#define NONLY_PI_TEST
+﻿#define ONLY_PI_TEST
 
 using log4net;
 using System;
@@ -254,6 +254,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
                 log.Debug($"Stable:{builder.stableName} Write tables into stream...");
+                builder.tagVals.Clear();
             }
         }
 

@@ -94,6 +94,14 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DataReference.Name;
             }
         }
+        public AFAttributeTemplatesWrapper childAttributes
+        {
+            get
+            {
+                if (this.AFSDKObject.AttributeTemplates == null) return null;
+                return new AFAttributeTemplatesWrapper(this.AFSDKObject.AttributeTemplates);
+            }
+        }
         public virtual string GetPath()
         {
             return this.AFSDKObject.GetPath();
@@ -135,6 +143,11 @@ namespace TDPIConnector.PI
                 return true;
             }
             return string.IsNullOrEmpty(DataReference);
+        }
+
+        public bool HasChild()
+        {
+            return AFSDKObject.HasChildren;
         }
     }
 }

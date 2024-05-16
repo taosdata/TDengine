@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace TDPIConnector.Core
 {
-    class EventsSender
+    public class EventsSender
     {
         private readonly TDEngineProxy tdEngineProxy;
         private readonly ConcurrentQueue<AFDataPipeEventWrapper> dpPIEvents;
@@ -40,30 +40,7 @@ namespace TDPIConnector.Core
             deleteSender.SetBackfill(backfill);
         }
 
-        public void OnAFElementEvents()
-        {
-            if (StandbyManager.Instance.StandByModeEnabled)
-            {
-                return;
-            }
-
-            List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
-
-            while (!this.dpAFEvents.IsEmpty)
-            {
-                bool result = this.dpAFEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
-                if (result)
-                {
-                    allEvents.Add(dpEvent);
-                    this.OnAFEventReceivedSuccess(this, dpEvent);
-                }
-            }
-
-            if (allEvents.Count == 0)
-            {
-                return;
-            }
-
+        public void OnAFElementEventBatch(ref List<AFDataPipeEventWrapper> allEvents) {
             this.OnAFEventReceivedListSuccess(this, allEvents.Take(100).ToList());
 
             var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
@@ -76,7 +53,8 @@ namespace TDPIConnector.Core
                 {
                     stableName = TableNameConvert.GetSingleElementSuperTableName(dpEvent.Value.Attribute.Element);
                 }
-                else {
+                else
+                {
                     stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
                 }
                 var elementTbName = ElemenetTableConverter.GetTDTableNameForElement(dpEvent.Value.Attribute.Element);
@@ -86,7 +64,8 @@ namespace TDPIConnector.Core
                 var timestamp = tdValue.TimestampString;
 
                 var attributeName = dpEvent.Value.Attribute.Name;
-                if (dpEvent.IsAFDataPipeRangeDeletedEvent()) {
+                if (dpEvent.IsAFDataPipeRangeDeletedEvent())
+                {
                     var rangeDeleteEvent = dpEvent.ToAFDataPipeRangeDeletedEventWrapper();
                     var startTime = rangeDeleteEvent.StartTime;
                     var endTime = rangeDeleteEvent.EndTime;
@@ -122,7 +101,11 @@ namespace TDPIConnector.Core
                     columnNames.Add(attributeName);
                 }
 
-                tdValue.Name = dpEvent.Value.Attribute.Name;
+                if (dpEvent.Value.Attribute.IsChild()) {
+                    tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(dpEvent.Value.Attribute.Parent, dpEvent.Value.Attribute);
+                } else {
+                    tdValue.Name = dpEvent.Value.Attribute.Name;
+                }
 
                 if (stables.ContainsKey(stableName))
                 {
@@ -143,7 +126,8 @@ namespace TDPIConnector.Core
                         stables[stableName].Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     }
                 }
-                else {
+                else
+                {
                     var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
                     tables.Add(elementUniKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
                     stables.Add(stableName, tables);
@@ -154,11 +138,40 @@ namespace TDPIConnector.Core
             {
                 this.tdEngineProxy.InsertValuesForAFElements(AppSettings.tomlConfig.TDDataBase, stables, columnNames).Wait();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 throw e.InnerException;
             }
+        }
 
+        public void OnAFElementEvents()
+        {
+            if (StandbyManager.Instance.StandByModeEnabled)
+            {
+                return;
+            }
+
+            List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
+
+            while (!this.dpAFEvents.IsEmpty)
+            {
+                bool result = this.dpAFEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
+                if (result)
+                {
+                    allEvents.Add(dpEvent);
+                    this.OnAFEventReceivedSuccess(this, dpEvent);
+                }
+                if (allEvents.Count >= 10000) {
+                    OnAFElementEventBatch(ref allEvents);
+                    allEvents.Clear();
+                }
+            }
+            if (allEvents.Count == 0)
+            {
+                return;
+            }
+
+            OnAFElementEventBatch(ref allEvents);
         }
 
         public void OnPIPointEvents()
