@@ -589,7 +589,7 @@ pub fn sql_values_from_record_batch_skip_null(
         insert_col_values.pop();
         insert_col_names.pop();
         sql.push_str(&format!(
-            " {} ({}) values ({})",
+            " `{}` ({}) values ({})",
             table_name, insert_col_names, insert_col_values
         ));
     }

@@ -539,7 +539,7 @@ async fn write_stable_with_sql(
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
-    tracing::trace!(req_id = req_id.get(), sql, "Write with SQL");
+    tracing::debug!(req_id = req_id.get(), sql, "Write with SQL"); // debug
     loop {
         match taos
             .as_ref()
@@ -549,6 +549,7 @@ async fn write_stable_with_sql(
         {
             Ok(n) => break Ok(n),
             Err(err) => {
+                tracing::debug!(req_id = req_id.get(), sql, "{err:#}"); // debug
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
