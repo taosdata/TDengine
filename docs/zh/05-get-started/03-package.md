@@ -191,19 +191,11 @@ systemctl status taosd
 
 :::
 
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
-
 </TabItem>
 
 <TabItem label="Windows 系统" value="windows">
 
 安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
-
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
 
 </TabItem>
 
@@ -237,18 +229,13 @@ sudo launchctl print system/com.tdengine.taosd
 
 :::
 
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
-
 </TabItem>
 </Tabs>
 
-```bash
-taos
-```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](../../train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+## TDengine 命令行（CLI）
+
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。 TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
