@@ -12,6 +12,7 @@
     <section
       v-show="isAll != '*'"
       class="flexStart mb20"
+      :style="{'cursor': $COMMUNITY ? 'not-allowed' : 'pointer'}"
     >
       <uploadCsv
         v-model="value"
@@ -27,6 +28,7 @@
         <a
           v-if="config.templateUrl"
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click="handleDownEmptyTemplate"
         >
           <i class="el-icon-download"></i>
@@ -41,6 +43,7 @@
           v-if="config.templateUrl"
           class="ml20"
           :href="config.templateUrl"
+          :class="{'disabled': $COMMUNITY }"
           download
         >
           <i class="el-icon-download"></i>
@@ -54,6 +57,7 @@
         v-if="isOpc">
         <a
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click.prevent="openDialog"
         >
           <i class="el-icon-download"></i>
@@ -70,6 +74,7 @@
         v-else>
         <a
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click.prevent="downloadAllPointFile"
         >
           <i class="el-icon-download"></i>
@@ -461,5 +466,11 @@ export default {
   font-weight: 500;
   font-size: 20px;
   color: #4d6992;
+}
+.disabled {
+  pointer-events: none;
+  filter: alpha(opacity=50);
+  -moz-opacity: 0.5;
+  opacity: 0.5;
 }
 </style>

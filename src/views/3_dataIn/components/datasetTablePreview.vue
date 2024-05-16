@@ -11,7 +11,7 @@
       ref='table'
       :data="tableData.filter(data => (!searchName || data.name.toLowerCase().includes(searchName.toLowerCase())) &&
       (!searchId || data.id.toLowerCase().includes(searchId.toLowerCase())) &&
-      (!searchEnabled || data.enabled.toLowerCase().includes(searchEnabled.toLowerCase())))"
+      (!searchEnabled || data.enabled.toString().toLowerCase().includes(searchEnabled.toLowerCase())))"
       size="medium"
     >
       <el-table-column

@@ -170,7 +170,7 @@ export default {
       }
 
       let data = await getTagValue(
-        result.map((item) => ({ field: item.name })) || [],
+        result.filter((item) => item.typeName == "tag").map((item) => ({ field: item.name })) || [],
         ...this.infoData.parent.split("."),
         this.infoData.name
       ).catch(() => []);

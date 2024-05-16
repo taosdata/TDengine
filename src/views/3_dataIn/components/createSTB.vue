@@ -413,10 +413,12 @@ export default {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
+
 .create-stb ::v-deep .flexCenter .el-select:first-of-type .el-input__inner  {
   border-left: 1px solid #dcdfe6;
   border-right: none;
 }
+
 .columnWidth120 {
   width: 110px;
   flex-shrink: 0;

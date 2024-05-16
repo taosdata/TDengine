@@ -1385,19 +1385,27 @@ export const licenseMockData = {
 }
 
 export const auditMockData = [{
-  ts: '2024-03-28T13:38:06+08:00',
+  ts: '2024-03-28T13:37:06+08:00',
   client_address: '127.0.0.1:60640',
   user_name: 'root',
   operation: 'createStb',
   db: 'myDatabse',
   resource: 'meteralltype',
   details: 'dbname:myDatabse, stable name:meteralltype'
+},{
+  ts: '2024-03-28T13:36:06+08:00',
+  client_address: '127.0.0.1:60640',
+  user_name: 'root',
+  operation: 'login',
+  db: '',
+  resource: '',
+  details: 'app:taosadapter'
 }]
 
 export const dataInMockData = [{
   taskid: 1,
   id: 1,
-  name: "td3",
+  name: "td3-demo",
   localname: "td3",
   localtype: "TDengine 3.x",
   target: 'targetDatabse',

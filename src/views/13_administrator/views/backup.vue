@@ -3,6 +3,7 @@
     <div class="flexEnd">
       <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
@@ -10,9 +11,16 @@
         style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY"
-        >{{$t('taosuser.createbackup')}}</el-button
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
       >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY"
+          >{{$t('taosuser.createbackup')}}</el-button
+        >
+      </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column :label="$t('taosuser.directory')" width="150" prop="id">
