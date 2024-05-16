@@ -169,7 +169,9 @@ systemctl start taos-explorer
 
 你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
 ```bash
-./start-all.sh
+./start-all.sh 
+# tar.gz 安装包 start-all.sh 在安装包解压目录
+# deb, rpm 安装包 start-all.sh 在 /usr/bin 目录 
 ```
 
 可以使用 systemctl 来单独管理上面的每一个服务

@@ -171,7 +171,9 @@ systemctl start taos-explorer
 Or you can run a scrip to start all the above services together
 
 ```bash
-./start-all.sh
+./start-all.sh 
+# For tar.gz package, start-all.sh is located in the decompressed directory of the installation package.
+# For deb, rpm package, start-all.sh is located in the /usr/bin/ directory
 ```
 
 systemctl can also be used to stop, restart a specific service or check its status, like below using `taosd` as example:
