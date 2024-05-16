@@ -324,18 +324,20 @@ pub async fn write_transformed_records_with_sql(
                 Err(err) => match err {
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::info!(
+                            tracing::debug!(
                                 sql = stable_sql,
                                 stable = stable.as_deref(),
                                 "Create stable"
                             );
                             assert_create_table(pool, taos, &stable_sql, req_id).await?;
+                            metrics.add_created_stables(1);
                         }
 
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!(sql = sql, "Create table");
                             assert_create_table(pool, taos, &sql, req_id).await?;
+                            metrics.add_created_tables(1);
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
@@ -359,7 +361,7 @@ pub async fn write_transformed_records_with_sql(
                                         (f.length() * 2).min(max)
                                     })
                                 );
-                                tracing::info!("sql: {sql}");
+                                tracing::info!(sql = sql, "Alter table");
                                 match taos
                                     .as_ref()
                                     .unwrap()
@@ -367,7 +369,11 @@ pub async fn write_transformed_records_with_sql(
                                     .await
                                 {
                                     Err(err) => {
-                                        tracing::error!(req_id = req_id.get(), sql, "{err:#}");
+                                        tracing::error!(
+                                            req_id = req_id.get(),
+                                            sql,
+                                            "Alter table error: {err:#}"
+                                        );
                                     }
                                     _ => {}
                                 }
@@ -382,7 +388,7 @@ pub async fn write_transformed_records_with_sql(
                                         (f.length() * 2).min(max)
                                     })
                                 );
-                                tracing::info!("sql: {sql}");
+                                tracing::info!(sql = sql, "Alter table");
                                 match taos
                                     .as_ref()
                                     .unwrap()
@@ -390,7 +396,11 @@ pub async fn write_transformed_records_with_sql(
                                     .await
                                 {
                                     Err(err) => {
-                                        tracing::error!(req_id = req_id.get(), sql, "{err:#}");
+                                        tracing::error!(
+                                            req_id = req_id.get(),
+                                            sql,
+                                            "Alter table error: {err:#}"
+                                        );
                                     }
                                     _ => {}
                                 }
@@ -398,7 +408,6 @@ pub async fn write_transformed_records_with_sql(
                         }
                     }
                     _ => {
-                        tracing::error!(stable, "Write stable with sql error: {err:#}");
                         return Err(err)?;
                     }
                 },
@@ -498,10 +507,7 @@ async fn assert_create_table(
             let code = err.code();
             let errno: i32 = code.into();
             write_retries += 1;
-            tracing::warn!(sql = sql, req_id = req_id.get(), "Exec SQL error: {err:#}");
             if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                // counter!(METRIC_STABLE_CREATED, 1);
-                // TODO: add metrics
                 break Err(err)
                     .context("Exec SQL error: Retries exceeded")
                     .map_err(Into::into);
@@ -514,9 +520,12 @@ async fn assert_create_table(
                     taos.replace(pool.get().await?);
                 }
                 _ => {
-                    break Err(err)
-                        .context("Create stable or table error")
-                        .map_err(Into::into);
+                    tracing::error!(
+                        sql = sql,
+                        req_id = req_id.get(),
+                        "Create table error: {err:#}"
+                    );
+                    break Err(err).context("Create table error").map_err(Into::into);
                 }
             }
         } else {
@@ -539,8 +548,8 @@ async fn write_stable_with_sql(
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
-    let debug_sql = if sql.len() > 150 { &sql[0..150] } else { sql };
-    tracing::debug!(req_id = req_id.get(), sql = debug_sql, "Write with SQL"); // debug
+    // let debug_sql = if sql.len() > 300 { &sql[0..300] } else { sql };
+    // tracing::trace!(req_id = req_id.get(), sql = debug_sql, "Write with SQL");
     loop {
         match taos
             .as_ref()
@@ -550,7 +559,6 @@ async fn write_stable_with_sql(
         {
             Ok(n) => break Ok(n),
             Err(err) => {
-                tracing::debug!(req_id = req_id.get(), "{err:#}"); // debug
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
@@ -579,6 +587,11 @@ async fn write_stable_with_sql(
                         taos.replace(pool.get().await?);
                     }
                     _ => {
+                        tracing::error!(
+                            sql = sql,
+                            req_id = req_id.get(),
+                            "Write SQL error: {err:#}"
+                        );
                         break Err(err).context("Write sql error").map_err(Into::into);
                     }
                 }
