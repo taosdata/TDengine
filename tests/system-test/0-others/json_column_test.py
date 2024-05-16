@@ -108,7 +108,7 @@ class TDTestCase:
         tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
 
-        # self.check_create_table_result()
+        self.check_create_normal_table_result()
         self.check_create_super_table_result()
 
     def stop(self):

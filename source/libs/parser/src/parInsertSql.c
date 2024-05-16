@@ -1598,15 +1598,17 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_JSON: {
-      if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
-      }
-      pVal->value.pData = taosMemoryMalloc(pToken->n);
-      if (NULL == pVal->value.pData) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      memcpy(pVal->value.pData, pToken->z, pToken->n);
-      pVal->value.nData = pToken->n;
+//      if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+//        return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
+//      }
+//      pVal->value.pData = taosMemoryMalloc(pToken->n);
+//      if (NULL == pVal->value.pData) {
+//        return TSDB_CODE_OUT_OF_MEMORY;
+//      }
+//      memcpy(pVal->value.pData, pToken->z, pToken->n);
+//      pVal->value.nData = pToken->n;
+//      break;
+      ASSERT(0);
       break;
     }
     case TSDB_DATA_TYPE_GEOMETRY: {

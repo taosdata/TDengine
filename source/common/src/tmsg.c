@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tmsg.h"
+#include <cJSON.h>
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -10702,6 +10703,40 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
         taosArrayPush(arr, &pTemplate);
       }
     }
+  }
+  return 0;
+}
+
+int32_t taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId){
+  SArray* templateArray = *(SArray**)taosHashGet(pHashJsonTemplate, &colId, sizeof(colId));
+  ASSERT(templateArray != NULL);
+
+  if(action == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
+    cJSON *root = cJSON_Parse(src);
+    if (root == NULL) {
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+      return -1;
+    }
+    SJsonTemplate tmp = {.templateId=taosArrayGetSize(templateArray), .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+    cJSON_Delete(root);
+    for(int i = 0; i < taosArrayGetSize(templateArray); i++){
+      SJsonTemplate *pTemplate = taosArrayGet(templateArray, i);
+      if(pTemplate->isValidate && strcmp(pTemplate->templateJsonString, tmp.templateJsonString) == 0){
+        terrno = TSDB_CODE_TEMPLATE_ALREADY_EXIST;
+        taosMemoryFree(tmp.templateJsonString);
+        return -1;
+      }
+    }
+    taosArrayPush(templateArray, &tmp);
+  }else if(action == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
+    int32_t templateId = taosStr2Int32(src, NULL, 10);
+    if(templateId < 0 || templateId >= taosArrayGetSize(templateArray)){
+      terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
+      return -1;
+    }
+    SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId);
+    ASSERT(pTemplateOld != NULL);
+    pTemplateOld->isValidate = false;
   }
   return 0;
 }

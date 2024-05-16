@@ -7228,6 +7228,8 @@ static int32_t checkColumnOptions(SNodeList* pList) {
       return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
     if (!checkColumnLevelOrSetDefault(pCol->dataType.type, ((SColumnOptions*)pCol->pOptions)->compressLevel))
       return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    if (pCol->dataType.type == TSDB_DATA_TYPE_JSON && ((SColumnOptions*)pCol->pOptions)->jsonTemplate == NULL)
+      return TSDB_CODE_JSON_COL_TEMPLATE_NEEDED;
   }
   return TSDB_CODE_SUCCESS;
 }

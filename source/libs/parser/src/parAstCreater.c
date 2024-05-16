@@ -1726,6 +1726,7 @@ SNode* createDefaultColumnOptions(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->commentNull = true;
   pOptions->bPrimaryKey = false;
+  pOptions->jsonTemplate = NULL;
   return (SNode*)pOptions;
 }
 
@@ -1757,9 +1758,13 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
       ((SColumnOptions*)pOptions)->bPrimaryKey = true;
       break;
     case COLUMN_OPTION_JSON_TEMPLATE:
-      memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_TEMPLATE_LEN);
       if (((SToken*)pVal)->n - 2 > TSDB_MAX_JSON_TEMPLATE_LEN - 1) {
         pCxt->errCode = TSDB_CODE_TEMPLATE_TOO_LONG;
+        break;
+      }
+      ((SColumnOptions*)pOptions)->jsonTemplate = taosMemoryCalloc(1, ((SToken*)pVal)->n);
+      if(((SColumnOptions*)pOptions)->jsonTemplate == NULL){
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->jsonTemplate, (SToken*)pVal);
@@ -1785,8 +1790,17 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
       cJSON_Delete(root);
       break;
     case COLUMN_OPTION_DROP_JSON_TEMPLATE:
-      memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_TEMPLATE_LEN);
-      strncpy(((SColumnOptions*)pOptions)->jsonTemplate, ((SToken*)pVal)->z, TMIN(((SToken*)pVal)->n, TSDB_MAX_JSON_TEMPLATE_LEN - 1));
+      if (((SToken*)pVal)->n > TSDB_MAX_JSON_TEMPLATE_LEN - 1) {
+        pCxt->errCode = TSDB_CODE_TEMPLATE_TOO_LONG;
+        break;
+      }
+
+      ((SColumnOptions*)pOptions)->jsonTemplate = taosMemoryCalloc(1, ((SToken*)pVal)->n + 1);
+      if(((SColumnOptions*)pOptions)->jsonTemplate == NULL){
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      strncpy(((SColumnOptions*)pOptions)->jsonTemplate, ((SToken*)pVal)->z, ((SToken*)pVal)->n);
       if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
         pCxt->errCode = TSDB_CODE_INVALID_PARA;
       }

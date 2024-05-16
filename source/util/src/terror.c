@@ -767,11 +767,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,        "Invalid task status
 // json
 TAOS_DEFINE_ERROR(TSDB_CODE_ADD_TEMPLATE_ONLY_JSON,        "Template can only be added to JSON type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_NOT_EXIST,            "Template not exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ALREADY_EXIST,        "Template already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ARRAY_ONLY_ONE_TYPE,  "The data element in the template can only be of one type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_VALUE_INVALIDATE,     "Template value can only be a string, with a value range in \"string/long/double/boolean\"")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_TOO_LONG,             "Template value too long than 4096")   // 4096 = TSDB_MAX_JSON_TEMPLATE_LEN - 1
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_MUST_BE_OBJECT,       "Template must be json object")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ALREADY_EXIST,             "Template already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_JSON_COL_TEMPLATE_NEEDED,      "There must be a template for json column")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")

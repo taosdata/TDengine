@@ -778,6 +778,7 @@ typedef struct {
   bool    isValidate;
 }SJsonTemplate;
 
+int32_t   taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId);
 SHashObj* taosHashCopyJsonTemplate(SHashObj *pHashObj);
 int32_t   tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate);
 int32_t   tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate);
