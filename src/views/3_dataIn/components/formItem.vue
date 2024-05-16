@@ -15,7 +15,7 @@
       :label="labelText"
       :label-width="labelWidth"
       :required="required(config)"
-      :class="classMark"
+      :class="[classMark, {'hidden-required': !required(config)}]"
       :rules="timeFormats.includes(field) ? [...timeRules, ...rules] : rules"
       :prop="parent + field"
     >
@@ -31,8 +31,7 @@
           </template>
           <span>
             <span>{{ labelText }}</span>
-            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <!-- <i class="el-icon-info"></i> -->
+            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 1px">
               <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>

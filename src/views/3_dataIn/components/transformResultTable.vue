@@ -3,7 +3,12 @@
     <div class="title-block">
       <span class="title">{{ $t(`datasource.transformer.${title}`) }}</span>
       <span class="title-block">
-        <el-button size="mini" type="text" @click="fullScreen">{{ $t('fullscreen')}}</el-button>
+        <el-tooltip placement="top" effect="light" :open-delay="0">
+          <template slot="content">
+            {{ $t('fullscreen') }}
+          </template>
+          <span class='el-icon-full-screen' @click="drawer=true"></span>
+        </el-tooltip>
         <span class='el-icon-close' @click="showtable=false"></span>
       </span>
     </div>
@@ -35,7 +40,7 @@
       :title="$t(`datasource.transformer.${title}`)"
       :visible.sync="drawer"
       direction="rtl"
-      size="90%">
+      size="100%">
       <el-table
         border
         style="width: 100%"
@@ -227,9 +232,6 @@ export default {
       }, 200);
       this.setPageTableData();
     },
-    fullScreen() {
-      this.drawer = true;
-    }
   },
   computed: {
     title() {
@@ -297,6 +299,7 @@ export default {
   .title-block {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     margin-bottom: 15px;
     .title {
       color: #4259ce;
@@ -305,6 +308,11 @@ export default {
     }
     .el-icon-close {
       cursor: pointer;
+    }
+    .el-icon-full-screen {
+      cursor: pointer;
+      display: inline-block;
+      width: 30px;
     }
   }
   ::v-deep {
@@ -337,9 +345,6 @@ export default {
       &::before {
         background-color: transparent;
       }
-    }
-    .el-drawer__body {
-      padding: 0 20px 20px;
     }
   }
 }

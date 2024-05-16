@@ -230,7 +230,7 @@ export default {
   updateContent: '发现新版本，点击"更新"获取,请在刷新前注意保存当前页面数据',
   contact: '联系',
   close: '关闭',
-  communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理，无视图等诸多高级功能。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版和云服务。',
+  communityContent: '您目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理，无视图等诸多高级功能。而 TDengine 企业版解决了这些问题，并提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版和云服务。',
   dontDisturbMe: '7天内不再提醒',
   plan: {
     pricePlan: "价格方案",

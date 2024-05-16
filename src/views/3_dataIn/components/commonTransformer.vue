@@ -111,7 +111,7 @@
                 :content="$t('datasource.transformer.extractdesc')"
               />
             </div>
-            <span style="margin-left: 6px"
+            <span style="margin-left: 1px"
               slot="reference"
               v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
               ><Icon name="label_info" class="info_icon_custom"></Icon>
@@ -241,7 +241,7 @@
                 :content="$t('datasource.transformer.subextractdesc')"
               />
             </div>
-            <span style="margin-left: 6px"
+            <span style="margin-left: 1px"
               slot="reference"
               ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
@@ -291,7 +291,7 @@
                 :content="$t('datasource.transformer.filterdesc')"
               />
             </div>
-            <span style="margin-left: 6px"
+            <span style="margin-left: 1px"
               slot="reference"
               ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
@@ -580,7 +580,7 @@
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
         :visible.sync="showCreateDIalog"
-        width="40%"
+        width="70%"
         center
         destroy-on-close
         :append-to-body="true"
