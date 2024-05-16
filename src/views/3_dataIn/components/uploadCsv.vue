@@ -1,14 +1,27 @@
 <template>
   <div style="display: flex">
-    <el-button
-      v-if="isOpcDataset && !isOpcDsn"
-      slot="trigger"
-      size="mini"
-      plain
-      type="primary"
-      @click="handleBeforeUpload"
-      >{{ $t('support.selectFile') }}</el-button
+    <el-tooltip
+      placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
     >
+      <template slot="content">
+        <span v-html="$t('communityTip')"></span>
+      </template>
+      <el-button
+        v-if="isOpcDataset && !isOpcDsn"
+        size="mini"
+        plain
+        type="primary"
+        @click="handleBeforeUpload"
+        :disabled="$COMMUNITY"
+        >{{ $t('support.selectFile') }}</el-button
+      >
+    </el-tooltip>
+    <el-tooltip
+      placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+    >
+      <template slot="content">
+        <span v-html="$t('communityTip')"></span>
+      </template>
     <el-upload
       class="upload-csv"
       ref="upload"
@@ -29,9 +42,11 @@
         size="mini"
         type="primary"
         ref="uploadButton"
+        :disabled="$COMMUNITY"
         >{{ $t('support.selectFile') }}</el-button
       >
     </el-upload>
+  </el-tooltip>
   </div>
 </template>
 

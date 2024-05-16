@@ -7,13 +7,20 @@
       :placeholder="config.placeholder"
     >
     </el-input>
-    <el-button
-      :loading="loading"
-      :disabled="loading"
-      type="primary"
-      @click="search"
-      >{{ $t('datasource.transformer.preview') }}</el-button
+    <el-tooltip
+      placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
     >
+      <template slot="content">
+        <span v-html="$t('communityTip')"></span>
+      </template>
+      <el-button
+        :loading="loading"
+        :disabled="loading || $COMMUNITY"
+        type="primary"
+        @click="search"
+        >{{ $t('datasource.transformer.preview') }}</el-button
+      >
+    </el-tooltip>         
   </div>
 </template>
 

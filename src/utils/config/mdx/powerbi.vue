@@ -27,7 +27,7 @@
       </li>
       <li>
         <span class="odbc-span">
-          {{ $t('docs.connector.odbc.step12desc1') }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${TDengineVersion}-Windows-x64.exe`">
+          {{ $t('docs.connector.odbc.step12desc1') }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${TDengineVersion}-Windows-x64.exe`">
             {{ $t('docs.connector.odbc.step12desc2') }}</a
           >{{ $t('docs.connector.odbc.step12desc3') }}
         </span>
@@ -96,7 +96,7 @@
       </li>
       <li>
         <span class="odbc-span"
-          >{{ $t('docs.tools.powerbi.step4desc5') }}<a :href="`/${docsPart}/taos-sql/distinguished/`">{{ $t('docs.tools.powerbi.step4desc6') }}</a
+          >{{ $t('docs.tools.powerbi.step4desc5') }}<a :href="`/${$t('urlPart')}/taos-sql/distinguished/`">{{ $t('docs.tools.powerbi.step4desc6') }}</a
           >{{ $t('docs.tools.powerbi.step4desc7') }}</span
         >
       </li>
@@ -181,6 +181,9 @@ export default {
     docsPart() {
       return this.$i18n.locale.includes('en') ? 'docs-en' : 'docs'
     },
+    urlEnterprise() {
+      return this.$COMMUNITY ? '' : '-enterprise'
+    }
   }
 };
 </script>
