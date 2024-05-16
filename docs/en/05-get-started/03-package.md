@@ -193,7 +193,7 @@ systemctl status taosd
 
 :::
 
-## Command Line Interface (CLI)
+## TDengine Command Line Interface
 
 You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
 
@@ -203,7 +203,7 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 
 After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server. Please run `sc start taosadapter` or run `C:\TDengine\taosadapter.exe` with administrator privilege to start taosAdapter to provide http/REST service.
 
-## Command Line Interface (CLI)
+**TDengine Command Line Interface**
 
 You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
 
@@ -238,7 +238,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 :::
 
-## Command Line Interface (CLI)
+**TDengine Command Line Interface**
 
 You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
 
@@ -274,6 +274,12 @@ Query OK, 2 row(s) in set (0.003128s)
 ```
 
 You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
+
+**TDegnine Graphic User Interface**
+
+From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
+
+To use taos-explorer in the container, you need to access the host port mapped from container port 6060. Assuming the host name is abc.com, and the port used on host is 6060, you need to access `http://abc.com:6060`. taos-explorer uses port 6060 by default in the container. When you use it the first time, you need to register with your enterprise email, then can logon using your user name and password in the TDengine 
 
 ## Test data insert performance
 
