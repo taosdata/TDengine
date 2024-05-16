@@ -180,7 +180,7 @@ systemctl can also be used to stop, restart a specific service or check its stat
 systemctl start taosd
 systemctl stop taosd
 systemctl restart taosd
-systemctl sstatus taosd
+systemctl status taosd
 ```
 
 :::info
