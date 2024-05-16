@@ -379,11 +379,11 @@ jobs:
 
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [generate_report]
-    if: always()
+    needs: [build_rust, build_go, build_java, deploy_for_mqtt, test_mqtt, deploy_for_others, test_others, generate_report]
+    if: failure()
     steps: 
       - name: Send Feishu Message
-        if: ${{ needs.generate_report.result != 'success' }}
+        # if: ${{ needs.generate_report.result != 'success' }}
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
