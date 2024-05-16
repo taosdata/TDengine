@@ -107,6 +107,8 @@ typedef struct SStmtStatInfo {
   int64_t ctgGetTbMetaNum;
   int64_t getCacheTbInfo;
   int64_t parseSqlNum;
+  int64_t setTbNameUs1;
+  int64_t setTbNameUs2;
 } SStmtStatInfo;
 
 typedef struct STscStmt {

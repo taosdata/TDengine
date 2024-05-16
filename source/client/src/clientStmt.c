@@ -685,6 +685,7 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 }
 
 int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
+  int64_t startUs = taosGetTimestampUs();
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG("start to set tbName: %s", tbName);
@@ -707,11 +708,16 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
                             pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
   tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName);
 
+  int64_t startUs2 = taosGetTimestampUs();
+  pStmt->stat.setTbNameUs1 += startUs2 - startUs;
+  
   STMT_ERR_RET(stmtGetFromCache(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
+
+  pStmt->stat.setTbNameUs2 += taosGetTimestampUs() - startUs2;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1058,8 +1064,10 @@ int stmtClose(TAOS_STMT* stmt) {
 
   STMT_DLOG_E("start to free stmt");
 
-  STMT_ELOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64, 
-    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum);
+  STMT_ELOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64
+    ", setTbNameUs1:%" PRId64 ", setTbNameUs2:%" PRId64, 
+    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum,
+    pStmt->stat.setTbNameUs1, pStmt->stat.setTbNameUs2);
 
   stmtCleanSQLInfo(pStmt);
   taosMemoryFree(stmt);
