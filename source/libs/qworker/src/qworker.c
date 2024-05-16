@@ -904,6 +904,25 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
     qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+
+    {
+      if (dataLen > 8192) {
+        char* p = taosMemoryMalloc(dataLen);
+        int32_t len =
+            tsCompressString(((SRetrieveTableRsp *)rsp)->data, dataLen, 1, p, dataLen, ONE_STAGE_COMP, NULL, 0);
+
+        memcpy(((SRetrieveTableRsp*)rsp)->data, p, len);
+        ((SRetrieveTableRsp*)rsp)->payloadLen = htonl(dataLen);
+        ((SRetrieveTableRsp*)rsp)->compLen = htonl(len);
+
+        ((SRetrieveTableRsp*)rsp)->compressed = 1;
+        taosMemoryFree(p);
+      } else {
+        ((SRetrieveTableRsp*)rsp)->payloadLen = ((SRetrieveTableRsp*)rsp)->compLen;
+        ((SRetrieveTableRsp*)rsp)->compressed = 0;
+      }
+    }
+
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
     }

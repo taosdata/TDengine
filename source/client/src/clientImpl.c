@@ -1711,10 +1711,8 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-    SSchedulerReq   req = {
-          .syncReq = true,
-          .pFetchRes = (void**)&pResInfo->pData,
-    };
+    SSchedulerReq   req = { .syncReq = true, .pFetchRes = (void**)&pResInfo->pData };
+
     pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
@@ -2195,17 +2193,46 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   taosMemoryFreeClear(pResultInfo->pRspMsg);
   pResultInfo->pRspMsg = (const char*)pRsp;
-  pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
   pResultInfo->completed = (pRsp->completed == 1);
-  pResultInfo->payloadLen = htonl(pRsp->compLen);
   pResultInfo->precision = pRsp->precision;
+
+  // decompress data if needed
+  if (pRsp->compressed) {
+    int32_t payloadLen = htonl(pRsp->payloadLen);
+
+    if (pResultInfo->decompressBuf == NULL) {
+      pResultInfo->decompressBuf = taosMemoryMalloc(payloadLen);
+    } else {
+      char* p = taosMemoryRealloc(pResultInfo->decompressBuf, payloadLen);
+      if (p == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
+        return terrno;
+      }
+
+      pResultInfo->decompressBuf = p;
+    }
+
+    int32_t len = tsDecompressString((void*)pRsp->data, htonl(pRsp->compLen), 1, pResultInfo->decompressBuf, payloadLen,
+                                     ONE_STAGE_COMP, NULL, 0);
+    ASSERT(len == payloadLen);
+
+    pResultInfo->pData = pResultInfo->decompressBuf;
+    pResultInfo->payloadLen = payloadLen;
+  } else {
+    pResultInfo->pData = (void*)pRsp->data;
+    pResultInfo->payloadLen = htonl(pRsp->compLen);
+    ASSERT(pRsp->compLen == pRsp->payloadLen);
+  }
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
-                          convertUcs4);
+
+  int32_t code =
+      setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
+  return code;
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {

@@ -37,6 +37,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->precision = 0;
   (*pRsp)->compressed = 0;
   (*pRsp)->compLen = 0;
+  (*pRsp)->payloadLen = 0;
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(numOfCols);
 

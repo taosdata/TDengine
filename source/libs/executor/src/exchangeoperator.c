@@ -410,6 +410,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
     pRsp->numOfRows = htobe64(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);
+    pRsp->payloadLen = htonl(pRsp->payloadLen);
     pRsp->numOfCols = htonl(pRsp->numOfCols);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
@@ -674,6 +675,16 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   char*   pStart = pRetrieveRsp->data;
   int32_t index = 0;
   int32_t code = 0;
+  char*   p = NULL;
+
+  if (pRetrieveRsp->compressed) {  // decompress the data
+    p = taosMemoryMalloc(pRetrieveRsp->payloadLen);
+    int32_t t = tsDecompressString(pRetrieveRsp->data, pRetrieveRsp->compLen, 1, p, pRetrieveRsp->payloadLen,
+                                   ONE_STAGE_COMP, NULL, 0);
+    ASSERT(t == pRetrieveRsp->payloadLen);
+    pStart = p;
+  }
+
   while (index++ < pRetrieveRsp->numOfBlocks) {
     SSDataBlock* pb = NULL;
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
@@ -692,6 +703,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
   }
 
+  taosMemoryFreeClear(p);
   return code;
 }
 
