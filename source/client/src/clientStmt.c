@@ -475,8 +475,9 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   int8_t tableType;
   SStmtTableInfo* pTbInfo = NULL;
 
-  if (pStmt->sql.staticMode && pStmt->sql.runTimes > 400) {
+  if (pStmt->sql.staticMode && pStmt->sql.runTimes > 500) {
     pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName));
+    pStmt->stat.getCacheTbInfo++;
   } 
 
   if (NULL == pTbInfo) {
@@ -486,6 +487,9 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
                              .requestObjRefId = pStmt->exec.pRequest->self,
                              .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
     int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+
+    pStmt->stat.ctgGetTbMetaNum++;
+
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
       tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
       stmtCleanBindInfo(pStmt);
@@ -972,6 +976,8 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
                                .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
       int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
 
+      pStmt->stat.ctgGetTbMetaNum++;
+      
       taos_free_result(pStmt->exec.pRequest);
       pStmt->exec.pRequest = NULL;
 

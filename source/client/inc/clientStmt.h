@@ -103,6 +103,11 @@ typedef struct SStmtSQLInfo {
   SStmtTableCache  *pCache;
 } SStmtSQLInfo;
 
+typedef struct SStmtStatInfo {
+  int64_t ctgGetTbMetaNum;
+  int64_t getCacheTbInfo;
+} SStmtStatInfo;
+
 typedef struct STscStmt {
   STscObj  *taos;
   SCatalog *pCatalog;
@@ -116,6 +121,8 @@ typedef struct STscStmt {
 
   int64_t reqid;
   int32_t errCode;
+
+  SStmtStatInfo stat;
 } STscStmt;
 
 extern char *gStmtStatusStr[];

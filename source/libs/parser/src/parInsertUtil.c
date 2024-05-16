@@ -492,20 +492,9 @@ int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, S
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-
-  
-  static int32_t vgId = -1;
-
-  if (tbNum > 0) {
-    STableColsData *pTableCols = (STableColsData*)taosArrayGet(pTableList, 0);
-    vgId = pTableCols->vgId;
-  }
-
-
-
   for (int32_t i = 0; i < tbNum; ++i) {
     STableColsData *pTableCols = (STableColsData*)taosArrayGet(pTableList, i);
-    pTableCxt->pMeta->vgId = vgId; //pTableCols->vgId;
+    pTableCxt->pMeta->vgId = pTableCols->vgId;
     pTableCxt->pMeta->uid = pTableCols->uid;
     pTableCxt->pData->uid = pTableCols->uid;
     pTableCxt->pData->aCol = pTableCols->aCol;
