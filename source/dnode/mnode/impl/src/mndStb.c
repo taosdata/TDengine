@@ -121,6 +121,17 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
                  taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN;
+
+  if (pStb->pHashJsonTemplate != NULL) {
+    int     tlen;
+    int32_t ret = 0;
+    tEncodeSize(tEncodeHashJsonTemplate, pStb->pHashJsonTemplate, tlen, ret);
+    if (ret < 0) {
+      goto _OVER;
+    }
+    size += tlen;
+  }
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -2559,7 +2570,7 @@ static int32_t mndUpdateSuperTableJsonTemplate(const SStbObj *pOld, SStbObj *pNe
   }
 
   pNew->pHashJsonTemplate = taosHashCopyJsonTemplate(pOld->pHashJsonTemplate);
-  if(pNew->pHashJsonTemplate){
+  if(pNew->pHashJsonTemplate == NULL){
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

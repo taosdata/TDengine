@@ -1434,7 +1434,7 @@ static int32_t metaUpdateTableJsonTemplate(SVAlterTbReq *pAlterTbReq, SSchema* p
   SArray* templateArray = *(SArray**)taosHashGet(entry->pHashJsonTemplate, &pCol->colId, sizeof(pCol->colId));
   ASSERT(templateArray != NULL);
 
-  if(pAlterTbReq->type == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
+  if(pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
     cJSON *root = cJSON_Parse(pAlterTbReq->newComment);
     if (root == NULL) {
       terrno = TSDB_CODE_INVALID_JSON_FORMAT;
@@ -1442,9 +1442,16 @@ static int32_t metaUpdateTableJsonTemplate(SVAlterTbReq *pAlterTbReq, SSchema* p
     }
     SJsonTemplate tmp = {.templateId=taosArrayGetSize(templateArray), .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
     cJSON_Delete(root);
+    for(int i = 0; i < taosArrayGetSize(templateArray); i++){
+      SJsonTemplate *pTemplate = taosArrayGet(templateArray, i);
+      if(pTemplate->isValidate && strcmp(pTemplate->templateJsonString, tmp.templateJsonString) == 0){
+        terrno = TSDB_CODE_TEMPLATE_ALREADY_EXIST;
+        return -1;
+      }
+    }
     taosArrayPush(templateArray, &tmp);
     metaInfo("add json template for column:%s, id:%d, template:%s", pCol->name, pCol->colId, tmp.templateJsonString);
-  }else if(pAlterTbReq->type == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
+  }else if(pAlterTbReq->action == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
     int32_t templateId = taosStr2Int32(pAlterTbReq->newComment, NULL, 10);
     if(templateId < 0 || templateId >= taosArrayGetSize(templateArray)){
       terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;

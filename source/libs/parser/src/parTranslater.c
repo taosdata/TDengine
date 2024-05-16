@@ -7250,9 +7250,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     } else {
       field.bytes = pCol->dataType.bytes;
     } 
-    if (field.type == TSDB_DATA_TYPE_JSON) {
-      field.bytes = TSDB_MAX_JSON_TEMPLATE_LEN;
-    }
+
     strcpy(field.name, pCol->colName);
     if (pCol->pOptions) {
       setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
@@ -12897,6 +12895,28 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   return code;
 }
 
+static int buildAlterTableJsonTemplate(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         SVAlterTbReq* pReq) {
+  const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+  }
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  pReq->colId = pSchema->colId;
+  if (NULL == pReq->colName) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  // use comment to store json template
+  pReq->newComment = taosStrdup(pStmt->pColOptions->jsonTemplate);
+  if (NULL == pReq->newComment) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pReq->newCommentLen = strlen(pStmt->pColOptions->jsonTemplate);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -12935,13 +12955,11 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       }
     case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
     case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
-      // use comment to store json template
-      pReq->newComment = taosStrdup(pStmt->pColOptions->jsonTemplate);
-      if (NULL == pReq->newComment) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+      if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+      } else {
+        return buildAlterTableJsonTemplate(pCxt, pStmt, pTableMeta, pReq);
       }
-      pReq->newCommentLen = strlen(pStmt->pColOptions->jsonTemplate);
-      return TSDB_CODE_SUCCESS;
     }
     default:
       break;

@@ -45,7 +45,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getSchemaBytes(const SSchema* pSchema) {
+static int32_t getSchemaBytes(const SSchema* pSchema, bool isTag) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -53,7 +53,11 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
-      return (pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      if(isTag){
+        return (pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;     //jsontodo
+      }else{
+        return (pSchema->bytes - VARSTR_HEADER_SIZE);
+      }
     default:
       return pSchema->bytes;
   }
@@ -92,7 +96,7 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_MAX_JSON_TEMPLATE_LEN - 1, 8);
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_MAX_BYTES_PER_ROW, 8);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
 
@@ -113,14 +117,14 @@ void buildJsonTemplate(SHashObj* pHashJsonTemplate, col_id_t colId, char* jsonBu
   for(int32_t j = 0; j < taosArrayGetSize(*templateArray); ++j){
     SJsonTemplate* pTemplate = taosArrayGet(*templateArray, j);
     if(pTemplate->isValidate){
-      size += snprintf(jsonBuf + size, jsonBufLen - size, "%d:%s\n", pTemplate->templateId, pTemplate->templateJsonString);
+      size += snprintf(jsonBuf + size, jsonBufLen - size, "%d:%s,", pTemplate->templateId, pTemplate->templateJsonString);
     }
     if(size >= jsonBufLen){
       qError("json template is too long, truncated");
       break;
     }
   }
-  if(size > 0){     // remove the last \n
+  if(size > 0){     // remove the last ,
     jsonBuf[size - 1] = '\0';
   }
 }
@@ -167,7 +171,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol1, pBlock->info.rows, buf, false);
     STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
     colDataSetVal(pCol2, pBlock->info.rows, buf, false);
-    int32_t bytes = getSchemaBytes(pMeta->schema + i);
+    int32_t bytes = getSchemaBytes(pMeta->schema + i, i >= pMeta->tableInfo.numOfColumns);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     if (TSDB_VIEW_TABLE != pMeta->tableType) {
       if (i >= pMeta->tableInfo.numOfColumns) {

@@ -8759,6 +8759,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       break;
     case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
     case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
       if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
       if (pReq->newCommentLen > 0) {
         if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
@@ -8822,6 +8823,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       break;
     case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
     case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
       if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
       if (pReq->newCommentLen > 0) {
         if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
@@ -10649,17 +10651,17 @@ SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
 }
 
 int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate) {
-  if (tEncodeI32v(pEncoder, taosHashGetSize(pHashJsonTemplate)) < 0) return -1;
+  if (tEncodeI32(pEncoder, taosHashGetSize(pHashJsonTemplate)) < 0) return -1;
   void* pIter = taosHashIterate(pHashJsonTemplate, NULL);
   while (pIter != NULL) {
     col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);
     SArray* pArray = *(SArray**)(pIter);
-    if (tEncodeI16v(pEncoder, *colId) < 0) return -1;
-    if (tEncodeI32v(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
+    if (tEncodeI16(pEncoder, *colId) < 0) return -1;
+    if (tEncodeI32(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
     for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
       SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
       if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
-      if (tEncodeI32v(pEncoder, pTemplate->templateId) < 0) return -1;
+      if (tEncodeI32(pEncoder, pTemplate->templateId) < 0) return -1;
       if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString) + 1) < 0) return -1;
     }
     pIter = taosHashIterate(pHashJsonTemplate, pIter);
@@ -10670,7 +10672,7 @@ int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate)
 
 int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate) {
   int32_t len = 0;
-  if (tDecodeI32v(pDecoder, &len) < 0) return -1;
+  if (tDecodeI32(pDecoder, &len) < 0) return -1;
   if (len > 0) {
     *pHashJsonTemplate = taosHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
     if (*pHashJsonTemplate == NULL) {
@@ -10679,9 +10681,9 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
     taosHashSetFreeFp(*pHashJsonTemplate, destroyJsonTemplateArray);
     for (int32_t i = 0; i < len; ++i) {
       col_id_t colId = 0;
-      if (tDecodeI16v(pDecoder, &colId) < 0) return -1;
+      if (tDecodeI16(pDecoder, &colId) < 0) return -1;
       int32_t arrLen = 0;
-      if (tDecodeI32v(pDecoder, &arrLen) < 0) return -1;
+      if (tDecodeI32(pDecoder, &arrLen) < 0) return -1;
       SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
       if (arr == NULL) {
         terrno = TSDB_CODE_INVALID_JSON_FORMAT;
@@ -10695,7 +10697,7 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
       for (int32_t j = 0; j < arrLen; ++j) {
         SJsonTemplate pTemplate = {0};
         if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
-        if (tDecodeI32v(pDecoder, &pTemplate.templateId) < 0) return -1;
+        if (tDecodeI32(pDecoder, &pTemplate.templateId) < 0) return -1;
         if (tDecodeBinaryAlloc(pDecoder, (void**)&pTemplate.templateJsonString, NULL) < 0) return -1;
         taosArrayPush(arr, &pTemplate);
       }
