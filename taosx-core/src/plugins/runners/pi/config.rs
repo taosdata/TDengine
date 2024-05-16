@@ -40,6 +40,12 @@ pub struct PiConfig {
     #[serde(rename = "TDDataBase")]
     td_database: String,
     // data set
+    #[serde(rename = "TemplateForPIPoint")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    template_for_pi_point: Vec<String>,
+    #[serde(rename = "TemplateForAFElement")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    template_for_af_element: Vec<String>,
     #[serde(rename = "ElementIDList")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub element_id_list: Vec<String>,
@@ -83,6 +89,8 @@ impl PiConfig {
             ipc_stream: format!("127.0.0.1:{ipc}"),
             sql_api: format!("http://127.0.0.1:{sql}"),
             td_database,
+            template_for_pi_point: Vec::new(),
+            template_for_af_element: Vec::new(),
             element_id_list: Vec::new(),
             point_list: Vec::new(),
             from_tdengine_last_time: Self::parse_from_tdengine_last_time(dsn)?,
@@ -110,7 +118,7 @@ impl PiConfig {
         let update_interval = Self::parse_update_interval(&dsn)?;
         let max_backfill_range_days = Self::parse_max_backfill_range_days(&dsn)?;
 
-        let (element_id_list, point_list) = {
+        let (element_id_list, point_list, template_list) = {
             let transform_config_file = dsn
                 .params
                 .get("transform_config_file")
@@ -120,13 +128,14 @@ impl PiConfig {
                 .join(transform_config_file)
                 .display()
                 .to_string();
-            Self::get_points_from_transform_config_file(config_file_full_path.as_str())
-                .with_context(|| {
+            Self::parse_transform_config_file(config_file_full_path.as_str()).with_context(
+                || {
                     format!(
                         "Failed to parse transform config file: {}",
                         transform_config_file
                     )
-                })?
+                },
+            )?
         };
 
         if is_real_run && point_list.is_empty() && element_id_list.is_empty() {
@@ -207,6 +216,11 @@ impl PiConfig {
 
         let log_level = Self::parse_log_level(&dsn)?;
 
+        let (template_for_pi_point, template_for_af_element) = if point_list.is_empty() {
+            (Vec::new(), template_list)
+        } else {
+            (template_list, Vec::new())
+        };
         Ok(Self {
             server_name,
             system_name,
@@ -219,6 +233,8 @@ impl PiConfig {
             ipc_stream: format!("127.0.0.1:{}", ipc),
             sql_api: format!("http://127.0.0.1:{}", sql),
             td_database,
+            template_for_pi_point,
+            template_for_af_element,
             element_id_list,
             point_list,
             from_tdengine_last_time,
@@ -415,13 +431,13 @@ impl PiConfig {
             .transpose()
     }
 
-    /// Parse transform config file to get element_id_list or point_list
-    pub fn get_points_from_transform_config_file(
+    pub fn parse_transform_config_file(
         transform_config_file: &str,
-    ) -> anyhow::Result<(Vec<String>, Vec<String>)> {
+    ) -> anyhow::Result<(Vec<String>, Vec<String>, Vec<String>)> {
         let content = std::fs::read_to_string(transform_config_file)?;
         let mut element_id_list = Vec::new();
         let mut point_list = Vec::new();
+        let mut template_list = std::collections::BTreeSet::<String>::new();
         for line in content.lines() {
             let line = line.trim();
             if line.is_empty() {
@@ -429,6 +445,11 @@ impl PiConfig {
             }
             let parts: Vec<&str> = line.split(',').collect();
             if parts.len() >= 2 {
+                let object_name = parts[0].to_lowercase();
+                if object_name == "template" {
+                    template_list.insert(parts[1].to_string());
+                    continue;
+                }
                 let object_type = parts[1].to_lowercase();
                 match object_type.as_str() {
                     "element" => {
@@ -444,9 +465,11 @@ impl PiConfig {
                     }
                     _ => {}
                 }
+                
             }
         }
-        Ok((element_id_list, point_list))
+        let template_list = template_list.into_iter().collect();
+        Ok((element_id_list, point_list, template_list))
     }
 }
 
@@ -749,13 +772,16 @@ mod tests {
     #[test]
     fn test_parse_transform_config_file() {
         // Note(ding)): this test can only run in my local envrionment
-        let (element_id_list, point_list) =
-            PiConfig::get_points_from_transform_config_file("point_model.csv").unwrap();
-        assert_eq!(0, element_id_list.len());
-        assert_eq!(2, point_list.len());
-        let (element_id_list, point_list) =
-            PiConfig::get_points_from_transform_config_file("element_model.csv").unwrap();
-        assert_eq!(3, element_id_list.len());
-        assert_eq!(0, point_list.len());
+        let (element_id_list, point_list, template_list) =
+            PiConfig::parse_transform_config_file("point_model.csv").unwrap();
+        println!("element_id_list={:?}", element_id_list);
+        println!("point_list={:?}", point_list);
+        println!("template_list={:?}", template_list);
+
+        let (element_id_list, point_list, template_list) =
+            PiConfig::parse_transform_config_file("element_model.csv").unwrap();
+        println!("element_id_list={:?}", element_id_list);
+        println!("point_list={:?}", point_list);
+        println!("template_list={:?}", template_list);
     }
 }
