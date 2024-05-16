@@ -37,15 +37,15 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
-//#ifdef WINDOWS
-//  hostName[0] = '\"';
-//  taosGetFqdn(&hostName[1]);
-//  int strEndIndex = strlen(hostName);
-//  hostName[strEndIndex] = '\"';
-//  hostName[strEndIndex + 1] = '\0';
-//#else
+  //#ifdef WINDOWS
+  //  hostName[0] = '\"';
+  //  taosGetFqdn(&hostName[1]);
+  //  int strEndIndex = strlen(hostName);
+  //  hostName[strEndIndex] = '\"';
+  //  hostName[strEndIndex + 1] = '\0';
+  //#else
   sprintf(hostName, "%s", "localhost");
-//#endif
+  //#endif
   return hostName;
 }
 
@@ -274,12 +274,16 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
     if (op1[0] == '=') {
       strcpy(simGetVariable(script, var1 + 1, var1Len - 1), t3);
     } else if (op1[0] == '<') {
-      val0 = atoi(t0);
-      val1 = atoi(t3);
+      int64_t val0 = atoll(t0);
+      int64_t val1 = atoll(t3);
+      // val0 = atoi(t0);
+      // val1 = atoi(t3);
       if (val0 >= val1) result = -1;
     } else if (op1[0] == '>') {
-      val0 = atoi(t0);
-      val1 = atoi(t3);
+      int64_t val0 = atoll(t0);
+      int64_t val1 = atoll(t3);
+      // val0 = atoi(t0);
+      // val1 = atoi(t3);
       if (val0 <= val1) result = -1;
     }
   } else {
@@ -376,16 +380,14 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
-void simReplaceDirSep (char *buf){
+void simReplaceDirSep(char *buf) {
 #ifdef WINDOWS
-  int i=0;
-  while(buf[i] != '\0')
-  {
-      if(buf[i] == '/')
-      {
-          buf[i] = '\\';
-      }
-      i++;
+  int i = 0;
+  while (buf[i] != '\0') {
+    if (buf[i] == '/') {
+      buf[i] = '\\';
+    }
+    i++;
   }
 #endif
 }
@@ -497,6 +499,26 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
+
+  script->linePos++;
+  return true;
+}
+
+bool simExecuteSetBIModeCmd(SScript *script, char *option) {
+  char buf[1024];
+
+  simVisuallizeOption(script, option, buf);
+  option = buf;
+
+  int32_t mode = atoi(option);
+
+  simInfo("script:%s, set bi mode %d", script->fileName, mode);
+
+  if (mode != 0) {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 1);
+  } else {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 0);
+  }
 
   script->linePos++;
   return true;
