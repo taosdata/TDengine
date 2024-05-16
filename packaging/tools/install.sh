@@ -156,7 +156,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
@@ -221,6 +221,8 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
@@ -651,9 +653,7 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
-    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/ || echo "failed to copy start-all.sh"
-    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/ || echo "failed to copy stop-all.sh"
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"    
     ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
@@ -936,7 +936,7 @@ function updateProduct() {
     echo "${productName} is updated successfully!"
     echo
     
-    echo -e "\033[44;32;1mTo start all the components                 : sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then

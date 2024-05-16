@@ -6,8 +6,10 @@ TDengine is an open-source, cloud-native time-series database optimized for Inte
 • To start service, run sudo launchctl start com.tdengine.taosd
 • To start Taos Adapter, run sudo launchctl start com.tdengine.taosadapter
 • To start Taos Explorer, run sudo launchctl start com.tdengine.taos-explorer
-• To access TDengine Commnd Line Interface, run taos
-• To access TDengine Graphic User Interface, http://YourServerName:6060"
+
+• To start all the components, sudo start-all.sh
+• To access TDengine Commnd Line Interface, taos -h YourServerName
+• To access TDengine Graphic User Interface, http://YourServerName:6060
 
 If you're experiencing problems installing TDengine, check the file /var/log/taos/tdengine_install.log to help troubleshoot the installation.
 
