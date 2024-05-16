@@ -92,7 +92,7 @@ namespace TDPIConnector.Core
             public string Name;
             public string TemplateName;
             public string Path;
-            public List<ScanAttributeValue> StaticAttributeValues;
+            // public List<ScanAttributeValue> StaticAttributeValues;
         }
         class ScanElementSummary
         {
@@ -382,7 +382,7 @@ namespace TDPIConnector.Core
                     e.Name = element.Name;
                     e.Path = element.GetPath();
                     e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
-                    e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
+                    // e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
                     elmentInfo.Elements.Add(e);
                 }
             }
