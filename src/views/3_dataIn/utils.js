@@ -623,8 +623,6 @@ function handleDatasets(datasets, paramsConfig) {
                     multiple: categoryParam.multiple ?? false
                   };
 
-                  
-
                   handleHintType(config, categoryParam.hint);
                   // 特殊处理 opc 的点位过滤
                   if (currentType.startsWith('opc')) {
@@ -644,7 +642,7 @@ function handleDatasets(datasets, paramsConfig) {
                         return list
                       }
                     }
-                  } else if (currentType == 'pi') {
+                  } else if (currentType == 'pi' || currentType == 'pibackfill') {
                     if (config.field == 'filter_value') {
                       config.options = (that) => {
                         let activeTabValues = getActiveTabValueObject(that.sourceParent.sourceForm.data);
@@ -1073,7 +1071,7 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
-  if (definition.id == 'pi') {
+  if (definition.id == 'pi' || definition.id == 'pibackfill') {
     dsn += '&model=' + getActiveTabKey(data);
   }
   return dsn;

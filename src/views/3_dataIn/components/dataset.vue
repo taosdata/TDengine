@@ -195,7 +195,7 @@ export default {
       return this.getCurrentDefinition();
     },
     downloadPointsText() {
-      const isPi = this.currentDefinition.id === 'pi';
+      const isPi = (this.currentDefinition.id === 'pi' || this.currentDefinition.id === 'pibackfill');
       const piText = {
         point_file: 'allPoints',
         template_for_pi_point_file: 'afElementTemplate',
@@ -216,7 +216,7 @@ export default {
       );
     },
     downloadPontTipText() {
-      const isPi = this.currentDefinition.id === 'pi';
+      const isPi = (this.currentDefinition.id === 'pi' || this.currentDefinition.id === 'pibackfill');
       return this.$t(
         // 'dataIn.' +
           (isPi

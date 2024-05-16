@@ -122,7 +122,7 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
 export async function refreshTask(id) {
     let taskDetail = await loadTaskDetail(id)
     let dsType = taskDetail.from_expand.id;
-    if (dsType !== 'pi') {
+    if (['pi', 'pibackill'].indexOf(dsType) == -1) {
         return taskDetail;
     }
 

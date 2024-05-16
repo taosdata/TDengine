@@ -434,6 +434,16 @@ export default {
       try {
         this.fullscreenLoading = true;
         let defaultFileInfo = await generatePIDefaultConfigFile(url, null, via);
+        console.log("defaultFileInfo", defaultFileInfo)
+        if (typeof defaultFileInfo !== 'string') {
+          if (defaultFileInfo && defaultFileInfo.message) {
+            this.$message.error(defaultFileInfo.message);
+          } else {
+            this.$message.error('Failed to generate default config file');
+          }
+          return;
+        }
+
         handleDownload(defaultFileInfo);
         this.fullscreenLoading = false;
 
@@ -460,7 +470,7 @@ export default {
       let type = sourceForm.type
 
       // 目前只有 pi 数据源的 config.action=download 的按钮用到这个方法，不同的数据源需要不同的处理
-      if (type === 'pi' && this.config.action === 'download') {
+      if (['pi', 'pibackfill'].indexOf(type) >= 0 && this.config.action === 'download') {
         this.downloadPIDefaultConfigFile();
       } else {
         console.log('not support, please add your own logic here.')

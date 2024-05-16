@@ -508,33 +508,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
-          "display": "Data Sets",
-          "description": "Single column configuration file for point names.\n",
-          "params": [
+          "name": "Data Model Configuration",
+          "display": "Data Model",
+          "description": "Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "One Table Per Point",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "Single column mode",
+              "short_description": "The single column mode creates a super table based on the UOM of the point, with each point creating a sub table.",
+              "target": {
+                "name": "single-column",
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Point configuration file",
+                "btnText": "Upload configuration file",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a single column mode point list file in CSV format.",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "One Table per PI Point from AF Element Template",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "Multi column mode",
+              "short_description": "The multi column pattern creates a super table based on the AF Template, with each AF element creating a sub table.",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "One Table per AF Element from AF Element Template",
-              "hint": {
-                "type": "file"
-              },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Model configuration file",
+                "required": true,
+                "btnText": "Upload configuration file",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a multi column pattern model configuration file in CSV format.",
+              }]
             }
           ]
         }
@@ -695,33 +739,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
-          "display": "Data Sets",
-          "description": "Single column configuration file for point names.\n",
-          "params": [
+          "name": "Data Model Configuration",
+          "display": "Data Model",
+          "description": "Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "One Table Per Point",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "Single column mode",
+              "short_description": "The single column mode creates a super table based on the UOM of the point, with each point creating a sub table.",
+              "target": {
+                "name": "single-column",
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Point configuration file",
+                "btnText": "Upload configuration file",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a single column mode point list file in CSV format.",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "One Table per PI Point from AF Element Template",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "Multi column mode",
+              "short_description": "The multi column pattern creates a super table based on the AF Template, with each AF element creating a sub table.",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "One Table per AF Element from AF Element Template",
-              "hint": {
-                "type": "file"
-              },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Model configuration file",
+                "required": true,
+                "btnText": "Upload configuration file",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a multi column pattern model configuration file in CSV format.",
+              }]
             }
           ]
         }
@@ -3907,33 +3995,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
+          "name": "数据模型配置",
           "display": "监测点集",
-          "description": "不同类型的点位配置文件，这将决定入库的数据模型。\n",
-          "params": [
+          "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "单列模式点位列表",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "单列模式",
+              "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
+              "target": {
+                "name": "single-column",
               },
-              "description": "一个单列点位名称列表文件。\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "点位配置文件",
+                "btnText": "上传配置文件",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "单列模式 AF 模板列表",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "多列模式",
+              "short_description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "单列点位名称（AF 模板）列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "AF 模式模板列表",
-              "hint": {
-                "type": "file"
-              },
-              "description": "单列模板名称列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "模型配置文件",
+                "required": true,
+                "btnText": "上传配置文件",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传多列模式模型配置文件，文件格式为 CSV。",
+              }]
             }
           ]
         }
