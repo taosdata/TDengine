@@ -303,7 +303,6 @@ typedef struct {
   SRWLatch   rwLock;
   int8_t     showOpts[GRANT_OPT_DYN_MAX];
   int8_t     showDataIns[CONN_TYPE_DYN_MAX];
-  int8_t     showDataInsFuture;
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -454,10 +453,6 @@ static void grantInitShowFlags() {
 #endif
 
   // add future datains here ...
-
-#if !defined(TD_INDUSTRY)
-  grantHandle.showDataInsFuture = 1;
-#endif
 }
 
 static void grantStatusInit(SGrantStatus *pStatus) {
