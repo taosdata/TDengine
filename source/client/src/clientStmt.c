@@ -479,7 +479,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   SStmtTableInfo* pTbInfo = NULL;
 
   if (pStmt->sql.staticMode && pStmt->sql.runTimes > 500) {
-    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName));
+//    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName));
+    pTbInfo = (SStmtTableInfo*)tSimpleHashGet(pStmt->sql.pTbInfo, pStmt->bInfo.statbName, strlen(pStmt->bInfo.statbName));
     pStmt->stat.getCacheTbInfo++;
   } 
 
@@ -529,6 +530,9 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
     SStmtTableInfo tbInfo = {.uid = uid, .vgid = pTableMeta->vgId};
     tSimpleHashPut(pStmt->sql.pTbInfo, pStmt->bInfo.tbName, strlen(pStmt->bInfo.tbName), &tbInfo, sizeof(tbInfo));
+    if (0 == pStmt->bInfo.statbName[0]) {
+      strcpy(pStmt->bInfo.statbName, pStmt->bInfo.tbName);
+    }
     
     taosMemoryFree(pTableMeta);
   } else {

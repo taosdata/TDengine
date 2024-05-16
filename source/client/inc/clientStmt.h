@@ -72,6 +72,8 @@ typedef struct SStmtBindInfo {
   char     tbFName[TSDB_TABLE_FNAME_LEN];
   char     stbFName[TSDB_TABLE_FNAME_LEN];
   SName    sname;
+
+  char     statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
 typedef struct SStmtExecInfo {
