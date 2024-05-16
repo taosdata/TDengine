@@ -12,7 +12,7 @@ taos-explorer is delivered in the TDengine server package since version 3.3.0.0.
 
 ## Configure
 
-The configuration file of `taos-explorer` service is `/etc/taos/explorer.toml` on Linux platform and `C:\TDengine\cfg\explorer.toml` on Windows platform, the key items in the configuration is like below:
+The configuration file of `taos-explorer` service is `/etc/taos/explorer.toml` on Linux platform, the key items in the configuration are like below:
 
 ``` toml
 port = 6060
@@ -39,10 +39,6 @@ On Linux system you can use `systemctl` to manage the service as below:
 - Restart the service: `systemctl restart taos-explorer`
 
 - Check service status: `systemctl status taos-explorer`
-
-### Windows
-
-On Windows system, you can execute `sc start taos-explorer` in a `cmd` terminal with administrator privilege to start the service.
 
 ## Register & Logon
 
