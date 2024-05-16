@@ -905,13 +905,13 @@ TEST(clientCase, tsbs_perf_test) {
 }
 
 TEST(clientCase, projection_query_stables) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("192.168.1.53", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use test");
+  TAOS_RES* pRes = taos_query(pConn, "use qzdata");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from meters limit 50000000");
+  pRes = taos_query(pConn, "select * from `X212MGPH018`");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -922,10 +922,13 @@ TEST(clientCase, projection_query_stables) {
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   int32_t     numOfFields = taos_num_fields(pRes);
 
-  char str[512] = {0};
+  int32_t i = 0;
+  char    str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
     //    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    //    printf("%s\n", str);
+    if (i++ % 100000 == 0) {
+      printf("%d\n", i);
+    }
   }
 
   taos_free_result(pRes);
