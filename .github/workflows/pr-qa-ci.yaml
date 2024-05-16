@@ -19,7 +19,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  remove_artifacts:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Remove artifacts
+        run: |
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
+
   build_rust:
+    needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
       - name: Check out repository code
@@ -72,6 +81,7 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_go:
+    needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, go]
     steps:
       - name: Check out repository code
@@ -129,6 +139,7 @@ jobs:
           scp taosx-mqtt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/
 
   build_java:
+    needs: remove_artifacts
     runs-on: [self-hosted, linux, x64, qa, java]
     steps:
       - name: Check out repository code
