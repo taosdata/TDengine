@@ -193,7 +193,7 @@ systemctl status taosd
 
 :::
 
-## TDengine Command Line Interface
+**TDengine Command Line Interface**
 
 You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
 
@@ -275,7 +275,7 @@ Query OK, 2 row(s) in set (0.003128s)
 
 You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
 
-**TDegnine Graphic User Interface**
+## TDegnine Graphic User Interface
 
 From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
 
