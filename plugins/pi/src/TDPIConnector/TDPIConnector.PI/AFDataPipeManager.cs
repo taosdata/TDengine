@@ -3,9 +3,7 @@ using OSIsoft.AF.Asset;
 using OSIsoft.AF.Data;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
 
 namespace TDPIConnector.PI
 {
@@ -14,6 +12,7 @@ namespace TDPIConnector.PI
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private readonly List<AFDataPipeWrapper> afDataPipes;
         private readonly List<List<AFAttribute>> attributeSetLists;
+        private readonly Dictionary<string, int> templaltePipeDic = new Dictionary<string, int>();
 
         public AFDataPipeManager(int numberOfDataPipes)
         {
@@ -31,7 +30,6 @@ namespace TDPIConnector.PI
             IObserver<AFDataPipeEvent> observer = new AFDataPipeEventObserver(observerWrapper);
             for (int i = 0; i < afDataPipes.Count; i++)
             {
-                
                 afDataPipes[i].Subscribe(observer);
             }
         }
@@ -58,13 +56,50 @@ namespace TDPIConnector.PI
                         if (thisBatchSize % 100 == 0)
                         {
                             log.Info($"AddSignups check thread:{batchNum} {thisBatchSize} element finished.");
+                            afDataPipes[batchNum].AddSignups(attributeSetLists[batchNum]);
+                            attributeSetLists[batchNum].Clear();
                         }
                     }
                     afDataPipes[batchNum].AddSignups(attributeSetLists[batchNum]);
+                    attributeSetLists[batchNum].Clear();
                     log.Info($"AddSignups check thread:{batchNum} all element({thisBatchSize}) finished.");
                 }));
             }
             Task.WaitAll(tasks.ToArray());
+        }
+
+        private int GetLowPressurePipe() {
+            int minVal = int.MaxValue;
+            int index = 0;
+            for(int i = 0; i < afDataPipes.Count; ++i) {
+                if (0 == afDataPipes[i].SignupAttrCount)
+                {
+                    return i;
+                }
+                else if(afDataPipes[i].SignupAttrCount < minVal) {
+                    minVal = afDataPipes[i].SignupAttrCount;
+                    index = i;
+                }
+            }
+            return index;
+        }
+
+        private int GetDataPipeIndexByTemplate(ref string templateName) {
+            if (templaltePipeDic.ContainsKey(templateName))
+            {
+                return templaltePipeDic[templateName];
+            }
+            else {
+                int index = GetLowPressurePipe();
+                templaltePipeDic[templateName] = index;
+                return index;
+            }
+        }
+        public void AddSignupAttributes(ref string templateName, ref List<AFAttribute> attributes)
+        {
+            var index = GetDataPipeIndexByTemplate(ref templateName);
+            afDataPipes[index].SignupAttrCount += attributes.Count;
+            afDataPipes[index].AddSignups(attributes);
         }
 
         public void GetObserverEvents()

@@ -44,5 +44,6 @@ namespace TDPIConnector.Core.Conversions
             log.Error($"AttributeType:{attributeType.Name} not supported, please conntact Tdengine");
             return null;
         }
+    
     }
 }

@@ -13,6 +13,10 @@
                 {
                     newString += c;
                 }
+                else if (c == '.')
+                {
+                    newString += c;
+                }
                 else
                 {
                     newString += "_";

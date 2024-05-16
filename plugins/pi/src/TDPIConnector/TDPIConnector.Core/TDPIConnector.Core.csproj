@@ -117,6 +117,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Initializer.cs" />
     <Compile Include="Transform.cs" />
     <Compile Include="Conversions\TableNameConvert.cs" />
     <Compile Include="EventsSender.cs" />

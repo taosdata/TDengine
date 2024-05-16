@@ -333,6 +333,13 @@ namespace TDPIConnector.Core
             List<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate).ToList();
             log.Info($"Found {elements.Count()} elements in template:{elementTemplate.Name}.");
 
+            int chunkSize = 100;
+            List<List<AFElementWrapper>> chunks = new List<List<AFElementWrapper>>();
+            for (int i = 0; i < elements.Count; i += chunkSize)
+            {
+                chunks.Add(elements.GetRange(i, Math.Min(chunkSize, elements.Count - i)));
+            }
+
             var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
 
             ConcurrentDictionary<string, AFElementWrapper> elementsCollection = new ConcurrentDictionary<string, AFElementWrapper>();
