@@ -1189,12 +1189,11 @@ bool shellGetGrantInfo(char* buf) {
       fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-
-    char serverVersion[32] = {0};
+    char serverVersion[64] = {0};
     char expiretime[32] = {0};
     char expired[32] = {0};
 
-    memcpy(serverVersion, row[0], fields[0].bytes);
+    tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 

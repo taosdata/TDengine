@@ -258,12 +258,7 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-#ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
-#endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
+  printf("%s: %s compatible_version: %s\n", TD_EDITION_NAME, version, compatible_version);
   printf("gitinfo: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
   printf("gitinfoOfInternal: %s\n", gitinfoOfInternal);
