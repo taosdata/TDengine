@@ -27,7 +27,7 @@ export function deleteStableReq(payload) {
 }
 
 export function getStableStructReq(payload) {
-  let { selected_db, stableName } = payload;
+  let { selected_db, stableName, type } = payload;
   return sendSQLReq(`DESCRIBE  \`${selected_db}\`` +'.'+`\`${stableName}\`;`, true)
     .then(list => {
       let ts_field_name = list[0]?.field;
@@ -36,7 +36,7 @@ export function getStableStructReq(payload) {
       let level = list[0]?.level;
       let columns = [];
       let tags = [];
-      for (let i = 1; i < list.length; i++) {
+      for (let i = type ? 0 : 1; i < list.length; i++) {
         const item = list[i];
         if (item.note == "TAG") {
           tags.push({ ...item, type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
@@ -72,7 +72,7 @@ export function createStableReq(payload) {
     rollupValue = `rollup (${rollup})`;
   }
   return sendSQLReq(
-    `CREATE STABLE \`${selected_db}\`.${name} (${ts_field_name} TIMESTAMP,${columns
+    `CREATE STABLE \`${selected_db}\`.${name} (${columns
       .map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
       'NCHAR('+`${item.ncharLength}`+')':item.type}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
       ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}

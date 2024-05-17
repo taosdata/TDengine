@@ -96,7 +96,7 @@
     }
   }
 
-  .detail ::v-deep .el-button--small {
+  .detail .action-btn ::v-deep .el-button--small {
     padding: 9px 10px;
   }
   .detail ::v-deep .el-tag {

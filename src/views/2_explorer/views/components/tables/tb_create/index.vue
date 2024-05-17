@@ -57,6 +57,7 @@
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
                 :disabled="typeHasSpe(column.type) || index == 0"
+                @change="() => handleTypeChange(column, index)"
               >
                 <el-option
                   v-for="item in column.typeList"
@@ -148,6 +149,7 @@
               <el-button
                 icon="el-icon-minus"
                 size="small"
+                :disabled="!index || (isEdit && index == 1)"
                 @click="minusColumn(index, column)"
               ></el-button>
               <el-button
@@ -172,7 +174,7 @@
                 default-first-option
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
-                @change="handleEditTypeChange"
+                @change="handleEditTypeChange(currentData)"
               >
                 <el-option
                   v-for="item in dataType"
@@ -468,12 +470,22 @@ export default {
           field: "",
           varcharLength:8,
           ncharLength:8,
-          typeList: dataType
+          typeList: dataType,
+          encode: "simple8b", 
+          compress: "lz4", 
+          level: "medium",
         });
       }
       this.columnEdit = true;
-      this.currentData = { field: "", type: "INT",varcharLength:8,
-          ncharLength:8 };
+      this.currentData = { 
+        field: "", 
+        type: "INT",
+        varcharLength:8,
+        ncharLength:8,
+        encode: "simple8b", 
+        compress: "lz4", 
+        level: "medium", 
+      };
     },
     columnTypeChange(column) { 
       let params = null
@@ -679,9 +691,17 @@ export default {
         return this.storageCompression.groupFive
       }
     },
+    handleTypeChange(column, index) {
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.table_form.columns[index], "encode", defaultEncode);
+      this.$set(this.table_form.columns[index], "compress", defaultCompress);
+    },
     handleEditTypeChange(column, index) {
-      this.$set(this.currentData, "encode", '');
-      this.$set(this.currentData, "compress", '');
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.currentData, "encode", defaultEncode);
+      this.$set(this.currentData, "compress", defaultCompress);
     },
   },
 };
