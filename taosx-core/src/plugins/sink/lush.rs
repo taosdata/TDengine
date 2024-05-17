@@ -265,7 +265,12 @@ pub fn group_by_super_table_name(
     let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
     for i in 0..table_name_column.len() {
         let table_name = table_name_column.value(i);
-        let super_table = sub_super_mapping.get(table_name).unwrap();
+        let super_table = sub_super_mapping.get(table_name);
+        if super_table.is_none() {
+            error!("table_name {} not found in sub_super_mapping", table_name);
+            continue;
+        }
+        let super_table = super_table.unwrap();
         if super_table_ranges.contains_key(super_table.as_str()) {
             let ranges = super_table_ranges.get_mut(super_table.as_str()).unwrap();
             let last_range = ranges.last_mut().unwrap();
