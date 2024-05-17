@@ -22,12 +22,29 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.Name;
             }
         }
+        public AFElementTemplateWrapper BaseTemplate()
+        {
+            if (this.AFSDKObject.BaseTemplate != null)
+            {
+                return new AFElementTemplateWrapper(this.AFSDKObject.BaseTemplate);
+            }
+            else
+            {
+                return null;
+            }
+        }
 
         public AFAttributeTemplatesWrapper AttributeTemplates
         {
             get
             {
-                return new AFAttributeTemplatesWrapper(this.AFSDKObject.AttributeTemplates);
+                var ret = new AFAttributeTemplatesWrapper(this.AFSDKObject.AttributeTemplates);
+                var baseTem = this.AFSDKObject.BaseTemplate;
+                while (baseTem != null) {
+                    ret.AppendAFAttributeTemplates(baseTem.AttributeTemplates);
+                    baseTem = baseTem.BaseTemplate;
+                }
+                return ret;
             }
         }
 

@@ -223,12 +223,16 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void AddAFElementTableTag(string elementId, List<KeyValuePair<string, string>> tags)
         {
-            if (!builder.tagVals.ContainsKey(elementId))
+            lock (stLock)
             {
-                builder.tagVals[elementId] = tags;
-            }
-            else {
-                log.Info("found duplicate elements when add tagVal");
+                if (!builder.tagVals.ContainsKey(elementId))
+                {
+                    builder.tagVals[elementId] = tags;
+                }
+                else
+                {
+                    log.Info("found duplicate elements when add tagVal");
+                }
             }
         }
 
