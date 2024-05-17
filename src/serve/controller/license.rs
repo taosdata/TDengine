@@ -192,7 +192,7 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                 }
 
                 // Check active-active license
-                match from_conn
+                match conn
                         .query_one::<_, (bool, String)>("select `expire` > now as `ok`, `expire` from information_schema.ins_grants_full where grant_name='active_active'")
                         .await
                         .context("Failed to check active-active license in data target")? {
