@@ -10,7 +10,7 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
-use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::points::{PointsConfig, UpdateMode};
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
@@ -55,7 +55,7 @@ impl OPCConfig {
         let model_config = if csv_config_file.is_some() {
             let parser = CsvParser::from_dsn(dsn).await?;
 
-            let table_to_drop = parser.get_tables_to_drop().await;
+            let table_to_drop = parser.get_tables_to_drop();
             for child_table_name in table_to_drop.iter() {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                 tracing::info!("drop sql: {drop_sql}");
@@ -68,15 +68,20 @@ impl OPCConfig {
                 })?;
             }
 
-            // 过滤掉 model_config 中 enabled 为 0 的点位
             let mut model_config = parser.get_model_config();
-            model_config.remove_disabled_points().await;
+            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
+                if table_config.enabled == Some(0i8) {
+                    model_config.point_config_map.remove(point_id);
+                }
+            }
+
             model_config
         } else {
             let points = opc_datasets_impl(dsn.clone()).await?;
             let mut opc_model_config = OpcModelConfig::new();
-            opc_model_config.add_points(points, dsn).await?;
-
+            let point_model_config = OpcPointModelConfig::from_dsn(dsn)?;
+            opc_model_config.set_point_model_config(point_model_config);
+            opc_model_config.add_points(points)?;
             opc_model_config
         };
 
@@ -85,11 +90,9 @@ impl OPCConfig {
         // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
         // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
-        let point_config_map = model_config.get_point_config_map().await;
-        let points =
-            csv_string_record_from_iter(point_config_map.iter().map(|(point_id, point_config)| {
-                format!("{}::{}", point_id, point_config.code.clone())
-            }));
+        let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
+            |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
+        ));
         if dsn.driver.as_str() == "opcua" {
             dsn_clone.set("ua.nodes", points);
         } else {
@@ -147,10 +150,6 @@ impl OPCConfig {
 
     pub fn get_model_config(&self) -> Option<&OpcModelConfig> {
         self.model_config.as_ref()
-    }
-
-    pub fn get_model_config_mut(&mut self) -> Option<&mut OpcModelConfig> {
-        self.model_config.as_mut()
     }
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
@@ -354,6 +353,38 @@ impl OPCConfig {
         Ok(point_config_map)
     }
     */
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpcPointModelConfig {
+    pub opc_type: OpcType,
+    pub update_mode: UpdateMode,
+    pub stable_expression: String,
+    pub tbname_expression: String,
+    pub primary_key: String,
+    pub primary_key_alias: String,
+}
+
+impl OpcPointModelConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let update_mode = PointsConfig::parse_update_mode(dsn)?.unwrap_or(UpdateMode::None);
+        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        Ok(Self {
+            opc_type,
+            update_mode,
+            stable_expression,
+            tbname_expression,
+            primary_key,
+            primary_key_alias,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]

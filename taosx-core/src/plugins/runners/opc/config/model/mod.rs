@@ -1,190 +1,150 @@
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use anyhow::bail;
 use csv_async::StringRecord;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::{Dsn, Ty};
-use tokio::sync::RwLock;
+use taos::Ty;
 
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::config::OpcPointModelConfig;
 use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::validate_table_column_name;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcModelConfig {
-    /// id, (code, stable, enabled)
-    /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
-    /// when stable is none stable_prefix will be enabled
-    #[serde(with = "RwLockLinkedHashMapPointConfig")]
-    point_config_map: Arc<RwLock<LinkedHashMap<String, PointConfig>>>,
-    #[serde(with = "RwLockLinkedHashMapTableConfig")]
-    table_config_map: Arc<RwLock<LinkedHashMap<String, TableConfig>>>,
+    point_model_config: Option<OpcPointModelConfig>,
+    pub point_config_map: LinkedHashMap<String, PointConfig>,
+    pub table_config_map: LinkedHashMap<String, TableConfig>,
 }
-
-serde_with::serde_conv!(
-    RwLockLinkedHashMapPointConfig,
-    Arc<RwLock<LinkedHashMap<String, PointConfig>>>,
-    |value: &Arc<RwLock<LinkedHashMap<String, PointConfig>>>| -> Option<LinkedHashMap<String, PointConfig>> {
-        let v = value.blocking_read();
-        if v.is_empty() {
-            return None;
-        } else {
-            return Some(v.clone());
-        }
-    },
-    |value: Option<LinkedHashMap<String, PointConfig>>| -> Result<_, String> {
-        match value {
-            Some(value) => Ok(Arc::new(RwLock::new(value))),
-            None => Ok(Arc::new(RwLock::new(LinkedHashMap::new()))),
-        }
-    }
-);
-
-serde_with::serde_conv!(
-    RwLockLinkedHashMapTableConfig,
-    Arc<RwLock<LinkedHashMap<String, TableConfig>>>,
-    |value: &Arc<RwLock<LinkedHashMap<String, TableConfig>>>| -> Option<LinkedHashMap<String, TableConfig>> {
-        let v = value.blocking_read();
-        if v.is_empty() {
-            return None;
-        } else {
-            return Some(v.clone());
-        }
-    },
-    |value: Option<LinkedHashMap<String, TableConfig>>| -> Result<_, String> {
-        match value {
-            Some(value) => Ok(Arc::new(RwLock::new(value))),
-            None => Ok(Arc::new(RwLock::new(LinkedHashMap::new()))),
-        }
-    }
-);
 
 impl OpcModelConfig {
     pub fn new() -> Self {
         OpcModelConfig {
-            point_config_map: Arc::new(RwLock::new(LinkedHashMap::new())),
-            table_config_map: Arc::new(RwLock::new(LinkedHashMap::new())),
+            point_model_config: None,
+            point_config_map: LinkedHashMap::new(),
+            table_config_map: LinkedHashMap::new(),
         }
     }
 
-    pub async fn get_point_config_map(&self) -> LinkedHashMap<String, PointConfig> {
-        let point_config_map = self.point_config_map.read().await;
-        point_config_map.clone()
+    pub fn set_point_model_config(&mut self, point_model_config: OpcPointModelConfig) {
+        self.point_model_config = Some(point_model_config);
     }
 
-    pub async fn get_table_config_map(&self) -> LinkedHashMap<String, TableConfig> {
-        let table_config_map = self.table_config_map.read().await;
-        table_config_map.clone()
+    pub fn get_point_model_config(&self) -> Option<OpcPointModelConfig> {
+        self.point_model_config.clone()
     }
 
-    pub async fn get_table_config(&self, point_id: &str) -> Option<TableConfig> {
-        let table_config_map = self.table_config_map.read().await;
-        table_config_map.get(point_id).map(|v| v.clone())
+    pub fn build_point_config(
+        &self,
+        index: usize,
+        point_id: String,
+        point_type: Option<String>,
+    ) -> anyhow::Result<PointConfig> {
+        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
+            "super_table_expression and child_table_expression should be set before add points"
+        ))?;
+
+        let driver = point_model_config.opc_type.to_string();
+        let stable_expr = point_model_config.stable_expression.clone();
+        let tbname_expr = point_model_config.tbname_expression.clone();
+
+        let tbname = generate_tbname_from_pattern(&driver, &tbname_expr, point_id.as_str());
+        let stable = generate_stable_from_pattern(&stable_expr, &point_type);
+        let value_type = point_type
+            .map(|t| {
+                IpcDataType::from_str(t.as_str())
+                    .map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
+            })
+            .transpose()?;
+        let point_config = PointConfig {
+            row_index: index,
+            code: tbname,
+            stable: Some(stable),
+            tag_values: None,
+            value_type,
+        };
+
+        Ok(point_config)
     }
 
-    pub async fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
-        let stable_expr = OPCConfig::parse_stable_expression(dsn)?;
-        let tbname_expr = OPCConfig::parse_tbname_expression(dsn)?;
-        let primary_key =
-            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
-        let primary_key_alias =
-            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+    pub fn build_table_config(&self) -> anyhow::Result<TableConfig> {
+        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
+            "super_table_expression and child_table_expression should be set before add points"
+        ))?;
 
-        let mut index = 0;
+        let primary_key = point_model_config.primary_key.clone();
+        let primary_key_alias = point_model_config.primary_key_alias.clone();
+
+        let mut column_configs = vec![];
+        column_configs.push(ColumnConfig {
+            name: ColumnConfig::VALUE.to_string(),
+            r#type: None,
+            alias: Some(String::from("val")),
+            transform: None,
+            is_primary_key: false,
+        });
+        column_configs.push(ColumnConfig {
+            name: ColumnConfig::QUALITY.to_string(),
+            r#type: Some(Ty::Int),
+            alias: None,
+            transform: None,
+            is_primary_key: false,
+        });
+        match primary_key.as_str() {
+            ColumnConfig::ORIGINAL_TS => {
+                column_configs.push(ColumnConfig {
+                    name: ColumnConfig::ORIGINAL_TS.to_string(),
+                    r#type: Some(Ty::Timestamp),
+                    alias: Some(primary_key_alias.clone()),
+                    transform: None,
+                    is_primary_key: true,
+                });
+            }
+            ColumnConfig::RECEIVED_TS => {
+                column_configs.push(ColumnConfig {
+                    name: ColumnConfig::RECEIVED_TS.to_string(),
+                    r#type: Some(Ty::Timestamp),
+                    alias: Some(primary_key_alias.clone()),
+                    transform: None,
+                    is_primary_key: true,
+                });
+            }
+            _ => {
+                bail!("invalid primary key: {}", primary_key);
+            }
+        }
+
+        let table_config = TableConfig {
+            enabled: Some(1),
+            stable_prefix: None,
+            column_configs,
+            tag_configs: None,
+        };
+
+        Ok(table_config)
+    }
+
+    pub fn add_points(&mut self, points: Vec<DataSet>) -> anyhow::Result<()> {
+        let mut index: usize = 0;
         for p in points {
             let point_id = p.id;
             let point_type = p.r#type;
 
             // point_config
-            let tbname = generate_tbname_from_pattern(&dsn.driver, &tbname_expr, point_id.as_str());
-            let stable = generate_stable_from_pattern(&stable_expr, &point_type);
-            let value_type = point_type
-                .map(|t| {
-                    IpcDataType::from_str(t.as_str())
-                        .map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
-                })
-                .transpose()?;
-            let point_config = PointConfig {
-                row_index: index,
-                code: tbname,
-                stable: Some(stable),
-                tag_values: None,
-                value_type,
-            };
-            let mut point_config_map = self.point_config_map.write().await;
-            point_config_map.insert(point_id.clone(), point_config);
+            let point_config = self.build_point_config(index, point_id.clone(), point_type)?;
+            self.point_config_map.insert(point_id.clone(), point_config);
 
             // table_config
-            let mut column_configs = vec![];
-            column_configs.push(ColumnConfig {
-                name: ColumnConfig::VALUE.to_string(),
-                r#type: None,
-                alias: Some(String::from("val")),
-                transform: None,
-                is_primary_key: false,
-            });
-            column_configs.push(ColumnConfig {
-                name: ColumnConfig::QUALITY.to_string(),
-                r#type: Some(Ty::Int),
-                alias: None,
-                transform: None,
-                is_primary_key: false,
-            });
-            match primary_key.as_str() {
-                ColumnConfig::ORIGINAL_TS => {
-                    column_configs.push(ColumnConfig {
-                        name: ColumnConfig::ORIGINAL_TS.to_string(),
-                        r#type: Some(Ty::Timestamp),
-                        alias: Some(primary_key_alias.clone()),
-                        transform: None,
-                        is_primary_key: true,
-                    });
-                }
-                ColumnConfig::RECEIVED_TS => {
-                    column_configs.push(ColumnConfig {
-                        name: ColumnConfig::RECEIVED_TS.to_string(),
-                        r#type: Some(Ty::Timestamp),
-                        alias: Some(primary_key_alias.clone()),
-                        transform: None,
-                        is_primary_key: true,
-                    });
-                }
-                _ => {
-                    bail!("invalid primary key: {}", primary_key);
-                }
-            }
-
-            let table_config = TableConfig {
-                enabled: Some(1),
-                stable_prefix: None,
-                column_configs,
-                tag_configs: None,
-            };
-            let mut table_config_map = self.table_config_map.write().await;
-            table_config_map.insert(point_id.clone(), table_config);
+            let table_config = self.build_table_config()?;
+            self.table_config_map.insert(point_id.clone(), table_config);
 
             index += 1;
-        }
-
-        Ok(())
-    }
-
-    pub async fn remove_points(&mut self, points: Vec<DataSet>) -> anyhow::Result<()> {
-        let mut point_config_map = self.point_config_map.write().await;
-        let mut table_config_map = self.table_config_map.write().await;
-
-        for p in points {
-            let point_id = p.id;
-            point_config_map.remove(&point_id);
-            table_config_map.remove(&point_id);
         }
 
         Ok(())
@@ -199,7 +159,7 @@ impl OpcModelConfig {
     ) -> anyhow::Result<()> {
         let point_id = parse_point_id(header, &row)?;
         // check point_id duplicated
-        match self.get_row_index(&point_id).await {
+        match self.get_row_index(&point_id) {
             None => {}
             Some(index) => match header.get_opc_type() {
                 OpcType::OPCUA => {
@@ -219,15 +179,10 @@ impl OpcModelConfig {
         let table_config = TableConfig::from_csv(&header, &row)?;
 
         // check conflict
-        match self
-            .is_conflict(&point_id, &point_config, &table_config)
-            .await
-        {
+        match self.is_conflict(&point_id, &point_config, &table_config) {
             Ok(_) => {
-                let mut point_config_map = self.point_config_map.write().await;
-                let mut table_config_map = self.table_config_map.write().await;
-                point_config_map.insert(point_id.clone(), point_config);
-                table_config_map.insert(point_id.clone(), table_config);
+                self.point_config_map.insert(point_id.clone(), point_config);
+                self.table_config_map.insert(point_id.clone(), table_config);
             }
             Err(err) => {
                 bail!(
@@ -241,15 +196,10 @@ impl OpcModelConfig {
         Ok(())
     }
 
-    pub async fn get_column_config_map_by_name(
-        &self,
-        col_name: &str,
-    ) -> HashMap<String, ColumnConfig> {
+    pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
         let mut column_config_map = HashMap::new();
 
-        let table_config_map = self.table_config_map.read().await;
-
-        for (point_id, table_config) in table_config_map.iter() {
+        for (point_id, table_config) in &self.table_config_map {
             let column_config = table_config.column_config(col_name);
             if let Some(column_config) = column_config {
                 column_config_map.insert(point_id.clone(), column_config.clone());
@@ -259,12 +209,11 @@ impl OpcModelConfig {
         column_config_map
     }
 
-    pub async fn get_row_index(&self, point_id: &str) -> Option<usize> {
-        let point_config_map = self.point_config_map.read().await;
-        point_config_map.get(point_id).map(|v| v.row_index)
+    pub fn get_row_index(&self, point_id: &str) -> Option<usize> {
+        self.point_config_map.get(point_id).map(|v| v.row_index)
     }
 
-    async fn is_conflict(
+    fn is_conflict(
         &self,
         point_id: &String,
         point_config: &PointConfig,
@@ -292,11 +241,8 @@ impl OpcModelConfig {
             .flatten();
 
         // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
-        let point_config_map = self.point_config_map.read().await;
-        let table_config_map = self.table_config_map.read().await;
-
-        for (id, p_config) in point_config_map.iter() {
-            if let Some(t_config) = table_config_map.get(id) {
+        for (id, p_config) in &self.point_config_map {
+            if let Some(t_config) = self.table_config_map.get(id) {
                 if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
                     if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
                         if v_col.alias.as_ref() == value_col {
@@ -314,17 +260,6 @@ impl OpcModelConfig {
         }
 
         Ok(())
-    }
-
-    pub async fn remove_disabled_points(&mut self) {
-        let table_config_map = self.table_config_map.read().await;
-        let mut point_config_map = self.point_config_map.write().await;
-
-        for (point_id, table_config) in table_config_map.iter() {
-            if table_config.enabled == Some(0i8) {
-                point_config_map.remove(point_id);
-            }
-        }
     }
 }
 
@@ -364,8 +299,8 @@ mod model_config_tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_add_points() {
+    #[test]
+    fn test_add_points() {
         // given
         let dsn = format!(
             "opcua://?super_table_expression={}&child_table_expression={}",
@@ -394,25 +329,24 @@ mod model_config_tests {
 
         // when
         let mut config = OpcModelConfig::new();
-        config.add_points(points, &dsn).await.unwrap();
+        config.set_point_model_config(OpcPointModelConfig::from_dsn(&dsn).unwrap());
+        config.add_points(points).unwrap();
 
         // then
-        let point_config_map = config.point_config_map.read().await;
-        assert_eq!(point_config_map.len(), 2);
-        point_config_map.get("ns=3;i=1001").map(|v| {
+        assert_eq!(config.point_config_map.len(), 2);
+        config.point_config_map.get("ns=3;i=1001").map(|v| {
             assert_eq!(v.code, "t_3_1001");
             assert_eq!(v.stable, Some("opc_double".to_string()));
             assert_eq!(v.value_type, Some(IpcDataType::Float64));
         });
-        point_config_map.get("ns=3;i=1002").map(|v| {
+        config.point_config_map.get("ns=3;i=1002").map(|v| {
             assert_eq!(v.code, "t_3_1002");
             assert_eq!(v.stable, Some("opc_int".to_string()));
             assert_eq!(v.value_type, Some(IpcDataType::Int32));
         });
 
-        let table_config_map = config.table_config_map.read().await;
-        assert_eq!(table_config_map.len(), 2);
-        table_config_map.get("ns=3;i-1001").map(|v| {
+        assert_eq!(config.table_config_map.len(), 2);
+        config.table_config_map.get("ns=3;i-1001").map(|v| {
             assert_eq!(v.enabled, Some(1));
             assert_eq!(v.stable_prefix, None);
             assert_eq!(v.column_configs.len(), 3);

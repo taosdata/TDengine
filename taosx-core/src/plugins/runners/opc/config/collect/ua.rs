@@ -49,7 +49,7 @@ impl UaCollectConfig {
         let node_vec = match csv_config_file {
             Some(_csv) => {
                 let parser = CsvParser::from_dsn(dsn).await?;
-                let node_ids = parser.get_point_ids().await;
+                let node_ids = parser.get_point_ids();
                 node_ids
             }
             None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")

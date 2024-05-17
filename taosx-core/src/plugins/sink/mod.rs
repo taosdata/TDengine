@@ -43,14 +43,13 @@ use taosx_ipc::{
 
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
-
+use crate::runners::opc::config::points::UpdateMode;
 use crate::utils::breakpoints::breakpoints_set;
 use crate::utils::trace::create_data_trace_id;
 use crate::utils::trace::create_stream_trace_id;
 use crate::utils::trace::get_data_trace_id_str;
 use crate::utils::trace::set_data_trace_id_for_current_span;
 use crate::utils::trace::RequestID;
-
 use crate::ConnectorLicense;
 use crate::{
     core_metrics::get_metrics_arc_from_i64,
@@ -766,7 +765,7 @@ struct ModifyStructForPointMessage {
 }
 
 /// handle value_transform, ts_transform, rts_transform
-async fn handle_transform(
+fn handle_transform(
     message: &RecordMessage,
     config: &OpcModelConfig,
 ) -> anyhow::Result<RecordMessage> {
@@ -777,23 +776,17 @@ async fn handle_transform(
     let name_col = message.clone_column_by_name("name")?;
 
     // transform ts
-    let ts_config_map = config
-        .get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS)
-        .await;
+    let ts_config_map = config.get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS);
     let ts_transform = to_record_transform_map(&ts_config_map);
     let transformed_ts_col = transform_by_name(message.record(), "ts", ts_transform)?;
 
     // transform received_ts
-    let rts_config_map = config
-        .get_column_config_map_by_name(ColumnConfig::RECEIVED_TS)
-        .await;
+    let rts_config_map = config.get_column_config_map_by_name(ColumnConfig::RECEIVED_TS);
     let rts_transform = to_record_transform_map(&rts_config_map);
     let transformed_received_col = transform_by_name(message.record(), "received", rts_transform)?;
 
     // transform value
-    let val_config_map = config
-        .get_column_config_map_by_name(ColumnConfig::VALUE)
-        .await;
+    let val_config_map = config.get_column_config_map_by_name(ColumnConfig::VALUE);
     let value_transform = to_record_transform_map(&val_config_map);
     let transformed_value_col = transform_by_name(message.record(), "value", value_transform)?;
 
@@ -1319,7 +1312,7 @@ mod handle_transform_tests {
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
         let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
 
-        let transformed_msg = handle_transform(&message, &model_config).await.unwrap();
+        let transformed_msg = handle_transform(&message, &model_config).unwrap();
 
         let value = transformed_msg
             .record()
@@ -1488,11 +1481,15 @@ async fn consume_point_record(
 ) -> anyhow::Result<usize> {
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
+    let point_model_config = config.get_point_model_config();
+    let mut point_config_map = config.point_config_map.clone();
+    let mut table_config_map = config.table_config_map.clone();
+
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
         // handle value_transform, ts_transform, rts_transform
-        let message = handle_transform(message, config).await?;
+        let message = handle_transform(message, config)?;
 
         let cv_vec = record_batch_to_column_view(message.record(), target_precision);
 
@@ -1519,9 +1516,6 @@ async fn consume_point_record(
         let status_index = schema.index_of("status")?;
         let status_column_view = cv_vec.get(status_index).unwrap();
 
-        let point_config_map = config.get_point_config_map().await;
-        let table_config_map = config.get_table_config_map().await;
-
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
         let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();
         // child_table_name: create_sql
@@ -1539,18 +1533,58 @@ async fn consume_point_record(
             // point_config
             let point_config = point_config_map.get(&point_id);
             if point_config.is_none() {
-                tracing::warn!("cannot get point_config with point_id: {}", point_id);
-                continue;
+                let point_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            let index = point_config_map.len();
+
+                            let point_config = config.build_point_config(
+                                index,
+                                point_id.clone(),
+                                Some(value_raw_type.to_string()),
+                            )?;
+                            Some(point_config)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+
+                match point_config {
+                    None => {
+                        tracing::trace!("cannot get point_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(point_config) => {
+                        point_config_map.insert(point_id.clone(), point_config);
+                    }
+                }
             }
-            let point_config = point_config.unwrap();
+            let point_config = point_config_map.get(&point_id).unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);
             if table_config.is_none() {
-                tracing::trace!("cannot get table_config with point_id: {}", point_id);
-                continue;
+                let table_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            Some(config.build_table_config()?)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+                match table_config {
+                    None => {
+                        tracing::trace!("cannot get table_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(table_config) => {
+                        table_config_map.insert(point_id.clone(), table_config);
+                    }
+                }
             }
-            let table_config = table_config.unwrap();
+            let table_config = table_config_map.get(&point_id).unwrap();
 
             // stable_name
             let stable_name = stable_name(

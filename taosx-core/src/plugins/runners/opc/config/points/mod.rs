@@ -46,7 +46,7 @@ impl PointsConfig {
         dsn.params.get("pattern").map(|v| v.to_string())
     }
 
-    fn parse_update_mode(dsn: &Dsn) -> anyhow::Result<Option<UpdateMode>> {
+    pub fn parse_update_mode(dsn: &Dsn) -> anyhow::Result<Option<UpdateMode>> {
         dsn.params
             .get("update_mode")
             .map(|v| v.parse::<UpdateMode>())

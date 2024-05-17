@@ -191,7 +191,6 @@ pub async fn opc_to_taos(
     let cloned_opc_config = config.clone();
     tokio::spawn(async move {
         let mut updater = PointsUpdater::from_opc_config(
-            from.clone(),
             cloned_opc_config,
             config_file_path.display().to_string(),
             token,
@@ -531,8 +530,7 @@ async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>>
     let model_config = parser.get_model_config();
 
     let mut datasets = vec![];
-    let point_config_map = model_config.get_point_config_map().await;
-    for (point_id, point_config) in point_config_map.iter() {
+    for (point_id, point_config) in model_config.point_config_map.iter() {
         let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
         let name = point_config.tag_values.as_ref().and_then(|tag_values| {
             tag_values.iter().find_map(|(tag_name, tag_value)| {
@@ -543,13 +541,7 @@ async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>>
                 }
             })
         });
-        let table_config = model_config
-            .get_table_config(point_id)
-            .await
-            .ok_or(anyhow::anyhow!(
-                "table config not found for point_id: {}",
-                point_id
-            ))?;
+        let table_config = model_config.table_config_map.get(point_id).unwrap();
         let display = table_config.enabled.unwrap_or(1).to_string();
         let options = vec![OptionSet {
             name: "enabled".to_string(),

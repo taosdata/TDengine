@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
-use taos::Dsn;
 
 use tokio_util::sync::CancellationToken;
 
@@ -14,7 +13,6 @@ use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{opc_datasets_by_command, OpcType};
 
 pub struct PointsUpdater {
-    dsn: Dsn,
     opc_config: OPCConfig,
     opc_config_file: String,
     mode: UpdateMode,
@@ -25,7 +23,6 @@ pub struct PointsUpdater {
 
 impl PointsUpdater {
     pub fn from_opc_config(
-        dsn: Dsn,
         config: OPCConfig,
         config_file: String,
         token: CancellationToken,
@@ -42,7 +39,6 @@ impl PointsUpdater {
             .unwrap_or(600);
 
         Self {
-            dsn,
             opc_config: config,
             opc_config_file: config_file,
             mode,
@@ -87,18 +83,7 @@ impl PointsUpdater {
                     if add_list.is_empty() {
                         continue;
                     } else {
-                        self.cur_list.extend(add_list.clone());
-
-                        // write add_list to opc_model_config
-                        let model_config = self
-                            .opc_config
-                            .get_model_config_mut()
-                            .expect("model config is none");
-                        model_config
-                            .add_points(add_list.clone(), &self.dsn)
-                            .await
-                            .expect("add points failed");
-
+                        self.cur_list.extend(add_list);
                         self.update_config_file(self.cur_list.clone())
                     }
                 }
@@ -108,21 +93,6 @@ impl PointsUpdater {
                         continue;
                     } else {
                         self.cur_list = to_list.clone();
-
-                        // write add_list to opc_model_config, and remove del_list from opc_model_config
-                        let model_config = self
-                            .opc_config
-                            .get_model_config_mut()
-                            .expect("model config is none");
-                        model_config
-                            .add_points(add_list.clone(), &self.dsn)
-                            .await
-                            .expect("add points failed");
-                        model_config
-                            .remove_points(del_list.clone())
-                            .await
-                            .expect("remove points failed");
-
                         self.update_config_file(self.cur_list.clone())
                     }
                 }
