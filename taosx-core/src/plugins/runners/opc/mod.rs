@@ -191,6 +191,7 @@ pub async fn opc_to_taos(
     let cloned_opc_config = config.clone();
     tokio::spawn(async move {
         let mut updater = PointsUpdater::from_opc_config(
+            from.clone(),
             cloned_opc_config,
             config_file_path.display().to_string(),
             token,

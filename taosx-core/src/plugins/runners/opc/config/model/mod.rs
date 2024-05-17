@@ -177,6 +177,19 @@ impl OpcModelConfig {
         Ok(())
     }
 
+    pub async fn remove_points(&mut self, points: Vec<DataSet>) -> anyhow::Result<()> {
+        let mut point_config_map = self.point_config_map.write().await;
+        let mut table_config_map = self.table_config_map.write().await;
+
+        for p in points {
+            let point_id = p.id;
+            point_config_map.remove(&point_id);
+            table_config_map.remove(&point_id);
+        }
+
+        Ok(())
+    }
+
     /// parse one row in csv file to a point config
     pub async fn add_csv_row(
         &mut self,

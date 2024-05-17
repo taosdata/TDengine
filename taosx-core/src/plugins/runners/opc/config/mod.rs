@@ -149,6 +149,10 @@ impl OPCConfig {
         self.model_config.as_ref()
     }
 
+    pub fn get_model_config_mut(&mut self) -> Option<&mut OpcModelConfig> {
+        self.model_config.as_mut()
+    }
+
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
         let debug = dsn.params.get("debug");
         if debug.is_some() {
