@@ -454,14 +454,16 @@ typedef struct {
   STFileSet *fset;
 } SFileSetCommitInfo;
 
-static int32_t tsdbGetCommitInfo(STsdb *tsdb) {
+static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   int32_t code = 0;
   int32_t lino = 0;
 
   STFileSet *fset = NULL;
 
   taosThreadMutexLock(&tsdb->mutex);
-  // TODO
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    // TODO
+  }
   taosThreadMutexUnlock(&tsdb->mutex);
 
   // scan the data in the memory
@@ -513,6 +515,19 @@ _exit:
   return code;
 }
 
+static int32_t tsdbCommitInfoDestroy(STsdb *tsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -546,7 +561,7 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
     }
   }
 
-  code = tsdbGetCommitInfo(tsdb);
+  code = tsdbCommitInfoBuild(tsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -653,11 +668,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     }
     tsdb->imem = NULL;
 
-    // finish commit task on corresponding file set
-    for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo.changeFids); i++) {
-      int32_t fid = *(int32_t *)taosArrayGet(tsdb->commitInfo.changeFids, i);
-      tsdbFinishTaskOnFileSet(tsdb, fid);
-    }
+    // TODO
 
     taosThreadMutexUnlock(&tsdb->mutex);
 

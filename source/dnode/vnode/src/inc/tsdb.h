@@ -364,10 +364,8 @@ struct STsdb {
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
   struct {
-    // SVHashTable *ht;
-    SArray *commitFidArray;
-    SArray *commitFids;
-    SArray *changeFids;
+    SVHashTable *ht;
+    SArray      *arr;
   } commitInfo;
 };
 
