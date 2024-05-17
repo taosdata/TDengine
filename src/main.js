@@ -47,7 +47,7 @@ Vue.prototype.$error = function (msg) {
     duration: 30000
   });
 }
-
+Vue.prototype.$COMMUNITY = (process.env.VUE_APP_COMMUNITY && process.env.VUE_APP_COMMUNITY === "community") ? true : false;
 export function getBrowserLang() {
   const nav = window.navigator;
   const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
@@ -57,7 +57,7 @@ export function getBrowserLang() {
 }
 function setTitle() {
   const lang = getBrowserLang()
-  const title = lang === 'en' ? 'TDengine Enterprise' : 'TDengine企业版'
+  const title = lang === 'en' ? Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine Enterprise' : Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine企业版'
   document.title = title
 }
 function checkFirefox() {

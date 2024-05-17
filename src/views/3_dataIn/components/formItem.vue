@@ -9,8 +9,9 @@
         :parent="parent + field + '.'"
       />
     </template>
+    <!-- 排除tmq中 dsn 自己带的参数，这类 param 特点就是 type=input,没有label  -->
     <el-form-item
-      v-else-if="display"
+      v-else-if="display && (labelText || config.type !== 'input')"
       :label="labelText"
       :label-width="labelWidth"
       :required="required(config)"
@@ -19,7 +20,7 @@
       :prop="parent + field"
     >
       <template slot="label">
-        <el-tooltip placement="top" effect="light">
+        <el-tooltip placement="top" effect="light" :open-delay="0" v-if="doscShow && !dataSetDocsShow">
           <template slot="content">
             <DocsContent
               v-if="doscShow && !dataSetDocsShow"
@@ -31,13 +32,15 @@
           <span>
             <span>{{ labelText }}</span>
             <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <i class="el-icon-info"></i>
+              <!-- <i class="el-icon-info"></i> -->
+              <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>
         </el-tooltip>
       </template>
       <el-input
         v-if="inputType.includes(config.type)"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :type="config.type"
@@ -46,6 +49,7 @@
       ></el-input>
       <el-input-number
         v-if="config.type == 'number'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :max="config.max"
@@ -54,6 +58,7 @@
       ></el-input-number>
       <el-select
         v-if="config.type == 'select'"
+        :id="parent + field"
         v-model="data[field]"
         v-bind="meta"
         class="ds-select"
@@ -72,6 +77,7 @@
       </el-select>
       <el-switch
         v-if="config.type == 'switch'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :placeholder="config.placeholder"
@@ -79,6 +85,7 @@
       ></el-switch>
       <TimezoneDatePicker
         v-if="config.type == 'time'"
+        :id="parent + field"
         v-model="data[field]"
         :disabled="disabled()"
         :placeholder="config.placeholder"
@@ -125,7 +132,7 @@
       />
       <div v-if="config.info" slot="label">
         {{ config.label }}
-        <el-tooltip class="item" effect="light" placement="top">
+        <el-tooltip class="item" effect="light" placement="top" :open-delay="0">
           <div
             v-dompurify-html="parseMarked(config.description)"
             slot="content"
@@ -289,7 +296,10 @@ export default {
     },
 
     isEdit() {
-      return this.sourceParent.isEdit;
+      return this.sourceParent.isEditable;
+    },
+    isCopyable() {
+      return this.sourceParent.isCopyable;
     },
     timeFormats() {
       return TimeFormats;
@@ -308,7 +318,8 @@ export default {
         return this.config.disabled(
           this.data,
           this.sourceParent.sourceForm.data,
-          this.sourceParent.currentDefinition
+          this.sourceParent.currentDefinition,
+          this.isEdit && !this.isCopyable
         );
       }
       return this.config.disabled;
@@ -342,17 +353,20 @@ export default {
       let groupsData = getGroupsObj(this.sourceParent.sourceForm.data);
       switch (type) {
         case "taos":
-          this.date1 = new Date(groupsData?.start) ?? 0;
-          this.date2 = new Date(groupsData?.end) ?? 0;
+        case "postgres":
+        case "mysql":
+        case "oracle":
+          this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
+          this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;
         case "avevaHistorian":
-          this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
-          this.date2 = new Date(groupsData?.endDateTime) ?? 0;
+          this.date1 = groupsData?.beginDateTime ? new Date(groupsData?.beginDateTime) : 0;
+          this.date2 = groupsData?.endDateTime ? new Date(groupsData?.endDateTime) : 0;
           break;
         case "influxdb":
         case "opentsdb":
-          this.date1 = new Date(groupsData?.beginTime) ?? 0;
-          this.date2 = new Date(groupsData?.endTime) ?? 0;
+          this.date1 = groupsData?.beginTime ? new Date(groupsData?.beginTime) : 0;
+          this.date2 = groupsData?.endTime ? new Date(groupsData?.endTime) : 0;
           break;
         default:
           break;

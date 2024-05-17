@@ -18,7 +18,7 @@
     "prepare": "husky install"
   },
   "dependencies": {
-    "@tdengine/websocket": "^3.0.0",
+    "@tdengine/websocket": "=3.0.0",
     "axios": "^0.21.1",
     "babel-plugin-prismjs": "^2.1.0",
     "clipboard-polyfill": "^4.0.1",
@@ -100,7 +100,8 @@
       "vue/comment-directive": "off"
     },
     "ignorePatterns": [
-      "/WebSocket/**"
+      "/WebSocket/**",
+      "/src/assets/**"
     ]
   },
   "browserslist": [

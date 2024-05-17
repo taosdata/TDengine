@@ -389,7 +389,7 @@ export function getDSN(driver = "tmq", subject = null) {
 
     let host = parsed_url.host;
     let user = localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";
     let subjectStr = subject ? "/" + subject : "";
     return (
@@ -407,7 +407,7 @@ export function getDSN(driver = "tmq", subject = null) {
   } else {
     let host = url;
     let user = localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";
     let subjectStr = subject ? "/" + subject : "";
     return driver + "://" + user + ":" + pass + "@" + host + subjectStr;
@@ -423,6 +423,14 @@ export function getLocalTimezone() {
 export function parsinginZone(value, format) {
   let timezone = getLocalTimezone();
   return momentTimezone(value).tz(timezone).format(format);
+}
+
+export function formatTime(time) {
+  let timezone = getLocalTimezone();
+  let str = moment.tz(timezone).format("Z")
+  let time1 = moment(time).format()
+  let arr = time1.split('+')
+  return arr[0] + str
 }
 
 export function getBrowserLang() {
@@ -455,4 +463,63 @@ export function getRFC3339Time() {
     pad1(d.getUTCSeconds()) +
     "Z"
   );
+}
+function removeQuotedStrings(str) {
+  return str.replace(/:\s*"([^"]*)"/g, ':""').replace(/:\s*'([^']*)'/g, ":''");
+}
+
+function extractFirstJsonObject(str) {
+  let count = 0;
+  let startIndex = -1;
+  let endIndex = -1;
+
+  for (let i = 0; i < str.length; i++) {
+      if (str[i] === '{') {
+          if (count === 0) {
+              startIndex = i;
+          }
+          count++;
+      } else if (str[i] === '}') {
+          count--;
+          if (count === 0) {
+              endIndex = i;
+              break;
+          }
+      }
+  }
+
+  if (startIndex !== -1 && endIndex !== -1) {
+      return str.substring(startIndex, endIndex + 1);
+  } else {
+      return null;
+  }
+}
+
+function getAllProperties(obj) {
+  const properties = [];
+
+  function traverse(prefix, obj) {
+      for (let key in obj) {
+          if (Array.isArray(obj[key])) {
+              for (let i = 0; i < obj[key].length; i++) {
+                  console.log(`==========${prefix}.${key}[${i}]`);
+                  traverse(`${prefix}.${key}[${i}]`, obj[key][i]);
+              }
+          } else if (typeof obj[key] === 'object') {
+              traverse(`${prefix}.${key}`,  obj[key]);
+          } else {
+              properties.push(`${prefix}.${key}`);
+          }
+      }
+  }
+
+  traverse("$", obj);
+  return properties;
+}
+
+export function extractAllProperties(sampleData) {
+  // 1. Remove all quoted strings，避免字符串中包含{}导致提取出错
+  const jsonStringSingleObject = extractFirstJsonObject(removeQuotedStrings(sampleData).trim());
+  const jsonObject = JSON.parse(jsonStringSingleObject);
+  return getAllProperties(jsonObject);
 }

@@ -34,19 +34,26 @@
             </el-form-item>
           </div>
           <el-form-item>
-            <el-button icon="el-icon-search" @click="handlePageChange()">{{
+            <el-button icon="el-icon-search" @click="handlePageChange()" :disabled="$COMMUNITY">{{
               $t("search")
             }}</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button @click="handlePageReset()">{{ $t("reset") }}</el-button>
+            <el-button @click="handlePageReset()" >{{ $t("reset") }}</el-button>
           </el-form-item>
         </section>
       </el-form>
       <div style="margin-bottom: 18px">
-        <el-button :disabled="requestIng" @click="exportFile" size='mini'
-          >{{ $t("console.export") }}
-        </el-button>
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+        >
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button :disabled="requestIng || $COMMUNITY" @click="exportFile" size='mini' type="primary" plain
+            >{{ $t("console.export") }}
+          </el-button>
+        </el-tooltip>
       </div>
     </section>
     <!-- <div class="flexEnd">
@@ -146,6 +153,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { parsinginZone } from "@/utils";
 import { parse } from "json2csv";
 import FileSaver from "file-saver";
+import { auditMockData } from "@/const"
 export default {
   data() {
     return {
@@ -223,14 +231,18 @@ export default {
   },
   methods: {
     handlePageChange() {
-      this.getAuditData();
+      if (!this.$COMMUNITY) {
+        this.getAuditData();
+      }
     },
     refresh() {
       this.getAuditData();
     },
     handlePageReset() {
-      Object.assign(this.$data, this.$options.data());
-      this.getAuditData();
+      if (!this.$COMMUNITY) {
+        Object.assign(this.$data, this.$options.data());
+        this.getAuditData();
+      }
     },
     async getAuditData() {
       try {
@@ -296,15 +308,19 @@ export default {
   },
   watch: {
     activeName(val) {
-      if (val == 'audit') {
+      if (val == 'audit' && !this.$COMMUNITY) {
         this.getDatabases();
         this.getAuditData();
       }
     }
   },
   created() {
-    this.getDatabases();
-    this.getAuditData();
+    if (this.$COMMUNITY) {
+      this.auditList = auditMockData
+    } else {
+      this.getDatabases();
+      this.getAuditData();
+    }
   },
 };
 </script>

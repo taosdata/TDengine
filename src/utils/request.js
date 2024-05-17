@@ -45,9 +45,7 @@ request.interceptors.request.use(
           path: "/login",
         });
       }
-    } else {
-      console.log(config.url);
-    }
+    } 
     config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;
     return config;
   },

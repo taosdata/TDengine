@@ -13,6 +13,7 @@
 import DataSource from "./dataSource.vue";
 import SourceConfig from "./sourceConfig.vue"
 import { getUIData, getTask } from "@/api/explorer/datain";
+import { getDataSources } from "@/api/explorer/community";
 
 export default {
   name: "DbSource",
@@ -46,7 +47,13 @@ export default {
   methods: {
     async getData() {
       try {
-        let result = await getUIData();
+        let result;
+        if (this.$COMMUNITY) {
+          result = getDataSources(this.$i18n.locale);
+        } else {
+          result = await getUIData();
+        }
+        
         this.$store.commit("app/SET_DEFINITIONS", result);
       } catch (error) {
         console.log(error);
@@ -74,7 +81,7 @@ export default {
       return Object.hasOwnProperty.call(obj, key);
     },
     reloadTable() {
-      if (this.currentName == "dbsource") {
+      if (this.currentName == "dbsource" && !this.$COMMUNITY) {
         this.$nextTick(() => {
           this.$refs.table.refresh();
         });

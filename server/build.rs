@@ -1,7 +1,7 @@
-use std::path::Path;
+use shadow_rs::SdResult;
 use std::fs::File;
 use std::io::Write;
-use shadow_rs::SdResult;
+use std::path::Path;
 
 const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";

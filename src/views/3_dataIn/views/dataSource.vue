@@ -5,12 +5,14 @@
       <div class="flexEnd">
         <el-button
           @click="refresh"
+          plain
+          type="primary"
           size="small"
           icon="el-icon-refresh"
-          :disabled="requestIng"
+          :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
+        <el-button @click="addDbSource" size="small" icon="el-icon-plus" plain  type="primary">{{
           $t("datasource.addsource")
         }}</el-button>
       </div>
@@ -175,7 +177,8 @@
               style="font-size: 12px; color: #4d6992"
               :disabled="
                 scope.row.status.toLowerCase() == 'failed' ||
-                scope.row.status.toLowerCase() == 'cancelled'
+                scope.row.status.toLowerCase() == 'cancelled' ||
+                $COMMUNITY
               "
               >{{ $t("view") }}</el-button
             >
@@ -231,6 +234,7 @@
                     size="mini"
                     @click="start(scope.row)"
                     icon="el-icon-qidong"
+                    :disabled="$COMMUNITY"
                   ></el-button>
                 </el-tooltip>
               </template>
@@ -250,6 +254,7 @@
                     size="mini"
                     @click="stop(scope.row)"
                     icon="el-icon-tingzhi"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -264,6 +269,7 @@
                     size="mini"
                     @click="refreshCurrentTask(scope.row)"
                     icon="el-icon-refresh"
+                    :disabled="$COMMUNITY"
                   ></el-button
                 ></el-tooltip>
               </template>
@@ -292,6 +298,7 @@
                 type="primay"
                 size="mini"
                 :disabled="
+                  $COMMUNITY ? $COMMUNITY :
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
@@ -327,6 +334,7 @@
                 size="mini"
                 @click="del(scope.row)"
                 icon="el-icon-delete"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
             <el-tooltip
@@ -339,6 +347,7 @@
                 size="mini"
                 @click="copyTask(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-copy-document"
+                :disabled="$COMMUNITY"
               ></el-button>
             </el-tooltip>
           </template>
@@ -365,6 +374,14 @@
     <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
     </div>
+    <el-alert
+      v-if="$COMMUNITY"
+      style="margin-top: 8px"
+      type="warning"
+      :description="$t('communityDemoDataTip')"
+      :closable="true"
+      center
+    />
   </div>
 </template>
 <script>
@@ -381,6 +398,7 @@ import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
 import Metrics from "../components/metrics.vue";
 import { deepClone, parsinginZone } from "@/utils";
+import { dataInMockData } from "@/const";
 export default {
   name: "DataSource",
   components: { AddDialog, Agents },
@@ -521,7 +539,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(data.from_detail.id=='avevaHistorian'){
+        if(this.$store.state.app.supportSQL){
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
           this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
         }
@@ -674,11 +692,12 @@ export default {
           params: {
             data: result,
             metricsDesc,
-            taskId: data.id
+            taskId: data.id,
+            type: data.from_detail.id
           },
           config: {
             title: this.$t("dataIn.metrics"),
-            width: "800px",
+            width: "1100px",
           },
           listeners: {
             close: () => {
@@ -800,14 +819,16 @@ export default {
       this.$refs.agents.add();
     },
     async expandChange(row, expandedRows) { 
-      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-      let activitList = await this.getCurrentActivities(row.taskid)
-      this.topicList = this.topicList.map(item => {
-        if (item.id == row.taskid) {
-          item.taskActivities = deepClone(activitList) 
-        }
-        return item
-      })
+      if (!this.$COMMUNITY) {
+        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+        let activitList = await this.getCurrentActivities(row.taskid)
+        this.topicList = this.topicList.map(item => {
+          if (item.id == row.taskid) {
+            item.taskActivities = deepClone(activitList) 
+          }
+          return item
+        })
+      }
     },
     getLevelStyle(level) {
       let style = "";
@@ -889,13 +910,17 @@ export default {
   },
   mounted() {
     this.clearTransformerStore()
-    if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh().then(() => {
-        this.typeList = this.sourceList;
-      });
-      this.$nextTick(() => {
-        this.handleSetInterval()
-      })
+    if (this.$COMMUNITY) {
+      this.topicList = dataInMockData;
+    } else {
+      if (this.$parent.$parent.$parent.currentName == "datasource") {
+        this.refresh().then(() => {
+          this.typeList = this.sourceList;
+        });
+        this.$nextTick(() => {
+          this.handleSetInterval()
+        })
+      }
     }
   },
   beforeDestroy() {
@@ -946,10 +971,11 @@ export default {
   .el-button {
     border: 1px solid transparent;
     background: transparent;
-    color: #4259ce;
+    // color: #4259ce;
     font-size: 14px;
     &:hover {
-      background: #fff;
+      // background: #fff;
+      color: #4259ce;
       border: 1px solid #4259ce;
     }
   }

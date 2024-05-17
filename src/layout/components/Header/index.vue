@@ -115,6 +115,9 @@ export default {
   },
   created() {
     // this.getLicense();
+    if (this.$COMMUNITY) {
+      this.docUrl = false;
+    }
   },
   mounted() {
     if (process.env.VUE_APP_CUS_CONFIG) {

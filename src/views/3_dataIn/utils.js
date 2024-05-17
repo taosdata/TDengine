@@ -3,7 +3,7 @@ import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
 import { StaticTemplatePath, IsAliyun } from '@/const';
 import { Loading } from 'element-ui';
-import { parsinginZone, decrypt } from "@/utils/index";
+import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
 
@@ -25,7 +25,8 @@ const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
 export const optionsField = uuid();
-const groupsField = uuid();
+const groupsFieldBeforeConnection = uuid();
+const groupsFieldAfterConnection = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const historianLiveTable = 'Runtime.dbo.Live'
@@ -77,6 +78,32 @@ export const DefaultOpcTableValue = {
   ]
 };
 
+export function getDataRange(datatype) {
+  switch (datatype) {
+    case 'TINYINT':
+      return [-128, 127, 4]
+    case 'TINYINT UNSIGNED':
+      return [0, 255, 3]
+    case 'SMALLINT':
+      return [-32768, 32767, 6]
+    case 'SMALLINT UNSIGNED':
+      return [0, 65535, 5]
+    case 'INT':
+      return [-2147483648, 2147483647, 11]
+    case 'INT UNSIGNED':
+      return [0, 4294967295, 10]
+    case 'BIGINT':
+      return [-9223372036854775808n, 9223372036854775807n, 20]
+    case 'BIGINT UNSIGNED':
+      return [0, 18446744073709551615n, 20]
+    case 'FLOAT':
+      return [-3.4E38, 3.4E38, 38]
+    case 'DOUBLE':
+      return [-1.7E308, 1.7E308, 308]
+  }
+  return null;
+}
+
 // 根据返回的数据源参数定义生成对应的表单配置
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
@@ -99,17 +126,18 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       parser
     };
     currentType = id;
-    let connectivityCheck = id != 'csv' && id != 'kafka' && id != 'mqtt'
+
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
-    handleConnectivityCheck(connectivityCheck,paramsConfig)
-    handleDatasets(datasets, paramsConfig);
-    handleGroups(groups, paramsConfig);
-    if (id == 'kafka' || id == 'mqtt') {
-      handleConnectivityCheck(connectivityCheck=true,paramsConfig)
+    
+    handleGroups(groups, paramsConfig, true);
+    if (id != 'csv') {
+      handleConnectivityCheck(paramsConfig)
     }
+    handleDatasets(datasets, paramsConfig);
+    handleGroups(groups, paramsConfig, false);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
@@ -127,13 +155,11 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
   }, {});
 }
 
-function handleConnectivityCheck(connectivityCheck, paramsConfig) {
-  if (!connectivityCheck) return;
-  const children = [];
+function handleConnectivityCheck(paramsConfig) {
   paramsConfig.push({
     field: 'checkConnectivity',
     type: 'checkConnectivity',
-    children
+    children: []
   });
 }
 
@@ -673,17 +699,20 @@ function handleDatasets(datasets, paramsConfig) {
     }
 ]
  */
-function handleGroups(groups, paramsConfig) {
+function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
   if (!groups) return;
   groups = groups.sort((a, b) => a.display_order - b.display_order);
   const children = [];
   paramsConfig.push({
-    label: 'Groups',
-    field: groupsField,
+    label: 'Groups-' + (beforeConnectionCheck ? 'before' : 'after'),
+    field: beforeConnectionCheck ? groupsFieldBeforeConnection : groupsFieldAfterConnection,
     hide: true,
     children
   });
   groups.forEach(group => {
+    if ((beforeConnectionCheck && !group.connection_option) || (!beforeConnectionCheck && group.connection_option)) {
+      return;
+    }
     const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2 } = group;
     const paramChildren = [];
     const config = { label: name, field: uuid(), description: d1 ?? d2, children: paramChildren };
@@ -731,12 +760,18 @@ function handleGroups(groups, paramsConfig) {
           return !!conflict;
         };
       }
+      // postgres/mysql 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
+        paramConfig.disabled = (a,b,c,isEdit) => {
+          return isEdit;
+        };
+      }
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
-      if (currentType == 'avevaHistorian' && paramConfig.field == 'mode') {
+      if ((currentType == 'avevaHistorian' || currentType == 'mysql' || currentType == 'postgres') && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
@@ -984,7 +1019,8 @@ export function getDsnData(data, definition) {
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
-  getGroupsQuery(data[groupsField], queryArr);
+  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr);
+  getGroupsQuery(data[groupsFieldAfterConnection], queryArr);
   getDatasetsQuery(data[datasetsField], data, queryArr);
   getAdvancedQuery(data[advancedField],queryArr)
   if (queryArr.length) {
@@ -1043,10 +1079,14 @@ function getGroupsQuery(groups, query) {
         } else {
           const field = getOriginField(k);
           if (TimeFormats.includes(k)) {
-            let value = parsinginZone(groups[key][k])
-            groups[key][k] = value
+            let value = groups[key][k]
+            if (typeof groups[key][k] == 'object') {
+              value = formatTime(groups[key][k])
+            }
+            query.push(field + '=' + getQueryParamValue(value));
+          } else {
+            query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
-          query.push(field + '=' + getQueryParamValue(groups[key][k]));
         }
       }
     }
@@ -1164,37 +1204,22 @@ function getOptionData(data, queryArr, definition) {
 // 处理 tmq endpoint
 function handleEndpoint(endpoint) {
   if (!endpoint) return '';
-  let result = '';
-  let url = endpoint.replace(/(taos\+|tmq\+)/g, "");
+  let url = endpoint.replace(/^(taos|tmq)\+/, "").replace(/^(http|ws):/, "ws:").replace(/^(https|wss):/, "wss:");
   if (url.includes("://")) {
-    let parsed_url = new URL(url);
-    let scheme = null;
-    if (parsed_url.protocol == "http:") {
-      scheme = "tmq+ws";
-    } else if (parsed_url.protocol == "https:") {
-      scheme = "tmq+wss";
-    } else {
-      scheme = "tmq+" + parsed_url.protocol.replace(":", "");
+    try {
+      let parsed_url = new URL(url);
+      return "tmq+" + parsed_url.toString();
+    } catch (error) {
+      console.log("Invalid URL: ", url, error);
+      // not a valid url, use as is.
+      return "tmq+" + url;
     }
-
-    let host = parsed_url.host;
-    let user =
-      parsed_url.username || localStorage.getItem("username") || "";
-    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
-    let pass = parsed_url.password || decrypted || "";
-    return result =
-      scheme +
-      "://" +
-      user +
-      ":" +
-      pass +
-      "@" +
-      host +
-      parsed_url.pathname +
-      parsed_url.search;
   } else {
-    let host = url;
-    return result = "tmq+ws://" + host;
+    if (url.includes("6041")) {
+      return "tmq+ws://" + url;
+    } else {
+      return "tmq://" + url;
+    }
   }
 }
 
@@ -1257,7 +1282,7 @@ export async function handleDownload(filePath, fileName) {
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {
-  let groups = data[groupsField]
+  let groups = Object.assign({}, data[groupsFieldBeforeConnection] || {}, data[groupsFieldAfterConnection] || {}); 
   let obj = {}
   if (!groups) return {};
   for (let key in groups) {

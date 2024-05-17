@@ -1,10 +1,17 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable" style="font-size:14px;">
+      <el-button plain type="primary" @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
         {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
+      </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="60" prop="id">
@@ -14,14 +21,14 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb">
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb" width="120">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.fromdb" placement="top-start">
             <span class="nowrap">{{ scope.row.fromdb }}</span>
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport">
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport"  min-width="140">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.hostport" placement="top-start">
             <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
@@ -45,16 +52,16 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" min-width="210" show-overflow-tooltip>
+      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.createat')" prop="created_at" min-width="210" show-overflow-tooltip>
+      <el-table-column :label="$t('taosuser.createat')" prop="created_at" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
           <el-switch :value="!['stopping','stopped'].includes(scope.row.status.toLowerCase())" active-color="#13ce66"
-            inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)"></el-switch>
+            inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)" :disabled="$COMMUNITY"></el-switch>
           <!-- <el-button
             plain
             size="small"
@@ -73,7 +80,7 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button>-->
-          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete"></el-button>
+          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete" :disabled="$COMMUNITY"></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -110,7 +117,7 @@
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
-          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary">{{
+          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary" :loading="requesting">{{
             $t("confirm") }}</el-button>
         </el-col>
       </el-row>
@@ -128,7 +135,8 @@ import {
 import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/taosbenchmark.vue";
-import { parsinginZone } from '@/utils'
+import { parsinginZone } from '@/utils';
+import { replicationMockData } from '@/const'
 export default {
   data() {
     return {
@@ -157,7 +165,8 @@ export default {
         ],
       },
       topicList: [],
-      parsinginZone
+      parsinginZone,
+      requesting: false,
     };
   },
   computed: {
@@ -213,7 +222,9 @@ export default {
       this.getReplication();
     },
     async addReplication() {
+      console.log('8888888');
       try {
+        this.requesting = true;
         let id = localStorage.getItem("local_clusterID");
         let params = {
           labels: [
@@ -226,14 +237,17 @@ export default {
         };
         let res = await addReplicationData(id, params);
         console.log(res);
+        this.requesting = false;
         if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
           this.$error(res.message);
           return;
         }
         Message.success(this.$t('createSucc'));
+        this.requesting = false;
         this.getReplication();
         this.dialog = false;
       } catch (err) {
+        this.requesting = false;
         console.error(err);
         this.$error(err?.message);
       }
@@ -335,8 +349,12 @@ export default {
     },
   },
   created() {
-    this.getDatabases();
-    this.getReplication();
+    if (this.$COMMUNITY) {
+      this.topicList = replicationMockData
+    } else {
+      this.getDatabases();
+      this.getReplication();
+    }
   },
 };
 </script>

@@ -395,6 +395,7 @@ export default {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
     async clickAdd(data, all) {
+      console.log('clickadd')
       if (all) {
         let columns = [];
         let db = "";
@@ -404,6 +405,7 @@ export default {
             selected_db: db,
             stableName:
               data.typeName == "stable" ? data.name : data.parent.split(".")[1],
+            type: 'crea'
           }).catch(() => ({
             ts_field_name: "",
             columns: [],
@@ -667,7 +669,7 @@ export default {
     },
     async view(data) {
       await this.handleVar(data);
-      this.$store.state.console.currentInfoType = data.typeName;
+      this.$store.state.console.currentInfoType = data.typeName === "table" ? data.type : data.typeName
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
@@ -687,7 +689,7 @@ export default {
           break;
         case "stable":
           this.$store.commit("dbs/HANDLE_EDIT_DB", deepClone(data));
-          await this.$store.dispatch("stables/getStatleStruct", data.name);
+          await this.$store.dispatch("stables/getStatleStruct", { stableName: data.name, type: 'create_stb'});
           this.$store.state.console.currentComponent = "StableCreate";
           break;
         case "table":
@@ -710,10 +712,12 @@ export default {
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":
-          this.requesting = true;
-          let result = await getRunningTask();
           let task = [];
-          task = result.filter((item) => item.to_expand?.subject == data.name);
+          if (!this.$COMMUNITY) {
+            this.requesting = true;
+            let result = await getRunningTask();
+            task = result.filter((item) => item.to_expand?.subject == data.name);
+          }
           if (task.length > 0) {
             this.$alert(
               this.$t("data.delRunningTaskBb")
@@ -723,6 +727,7 @@ export default {
               {
                 confirmButtonText: this.$t("confirm"),
                 type: "warning",
+                showClose: false
               }
             ).then(() => {
               this.requesting = false;

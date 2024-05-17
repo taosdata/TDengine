@@ -16,13 +16,14 @@
           >
             <el-input
               v-model="sourceForm.name"
+              id="name"
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
           <el-form-item :label="$t('type')" prop="type">
             <el-select
               v-model="sourceForm.type"
-              placeholder=""
+              id="type"
               :disabled="!!editId"
               @change="handleType"
             >
@@ -38,19 +39,19 @@
             <template slot="label">
               <el-tooltip placement="top" effect="light">
                 <template slot="content">
-                  <DocsContent
-                    :content="$t('dataIn.needAgentTip')"
-                  ></DocsContent>
+                  <div v-html="$t('dataIn.needAgentTip')"></div>
                 </template>
                 <div>
                   <span>{{ $t('agent') }}</span>
                   <span style="margin-left: 4px">
-                    <i class="el-icon-info"></i>
+                    <!-- <i class="el-icon-info"></i> -->
+                    <Icon name="label_info" class="info_icon_custom"></Icon>
                   </span>
                 </div>
               </el-tooltip>
             </template>
             <el-select
+              id="agent"
               v-model="sourceForm.agent"
               :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
               clearable
@@ -62,17 +63,30 @@
                 :value="item.id"
               ></el-option>
             </el-select>
-            <el-button
-              @click="createAgent"
-              type="primary"
-              size="small"
-              class="ml15"
-              icon="el-icon-plus"
-              >{{ $t("dataIn.createNewAgent") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                :disabled="$COMMUNITY"
+                @click="createAgent"
+                type="primary"
+                size="small"
+                plain
+                class="ml15"
+                icon="el-icon-plus"
+                >{{ $t("dataIn.createNewAgent") }}</el-button
+              >
+            </el-tooltip>
+            <!-- <p class="custom-placeholder mt10">
+              {{ $t("dataIn.needAgentTip") }}
+            </p> -->
           </el-form-item>
           <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select
+              id="targetDB"
               v-model="sourceForm.targetDB"
               :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
             >
@@ -82,18 +96,27 @@
                 :value="item.name"
               ></el-option>
             </el-select>
-            <el-button
-              @click="createDb"
-              type="primary"
-              size="small"
-              class="ml15"
-              icon="el-icon-plus"
-              >{{ $t("data.createDatabase") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                :disabled="$COMMUNITY"
+                @click="createDb"
+                type="primary"
+                size="small"
+                plain
+                class="ml15"
+                icon="el-icon-plus"
+                >{{ $t("data.createDatabase") }}</el-button
+              >
+            </el-tooltip>
           </el-form-item>
         </section>
         <ConfigForm
-          v-if="currentDefinition && currentDefinition.config"
+          v-if="currentDefinition && currentDefinition.config && sourceForm.data"
           :config="currentDefinition.config"
           :data="sourceForm.data"
           :parser="currentDefinition.parser"
@@ -115,9 +138,18 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button v-else type="primary" @click="save" size="small" :loading="loading">{{
-          isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
-        }}</el-button>
+        <template v-else>
+          <el-tooltip
+            placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+          >
+            <template slot="content">
+              <span v-html="$t('communityTip')"></span>
+            </template>
+            <el-button type="primary" @click="save" size="small" :loading="loading" :disabled="$COMMUNITY">{{
+              isEditable && !isCopyable ? $t("saveAndApply") : $t("submit")
+            }}</el-button>
+          </el-tooltip>
+        </template>
          <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
@@ -372,6 +404,7 @@ export default {
       handler(val) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+        this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", { valid: true });
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
@@ -443,7 +476,7 @@ export default {
           .then(() => {
             this.submit(true);
           })
-          .catch(() => {});
+          .catch(() => {this.loading = false});
       } else {
         this.submit(true);
       }
@@ -469,6 +502,14 @@ export default {
             }
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+           if (this.sourceForm.type.startsWith('opc') 
+              && dsn.includes('csv_config_file')
+              && !this.$store.state.app.validOpcFileRes?.valid
+            ) {
+            this.$message.error(this.$store.state.app.validOpcFileRes.message)
+            this.loading = false;
+            return
+          }
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;

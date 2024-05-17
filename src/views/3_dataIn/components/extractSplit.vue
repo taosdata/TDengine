@@ -98,8 +98,7 @@
   </div>
 </template>
 <script>
-import { getParser } from "@/api/explorer/datain";
-import { Message } from "element-ui";
+import { getParser, checkParseData } from "@/api/explorer/datain";
 import { parsinginZone } from "@/utils";
 import SplitExpression from "./splitExpression.vue";
 import { deepClone } from "@/utils";
@@ -255,6 +254,11 @@ export default {
     },
     async getParserData(data, isall) {
       try {
+        let checkResult = checkParseData(data);
+        if (checkResult) {
+          this.$message.warning(this.$t(checkResult));
+          return;
+        }
         let result = await getParser(data);
         if (result.message) {
           this.$error(result.message);
@@ -304,14 +308,14 @@ export default {
                     !this.kafkaDefaultCols.includes(val)
                   ) {
                     return val;
-                  }else if(this.$store.state.app.currentDBType == "avevaHistorian"){
+                  } else if(this.$store.state.app.supportSQL){
                     return val
                   }
                 });
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index] ? data[index].toString() : null];
+              return [item.name, this.filterEmpty(data[index]) ? data[index].toString() : null];
             })
           );
         });
@@ -381,7 +385,6 @@ export default {
     },
     //提交单个
     async submitExtract(isall) {
-      let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       let resultMsgbody = "";
       if (
@@ -510,19 +513,6 @@ export default {
           Object.assign(this.extractParseData["extract"], val);
         });
       let topparse = deepClone(this.$store.state.app.topParse);
-      // let extractlist = {};
-      // topparse["parser"]["mutate"] = isall
-      //   ? this.$store.state.app.transformerFilterParseData
-      //     ? []
-      //         .concat(this.$store.state.app.transformerFilterParseData)
-      //         .concat(this.extractParseData)
-      //     : [].concat(this.extractParseData)
-      //   : [].concat({
-      //       extract: {
-      //         [`${this.itemData.columnname}`]:
-      //           this.extractParseData["extract"][this.itemData.columnname],
-      //       },
-      //     });
       
       const keys = Object.keys(this.extractParseData.extract);
       const slicedKeys = keys.slice(0, this.index + 1);
@@ -542,11 +532,7 @@ export default {
      
       let parser = {
         parser: {
-          parse:
-          // this.$store.state.app.currentDBType == "avevaHistorian" ? isall?this.$store.state.app.topParse.parser.parse:{
-          //   [`${this.itemData.columnname}`]:this.$store.state.app.topParse.parser.parse[this.itemData.columnname]
-          // }: 
-          this.$store.state.app.topParse.parser.parse,
+          parse: this.$store.state.app.topParse.parser.parse,
           mutate: topparse["parser"]["mutate"],
         },
 
@@ -563,7 +549,7 @@ export default {
                   }
                 }
               )
-          :this.$store.state.app.currentDBType == "avevaHistorian"?isall?this.$store.state.app.topParse.input:[].concat({
+          :this.$store.state.app.supportSQL?isall?this.$store.state.app.topParse.input:[].concat({
             [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
           }): inputList,
       };
@@ -584,10 +570,21 @@ export default {
         }
       }
       await this.getParserData(parser, isall);
-      
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
+    },
+    filterEmpty(val) {
+      if (
+        Object.is(val, undefined) | Object.is(val, "") ||
+        Object.is(val, null)
+        ) {
+        return "";
+      }
+      if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
+        return val.toString();
+      }
+      return val;
     },
   },
   mounted() {
@@ -626,6 +623,7 @@ export default {
   //   border-radius:6px;
   //   animation:heart 5s linear infinite;
   // }
+  margin-bottom: 12px;
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
