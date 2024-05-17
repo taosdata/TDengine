@@ -305,10 +305,9 @@ pub async fn write_transformed_records_with_sql(
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
-    let mut count = 0;
     let cols = messages[0].records.num_columns();
     let stable = messages[0].stable_name();
-    tracing::debug!(stable, "Start writing");
+    tracing::debug!("Writing stable");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
     for records in sqls {
         let mut retry = 0;
@@ -316,9 +315,7 @@ pub async fn write_transformed_records_with_sql(
             retry += 1;
             match write_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
-                    count += n;
                     metrics.add_written_points((n * cols) as u64);
-
                     break;
                 }
                 Err(err) => match err {
@@ -413,10 +410,14 @@ pub async fn write_transformed_records_with_sql(
             }
         }
     }
+    let mut total_rows = 0;
+    let mut total_tables = 0;
     for m in &messages {
-        tracing::debug!("Table: {}, Rows: {}", m.table.name, m.records.num_rows());
+        total_rows += m.records.num_rows();
+        total_tables += 1;
     }
-    Ok(count)
+    tracing::debug!("Wrote tables {total_tables} rows {total_rows}");
+    Ok(total_rows)
 }
 
 fn message_to_sql(

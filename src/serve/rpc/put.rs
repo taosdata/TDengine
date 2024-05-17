@@ -288,11 +288,8 @@ impl PutStream {
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
                     let trace_id_str = get_data_trace_id_str(trace_id);
-                    tracing::info!(
-                        num.rows = record.num_rows(),
-                        num.columns = record.num_columns(),
-                        "Writing batch {trace_id_str}"
-                    );
+                    tracing::info!("Writing batch {trace_id_str}");
+                    tracing::debug!(columns = ?record.columns()); // debug
                     anyhow::Ok((
                         record,
                         trace_id,
@@ -412,10 +409,7 @@ impl PutStream {
                                     );
                                     contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
                                 } else {
-                                    tracing::debug!(
-                                        trace_id = trace_id_str,
-                                        "Writing batch success",
-                                    );
+                                    tracing::debug!("Writing batch {} success", trace_id_str);
                                 }
                             }
                             Ok(())

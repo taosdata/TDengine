@@ -7,7 +7,7 @@ use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, Span};
+use tracing::{instrument, Instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
@@ -53,6 +53,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 }
 
 /// OpentsDB DSN example: "opentsdb://127.0.0.1:4242/?beginTime=2023-05-01&endTime="
+#[instrument(skip_all)]
 pub async fn opentsdb_to_taos(
     from: Dsn,
     _actions: Vec<Action>,

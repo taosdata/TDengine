@@ -53,6 +53,8 @@ pub struct PiConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub point_list: Vec<String>,
     // backfill param
+    #[serde(rename = "ForBackfill")]
+    for_backfill: bool, // 本配置是否针对 Backfill 任务
     #[serde(rename = "FromTDengineLastTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
     from_tdengine_last_time: Option<bool>,
@@ -63,7 +65,6 @@ pub struct PiConfig {
     backfill_start_time: Option<Datetime>,
     #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
     backfill_end_time: Option<Datetime>,
-
     // log level
     #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
     log_level: Option<String>,
@@ -93,6 +94,7 @@ impl PiConfig {
             template_for_af_element: Vec::new(),
             element_id_list: Vec::new(),
             point_list: Vec::new(),
+            for_backfill: false,
             from_tdengine_last_time: Self::parse_from_tdengine_last_time(dsn)?,
             to_tdengine_first_time: Self::parse_to_tdengine_first_time(dsn)?,
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
@@ -103,23 +105,26 @@ impl PiConfig {
         Ok(pi_config)
     }
     pub async fn new(
-        dsn: Dsn,
+        from: Dsn,
         td_database: String,
-        ipc: u16,
-        sql: u16,
+        ipc_port: u16,
+        sql_port: u16,
         is_real_run: bool,
     ) -> anyhow::Result<PiConfig> {
-        let server_name = Self::parse_server_name(&dsn)?;
-        let system_name = Self::parse_system_name(&dsn);
-        let database = Self::parse_database(&dsn);
-        let pi_data_pipes_instances = Self::parse_pi_data_pipes_instances(&dsn)?;
-        let af_data_pipes_instances = Self::parse_af_data_pipes_instances(&dsn)?;
-        let max_wait_len = Self::parse_max_wait_len(&dsn)?;
-        let update_interval = Self::parse_update_interval(&dsn)?;
-        let max_backfill_range_days = Self::parse_max_backfill_range_days(&dsn)?;
-
+        let server_name = Self::parse_server_name(&from)?;
+        let system_name = Self::parse_system_name(&from);
+        let database = Self::parse_database(&from);
+        let pi_data_pipes_instances = Self::parse_pi_data_pipes_instances(&from)?;
+        let af_data_pipes_instances = Self::parse_af_data_pipes_instances(&from)?;
+        let max_wait_len = Self::parse_max_wait_len(&from)?;
+        let update_interval = Self::parse_update_interval(&from)?;
+        let max_backfill_range_days = Self::parse_max_backfill_range_days(&from)?;
+        let for_backfill = match from.driver.as_str() {
+            "pibackfill" => true,
+            _ => false,
+        };
         let (element_id_list, point_list, template_list) = {
-            let transform_config_file = dsn
+            let transform_config_file = from
                 .params
                 .get("transform_config_file")
                 .ok_or(anyhow!("No param transform_config_file in from DSN"))?;
@@ -144,10 +149,10 @@ impl PiConfig {
             ));
         }
 
-        let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&dsn)?;
-        let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&dsn)?;
+        let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&from)?;
+        let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&from)?;
         let backfill_start_time = if let Some(backfill_start) =
-            dsn.params.get("BackfillStartTime").map(|v| v.to_string())
+            from.params.get("BackfillStartTime").map(|v| v.to_string())
         {
             if backfill_start == "auto" {
                 from_tdengine_last_time.replace(true);
@@ -178,7 +183,7 @@ impl PiConfig {
             None
         };
         let backfill_end_time =
-            if let Some(backfill_end) = dsn.params.get("BackfillEndTime").map(|v| v.to_string()) {
+            if let Some(backfill_end) = from.params.get("BackfillEndTime").map(|v| v.to_string()) {
                 if backfill_end == "auto" {
                     to_tdengine_first_time.replace(true);
                     None
@@ -214,7 +219,7 @@ impl PiConfig {
             ));
         }
 
-        let log_level = Self::parse_log_level(&dsn)?;
+        let log_level = Self::parse_log_level(&from)?;
 
         let (template_for_pi_point, template_for_af_element) = if point_list.is_empty() {
             (Vec::new(), template_list)
@@ -230,12 +235,13 @@ impl PiConfig {
             max_wait_len,
             update_interval,
             max_backfill_range_days,
-            ipc_stream: format!("127.0.0.1:{}", ipc),
-            sql_api: format!("http://127.0.0.1:{}", sql),
+            ipc_stream: format!("127.0.0.1:{}", ipc_port),
+            sql_api: format!("http://127.0.0.1:{}", sql_port),
             td_database,
             template_for_pi_point,
             template_for_af_element,
             element_id_list,
+            for_backfill,
             point_list,
             from_tdengine_last_time,
             to_tdengine_first_time,
@@ -465,7 +471,6 @@ impl PiConfig {
                     }
                     _ => {}
                 }
-                
             }
         }
         let template_list = template_list.into_iter().collect();
