@@ -126,7 +126,7 @@ int transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+int transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   static const int HEADSIZE = sizeof(STransMsgHead);
 
   SConnBuffer* p = connBuf;
@@ -137,7 +137,7 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
-    if (transResetBuffer(connBuf) < 0) {
+    if (transResetBuffer(connBuf, resetBuf) < 0) {
       return -1;
     }
   } else {
@@ -146,7 +146,7 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   return total;
 }
 
-int transResetBuffer(SConnBuffer* connBuf) {
+int transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
   SConnBuffer* p = connBuf;
   if (p->total < p->len) {
     int left = p->len - p->total;
@@ -159,8 +159,10 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
     if (p->cap > BUFFER_CAP) {
-      p->cap = BUFFER_CAP;
-      p->buf = taosMemoryRealloc(p->buf, p->cap);
+      if (resetBuf) {
+        p->cap = BUFFER_CAP;
+        p->buf = taosMemoryRealloc(p->buf, p->cap);
+      }
     }
   } else {
     ASSERTS(0, "invalid read from sock buf");

@@ -342,10 +342,14 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   STransMsgHead* pHead = NULL;
 
-  int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
+  int8_t resetBuf = pConn->status == ConnAcquire ? 0 : 1;
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
+  }
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), pConn);
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
@@ -676,7 +680,8 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   taosMemoryFree(smsg);
 }
 static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
-static void              destroyAllConn(SWorkThrd* pThrd) {
+
+static void destroyAllConn(SWorkThrd* pThrd) {
   tTrace("thread %p destroy all conn ", pThrd);
   while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
     queue* h = QUEUE_HEAD(&pThrd->conn);
