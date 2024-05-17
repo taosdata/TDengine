@@ -169,9 +169,7 @@ systemctl start taos-explorer
 
 你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
 ```bash
-./start-all.sh 
-# tar.gz 安装包 start-all.sh 在安装包解压目录
-# deb, rpm 安装包 start-all.sh 在 /usr/bin 目录 
+start-all.sh 
 ```
 
 可以使用 systemctl 来单独管理上面的每一个服务
@@ -209,6 +207,11 @@ sudo launchctl start com.tdengine.taosd
 sudo launchctl start com.tdengine.taosadapter
 sudo launchctl start com.tdengine.taoskeeper
 sudo launchctl start com.tdengine.taos-explorer
+```
+
+你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+```bash
+start-all.sh
 ```
 
 可以使用  `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd` ：
