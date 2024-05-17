@@ -14,6 +14,20 @@ namespace TDPIConnector.PI
             }
         }
 
+        internal void AppendAFAttributeTemplates(AFAttributeTemplates attributes)
+        {
+            HashSet<string> nameList = new HashSet<string>();
+            foreach (var attribute in this)
+            {
+                nameList.Add(attribute.Name);
+            }
+            foreach (AFAttributeTemplate attribute in attributes)
+            {
+                if (nameList.Contains(attribute.Name)) continue;
+                this.Add(new AFAttributeTemplateWrapper(attribute));
+            }
+        }
+
         public AFAttributeTemplatesWrapper()
         {
 
