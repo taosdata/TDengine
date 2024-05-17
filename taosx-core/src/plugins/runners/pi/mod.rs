@@ -64,9 +64,7 @@ pub async fn pi_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let driver = from.driver.clone();
-    let driver = driver.as_str();
-    tracing::info!("Start {} task", driver);
+    tracing::info!("Start {} task", from.driver);
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
@@ -124,7 +122,7 @@ pub async fn pi_to_taos(
         items: Vec<String>,
     }
 
-    match driver {
+    match from.driver.as_str() {
         "pi" | "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_exe_path()?);
             let output = command
@@ -217,7 +215,7 @@ pub async fn pi_to_taos(
 
     let mut child_command;
 
-    match driver {
+    match from.driver.as_str() {
         "pi" | "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_exe_path()?);
             child_command = command
@@ -320,11 +318,11 @@ pub async fn pi_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{} task cancelled", driver);
+                tracing::info!("{} task cancelled", from.driver);
                 safe_exit!(wait);
             }
         }
-        tracing::info!("Exit {} task", driver);
+        tracing::info!("Exit {} task", from.driver);
         Ok(())
     })
     .await??;
