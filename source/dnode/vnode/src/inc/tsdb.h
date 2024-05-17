@@ -132,7 +132,6 @@ void    tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key);
 int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 void     tsdbRowClose(STSDBRowIter *pIter);
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
-SColVal *tsdbRowIterMoveTo(STSDBRowIter *pIter, int32_t iCol);
 
 // SRowMerger
 int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema);
@@ -911,8 +910,8 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t nRow, SRow **aRow, TSDBROW *pLRow);
-int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData, TSDBROW *pLRow);
+int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow, SRow **aRow);
+int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);

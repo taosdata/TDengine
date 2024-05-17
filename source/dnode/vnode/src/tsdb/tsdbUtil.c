@@ -705,51 +705,25 @@ void tsdbRowClose(STSDBRowIter *pIter) {
   }
 }
 
-static SColVal *tsdbRowColIterGetValue(STSDBRowIter *pIter) {
-  if (pIter->iColData == 0) {
-    pIter->cv = COL_VAL_VALUE(
-        PRIMARYKEY_TIMESTAMP_COL_ID,
-        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
-    return &pIter->cv;
-  }
-
-  if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-    tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
-    return &pIter->cv;
-  } else {
-    return NULL;
-  }
-}
-
-static SColVal *tsdbRowColIterNext(STSDBRowIter *pIter) {
-  SColVal* pColVal = tsdbRowColIterGetValue(pIter);
-  if (pColVal) {
-    ++pIter->iColData;
-  }
-  return pColVal;
-}
-
-static SColVal* tsdbRowColIterMoveTo(STSDBRowIter *pIter, int32_t iCol) {
-  pIter->iColData = iCol;
-  return tsdbRowColIterGetValue(pIter);
-}
-
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
   if (pIter->pRow->type == TSDBROW_ROW_FMT) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
-    return tsdbRowColIterNext(pIter);
-  } else {
-    ASSERT(0);
-    return NULL;  // suppress error report by compiler
-  }
-}
+    if (pIter->iColData == 0) {
+      pIter->cv = COL_VAL_VALUE(
+          PRIMARYKEY_TIMESTAMP_COL_ID,
+          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
+      ++pIter->iColData;
+      return &pIter->cv;
+    }
 
-SColVal *tsdbRowIterMoveTo(STSDBRowIter *pIter, int32_t iCol) {
-  if (pIter->pRow->type == TSDBROW_ROW_FMT) {
-    return tRowIterMoveTo(pIter->pIter, iCol);
-  } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
-    return tsdbRowColIterMoveTo(pIter, iCol);
+    if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
+      tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv);
+      ++pIter->iColData;
+      return &pIter->cv;
+    } else {
+      return NULL;
+    }
   } else {
     ASSERT(0);
     return NULL;  // suppress error report by compiler
