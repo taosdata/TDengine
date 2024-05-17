@@ -1090,7 +1090,7 @@ int32_t chkpDoDbCheckpoint(rocksdb_t* db, char* path) {
     taosMemoryFreeClear(err);
     goto _ERROR;
   }
-  rocksdb_checkpoint_create(cp, path, 0, &err);
+  rocksdb_checkpoint_create(cp, path, UINT64_MAX, &err);
   if (err != NULL) {
     stError("failed to do checkpoint at:%s, reason:%s", path, err);
     taosMemoryFreeClear(err);
@@ -1102,7 +1102,6 @@ _ERROR:
   return code;
 }
 int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32_t nCf) {
-  if (nCf == 0) return 0;
   int   code = 0;
   char* err = NULL;
 
