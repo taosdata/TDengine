@@ -1165,11 +1165,29 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
 
   ctxArray = taosArrayInit(nCol, sizeof(SLastUpdateCtx));
   iColHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  for (int32_t iCol = 0; iCol < nCol; ++iCol) {
-    tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0);
-  }
 
-  for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
+  // 1. prepare by lrow
+  STsdbRowKey tsdbRowKey = {0};
+  tsdbRowGetKey(&lRow, &tsdbRowKey);
+
+  STSDBRowIter iter = {0};
+  tsdbRowIterOpen(&iter, &lRow, pTSchema);
+  int32_t iCol = 0;
+  for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal && iCol < nCol; pColVal = tsdbRowIterNext(&iter), iCol++) {
+    SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST_ROW, .tsdbRowKey = tsdbRowKey, .colVal = *pColVal};
+    taosArrayPush(ctxArray, &updateCtx);
+
+    if (!COL_VAL_IS_VALUE(pColVal)) {
+      tSimpleHashPut(iColHash, &iCol, sizeof(iCol), NULL, 0);
+      continue;
+    }
+    updateCtx.lflag = LFLAG_LAST;
+    taosArrayPush(ctxArray, &updateCtx);
+  }
+  tsdbRowClose(&iter);
+
+  // 2. prepare by the other rows
+  for (int32_t iRow = nRow - 2; iRow >= 0; --iRow) {
     if (tSimpleHashGetSize(iColHash) == 0) {
       break;
     }
@@ -1193,18 +1211,6 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
       }
     }
   }
-
-  // 2. prepare last row
-  STsdbRowKey tsdbRowKey = {0};
-  tsdbRowGetKey(&lRow, &tsdbRowKey);
-
-  STSDBRowIter iter = {0};
-  tsdbRowIterOpen(&iter, &lRow, pTSchema);
-  for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {
-    SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST_ROW, .tsdbRowKey = tsdbRowKey, .colVal = *pColVal};
-    taosArrayPush(ctxArray, &updateCtx);
-  }
-  tsdbRowClose(&iter);
 
   // 3. do update
   tsdbCacheUpdate(pTsdb, suid, uid, ctxArray);
@@ -1237,12 +1243,12 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   TSDBROW tRow = tsdbRowFromBlockData(pBlockData, 0);
 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; ++iColData) {
-    for (tRow.iRow = pBlockData->nRow - 1; tRow.iRow >= 0; --tRow.iRow) {
-      SColData *pColData = &pBlockData->aColData[iColData];
-      if ((pColData->flag & HAS_VALUE) == 0) {
-        continue;
-      }
+    SColData *pColData = &pBlockData->aColData[iColData];
+    if ((pColData->flag & HAS_VALUE) != HAS_VALUE) {
+      continue;
+    }
 
+    for (tRow.iRow = pBlockData->nRow - 1; tRow.iRow >= 0; --tRow.iRow) {
       STsdbRowKey tsdbRowKey = {0};
       tsdbRowGetKey(&tRow, &tsdbRowKey);
 
