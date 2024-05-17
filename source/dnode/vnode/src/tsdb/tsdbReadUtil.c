@@ -212,7 +212,7 @@ static void initLastProcKey(STableBlockScanInfo *pScanInfo, STsdbReader* pReader
   int32_t numOfPks = pReader->suppInfo.numOfPks;
   bool    asc = ASCENDING_TRAVERSE(pReader->info.order);
   int8_t  type = pReader->suppInfo.pk.type;
-  int8_t  bytes = pReader->suppInfo.pk.bytes;
+  int32_t bytes = pReader->suppInfo.pk.bytes;
 
   SRowKey* pRowKey = &pScanInfo->lastProcKey;
   if (asc) {
@@ -1056,7 +1056,7 @@ static int32_t sortUidComparFn(const void* p1, const void* p2) {
   const SSttKeyRange* px1 = p1;
   const SSttKeyRange* px2 = p2;
 
-  int32_t ret = tRowKeyCompare(&px1, px2);
+  int32_t ret = tRowKeyCompare(&px1->skey, &px2->skey);
   return ret;
 }
 

@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -1211,13 +1212,16 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
 
 void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-  int32_t                      len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
-  void*                        buf = taosMemoryCalloc(1, len);
-  void*                        pBuf = buf;
-  len = doStreamIntervalEncodeOpState(&pBuf, len, pOperator);
-  pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME,
-                                        strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), buf, len);
-  taosMemoryFree(buf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    int32_t len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
+    void*   buf = taosMemoryCalloc(1, len);
+    void*   pBuf = buf;
+    len = doStreamIntervalEncodeOpState(&pBuf, len, pOperator);
+    pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME,
+                                          strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), buf, len);
+    taosMemoryFree(buf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 static void copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
@@ -1347,6 +1351,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
     pInfo->numOfDatapack++;
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;
@@ -2690,13 +2695,16 @@ void* doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
 
 void doStreamSessionSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                        len = doStreamSessionEncodeOpState(NULL, 0, pOperator, true);
-  void*                          buf = taosMemoryCalloc(1, len);
-  void*                          pBuf = buf;
-  len = doStreamSessionEncodeOpState(&pBuf, len, pOperator, true);
-  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
-                                                     strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), buf, len);
-  taosMemoryFree(buf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    int32_t len = doStreamSessionEncodeOpState(NULL, 0, pOperator, true);
+    void*   buf = taosMemoryCalloc(1, len);
+    void*   pBuf = buf;
+    len = doStreamSessionEncodeOpState(&pBuf, len, pOperator, true);
+    pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
+                                                       strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), buf, len);
+    taosMemoryFree(buf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 void resetUnCloseSessionWinInfo(SSHashObj* winMap) {
@@ -2766,6 +2774,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       break;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -3176,6 +3185,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       break;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -3673,13 +3683,16 @@ void* doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
 
 void doStreamStateSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                      len = doStreamStateEncodeOpState(NULL, 0, pOperator, true);
-  void*                        buf = taosMemoryCalloc(1, len);
-  void*                        pBuf = buf;
-  len = doStreamStateEncodeOpState(&pBuf, len, pOperator, true);
-  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME,
-                                                     strlen(STREAM_STATE_OP_CHECKPOINT_NAME), buf, len);
-  taosMemoryFree(buf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    int32_t len = doStreamStateEncodeOpState(NULL, 0, pOperator, true);
+    void*   buf = taosMemoryCalloc(1, len);
+    void*   pBuf = buf;
+    len = doStreamStateEncodeOpState(&pBuf, len, pOperator, true);
+    pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME,
+                                                       strlen(STREAM_STATE_OP_CHECKPOINT_NAME), buf, len);
+    taosMemoryFree(buf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 static SSDataBlock* buildStateResult(SOperatorInfo* pOperator) {
@@ -3746,6 +3759,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
       break;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -4069,6 +4083,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     pInfo->numOfDatapack++;
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
@@ -4465,6 +4480,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
     }
     pInfo->numOfDatapack++;
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;

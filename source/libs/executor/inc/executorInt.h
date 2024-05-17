@@ -446,17 +446,23 @@ typedef struct STimeWindowAggSupp {
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
+typedef struct SSteamOpBasicInfo {
+  int32_t primaryPkIndex;
+  bool    updateOperatorInfo;
+} SSteamOpBasicInfo;
+
 typedef struct SStreamScanInfo {
-  SExprInfo*    pPseudoExpr;
-  int32_t       numOfPseudoExpr;
-  SExprSupp     tbnameCalSup;
-  SExprSupp*    pPartTbnameSup;
-  SExprSupp     tagCalSup;
-  int32_t       primaryTsIndex;  // primary time stamp slot id
-  int32_t       primaryKeyIndex;
-  SReadHandle   readHandle;
-  SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
-  SColMatchInfo matchInfo;
+  SSteamOpBasicInfo basic;
+  SExprInfo*        pPseudoExpr;
+  int32_t           numOfPseudoExpr;
+  SExprSupp         tbnameCalSup;
+  SExprSupp*        pPartTbnameSup;
+  SExprSupp         tagCalSup;
+  int32_t           primaryTsIndex;  // primary time stamp slot id
+  int32_t           primaryKeyIndex;
+  SReadHandle       readHandle;
+  SInterval         interval;  // if the upstream is an interval operator, the interval info is also kept here.
+  SColMatchInfo     matchInfo;
 
   SArray*      pBlockLists;  // multiple SSDatablock.
   SSDataBlock* pRes;         // result SSDataBlock
@@ -567,10 +573,6 @@ typedef struct SOpCheckPointInfo {
   uint16_t  checkPointId;
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
-
-typedef struct SSteamOpBasicInfo {
-  int32_t primaryPkIndex;
-} SSteamOpBasicInfo;
 
 typedef struct SStreamIntervalOperatorInfo {
   SOptrBasicInfo      binfo;           // basic info

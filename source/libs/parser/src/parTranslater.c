@@ -4338,7 +4338,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
 #ifdef TD_ENTERPRISE
-        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType && !pCurrSmt->tagScan) {
           return translateView(pCxt, pTable, &name);
         }
         translateAudit(pCxt, pRealTable, &name);
@@ -10578,6 +10578,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
+  if(pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -11263,6 +11264,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
       break;
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
+      break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);
       break;
@@ -11875,11 +11879,18 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
                        toName(pCxt->pParseCxt->acctId, ((SValueNode*)pShow->pDbName)->literal,
                               ((SValueNode*)pShow->pTbName)->literal, &name),
                        &pTableMeta, true);
-  taosMemoryFreeClear(pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    goto _exit;
+  }
+  if (TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
+    goto _exit;
   }
 
+_exit:
+  taosMemoryFreeClear(pTableMeta);
   return code;
 }
 

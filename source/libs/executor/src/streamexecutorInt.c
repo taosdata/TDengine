@@ -13,36 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_GEOS_CTX_H_
-#define _TD_UTIL_GEOS_CTX_H_
+#include "executorInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <geos_c.h>
-#include <tpcre2.h>
-
-typedef struct SGeosContext {
-  GEOSContextHandle_t handle;
-
-  GEOSWKTReader *WKTReader;
-  GEOSWKTWriter *WKTWriter;
-
-  GEOSWKBReader *WKBReader;
-  GEOSWKBWriter *WKBWriter;
-
-  pcre2_code *WKTRegex;
-  pcre2_match_data *WKTMatchData;
-
-  char errMsg[512];
-} SGeosContext;
-
-SGeosContext* getThreadLocalGeosCtx();
-void destroyThreadLocalGeosCtx();
-
-#ifdef __cplusplus
+void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
+  if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
+    pBasicInfo->updateOperatorInfo = true;
+  }
 }
-#endif
 
-#endif /*_TD_UTIL_GEOS_CTX_H_*/
+bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) {
+  return pBasicInfo->updateOperatorInfo;
+}
+
+void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) {
+  pBasicInfo->updateOperatorInfo = false;
+}

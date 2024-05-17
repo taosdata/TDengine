@@ -757,6 +757,16 @@ _exit:
 int32_t tsdbS3Migrate(STsdb *tsdb, int64_t now, int32_t sync) {
   int32_t code = 0;
 
+  extern int8_t tsS3EnabledCfg;
+
+  int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
+  if (expired && tsS3Enabled) {
+    tsdbWarn("s3 grant expired: %d", expired);
+    tsS3Enabled = false;
+  } else if (!expired && tsS3EnabledCfg) {
+    tsS3Enabled = true;
+  }
+
   if (!tsS3Enabled) {
     return code;
   }
