@@ -599,7 +599,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   memcpy(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
-  (*pTableMeta)->pHashJsonTemplate = taosHashCopyJsonTemplate(tbMeta->pHashJsonTemplate);
+  (*pTableMeta)->pHashJsonTemplate = taosHashCopyJsonTemplate(stbMeta->pHashJsonTemplate);
   (*pTableMeta)->schemaExt =  NULL;
 
   return TSDB_CODE_SUCCESS;

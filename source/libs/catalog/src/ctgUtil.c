@@ -578,7 +578,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_META:
     case TDMT_MND_TABLE_META: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
-      taosMemoryFree(pOut->tbMeta);
+      catalogFreeSTableMeta(pOut->tbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }

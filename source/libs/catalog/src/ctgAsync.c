@@ -1320,7 +1320,8 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       if (CTG_IS_META_TABLE(pOut->metaType) && TSDB_SUPER_TABLE == pOut->tbMeta->tableType) {
         ctgDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
 
-        taosMemoryFreeClear(pOut->tbMeta);
+        catalogFreeSTableMeta(pOut->tbMeta);
+        pOut->tbMeta = NULL;
 
         CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
       } else if (CTG_IS_META_BOTH(pOut->metaType)) {
@@ -1332,7 +1333,8 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
 
-          taosMemoryFreeClear(pOut->tbMeta);
+          catalogFreeSTableMeta(pOut->tbMeta);
+          pOut->tbMeta = NULL;
           CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
           if (pOut->tbMeta) {
             exist = 1;

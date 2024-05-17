@@ -137,7 +137,8 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
     if (CTG_IS_META_TABLE(output->metaType) && TSDB_SUPER_TABLE == output->tbMeta->tableType) {
       ctgDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(ctx->pName));
 
-      taosMemoryFreeClear(output->tbMeta);
+      catalogFreeSTableMeta(output->tbMeta);
+      output->tbMeta = NULL;
 
       CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, output->dbFName, output->tbName, output, NULL));
     } else if (CTG_IS_META_BOTH(output->metaType)) {
@@ -153,11 +154,12 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
           SET_META_TYPE_NULL(output->metaType);
         }
 
-        taosMemoryFreeClear(output->tbMeta);
+        catalogFreeSTableMeta(output->tbMeta);
         output->tbMeta = moutput.tbMeta;
         moutput.tbMeta = NULL;
       } else {
-        taosMemoryFreeClear(output->tbMeta);
+        catalogFreeSTableMeta(output->tbMeta);
+        output->tbMeta = NULL;
 
         SET_META_TYPE_CTABLE(output->metaType);
       }
