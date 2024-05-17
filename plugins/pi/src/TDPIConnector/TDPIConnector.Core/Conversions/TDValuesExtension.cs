@@ -1,6 +1,7 @@
 ﻿using log4net;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Models;
+using System;
 
 namespace TDPIConnector.Core.Conversions
 {
@@ -14,21 +15,25 @@ namespace TDPIConnector.Core.Conversions
             {
                 return null;
             }
+            DateTime eventTime = value.Timestamp.UtcTime;
+            if (value.OnMinTime()) {
+                eventTime = DateTime.Now;
+            }
             if (value.IsAFEnumerationValue())
             {
                 AFEnumerationValueWrapper enumValue = value.GetEnumerationValue();
                 if (enumValue.GetEnumerationSetName() == "System")
                 {
-                    return new TDValue(enumValue.Value, enumValue.Name, value.Timestamp.UtcTime);
+                    return new TDValue(enumValue.Value, enumValue.Name, eventTime);
                 }
                 else
                 {
-                    return new TDValue(enumValue.Name, value.Timestamp.UtcTime, ValueTypeConverter.Convert(value.ValueTypeCode));
+                    return new TDValue(enumValue.Name, eventTime, ValueTypeConverter.Convert(value.ValueTypeCode));
                 }
             }
             else
             {
-                return new TDValue(value.Value, value.Timestamp.UtcTime, ValueTypeConverter.Convert(value.ValueTypeCode));
+                return new TDValue(value.Value, eventTime, ValueTypeConverter.Convert(value.ValueTypeCode));
             }
         }
     }

@@ -179,7 +179,7 @@ namespace TDPIConnector.Core
 
                 //get all elements based on template
                 IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
-                if (AppSettings.tomlConfig.NeedCreateTable)
+                if (AppSettings.tomlConfig.ForBackfill)
                 {
                     List<TDTable> tables = new List<TDTable>();
                     foreach (AFElementWrapper element in elements)

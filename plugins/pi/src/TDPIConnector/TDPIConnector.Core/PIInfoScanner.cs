@@ -435,7 +435,7 @@ namespace TDPIConnector.Core
                         ScanAttribute tmp = new ScanAttribute();
                         tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
                         if (null == tmp.Type) continue;
-                        tmp.Name = childAttr.Name;
+                        tmp.Name = AttributeColumnConverter.GetChildAttrbuteName(attr, childAttr);
                         tmp.UOMABB = childAttr.Uom;
                         tmp.UOM = childAttr.UomName;
                         attributes.Add(tmp);
@@ -466,7 +466,7 @@ namespace TDPIConnector.Core
                         ScanAttribute tmp = new ScanAttribute();
                         tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
                         if (null == tmp.Type) continue;
-                        tmp.Name = childAttr.Name;
+                        tmp.Name = AttributeColumnConverter.GetChildAttrbuteName(attr, childAttr);
                         tmp.UOMABB = childAttr.Uom;
                         tmp.UOM = childAttr.UomName;
                         attributes.Add(tmp);
