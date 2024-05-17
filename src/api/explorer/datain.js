@@ -122,9 +122,10 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
 export async function refreshTask(id) {
     let taskDetail = await loadTaskDetail(id)
     let dsType = taskDetail.from_expand.id;
-    if (['pi', 'pibackill'].indexOf(dsType) == -1) {
+    if (['pi', 'pibackfill'].indexOf(dsType) == -1) {
         return taskDetail;
     }
+    console.log("return the config in the front end");
 
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
@@ -146,6 +147,7 @@ export async function refreshTask(id) {
         }
     }
     taskDetail.from_detail = dsConfig;
+    console.log("taskDetail.from_detail:", dsConfig)
     return taskDetail;
 }
 

@@ -116,7 +116,6 @@ export default {
         status: "success",
         uid: 1,
       });
-      console.log("this.files", this.files)
       this.update();
     })
   },
@@ -204,7 +203,8 @@ export default {
     handleFiles() {
       if (this.value && this.value != "*") {
         this.files = [].concat({
-          name: this.value?.substr(this.value.lastIndexOf("/") + 1),
+          name: this.value.substr(this.value.lastIndexOf("/") + 1),
+          path: this.value.startsWith("@") ? this.value.substr(1) : this.value,
           percentage: 100,
           raw: File,
           response: [].concat(this.value),
