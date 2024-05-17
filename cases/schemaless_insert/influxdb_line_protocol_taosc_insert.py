@@ -1084,7 +1084,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         lines = ['1000E0DC000124 /NC_LINK_ROOT/MACHINE/CONTROLLER/WARNING="[]",/NC_LINK_ROOT/MACHINE/PART_COUNT=5900000i,/NC_LINK_ROOT/MACHINE/STATUS=1i,/NC_LINK_ROOT/MACHINE/VARIABLE@PROCESS_TIME_RECORD="[]" 1680918783010000000']
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
         self.tdSql.query("desc `1000E0DC000124`")
-        print(self.tdSql.query_data)
         if self.tdSql.query_data[-1][:4] == ('_tag_null', 'NCHAR', 1, 'TAG'):
             self.tdSql.checkEqual(self.tdSql.query_data[-1][:4], ('_tag_null', 'NCHAR', 1, 'TAG'))
         elif self.tdSql.query_data[-1][:4] == ('_tag_null', 'NCHAR', 1, 'TAG', '', '', ''):
@@ -1125,12 +1124,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, len(line_list)-1)
 
     def ts_3262(self):
-        start_time = time.time()
         self.tdSql.execute('drop database if exists iot_dev;')
         self.tdSql.execute('create database if not exists iot_dev precision "ns";')
         self.tdSql.execute('use iot_dev')
         line_list = ['hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=1i32,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=8u64 1626006833669000000',
                      'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=9u64']
+        start_time = time.time()
         self.tdSql._conn.schemaless_insert([line_list[0]], TDSmlProtocolType.LINE.value, None)
         try:
             self.tdSql._conn.schemaless_insert([line_list[1]], TDSmlProtocolType.LINE.value, None)
