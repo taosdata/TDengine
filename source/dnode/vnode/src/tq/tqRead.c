@@ -385,7 +385,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   SWalReader*  pWalReader = pReader->pWalReader;
 
-  uint64_t st = taosGetTimestampMs();
+  int64_t st = taosGetTimestampMs();
   while (1) {
     int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
@@ -413,7 +413,8 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
     pReader->msg.msgStr = NULL;
 
-    if (taosGetTimestampMs() - st > 1000) {
+    int64_t elapsed = taosGetTimestampMs() - st;
+    if(elapsed > 1000 && elapsed < 0){
       return false;
     }
 
