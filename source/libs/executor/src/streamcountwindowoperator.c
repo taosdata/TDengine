@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tdatablock.h"
@@ -415,13 +416,16 @@ void* doStreamCountDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
 
 void doStreamCountSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                        len = doStreamCountEncodeOpState(NULL, 0, pOperator, true);
-  void*                          buf = taosMemoryCalloc(1, len);
-  void*                          pBuf = buf;
-  len = doStreamCountEncodeOpState(&pBuf, len, pOperator, true);
-  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_CHECKPOINT_NAME,
-                                                     strlen(STREAM_COUNT_OP_CHECKPOINT_NAME), buf, len);
-  taosMemoryFree(buf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    int32_t len = doStreamCountEncodeOpState(NULL, 0, pOperator, true);
+    void*   buf = taosMemoryCalloc(1, len);
+    void*   pBuf = buf;
+    len = doStreamCountEncodeOpState(&pBuf, len, pOperator, true);
+    pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_CHECKPOINT_NAME,
+                                                       strlen(STREAM_COUNT_OP_CHECKPOINT_NAME), buf, len);
+    taosMemoryFree(buf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 void doResetCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock) {
@@ -550,6 +554,7 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
       break;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT) {
       bool add = pInfo->destHasPrimaryKey && IS_NORMAL_COUNT_OP(pOperator);
