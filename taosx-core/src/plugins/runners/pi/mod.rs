@@ -543,6 +543,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    tracing::debug!("validate_pi config file: {}", &toml);
     let config_path = config_file.path().to_path_buf();
     let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
@@ -637,6 +638,7 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    tracing::debug!("validate_pi_backfill config file: {}", &toml);
     let config_path = config_file.path().to_path_buf();
     let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
