@@ -492,15 +492,15 @@ impl AgentWorker {
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
         }
-        let timeout = Duration::from_secs(4 * 60);
+        let timeout = Duration::from_secs(5 * 60);
         match tokio::time::timeout(timeout, receiver.recv_async()).await {
             Ok(result) => match result {
                 Ok(res) => match res {
-                    Ok(output) => {
-                        tracing::info!("QueryDataSource success: {}", output);
-                        Ok(output)
-                    }
-                    Err(err) => Err(anyhow::anyhow!("failed to QueryDataSource, cause: {:#}", err)),
+                    Ok(output) => Ok(output),
+                    Err(err) => Err(anyhow::anyhow!(
+                        "failed to QueryDataSource, cause: {:#}",
+                        err
+                    )),
                 },
                 Err(err) => Err(anyhow::anyhow!(
                     "failed to get QueryDataSource response, cause: {:#}",

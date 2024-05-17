@@ -263,7 +263,7 @@ pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<St
         }
     }
 
-    let timeout = Duration::from_secs(3 * 60);
+    let timeout = Duration::from_secs(5 * 59);
     tokio::time::timeout(timeout, query_data_source_inner(request))
         .await
         .map_err(|err| anyhow::anyhow!("query data source timeout, cause: {:?}", err))?
