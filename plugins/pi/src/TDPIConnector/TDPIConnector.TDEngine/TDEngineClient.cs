@@ -1,6 +1,6 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
-#define ONLY_PI_TEST
+#define NONLY_PI_TEST
 
 using Newtonsoft.Json;
 using System;
