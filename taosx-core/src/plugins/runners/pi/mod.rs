@@ -108,7 +108,7 @@ pub async fn pi_to_taos(
     }
 
     let lush_model_config: Option<LushModelConfig> = if with_agent.is_none() {
-        let config = LushModelConfig::try_from(from)?;
+        let config = LushModelConfig::try_from(from.clone())?;
         tracing::info!("Lush model config: {}", serde_json::to_string(&config)?);
         Some(config)
     } else {
