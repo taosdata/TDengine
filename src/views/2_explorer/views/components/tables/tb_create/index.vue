@@ -149,7 +149,7 @@
               <el-button
                 icon="el-icon-minus"
                 size="small"
-                :disabled="!index || (isEdit && index == 1)"
+                :disabled="!index || column.primaryKey"
                 @click="minusColumn(index, column)"
               ></el-button>
               <el-button
@@ -688,6 +688,8 @@ export default {
         return this.storageCompression.groupFour
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
+      } else {
+        return this.storageCompression.groupSix
       }
     },
     handleTypeChange(column, index) {
