@@ -370,7 +370,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
   taosMemoryFreeClear(pResInfo->convertJson);
-  taosMemoryFreeClear(pResInfo->decompressBuf);
+  taosMemoryFreeClear(pResInfo->decompBuf);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
