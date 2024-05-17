@@ -74,6 +74,7 @@ struct SStreamSnapHandle {
   int32_t        currFileIdx;
   char*          metaPath;
 
+  void*   pMeta;
   SArray* pDbSnapSet;
   SArray* pSnapInfoSet;
   int32_t currIdx;
@@ -313,6 +314,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
   pHandle->pDbSnapSet = pDbSnapSet;
   pHandle->pSnapInfoSet = pSnapInfoSet;
   pHandle->currIdx = 0;
+  pHandle->pMeta = pMeta;
   return 0;
 
 _err:
@@ -331,7 +333,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
     }
     taosArrayDestroy(handle->pDbSnapSet);
   }
-  streamDestroyTasdDbSnapInfo(handle->handle, handle->pSnapInfoSet);
+  streamDestroyTasdDbSnapInfo(handle->pMeta, handle->pSnapInfoSet);
   if (handle->pSnapInfoSet) {
     for (int32_t i = 0; i < taosArrayGetSize(handle->pSnapInfoSet); i++) {
       SStreamTaskSnap* pSnap = taosArrayGet(handle->pSnapInfoSet, i);
