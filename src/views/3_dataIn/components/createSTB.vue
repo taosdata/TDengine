@@ -139,6 +139,7 @@
           <el-button
             icon="el-icon-minus"
             size="small"
+            :disabled="!index || column.primaryKey"
             @click="minusColumn(index)"
           ></el-button>
           <el-button @click="addColumn" icon="el-icon-plus" size="small"></el-button>
@@ -357,6 +358,8 @@ export default {
         return this.storageCompression.groupFour
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
+      } else {
+        return this.storageCompression.groupSix
       }
     },
     handleTypeChange(column, index) {

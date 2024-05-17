@@ -185,7 +185,7 @@
               size="small"
               icon="el-icon-minus"
               @click="minusColumn(index)"
-              :disabled="!index || (isEdit && index == 1)"
+              :disabled="!index || column.primaryKey"
             ></el-button>
             <el-button
               v-if="!isEdit"
@@ -648,6 +648,8 @@ export default {
         return this.storageCompression.groupFour
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
+      } else {
+        return this.storageCompression.groupSix
       }
     },
     // 判断类型是不是可以修改的类型

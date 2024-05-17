@@ -1,8 +1,10 @@
-export const groupOne = ['TINYINT','TINYINT UNSIGNED','SMALLINT','SMALLINT','UNSIGNED','INT','INT UNSIGNED'];
-export const groupTwo = ['BIGINT','TIMESTAMP','BIGINT UNSIGNED']
+export const groupOne = ['TINYINT','TINYINT UNSIGNED','SMALLINT','SMALLINT UNSIGNED','INT','INT UNSIGNED'];
+export const groupTwo = ['BIGINT','BIGINT UNSIGNED']
 export const groupThree = ['FLOAT','DOUBLE'];
 export const groupFour = ['BINARY','NCHAR','VARCHAR'];
 export const groupFive = ['BOOL'];
+export const groupSix = ['TIMESTAMP'];
+
 export const dataType = [
   {
     label: "INT",
@@ -301,6 +303,34 @@ export const storageCompression = {
       },
     ],
     defaultEncode: 'bit-packing',
+    defaultCompress: 'lz4',
+  },
+  groupSix: {
+    encodeList: [
+      {
+        label: "delta-i",
+        value: "delta-i",
+      }
+    ],
+    compressList: [
+      {
+        label: "lz4",
+        value: "lz4",
+      },
+      {
+        label: "zlib",
+        value: "zlib",
+      },
+      {
+        label: "zstd",
+        value: "zstd",
+      },
+      {
+        label: "xz",
+        value: "xz",
+      },
+    ],
+    defaultEncode: 'delta-i',
     defaultCompress: 'lz4',
   },
   empty: {
