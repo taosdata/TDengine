@@ -45,7 +45,7 @@ const mutations = {
       stbTmpl: "",//创建普通表默认赋值
       ts_field_name: "",
       columns: [
-        { type: "TIMESTAMP", field: "", value: "",varcharLength:8,ncharLength:8, encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false },
+        { type: "TIMESTAMP", field: "", value: "",varcharLength:8,ncharLength:8, encode: "delta-i", compress: "lz4", level: "medium", primaryKey: false },
         { type: "INT", field: "", value: "",varcharLength:8,ncharLength:8,typeList: dataType, encode: "simple8b", compress: "lz4", level: "medium",primaryKey: false }
       ],
     };

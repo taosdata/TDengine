@@ -91,7 +91,7 @@
               @change="() => handleTypeChange(column, index)"
             >
               <el-option
-                v-for="item in handleTypeList(column.type, index == 1 ? 'parmaryKeyType' : 'dataType')"
+                v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
                 :key="item.value"
                 v-bind="item"
               ></el-option>
@@ -122,7 +122,7 @@
             >
             </el-input>
             <el-tag effect="plain" type="info" v-if="index==1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
+              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -637,15 +637,14 @@ export default {
       });
     },
     handleEncodeList(type) {
+      if (!type) return this.storageCompression.empty
       if (groupOne.includes(type)) {
         return this.storageCompression.groupOne
       } else if (groupTwo.includes(type)) {
         return this.storageCompression.groupTwo
       } else if (groupThree.includes(type)) {
         return this.storageCompression.groupThree
-      } else if (groupFour.findIndex((item) =>
-        type.startsWith(item)
-      )) {
+      } else if (groupFour.findIndex((item) => type.startsWith(item)) !== -1) {
         return this.storageCompression.groupFour
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
@@ -867,6 +866,15 @@ export default {
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
     },
+    handleCheckChange(val, index, type) {
+      if (!this.isEdit) {
+        if (val && this.parmaryKeyType.findIndex((item) => type.includes(item.value)) == -1) {
+          this.$set(this.stable_form.columns[index], "type", '');
+          this.$set(this.stable_form.columns[index], "encode", '');
+          this.$set(this.stable_form.columns[index], "compress", '');
+        } 
+      }
+    }
   },
 };
 </script>
