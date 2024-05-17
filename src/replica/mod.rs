@@ -268,6 +268,10 @@ struct ReplicaConfig {
     /// Default to `http://localhost:6050`.
     #[clap(long, default_value = "http://localhost:6050", global = true)]
     server: String,
+
+    /// Connection timeout in seconds.
+    #[clap(long, default_value = "30", global = true)]
+    timeouts: u64,
 }
 
 #[derive(Debug)]
@@ -461,6 +465,10 @@ impl ReplicaConfig {
         Ok(replicas)
     }
 
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(self.timeouts)
+    }
+
     async fn search_replicas_by_source_sink(
         &self,
         source: &str,
@@ -523,10 +531,18 @@ impl ReplicaConfig {
         keep_topic_after_remove: bool,
     ) -> anyhow::Result<()> {
         let source = replica.source_pool();
-        let source_conn = source.get().await?;
+        let source_conn = tokio::time::timeout(self.timeout(), source.get())
+            .await
+            .with_context(|| format!("Source connection timeout: {}", replica.canonical_source()))?
+            .with_context(|| {
+                format!("Source connection error for {}", replica.canonical_source())
+            })?;
 
         let sink = replica.sink_pool();
-        let sink_conn = sink.get().await?;
+        let sink_conn = tokio::time::timeout(self.timeout(), sink.get())
+            .await
+            .with_context(|| format!("Sink connection timeout: {}", replica.canonical_sink()))?
+            .with_context(|| format!("Sink connection error for {}", replica.canonical_sink()))?;
 
         let mut source_databases = vec![];
         if databases.is_empty() {
