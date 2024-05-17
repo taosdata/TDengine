@@ -1,5 +1,5 @@
 use arrow::{array::Array, record_batch::RecordBatch};
-use arrow_schema::{ArrowError, Schema};
+use arrow_schema::ArrowError;
 use itertools::Itertools;
 
 /// Escape a string value for SQL.

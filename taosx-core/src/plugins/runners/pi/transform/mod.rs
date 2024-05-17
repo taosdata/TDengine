@@ -67,7 +67,6 @@ use crate::plugins::transform::filter::{Filter, FilterImpl};
 use crate::plugins::transform::map::expr::ExprValueBuilder;
 use crate::plugins::transform::modeler::{Modeler, Table};
 use crate::plugins::transform::mutate::Mutate;
-use crate::plugins::transform::parse::ParserImpl;
 use crate::{
     expr::Expr,
     plugins::transform::{
@@ -76,7 +75,6 @@ use crate::{
     },
 };
 use anyhow::anyhow;
-use arrow::compute::kernels::filter;
 use linked_hash_map::LinkedHashMap;
 use std::fmt::{self, Display};
 use std::iter::{Peekable, SkipWhile};
@@ -582,12 +580,12 @@ impl Display for PIElementModelConfig {
             if element.path.is_some() {
                 writeln!(
                     f,
-                    "{},{},{},{},{}",
+                    "{},{},{},{}",
                     element.element_name,
                     "ELEMENT",
                     element.super_table,
                     element.element_id,
-                    element.path.as_ref().unwrap()
+                    // element.path.as_ref().unwrap()
                 )?;
             } else {
                 writeln!(
