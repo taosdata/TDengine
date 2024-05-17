@@ -97,5 +97,9 @@ namespace TDPIConnector.PI
         {
             return Timestamp.AFSDKObject == AFTime.MaxValue;
         }
+        public bool OnMinTime()
+        {
+            return Timestamp.AFSDKObject == AFTime.MinValue;
+        }
     }
 }

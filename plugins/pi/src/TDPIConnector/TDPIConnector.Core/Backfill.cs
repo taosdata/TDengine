@@ -18,8 +18,84 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PIServerManager piServerManager;
         private PISystemManager piSystemManager;
+        ElementsBackfillTaskManager elemmentBackfillManager = new ElementsBackfillTaskManager();
         int backfillWait = 0;  // ms
+        List<Task> backFillTasks = new List<Task>();
+        bool stopAddNewTask = false;
 
+        private string tdDatabaseName;
+
+        private class ElementBackfillTask
+        {
+            public AFElementWrapper element;
+            public DateTime startTime;
+            public DateTime endTime;
+
+            public ElementBackfillTask(in AFElementWrapper element, DateTime startTime, DateTime endTime)
+            {
+                this.element = element;
+                this.startTime = startTime;
+                this.endTime = endTime;
+            }
+        }
+        private class BackfillTask {
+            public List<AFElementWrapper> elements;
+            public DateTime startTime;
+            public DateTime endTime;
+
+            public BackfillTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
+            {
+                this.elements = elements;
+                this.startTime = startTime;
+                this.endTime = endTime;
+            }
+        }
+        private class ElementsBackfillTaskManager {
+            List<BackfillTask> elementsTasks = new List<BackfillTask>();
+            int currentBatchIndex = 0;
+            int currentIndexInBatch = 0;
+            int started = 0;
+            int finished = 0;
+            int all = 0;
+            private readonly Object taskLock = new Object();
+
+            public void AddNewElementsTask(List<AFElementWrapper> elements, DateTime startTime, DateTime endTime) {
+                lock (taskLock) {
+                    elementsTasks.Add(new BackfillTask(elements, startTime, endTime));
+                    all += elements.Count();
+                }
+            }
+            public ElementBackfillTask GetNextTask()
+            {
+                lock (taskLock)
+                {
+                    if (currentBatchIndex >= elementsTasks.Count()) return null;
+                    int nextBatchIndex = currentBatchIndex;
+                    int nextIndexInBatch = currentIndexInBatch + 1;
+                    if (nextIndexInBatch == elementsTasks[currentBatchIndex].elements.Count()) {
+                        nextBatchIndex += 1;
+                        nextIndexInBatch = 0;
+                    }
+                    ++started;
+                    log.Info($"backfill element {elementsTasks[currentBatchIndex].elements[currentIndexInBatch].Name}:" +
+                        $"{elementsTasks[currentBatchIndex].elements[currentIndexInBatch].ID} startting: {started}/{all}");
+                    ElementBackfillTask task = new ElementBackfillTask(elementsTasks[currentBatchIndex].elements[currentIndexInBatch],
+                        elementsTasks[currentBatchIndex].startTime, elementsTasks[currentBatchIndex].endTime);
+                    currentBatchIndex = nextBatchIndex;
+                    currentIndexInBatch = nextIndexInBatch;
+                    return task;
+                }
+            }
+
+            public void FinishedOne() {
+                lock (taskLock)
+                {
+                    ++finished;
+                    log.Info($"backfill element {elementsTasks[currentBatchIndex].elements[currentIndexInBatch].Name}:" +
+                        $"{elementsTasks[currentBatchIndex].elements[currentIndexInBatch].ID} finshed: {finished}/{all}");
+                }
+            }
+        }
         public Backfill(TDEngineProxy tdEngineProxy, PIServerManager piServerManager, PISystemManager piSystemManager)
         {
             this.tdEngineProxy = tdEngineProxy;
@@ -32,8 +108,35 @@ namespace TDPIConnector.Core
                 backfillWait = 10;
             }
             log.Info($"TAOSXPIBACKFILLWAIT set to {backfillWait}.");
+            StartAsyncBackTask();
+            Console.WriteLine("Asynchronous task starting...");
         }
 
+        public void StartAsyncBackTask()
+        {
+            for (int i = 0; i < AppSettings.tomlConfig.BackfillConcurrencyCounts; ++i)
+            {
+                backFillTasks.Add(Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        var task = elemmentBackfillManager.GetNextTask();
+                        if (task != null)
+                        {
+                            BackfillElement(tdDatabaseName, task.element, task.startTime, task.endTime);
+                            elemmentBackfillManager.FinishedOne();
+                        }
+                        else
+                        {
+                            if (stopAddNewTask) {
+                                return;
+                            }
+                            Thread.Sleep(1000);
+                        }
+                    }
+                }));
+            }
+        }
 
         public void BackfillPIPointsFromLastRecordedValue(string tdDatabaseName, Dictionary<PIPointWrapper, DateTime> lastValueTimestamps, DateTime endTime)
         {
@@ -94,6 +197,12 @@ namespace TDPIConnector.Core
                 }
             }
             log.Info($"Backfill TDEngine point {point.Name} finished, {count} values written.");
+        }
+
+        internal void WaitTask()
+        {
+            stopAddNewTask = true;
+            Task.WaitAll(backFillTasks.ToArray());
         }
 
         public async Task<Dictionary<string, DateTime>> GetTDTableLastRecordedValueFromPIPoints(string tdDatabaseName, List<TDTable> piPointTables)
@@ -168,18 +277,7 @@ namespace TDPIConnector.Core
 
         internal void BackfillElements(string tdDatabaseName, List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
-            List<Task> tasks = new List<Task>();
-            int groups = 20;
-            for (int groupIndex = 0; groupIndex < groups; groupIndex++) {
-                for (int i = groupIndex; i < elements.Count; i += groups)
-                {
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        BackfillElement(tdDatabaseName, elements[i], startTime, endTime);
-                    }));
-                }
-            }
-            Task.WaitAll(tasks.ToArray());
+            elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime); 
         }
 
         internal void BackfillElement(string tdDatabaseName, AFElementWrapper element, DateTime startTime, DateTime endTime)
@@ -199,7 +297,7 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Reset();
                 stopwatch.Start();
-                IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, AppSettings.tomlConfig.UpdateInterval);
+                IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, AppSettings.tomlConfig.BackfillBatchSize);
                 bool found = false;
                 DateTime smallLastAttributeTime = endTime;
                 int count = 0;
@@ -235,15 +333,18 @@ namespace TDPIConnector.Core
                         count += values.Count;
                     }
                 }
-                log.Debug($"Backfill TDEngine attribute {element.Name}, written in {stopwatch.ElapsedMilliseconds} ms");
-                if (count >= 10000) Thread.Sleep(backfillWait);
+                log.Info($"Backfill TDEngine {element.Name}:{element.ID} from {currentStart} count:{count} , written in {stopwatch.ElapsedMilliseconds} ms");
 
+                if (count < 100) {
+                    break;
+                }
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
+                currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
                 currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
                 stopwatch.Reset();
                 if (!found) break;
             } while (currentStart < endTime);
-            log.Debug($"Backfill TDEngine element {element.Name} values written finished.");
+            log.Info($"Backfill TDEngine element {element.Name}:{element.ID} values written finished.");
         }
 
         private void ConvertAFAttibutesAndValuesToTDTables(AFAttributeWrapper attribute, AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)

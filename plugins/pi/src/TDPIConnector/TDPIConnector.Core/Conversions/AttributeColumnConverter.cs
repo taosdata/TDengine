@@ -60,11 +60,11 @@ namespace TDPIConnector.Core.Conversions
 
         public static string GetChildAttrbuteName(in AFAttributeTemplateWrapper attributeTemplate, in AFAttributeTemplateWrapper childAttributeTemplate)
         {
-            return attributeTemplate.Name + "." + childAttributeTemplate.Name;
+            return attributeTemplate.Name + "_" + childAttributeTemplate.Name;
         }
         public static string GetChildAttrbuteName(in AFAttributeWrapper attribute, in AFAttributeWrapper childAttribute)
         {
-            return attribute.Name + "." + childAttribute.Name;
+            return attribute.Name + "_" + childAttribute.Name;
         }
     }
 }

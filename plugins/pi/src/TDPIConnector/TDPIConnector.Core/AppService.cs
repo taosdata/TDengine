@@ -8,7 +8,7 @@ using TDPIConnector.Core.ScanPiInfo;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
-using System.Threading.Tasks;
+using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using System.Collections.Concurrent;
 
@@ -180,19 +180,13 @@ namespace TDPIConnector.Core
                 try
                 {
                     await initializer.InitAFModeTask(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
-                    if (elements == null)
-                    {
-                        log.Info($"No any AF Elements template found.");
-                    }
-                    else {
-                        log.Info($"TDengine AF Elements tables ({this.elements.Count}) has been created.");
-                    }
                 }
                 catch (Exception e)
                 {
                     log.Fatal($"Error creating AF Element tables on TDengine.", e);
                     throw e;
                 }
+                log.Info("InitAFModeTask finished.");
             }
 
             if ((this.piPoints != null && this.piPoints.Count > 0))
@@ -204,9 +198,26 @@ namespace TDPIConnector.Core
                 this.standByModeTask.Start();
                 log.Info("Started");
             }
-            else
+        }
+        public void Wait() {
+            if (AppSettings.tomlConfig.ForBackfill)
             {
-                log.Info("No PI Points or AF Elements found.");
+                backfillManager.GetBackfill().WaitTask();
+            }
+            else {
+                while (true)
+                {
+                    var str = Console.ReadLine();
+                    if (str == "quit")
+                    {
+                        log.Info("TD PI Connector quit...");
+                        break;
+                    }
+                    else
+                    {
+                        Thread.Sleep(5000);
+                    }
+                }
             }
         }
         private void StartTemplateObserve()

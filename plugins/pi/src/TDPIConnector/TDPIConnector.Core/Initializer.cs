@@ -19,6 +19,7 @@ namespace TDPIConnector.Core
         private readonly PISystemManager piSystemManager;
         private readonly PIServerManager piServerManager;
         private readonly TDEngineProxy tdEngineProxy;
+        private Backfill backfill;
         private EventsSenderTask eventsSenderTask;
         private ElementModeTask elementModeTask;
 
@@ -28,6 +29,7 @@ namespace TDPIConnector.Core
             this.piSystemManager = piSystemManager;
             this.piServerManager = piServerManager;
             this.tdEngineProxy = tdEngineProxy;
+            this.backfill = backfillManager.GetBackfill();
             eventsSenderTask = new EventsSenderTask(eventsSender);
             eventsSenderTask.Start();
             elementModeTask = new ElementModeTask(piSystemManager, elementModeObserver);
@@ -43,7 +45,21 @@ namespace TDPIConnector.Core
                 tables.Add(table);
             }
             tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
-            elementModeTask.SignUpBatchAttributes(elementTemplate.Name, ref attries);
+            if (AppSettings.tomlConfig.ForBackfill)
+            {
+                backfill.BackfillElements(tdDatabaseName, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                                AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
+            }
+            else
+            {
+                elementModeTask.SignUpBatchAttributes(elementTemplate.Name, ref attries);
+                if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
+                {
+                    var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+                    backfill.BackfillElements(tdDatabaseName, elements, backfillStartLimit, DateTime.UtcNow);
+                    log.Info($"Backfill started successfully.");
+                }
+            }
         }
 
         public async Task InitTaskForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
@@ -67,7 +83,7 @@ namespace TDPIConnector.Core
             var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
 
             List<Task> tasks = new List<Task>();
-            int groups = 20;
+            int groups = 5;
             long finishedCount = 0;
             for (int i = 0; i < groups; ++i)
             {
@@ -83,7 +99,7 @@ namespace TDPIConnector.Core
                         Interlocked.Add(ref finishedCount, elementChunk.Count);
                         stopwatch.Stop();
                         TimeSpan elapsed = stopwatch.Elapsed;
-                        log.Info($"Start info: {Interlocked.Read(ref finishedCount)}/{elements.Count()}" +
+                        log.Info($"Start(Init) info: {Interlocked.Read(ref finishedCount)}/{elements.Count()}" +
                             $" elements in template:{elementTemplate.Name} group:{groupIndex} cost time:{elapsed.TotalSeconds} seconds.");
                     }
                 }));
@@ -124,7 +140,7 @@ namespace TDPIConnector.Core
 
             List<Task> tasks = new List<Task>();
 
-            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(15);
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(10);
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {
                 tasks.Add(Task.Run(async () =>
@@ -133,7 +149,7 @@ namespace TDPIConnector.Core
                     try
                     {
                         await InitTaskForElementTemplate(tdDatabaseName, elementTemplate);
-                        log.Error($"template {elementTemplate.Name} finished starting.");
+                        log.Info($"template {elementTemplate.Name} Init finished.");
                     }
                     finally
                     {

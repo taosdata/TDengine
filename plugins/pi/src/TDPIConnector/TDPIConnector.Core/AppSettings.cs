@@ -13,8 +13,10 @@ namespace TDPIConnector.Core
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         public class TomlConfig {
             public string LogLevel { get; set; }
-            public int MaxWaitLen { get; set; } = 1000;
-            public int UpdateInterval { get; set; } = 1000;
+            public int MaxWaitLen { get; set; } = 10000;
+            public int BackfillBatchSize { get; set; } = 10000;
+            public int UpdateInterval { get; set; } = 10;
+            public int BackfillConcurrencyCounts { get; set; } = 20;
             public int MaxBackfillRangeDays { get; set; } = 1; // uit: Minutes
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }
@@ -38,7 +40,7 @@ namespace TDPIConnector.Core
             public string PIServerDomain { get; internal set; }
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
-            public bool NeedCreateTable { get; set; } = false;
+            public bool ForBackfill { get; set; } = false;
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
             public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 

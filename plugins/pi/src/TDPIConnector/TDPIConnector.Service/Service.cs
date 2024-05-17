@@ -22,6 +22,11 @@ namespace TDPIConnector.Service
             log.Info("Start event");
             appService.Start();
         }
+        public void Wait()
+        {
+            log.Info("Wait event finish...");
+            appService.Wait();
+        }
 
         protected override void OnStop()
         {
