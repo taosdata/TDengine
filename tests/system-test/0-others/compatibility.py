@@ -182,7 +182,7 @@ class TDTestCase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database test  cachemodel \"both\" '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select last(*) from test.meters '")        
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+1s, 11, 190, 0.21), (now+2s, 11, 190, 0.21), (now+3s, 11, 190, 0.21), ('2015-07-14 08:39:59.001', 11, 190, 0.21), ('2032-08-14 08:39:59.001 ', 11, 190, 0.21) test.d3  values  (now+6s, 11, 190, 0.21), (now+7s, 11, 190, 0.21), (now+8s, 11, 190, 0.21), ('2033-07-14 08:39:59.000', 119, 191, 0.25) test.d3  (ts) values ('2033-07-14 08:39:59.001');\"")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+1s, 11, 190, 0.21), (now+2s, 11, 190, 0.21), (now+3s, 11, 190, 0.21), ('2015-07-14 08:39:59.001', 11, 190, 0.21), ('2032-08-14 08:39:59.001 ', 11, 190, 0.21) test.d3  values  (now+6s, 11, 190, 0.21), (now+7s, 11, 190, 0.21), (now+8s, 11, 190, 0.21), ('2033-07-14 08:39:59.000', 119, 191, 0.25) test.d3  (ts) values ('2033-07-14 08:39:58.000');\"")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select last(*) from test.meters '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
 
@@ -396,19 +396,17 @@ class TDTestCase:
         
         tdsql.query(f"select last(*) from test.meters")
         tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
+        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
         tdsql.checkData(0,1,119) 
         tdsql.checkData(0,2,191)
         tdsql.checkData(0,3,0.25)
         
-        # tdsql.query(f"select last(*) from test.meters")
-        # tdLog.info(tdsql.queryResult)
         tdsql.query(f"select last_row(*) from test.meters")
         tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
-        tdsql.checkData(0,1,None) 
-        tdsql.checkData(0,2,None)
-        tdsql.checkData(0,3,None)
+        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+        tdsql.checkData(0,1,119) 
+        tdsql.checkData(0,2,191)
+        tdsql.checkData(0,3,0.25)
 
         tdsql.query(f"select last(*) from test.d1")
         tdLog.info(tdsql.queryResult)       
@@ -418,15 +416,15 @@ class TDTestCase:
         tdsql.checkData(0,3,0.21)      
 
         # update data and check
-        tdsql.execute("insert into test.d3 values ('2033-07-14 08:39:59.000', 15, 172, 1.3) (now+2s, 12, 191, 0.22) (now+3s, 13, 192, 0.23);")
-        tdsql.execute("insert into test.d3 values (now+5s, 4.3, 104, 0.4);")
+        tdsql.execute("insert into test.d2 values ('2033-07-14 08:39:59.002', 139, 182, 1.10) (now+2s, 12, 191, 0.22) test.d2  (ts) values ('2033-07-14 08:39:59.003');")
+        tdsql.execute("insert into test.d2 values (now+5s, 4.3, 104, 0.4);")
 
         tdsql.query(f"select last(*) from test.meters")
         tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
-        tdsql.checkData(0,1,15) 
-        tdsql.checkData(0,2,172)
-        tdsql.checkData(0,3,1.3)
+        tdsql.checkData(0,0,"2033-07-14 08:39:59.003")
+        tdsql.checkData(0,1,139) 
+        tdsql.checkData(0,2,182)
+        tdsql.checkData(0,3,1.10)
 
         # repeately insert data and check
         tdsql.execute("insert into test.d1 values (now+1s, 11, 190, 0.21) (now+2s, 12, 191, 0.22) ('2033-07-14 08:40:01.001', 16, 180, 0.53);")
