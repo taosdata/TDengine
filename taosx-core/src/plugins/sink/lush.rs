@@ -308,7 +308,7 @@ pub async fn write_transformed_records_with_sql(
     let mut count = 0;
     let cols = messages[0].records.num_columns();
     let stable = messages[0].stable_name();
-    tracing::debug!(stable, "Start writing");
+    tracing::debug!("Writing stable");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
     for records in sqls {
         let mut retry = 0;
@@ -414,7 +414,7 @@ pub async fn write_transformed_records_with_sql(
         }
     }
     for m in &messages {
-        tracing::debug!("Table: {}, Rows: {}", m.table.name, m.records.num_rows());
+        tracing::debug!("Wrote table {} rows {}", m.table.name, m.records.num_rows());
     }
     Ok(count)
 }
