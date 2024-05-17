@@ -985,7 +985,10 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         goto _err;
       }
       taosArrayPush(arr, &tmp);
-      if(taosHashPut(me.pHashJsonTemplate, &me.ntbEntry.schemaRow.pSchema[i].colId, sizeof(me.ntbEntry.schemaRow.pSchema[i].colId), &arr, POINTER_BYTES) != 0){
+      SJsonTemplateHashValue hashValue = {0};
+      hashValue.pJsonTemplateArray = arr;
+      if(taosHashPut(me.pHashJsonTemplate, &me.ntbEntry.schemaRow.pSchema[i].colId,
+                      sizeof(me.ntbEntry.schemaRow.pSchema[i].colId), &hashValue, sizeof(hashValue)) != 0){
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(tmp.templateJsonString);
         taosArrayDestroy(arr);

@@ -18,6 +18,8 @@
 
 #include "os.h"
 #include "tarray.h"
+#include "avro.h"
+#include "cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,12 +92,12 @@ int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj);
 int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void* pArray, int32_t itemSize, int32_t num);
 int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArray* pArray);
 
-typedef int32_t (*FToObject)(const SJson* pJson, void* pObj);
+typedef int32_t (*FToObjectJson)(const SJson* pJson, void* pObj);
 
-int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj);
-int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize);
-int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize);
-int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SArray** pArray, int32_t itemSize);
+int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObjectJson func, void* pObj);
+int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObjectJson func, void** pObj, int32_t objSize);
+int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObjectJson func, void* pArray, int32_t itemSize);
+int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObjectJson func, SArray** pArray, int32_t itemSize);
 
 char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);
@@ -105,8 +107,10 @@ bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
 void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
-int32_t     testJsonAvro(const char* json);
-int32_t     checkJsonTemplate(SJson *pJson);
+int32_t       testJsonAvro(const char* json);
+int32_t       checkJsonTemplate(SJson *pJson);
+cJSON*        transformObject2AvroRecord(cJSON* cTemplate);
+avro_schema_t getAvroSchema(cJSON* avro);
 #ifdef __cplusplus
 }
 #endif

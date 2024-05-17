@@ -109,13 +109,16 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
 }
 
 void buildJsonTemplate(SHashObj* pHashJsonTemplate, col_id_t colId, char* jsonBuf, int jsonBufLen){
-  SArray** templateArray = (SArray**)taosHashGet(pHashJsonTemplate, &colId, sizeof(col_id_t));
+  SJsonTemplateHashValue* tmp = (SJsonTemplateHashValue*)taosHashGet(pHashJsonTemplate, &colId, sizeof(col_id_t));
+  if(!tmp)
+    return;
+  SArray* templateArray = tmp->pJsonTemplateArray;
   if(!templateArray)
     return;
 
   int size = 0;
-  for(int32_t j = 0; j < taosArrayGetSize(*templateArray); ++j){
-    SJsonTemplate* pTemplate = taosArrayGet(*templateArray, j);
+  for(int32_t j = 0; j < taosArrayGetSize(templateArray); ++j){
+    SJsonTemplate* pTemplate = taosArrayGet(templateArray, j);
     if(pTemplate->isValidate){
       size += snprintf(jsonBuf + size, jsonBufLen - size, "%d:%s,", pTemplate->templateId, pTemplate->templateJsonString);
     }

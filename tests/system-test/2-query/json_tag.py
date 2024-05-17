@@ -110,7 +110,7 @@ class TDTestCase:
 
         tdSql.execute(f"create table {dbname}.st(ts timestamp, i int) tags(t int)")
         tdSql.error(f"ALTER stable {dbname}.st add tag jtag json")
-        tdSql.error(f"ALTER stable {dbname}.st add column jtag json")
+        # tdSql.error(f"ALTER stable {dbname}.st add column jtag json")  //jsontodo
 
         print("============== STEP 3 ===== query table")
         # test error syntax

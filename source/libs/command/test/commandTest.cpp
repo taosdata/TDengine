@@ -90,7 +90,10 @@ TEST_F(BuildJsonTemplateTest, TemplateArrayHasElements) {
   taosArrayPush(templateArray, &pTemplate1);
   taosArrayPush(templateArray, &pTemplate2);
   taosArrayPush(templateArray, &pTemplate3);
-  taosHashPut(pHashJsonTemplate, &colId, sizeof(col_id_t), &templateArray, POINTER_BYTES);
+  SJsonTemplateHashValue pHashValue = {0};
+  pHashValue.pJsonTemplateArray = templateArray;
+
+  taosHashPut(pHashJsonTemplate, &colId, sizeof(col_id_t), &pHashValue, sizeof(pHashValue));
 
   // Act
   buildJsonTemplate(pHashJsonTemplate, colId, jsonBuf, jsonBufLen);

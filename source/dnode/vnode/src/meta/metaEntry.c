@@ -177,7 +177,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   }
 
   if (!tDecodeIsEnd(pCoder)) {
-    if (tDecodeHashJsonTemplate(pCoder, &pME->pHashJsonTemplate) < 0) return -1;
+    if (tDecodeHashJsonTemplate(pCoder, &pME->pHashJsonTemplate, false) < 0) return -1;
   }
   tEndDecode(pCoder);
   return 0;

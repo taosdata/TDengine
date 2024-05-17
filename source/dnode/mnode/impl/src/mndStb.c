@@ -206,7 +206,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     pIter = taosHashIterate(pStb->pHashJsonTemplate, NULL);
     while (pIter != NULL) {
       col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);
-      SArray* pArray = *(SArray**)(pIter);
+      SJsonTemplateHashValue* pHashValue = (SJsonTemplateHashValue*)(pIter);
+      SArray* pArray = pHashValue->pJsonTemplateArray;
       SDB_SET_INT16(pRaw, dataPos, *colId, _OVER);
       SDB_SET_INT32(pRaw, dataPos, taosArrayGetSize(pArray), _OVER);
       for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
@@ -360,12 +361,14 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT16(pRaw, dataPos, &colId, _OVER);
         int32_t arrLen = 0;
         SDB_GET_INT32(pRaw, dataPos, &arrLen, _OVER);
+        SJsonTemplateHashValue hashValue = {0};
         SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
         if (arr == NULL) {
           terrno = TSDB_CODE_INVALID_JSON_FORMAT;
           goto _OVER;
         }
-        if(taosHashPut(pStb->pHashJsonTemplate, &colId, sizeof(colId), &arr, POINTER_BYTES) != 0){
+        hashValue.pJsonTemplateArray = arr;
+        if(taosHashPut(pStb->pHashJsonTemplate, &colId, sizeof(colId), &hashValue, sizeof(SJsonTemplateHashValue)) != 0){
           terrno = TSDB_CODE_INVALID_JSON_FORMAT;
           taosArrayDestroy(arr);
           goto _OVER;
@@ -1039,7 +1042,9 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
         return -1;
       }
       taosArrayPush(arr, &tmp);
-      if(taosHashPut(pDst->pHashJsonTemplate, &pDst->pColumns[i].colId, sizeof(pDst->pColumns[i].colId), &arr, POINTER_BYTES) != 0){
+      SJsonTemplateHashValue hashValue = {0};
+      hashValue.pJsonTemplateArray = arr;
+      if(taosHashPut(pDst->pHashJsonTemplate, &pDst->pColumns[i].colId, sizeof(pDst->pColumns[i].colId), &hashValue, sizeof(hashValue)) != 0){
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(tmp.templateJsonString);
         taosArrayDestroy(arr);

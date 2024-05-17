@@ -2054,7 +2054,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
   }
 
   if (CTG_IS_META_CTABLE(pMeta->metaType) || CTG_IS_META_BOTH(pMeta->metaType)) {
-    SCTableMeta *ctbMeta = taosMemoryMalloc(sizeof(SCTableMeta));
+    SCTableMeta *ctbMeta = taosMemoryCalloc(1, sizeof(STableMeta));
     if (NULL == ctbMeta) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }

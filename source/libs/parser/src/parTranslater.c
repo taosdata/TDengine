@@ -1358,18 +1358,6 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   return DEAL_RES_CONTINUE;
 }
 
-static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
-  T_MD5_CTX ctx;
-  tMD5Init(&ctx);
-  tMD5Update(&ctx, pExprStr, len);
-  tMD5Final(&ctx);
-  char* p = pAlias;
-  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-    sprintf(p, "%02x", ctx.digest[i]);
-    p += 2;
-  }
-}
-
 static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   SValueNode* valNode = NULL;
   if (tableAlias != NULL) {
@@ -1404,7 +1392,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
     } else {
       snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias),
                tableAlias ? "%s(%s.tbname)" : "%s(%stbname)", funcName, tableAlias ? tableAlias : "");
-      biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias),
+      generateMd5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias),
                            multiResFunc->node.aliasName);
     }
 

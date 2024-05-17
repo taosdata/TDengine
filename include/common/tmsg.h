@@ -27,6 +27,9 @@
 #include "tname.h"
 #include "trow.h"
 #include "tuuid.h"
+#include <cJSON.h>
+#include "tjson.h"
+#include "avro.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -773,15 +776,25 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
 }
 
 typedef struct {
+  int32_t         templateId;
+  avro_schema_t   avroSchama;
+} SAvroSchema;
+
+typedef struct {
   int32_t templateId;
   char   *templateJsonString;
   bool    isValidate;
-}SJsonTemplate;
+} SJsonTemplate;
+
+typedef struct {
+  SArray*   pJsonTemplateArray;   // element is SJsonTemplate
+  SHashObj* pJsonTemplateAvro;    // key is md5(templateJsonString), value is SAvroSchema
+} SJsonTemplateHashValue;
 
 int32_t   taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId);
 SHashObj* taosHashCopyJsonTemplate(SHashObj *pHashObj);
 int32_t   tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate);
-int32_t   tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate);
+int32_t   tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate, bool buildAvroHash);
 void      destroyJsonTemplateArray(void *data);
 
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
