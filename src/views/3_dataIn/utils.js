@@ -19,7 +19,7 @@ const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
-export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
@@ -742,7 +742,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple, pattern, patternMsg } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -769,15 +769,16 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         patternMsg,
       };
       handleHintType(paramConfig, hint, value);
-      if (isArray(conflicts_with)) {
-        paramConfig.disabled = currentData => {
-          const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
-          if (conflict && conflict?.when == currentData[paramConfig.field]) {
-            currentData[paramConfig.field] = '';
-          }
-          return !!conflict;
-        };
-      }
+      // 2024-05-17，pibackfill remove the special rule
+      // if (isArray(conflicts_with)) {
+      //   paramConfig.disabled = currentData => {
+      //     const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
+      //     if (conflict && conflict?.when == currentData[paramConfig.field]) {
+      //       currentData[paramConfig.field] = '';
+      //     }
+      //     return !!conflict;
+      //   };
+      // }
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';

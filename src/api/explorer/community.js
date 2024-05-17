@@ -615,21 +615,9 @@ export function getDataSources(lang) {
               {
                 "name": "BackfillStartTime",
                 "display": "Backfill Start Time",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "Choose start time",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "start from the latest timestamp of records stored in TDengine",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
+                "hint": {
+                  "type": "time"
+                },
                 "short_description": "The start time for backfilling data.",
                 "description": "The start time for backfilling data.\n\nIf not provided, the start time will be the earliest time available(10 days ago from now).\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss"
@@ -637,31 +625,12 @@ export function getDataSources(lang) {
               {
                 "name": "BackfillEndTime",
                 "display": "Backfill End Time",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "Choose end time",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "end at the earliest timestamp of records stored in TDengine",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
+                "hint": {
+                  "type": "time"
+                },
                 "short_description": "The end time for backfilling data. The default is now.",
                 "description": "The end time for backfilling data. The default is now.\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss",
-                "conflicts_with": [
-                  {
-                    "name": "BackfillStartTime",
-                    "value": "auto",
-                    "when": "auto"
-                  }
-                ]
               }
             ]
           }
@@ -3867,59 +3836,25 @@ export function getDataSources(lang) {
             "description": "Backfill 参数设置",
             "collapsible": false,
             "connection_option": false,
-            "params": [
-              {
-                "name": "BackfillStartTime",
-                "display": "Backfill 开始时间",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "请选择开始时间",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "从TDengine存储的记录的最晚时间戳开始",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
-                "short_description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。",
-                "description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。\n",
-                "placeholder": "YYYY-MM-DD HH:mm:ss"
+            "params": [{
+              "name": "BackfillStartTime",
+              "display": "Backfill 开始时间",
+              "hint": {
+                "type": "time",
               },
-              {
-                "name": "BackfillEndTime",
-                "display": "Backfill 结束时间",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "请选择开始时间",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "到TDengine存储的记录的最早的时间戳结束",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
-                "short_description": "导入历史数据以该时间结束，默认是当前时间。",
-                "description": "导入历史数据以该时间结束，默认是当前时间。\n",
-                "placeholder": "YYYY-MM-DD HH:mm:ss",
-                "conflicts_with": [
-                  {
-                    "name": "BackfillStartTime",
-                    "value": "auto",
-                    "when": "auto"
-                  }
-                ]
-              }
-            ]
+              "short_description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。",
+              "description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。\n",
+              "placeholder": "YYYY-MM-DD HH:mm:ss"
+            }, {
+              "name": "BackfillEndTime",
+              "display": "Backfill 结束时间",
+              "hint": {
+                "type": "time"
+              },
+              "short_description": "导入历史数据以该时间结束，默认是当前时间。",
+              "description": "导入历史数据以该时间结束，默认是当前时间。\n",
+              "placeholder": "YYYY-MM-DD HH:mm:ss"
+            }]
           }
         ],
         "advanced": {
