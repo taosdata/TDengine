@@ -50,6 +50,7 @@ fn log_path() -> PathBuf {
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 #[allow(unused)]
+#[instrument(skip_all)]
 pub async fn pi_to_taos(
     from: Dsn,
     actions: Vec<Action>,
@@ -63,7 +64,9 @@ pub async fn pi_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    tracing::info!("Loading plugin: {}", from.driver);
+    let driver = from.driver.clone();
+    let driver = driver.as_str();
+    tracing::info!("Start {} task", driver);
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
@@ -80,7 +83,6 @@ pub async fn pi_to_taos(
         .get()
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-    let driver = from.driver.clone();
     let config =
         PiConfig::new(from.clone(), td_database.unwrap(), ipc_port, sql_port, true).await?;
     let toml = toml::to_string(&config)?;
@@ -122,8 +124,8 @@ pub async fn pi_to_taos(
         items: Vec<String>,
     }
 
-    match driver.as_str() {
-        "pi" => {
+    match driver {
+        "pi" | "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_exe_path()?);
             let output = command
                 .arg("-c")
@@ -156,42 +158,6 @@ pub async fn pi_to_taos(
             } else {
                 let stderr = String::from_utf8_lossy(output.stderr.as_slice());
                 tracing::error!("PI connector check error: {}", stderr);
-                anyhow::bail!("Unable to check PI connector configuration");
-            }
-        }
-        "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
-            let output = command
-                .arg("-c")
-                .arg(&config_path)
-                .kill_on_drop(true)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .spawn()
-                .context("Check PI-Backfill connector error")?
-                .wait_with_output()
-                .await
-                .context("Check PI-Backfill connector error")?;
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(output.stdout.as_slice());
-                tracing::info!("PI connector check result: {}", stdout);
-                let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
-                    anyhow::format_err!(
-                        "PI-Backfill connector check result parse error: {}",
-                        err.to_string()
-                    )
-                })?;
-                tracing::debug!("{check:?}");
-                if !check.avaliable {
-                    anyhow::bail!(
-                        "PI-Backfill connector not available since {}:\n{}",
-                        check.since.unwrap_or_default(),
-                        check.items.join(","),
-                    );
-                }
-            } else {
-                let stderr = String::from_utf8_lossy(output.stderr.as_slice());
-                tracing::error!("PI-Backfill connector check error: {}", stderr);
                 anyhow::bail!("Unable to check PI connector configuration");
             }
         }
@@ -241,11 +207,9 @@ pub async fn pi_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    tracing::info!("log path created: {}", &log_path.display());
-
+    tracing::info!("Log path created: {}", &log_path.display());
     log_path.push(LOG_FILE);
-
-    tracing::info!("log file dir: {}", &log_path.display());
+    tracing::info!("Log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -253,8 +217,8 @@ pub async fn pi_to_taos(
 
     let mut child_command;
 
-    match driver.as_str() {
-        "pi" => {
+    match driver {
+        "pi" | "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_exe_path()?);
             child_command = command
                 .arg("-f")
@@ -266,27 +230,15 @@ pub async fn pi_to_taos(
                 .context("Start PI collector error")?;
             send_sub_process_info(child_command.id(), task_id, "pi");
         }
-        "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
-            child_command = command
-                .arg("-f")
-                .arg(&config_path)
-                .kill_on_drop(true)
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::piped())
-                .spawn()
-                .context("Start PI Backfill error")?;
-            send_sub_process_info(child_command.id(), task_id, "pibackfill");
-        }
         _ => {
             anyhow::bail!("wrong driver configured");
         }
     }
-
     let stderr = child_command
         .stderr
         .take()
         .expect("Failed to capture stderr");
+    let log_task_id = task_id.unwrap_or_default();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -298,15 +250,13 @@ pub async fn pi_to_taos(
                 break; // End of stream, exit the loop
             }
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line).unwrap();
+            write!(log_rotation, "[task:{}]{}", log_task_id, line).unwrap();
             line.clear();
         }
         Ok::<(), std::io::Error>(())
     });
-
     let pid = child_command.id().unwrap();
-    tracing::info!("waiting for PI connector");
-
+    tracing::info!("Waiting for PI connector");
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         macro_rules! safe_exit {
@@ -356,10 +306,10 @@ pub async fn pi_to_taos(
         tokio::select! {
             status = child_command.wait() => {
                 let status = status?;
-                tracing::info!("PI connector or PI backfill exit with {}", status);
+                tracing::info!("PI connector exit with {}", status);
                 if !status.success() {
                     safe_exit!();
-                    anyhow::bail!("PI connector or PI backfill exit with {}", status);
+                    anyhow::bail!("PI connector exit with {}", status);
                 }
             },
             err = ipc.recv_error() => {
@@ -370,15 +320,14 @@ pub async fn pi_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("pi task cancelled");
+                tracing::info!("{} task cancelled", driver);
                 safe_exit!(wait);
             }
         }
-        tracing::info!("pi task Done");
+        tracing::info!("Exit {} task", driver);
         Ok(())
     })
     .await??;
-
     Ok(())
 }
 
