@@ -158,6 +158,13 @@
     }                                      \
   } while (0)
 
+#define GRANT_OPT_LIMITS_INIT(lv, idx) \
+  do {                                 \
+    if (grantHandle.showOpts[(idx)]) { \
+      (lv) = GRANT_UNIQ_UNLIMITED;     \
+    }                                  \
+  } while (0)
+
 #define GRANT_OPT_EXPIRE_ASSIGN(es, esv, ed, edv, idx) \
   do {                                                 \
     if (grantHandle.showOpts[(idx)]) {                 \
@@ -256,9 +263,6 @@ SGrantStatus gStatus = {
     .limitDnodes = GRANT_UNIQ_UNLIMITED,
     .limitTimeSeries = GRANT_UNIQ_UNLIMITED,
     .limitCpuCores = GRANT_UNIQ_UNLIMITED,
-    .limitStreams = GRANT_UNIQ_UNLIMITED,
-    .limitSubscriptions = GRANT_UNIQ_UNLIMITED,
-    .limitViews = GRANT_UNIQ_UNLIMITED,
 };
 
 typedef SGrantNotify GrantNotify;
@@ -468,10 +472,13 @@ static void grantStatusInit(SGrantStatus *pStatus) {
 
   GRANT_OPT_EXPIRE_INIT(pStatus->basicExpireSec, pStatus->expired, GRANT_OPT_BASIC);
   GRANT_OPT_EXPIRE_INIT(pStatus->streamExpireSec, pStatus->streamExpired, GRANT_OPT_STREAM);
+  GRANT_OPT_LIMITS_INIT(pStatus->limitStreams, GRANT_OPT_STREAM);
   GRANT_OPT_EXPIRE_INIT(pStatus->subscriptionExpireSec, pStatus->subscriptionExpired, GRANT_OPT_SUBSCRIPTION);
+  GRANT_OPT_LIMITS_INIT(pStatus->limitSubscriptions, GRANT_OPT_SUBSCRIPTION);
   GRANT_OPT_EXPIRE_INIT(pStatus->auditExpireSec, pStatus->auditExpired, GRANT_OPT_AUDIT);
   GRANT_OPT_EXPIRE_INIT(pStatus->csvExpireSec, pStatus->csvExpired, GRANT_OPT_CSV);
   GRANT_OPT_EXPIRE_INIT(pStatus->viewExpireSec, pStatus->viewExpired, GRANT_OPT_VIEW);
+  GRANT_OPT_LIMITS_INIT(pStatus->limitViews, GRANT_OPT_VIEW);
   GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, pStatus->multiTierExpired, GRANT_OPT_STORAGE);
   GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_BAK_RST);
   GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, pStatus->objectStorageExpired, GRANT_OPT_OBJECT_STORAGE);
