@@ -375,7 +375,7 @@ static SLastCol *tsdbCacheDeserialize(char const *value, size_t size) {
     return NULL;
   }
 
-  SLastCol* pLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
+  SLastCol *pLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
   if (NULL == pLastCol) {
     return NULL;
   }
@@ -1109,8 +1109,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         }
 
         if (NULL == pLastCol || cmp_res < 0 || (cmp_res == 0 && !COL_VAL_IS_NONE(pColVal))) {
-          char  *value = NULL;
-          size_t vlen = 0;
+          char    *value = NULL;
+          size_t   vlen = 0;
           SLastCol lastColTmp = {.rowKey = *pRowKey, .colVal = *pColVal};
           tsdbCacheSerialize(&lastColTmp, &value, &vlen);
 
@@ -1150,8 +1150,8 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
       } else {
         if (COL_VAL_IS_VALUE(pColVal)) {
           if (NULL == pLastCol || (tRowKeyCompare(&pLastCol->rowKey, pRowKey) != 1)) {
-            char  *value = NULL;
-            size_t vlen = 0;
+            char    *value = NULL;
+            size_t   vlen = 0;
             SLastCol lastColTmp = {.rowKey = *pRowKey, .colVal = *pColVal};
             tsdbCacheSerialize(&lastColTmp, &value, &vlen);
 
@@ -1486,7 +1486,10 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     taosArraySet(pLastArray, idxKey->idx, pLastCol);
     // taosArrayRemove(remainCols, i);
 
-    if (!pTmpColArray) {
+    if (/*!pTmpColArray*/ lastTmpIndexArray && !lastTmpColArray) {
+      continue;
+    }
+    if (/*!pTmpColArray*/ lastrowTmpIndexArray && lastrowTmpColArray) {
       continue;
     }
 
