@@ -228,6 +228,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
   blockDataEnsureCapacity(pBlock, cfgGetSize(pConf));
   SConfigIter* pIter = cfgCreateIter(pConf);
 
+  cfgLock(pConf);
+
   while ((pItem = cfgNextIter(pIter)) != NULL) {
     col = startCol;
 
@@ -252,6 +254,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     numOfRows++;
   }
+
+  cfgUnLock(pConf);
 
   pBlock->info.rows = numOfRows;
 

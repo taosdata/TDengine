@@ -160,7 +160,7 @@ For Java connector, the jts library can be used to easily create GEOMETRY type o
 Before using Java client library to connect to the database, the following conditions are required.
 
 - Java 1.8 or above runtime environment and Maven 3.6 or above installed
-- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](../#Install-Client-Driver)
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Install Client Driver](../#install-client-driver)
 
 ### Install the client library
 
@@ -368,7 +368,7 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection. It only takes effect when using JDBC REST connection.
 - TSDBDriver.HTTP_POOL_SIZE: size of REST concurrent requests. The default value is 20.
-  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#Client-Only).
+  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#configuration-file-on-client-side).
 
 ### Priority of configuration parameters
 

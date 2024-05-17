@@ -824,14 +824,17 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode) {
   qDebug("%s sync killed execTask", GET_TASKID(pTaskInfo));
   setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
 
-  taosWLockLatch(&pTaskInfo->lock);
-  while (qTaskIsExecuting(pTaskInfo)) {
-    taosMsleep(10);
+  while(1) {
+    taosWLockLatch(&pTaskInfo->lock);
+    if (qTaskIsExecuting(pTaskInfo)) { // let's wait for 100 ms and try again
+      taosWUnLockLatch(&pTaskInfo->lock);
+      taosMsleep(100);
+    } else { // not running now
+      pTaskInfo->code = rspCode;
+      taosWUnLockLatch(&pTaskInfo->lock);
+      return TSDB_CODE_SUCCESS;
+    }
   }
-  pTaskInfo->code = rspCode;
-  taosWUnLockLatch(&pTaskInfo->lock);
-
-  return TSDB_CODE_SUCCESS;
 }
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo) {

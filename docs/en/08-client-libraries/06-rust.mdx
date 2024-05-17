@@ -321,7 +321,7 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
 
-Parameter binding details see [API Reference](#stmt-api)
+Parameter binding details see [API Reference](#bind-interface)
 
 <RustBind />
 
@@ -447,7 +447,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 - `auto.commit.interval.ms`: Interval for automatic commits.
 
 #### Full Sample Code
-  
+
 For more information, see [GitHub sample file](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/subscribe_demo.rs).
 
 ### Use with connection pool
@@ -559,7 +559,7 @@ The [Taos][struct.Taos] object provides an API to perform operations on multiple
         // binary/varchar to String
         location: String,
     }
-
+    
     let records: Vec<Record> = taos
         .query("select * from `meters`")
         .await?
@@ -578,11 +578,7 @@ Note that Rust asynchronous functions and an asynchronous runtime are required.
 
 In addition, this structure is also the entry point for Parameter Binding and Line Protocol Interface. Please refer to the specific API descriptions for usage.
 
-<p>
-<a id="stmt-api" style={{color:'#141414'}}>
-Bind Interface
-</a>
-</p>
+### Bind Interface
 
 Similar to the C interface, Rust provides the bind interface's wrapping. First, the [Taos][struct.taos] object creates a parameter binding object [Stmt] for an SQL statement.
 

@@ -828,7 +828,7 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
   SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - offsetof(SLDataIter, node));
   SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - offsetof(SLDataIter, node));
 
-  SRowKey rkey1, rkey2;
+  SRowKey rkey1 = {0}, rkey2 = {0};
   tRowGetKeyEx(&pIter1->rInfo.row, &rkey1);
   tRowGetKeyEx(&pIter2->rInfo.row, &rkey2);
 

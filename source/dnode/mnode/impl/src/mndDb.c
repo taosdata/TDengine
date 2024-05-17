@@ -821,6 +821,10 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 
 #ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
+  if (grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0) {
+    code = TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED;
+    goto _exit;
+  }
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
     code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
     mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
@@ -901,6 +905,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
     code = terrno;
     goto _OVER;
+  }
+
+  if (createReq.replications == 2) {
+    if ((terrno = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      code = terrno;
+      goto _OVER;
+    }
   }
 
   if ((code = mndCheckDbEncryptKey(pMnode, &createReq)) != 0) {
@@ -1161,6 +1172,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
     goto _OVER;
+  }
+
+  if (alterReq.replications == 2) {
+    if ((code = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      goto _OVER;
+    }
   }
 
   int32_t numOfTopics = 0;
