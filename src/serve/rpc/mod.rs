@@ -986,7 +986,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
-        let mut new_value = if k == "csv_config_file" {
+        let new_value = if k == "csv_config_file" {
             encode_csv_config_file(v.clone())?
         } else if v.contains("@") {
             get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
