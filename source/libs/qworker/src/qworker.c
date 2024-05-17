@@ -914,20 +914,21 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
 
     {
-      if (/*dataLen > 8192*/ 0) {
+      SRetrieveTableRsp* pRsp = rsp;
+
+      if (dataLen > 8192) {
         char* p = taosMemoryMalloc(dataLen);
-        int32_t len =
-            tsCompressString(((SRetrieveTableRsp *)rsp)->data, dataLen, 1, p, dataLen, ONE_STAGE_COMP, NULL, 0);
 
-        memcpy(((SRetrieveTableRsp*)rsp)->data, p, len);
-        ((SRetrieveTableRsp*)rsp)->payloadLen = htonl(dataLen);
-        ((SRetrieveTableRsp*)rsp)->compLen = htonl(len);
+        int32_t len = tsCompressString(pRsp->data, dataLen, 1, p, dataLen, ONE_STAGE_COMP, NULL, 0);
+        memcpy(pRsp->data, p, len);
 
-        ((SRetrieveTableRsp*)rsp)->compressed = 1;
+        pRsp->payloadLen = htonl(dataLen);
+        pRsp->compLen = htonl(len);
+        pRsp->compressed = 1;
         taosMemoryFree(p);
       } else {
-//        ((SRetrieveTableRsp*)rsp)->payloadLen = ((SRetrieveTableRsp*)rsp)->compLen;
-//        ((SRetrieveTableRsp*)rsp)->compressed = 0;
+        pRsp->payloadLen = pRsp->compLen;
+        pRsp->compressed = 0;
       }
     }
 
@@ -949,7 +950,6 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
       qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask);
-
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));

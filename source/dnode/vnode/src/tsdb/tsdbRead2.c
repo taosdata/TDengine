@@ -4242,7 +4242,6 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   SVnodeCfg*  pConf = &(((SVnode*)pVnode)->config);
 
   int32_t capacity = pConf->tsdbCfg.maxRows;
-  capacity = 16384;  // for debug purpose
   if (pResBlock != NULL) {
     blockDataEnsureCapacity(pResBlock, capacity);
   }

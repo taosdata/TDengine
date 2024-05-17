@@ -2224,7 +2224,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   } else {
     pResultInfo->pData = (void*)pRsp->data;
     pResultInfo->payloadLen = htonl(pRsp->compLen);
-//    ASSERT(pRsp->compLen == pRsp->payloadLen);
+    ASSERT(pRsp->compLen == pRsp->payloadLen);
   }
 
   // TODO handle the compressed case

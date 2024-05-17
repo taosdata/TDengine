@@ -681,7 +681,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     p = taosMemoryMalloc(pRetrieveRsp->payloadLen);
     int32_t t = tsDecompressString(pRetrieveRsp->data, pRetrieveRsp->compLen, 1, p, pRetrieveRsp->payloadLen,
                                    ONE_STAGE_COMP, NULL, 0);
-//    ASSERT(t == pRetrieveRsp->payloadLen);
+    ASSERT(t == pRetrieveRsp->payloadLen);
     pStart = p;
   }
 
