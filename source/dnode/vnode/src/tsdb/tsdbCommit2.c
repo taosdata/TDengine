@@ -460,9 +460,26 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
 
   STFileSet *fset = NULL;
 
+  code = vHashInit(&tsdb->commitInfo.ht, NULL /* TODO */, NULL /* TODO*/);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if ((tsdb->commitInfo.arr = taosArrayInit(0, sizeof(SFileSetCommitInfo *))) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
+
   taosThreadMutexLock(&tsdb->mutex);
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    // TODO
+    SFileSetCommitInfo *fileSetCommitInfo;
+    if ((fileSetCommitInfo = taosMemoryMalloc(sizeof(SFileSetCommitInfo))) == NULL) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    }
+
+    fileSetCommitInfo->fid = fset->fid;
+    fileSetCommitInfo->hasDataToCommit = false;
+    if ((code = tsdbTFileSetInitCopy(tsdb, fset, &fileSetCommitInfo->fset))) {
+      taosMemoryFree(fileSetCommitInfo);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
   taosThreadMutexUnlock(&tsdb->mutex);
 
@@ -511,6 +528,8 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+    vHashDestroy(&tsdb->commitInfo.ht);
+    taosArrayDestroyEx(tsdb->commitInfo.arr, (FDelete)tsdbTFileSetClear);
   }
   return code;
 }

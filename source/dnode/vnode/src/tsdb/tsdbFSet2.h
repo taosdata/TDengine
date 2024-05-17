@@ -42,7 +42,7 @@ typedef enum {
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
-int32_t tsdbTFileSetClear(STFileSet **fset);
+void    tsdbTFileSetClear(STFileSet **fset);
 int32_t tsdbTFileSetRemove(STFileSet *fset);
 // to/from json
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
