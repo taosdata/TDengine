@@ -289,6 +289,7 @@ impl PutStream {
                 .map(|(record, trace_id)| {
                     let trace_id_str = get_data_trace_id_str(trace_id);
                     tracing::info!("Writing batch {trace_id_str}");
+                    tracing::debug!(columns = ?record.columns()); // debug
                     anyhow::Ok((
                         record,
                         trace_id,
