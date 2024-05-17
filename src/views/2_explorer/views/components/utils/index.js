@@ -179,7 +179,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'simple8b',
+    defaultCompress: 'lz4',
   },
   // BIGINT/TIMESTAMP/BIGINT UNSIGNED
   groupTwo: {
@@ -210,7 +212,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'simple8b',
+    defaultCompress: 'lz4',
   },
   // FLOAT/DOUBLE
   groupThree: {
@@ -237,7 +241,9 @@ export const storageCompression = {
         label: "tsz",
         value: "tsz",
       },
-    ]
+    ],
+    defaultEncode: 'delta-d',
+    defaultCompress: 'lz4',
   },
   // BINARY /NCHAR/ VARCHAR
   groupFour: {
@@ -264,7 +270,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'disabled',
+    defaultCompress: 'lz4',
   },
   // BOOL
   groupFive: {
@@ -291,7 +299,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'bit-packing',
+    defaultCompress: 'lz4',
   },
   
 }

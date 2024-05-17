@@ -42,6 +42,7 @@
             default-first-option
             :placeholder="$t('Data') + $t('type')"
             class="columnPrependBtn"
+            @change="() => handleTypeChange(column, index)"
           >
             <el-option
               v-for="item in dataType"
@@ -233,6 +234,9 @@ export default {
         value: "",
         varcharLength: 8,
         ncharLength: 8,
+        encode: "simple8b", 
+        compress: "lz4", 
+        level: "medium",
       },
 
       stable_form: {
@@ -342,6 +346,12 @@ export default {
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
       }
+    },
+    handleTypeChange(column, index) {
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.stable_form.columns[index], "encode", defaultEncode);
+      this.$set(this.stable_form.columns[index], "compress", defaultCompress);
     },
   },
 };

@@ -210,7 +210,7 @@
               default-first-option
               :placeholder="$t('Data') + $t('type')"
               class="columnPrependBtn"
-              @change="handleEditTypeChange"
+              @change="handleEditTypeChange(currentData)"
             >
               <el-option
                 v-for="item in dataType"
@@ -607,12 +607,16 @@ export default {
     },
     // columns 修改时encode/compress 变更
     handleTypeChange(column, index) {
-      this.$set(this.stable_form.columns[index], "encode", '');
-      this.$set(this.stable_form.columns[index], "compress", '');
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.stable_form.columns[index], "encode", defaultEncode);
+      this.$set(this.stable_form.columns[index], "compress", defaultCompress);
     },
     handleEditTypeChange(column, index) {
-      this.$set(this.currentData, "encode", '');
-      this.$set(this.currentData, "compress", '');
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.currentData, "encode", defaultEncode);
+      this.$set(this.currentData, "compress", defaultCompress);
     },
     // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
     handleTypeList(currentType, name) {
@@ -737,9 +741,9 @@ export default {
           field: "",
           varcharLength: 8,
           ncharLength: 8,
-          encode: "",
-          compress: "",
-          level: ""
+          encode: "simple8b", 
+          compress: "lz4", 
+          level: "medium",
         });
       }
       this.currentEdit = "column";
@@ -748,9 +752,9 @@ export default {
         type: "INT",
         varcharLength: 8,
         ncharLength: 8,
-        encode: "",
-        compress: "",
-        level: ""
+        encode: "simple8b", 
+        compress: "lz4", 
+        level: "medium",
       };
     },
     minusColumn(index) {
