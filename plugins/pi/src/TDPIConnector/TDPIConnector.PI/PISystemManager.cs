@@ -178,7 +178,10 @@ namespace TDPIConnector.PI
             using (var search = new AFElementSearch(afDatabase, "TemplateSearch", $"TemplateName: '{elementTemplateName}'"))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
-                return elements.Select(e => new AFElementWrapper(e));
+                return elements
+                    .AsParallel()
+                    .WithDegreeOfParallelism(16).
+                    Select(e => new AFElementWrapper(e));
             }
         }
         public IEnumerable<AFElementWrapper> GetAllElements(string afDatabaseName)
@@ -217,7 +220,7 @@ namespace TDPIConnector.PI
             var elements = AFElement.FindElements(afDatabase, null, elementName, AFSearchField.Name, true, AFSortField.Name, AFSortOrder.Ascending, 1) ;
             return elements.Select(e => new AFElementWrapper(e));
         }
-        public IEnumerable<AFElementWrapper> GetElementByFilter(string afDatabaseName, string filter)
+        public List<AFElementWrapper> GetElementByFilter(string afDatabaseName, string filter)
         {
             AFDatabase afDatabase = piSystem.Databases[afDatabaseName];
             if (afDatabase == null)
@@ -228,7 +231,7 @@ namespace TDPIConnector.PI
             using (var search = new AFElementSearch(afDatabase, "*", searchFilter))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
-                return elements.Select(e => new AFElementWrapper(e));
+                return elements.Select(e => new AFElementWrapper(e)).ToList();
             }
         }
         public AFElementTemplateWrapper GetElementsByTemplateID(Guid elementTemplateID)

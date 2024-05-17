@@ -6,7 +6,7 @@ namespace TDPIConnector.PI
     public class AFElementWrapper
     {
         internal AFElement AFSDKObject { get; private set; }
-        internal AFElementWrapper(AFElement element)
+        internal AFElementWrapper(in AFElement element)
         {
             this.AFSDKObject = element;
         }

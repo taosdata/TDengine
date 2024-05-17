@@ -1,6 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using log4net;
+using System.Collections.Generic;
 using System.Linq;
 using System;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Threading;
 using Newtonsoft.Json;
 using TDPIConnector.PI;
 using TDPIConnector.Core.Conversions;
@@ -37,9 +41,9 @@ namespace TDPIConnector.Core
         }
         class ScanElementList
         {
-            public List<ScanElementTemplate> Templates = new List<ScanElementTemplate>();
-            public List<ScanSingleElement> SingleElements = new List<ScanSingleElement>();
-            public List<ScanElement> Elements = new List<ScanElement>();
+            public ConcurrentBag<ScanElementTemplate> Templates = new ConcurrentBag<ScanElementTemplate>();
+            public ConcurrentBag<ScanSingleElement> SingleElements = new ConcurrentBag<ScanSingleElement>();
+            public ConcurrentBag<ScanElement> Elements = new ConcurrentBag<ScanElement>();
         }
         class ScanPointTags
         {
@@ -136,6 +140,8 @@ namespace TDPIConnector.Core
 
     public class PIInfoScanner
     {
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
         private PIServerManager piServerManager;
         private PISystemManager piSystemManager;
 
@@ -242,7 +248,7 @@ namespace TDPIConnector.Core
                 return "TS_" + attr.Type.Name;
             }
         }
-        internal string GetScanAFPointInfoByElements(IEnumerable<AFElementWrapper> elements)
+        internal string GetScanAFPointInfoByElements(List<AFElementWrapper> elements)
         {
             var piInfo = new ScanAFPointList();
             HashSet<string> existTemplate = new HashSet<string>();
@@ -316,12 +322,12 @@ namespace TDPIConnector.Core
         }
         internal string GetScanAFPointInfoByTemplateFilter(ref string filter)
         {
-            IEnumerable<AFElementWrapper> elements = new List<AFElementWrapper>();
+            List<AFElementWrapper> elements = new List<AFElementWrapper>();
             var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
             foreach (var template in templates)
             {
-                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name);
-                elements = elements.Concat(es);
+                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name).ToList();
+                elements.AddRange(es);
             }
 
             return GetScanAFPointInfoByElements(elements);
@@ -345,47 +351,67 @@ namespace TDPIConnector.Core
                 return "start param error, filterMode not found!";
             }
         }
-        internal string GetScanElementInfoByElements(IEnumerable<AFElementWrapper> elements) {
+        internal string GetScanElementInfoByElements(List<AFElementWrapper> elements) {
 
             ScanElementList elmentInfo = new ScanElementList();
-            HashSet<string> existTemplates = new HashSet<string>();          
-            HashSet<Guid> usedElements = new HashSet<Guid>();
-            foreach (var element in elements) {
-                if (!usedElements.Contains(element.ID)) {
-                    usedElements.Add(element.ID);
+            ConcurrentDictionary<string, bool> existTemplates = new ConcurrentDictionary<string, bool>();
+            ConcurrentDictionary<Guid, bool> usedElements = new ConcurrentDictionary<Guid, bool>();
+            int all = elements.Count();
 
-                    if (element.hasTemplate())
+            List<Task> tasks = new List<Task>();
+            int groups = 16;
+            long finishedCount = 0;
+            log.Info($"GetScanElementInfoByElements, count: {all}");
+            for (int i = 0; i < groups; i++) {
+                int groupIndex = i;
+                tasks.Add(Task.Run(async () =>
+                {
+                    for (int j = groupIndex; j < elements.Count(); j += groups)
                     {
-                        if (!existTemplates.Contains(element.Template.Name)) {
-                            existTemplates.Add(element.Template.Name);
-                            ScanElementTemplate template = new ScanElementTemplate();
-                            template.TemplateName = element.Template.Name;
-                            template.Attributes = GetTemplateAtrributes(element.Template);
-                            template.StaticAttributes = GetTemplateAtrributesForTag(element.Template);
-                            elmentInfo.Templates.Add(template);
+                        var element = elements[j];
+                        if (!usedElements.ContainsKey(element.ID))
+                        {
+                            usedElements[element.ID] = true;
+
+                            if (element.hasTemplate())
+                            {
+                                if (!existTemplates.ContainsKey(element.Template.Name))
+                                {
+                                    existTemplates[element.Template.Name] = true;
+                                    ScanElementTemplate template = new ScanElementTemplate();
+                                    template.TemplateName = element.Template.Name;
+                                    template.Attributes = GetTemplateAtrributes(element.Template);
+                                    template.StaticAttributes = GetTemplateAtrributesForTag(element.Template);
+                                    elmentInfo.Templates.Add(template);
+                                }
+                            }
+                            else
+                            {
+                                ScanSingleElement temp = new ScanSingleElement();
+                                temp.ID = element.ID.ToString();
+                                temp.Name = element.Name;
+                                temp.Path = element.GetPath();
+                                temp.Attributes = GetElementAtrributes(element);
+                                if (temp.Attributes.Count == 0) continue;
+                                temp.StaticAttributes = GetElementAtrributesForTag(element);
+                                elmentInfo.SingleElements.Add(temp);
+                                continue;
+                            }
+                            ScanElement e = new ScanElement();
+                            e.ID = element.ID.ToString();
+                            e.Name = element.Name;
+                            e.Path = element.GetPath();
+                            e.TemplateName = element.hasTemplate() ? element.Template.Name : "";
+                            // e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
+                            elmentInfo.Elements.Add(e);
                         }
+                        Interlocked.Increment(ref finishedCount);
                     }
-                    else
-                    {
-                        ScanSingleElement temp = new ScanSingleElement();
-                        temp.ID = element.ID.ToString();
-                        temp.Name = element.Name;
-                        temp.Path = element.GetPath();
-                        temp.Attributes = GetElementAtrributes(element);
-                        if (temp.Attributes.Count == 0) continue;
-                        temp.StaticAttributes = GetElementAtrributesForTag(element);
-                        elmentInfo.SingleElements.Add(temp);
-                        continue;
-                    }
-                    ScanElement e = new ScanElement();
-                    e.ID = element.ID.ToString();
-                    e.Name = element.Name;
-                    e.Path = element.GetPath();
-                    e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
-                    // e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
-                    elmentInfo.Elements.Add(e);
-                }
+                    log.Info($"GetScanElementInfoByElements, finish: {Interlocked.Read(ref finishedCount)}/{all}");
+                }));
             }
+
+            Task.WaitAll(tasks.ToArray());
             var json = JsonConvert.SerializeObject(elmentInfo);
             return json;
         }
@@ -395,15 +421,15 @@ namespace TDPIConnector.Core
         }
         internal string GetScanElementInfoByTemplateFilter(ref string filter)
         {
-            IEnumerable<AFElementWrapper> elements = new List<AFElementWrapper>();
+            List<AFElementWrapper> elements = new List<AFElementWrapper>();
             var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
             foreach (var template in templates)
             {
-                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name);
-                elements = elements.Concat(es);
+                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name).ToList();
+                elements.AddRange(es);
             }
-            var elementsWithoutTemplate = piSystemManager.GetElementsNoTemplate(AppSettings.tomlConfig.AFDatabaseName);
-            elements = elements.Concat(elementsWithoutTemplate);
+            // var elementsWithoutTemplate = piSystemManager.GetElementsNoTemplate(AppSettings.tomlConfig.AFDatabaseName);
+            //elements.AddRange(elementsWithoutTemplate);
 
             return GetScanElementInfoByElements(elements);
         }
@@ -462,7 +488,7 @@ namespace TDPIConnector.Core
                 {
                     foreach (var childAttr in attr.childAttributes)
                     {
-                        if (!attr.IsTDengineTag()) continue;
+                        if (!childAttr.IsTDengineTag()) continue;
                         ScanAttribute tmp = new ScanAttribute();
                         tmp.Type = AttributeTypeConverter.Convert(childAttr.DataReference, childAttr.Type);
                         if (null == tmp.Type) continue;
