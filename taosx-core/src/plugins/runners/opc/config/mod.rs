@@ -10,7 +10,7 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
-use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::points::{PointsConfig, UpdateMode};
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
@@ -79,8 +79,9 @@ impl OPCConfig {
         } else {
             let points = opc_datasets_impl(dsn.clone()).await?;
             let mut opc_model_config = OpcModelConfig::new();
-            opc_model_config.add_points(points, dsn)?;
-
+            let point_model_config = OpcPointModelConfig::from_dsn(dsn)?;
+            opc_model_config.set_point_model_config(point_model_config);
+            opc_model_config.add_points(points)?;
             opc_model_config
         };
 
@@ -352,6 +353,38 @@ impl OPCConfig {
         Ok(point_config_map)
     }
     */
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpcPointModelConfig {
+    pub opc_type: OpcType,
+    pub update_mode: UpdateMode,
+    pub stable_expression: String,
+    pub tbname_expression: String,
+    pub primary_key: String,
+    pub primary_key_alias: String,
+}
+
+impl OpcPointModelConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let update_mode = PointsConfig::parse_update_mode(dsn)?.unwrap_or(UpdateMode::None);
+        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        Ok(Self {
+            opc_type,
+            update_mode,
+            stable_expression,
+            tbname_expression,
+            primary_key,
+            primary_key_alias,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
