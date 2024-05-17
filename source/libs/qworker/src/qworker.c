@@ -300,6 +300,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   }
 
   *dataLen = 0;
+  *pRawDataLen = 0;
 
   while (true) {
     dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
@@ -912,26 +913,6 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
 
     qwBuildFetchRsp(rsp, &sOutput, dataLen, rawDataLen, qComplete);
-
-    {
-      SRetrieveTableRsp* pRsp = rsp;
-
-      if (dataLen > 8192) {
-        char* p = taosMemoryMalloc(dataLen);
-
-        int32_t len = tsCompressString(pRsp->data, dataLen, 1, p, dataLen, ONE_STAGE_COMP, NULL, 0);
-        memcpy(pRsp->data, p, len);
-
-        pRsp->payloadLen = htonl(dataLen);
-        pRsp->compLen = htonl(len);
-        pRsp->compressed = 1;
-        taosMemoryFree(p);
-      } else {
-        pRsp->payloadLen = pRsp->compLen;
-        pRsp->compressed = 0;
-      }
-    }
-
     if (qComplete) {
       atomic_store_8((int8_t *)&ctx->queryEnd, true);
     }
