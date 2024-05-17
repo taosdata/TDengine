@@ -340,6 +340,8 @@ static int32_t tsdbCompactFSetBegin(SCompactor2 *compactor) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+
+    (void)tsdbCompactFSetCloseReader(compactor);
   }
   return code;
 }
