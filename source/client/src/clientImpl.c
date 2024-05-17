@@ -2202,24 +2202,28 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   if (pRsp->compressed) {
     int32_t payloadLen = htonl(pRsp->payloadLen);
 
-    if (pResultInfo->decompressBuf == NULL) {
-      pResultInfo->decompressBuf = taosMemoryMalloc(payloadLen);
+    if (pResultInfo->decompBuf == NULL) {
+      pResultInfo->decompBuf = taosMemoryMalloc(payloadLen);
+      pResultInfo->decompBufSize = payloadLen;
     } else {
-      char* p = taosMemoryRealloc(pResultInfo->decompressBuf, payloadLen);
-      if (p == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
-        return terrno;
-      }
+      if (pResultInfo->decompBufSize < payloadLen) {
+        char* p = taosMemoryRealloc(pResultInfo->decompBuf, payloadLen);
+        if (p == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
+          return terrno;
+        }
 
-      pResultInfo->decompressBuf = p;
+        pResultInfo->decompBuf = p;
+        pResultInfo->decompBufSize = payloadLen;
+      }
     }
 
-    int32_t len = tsDecompressString((void*)pRsp->data, htonl(pRsp->compLen), 1, pResultInfo->decompressBuf, payloadLen,
+    int32_t len = tsDecompressString((void*)pRsp->data, htonl(pRsp->compLen), 1, pResultInfo->decompBuf, payloadLen,
                                      ONE_STAGE_COMP, NULL, 0);
     ASSERT(len == payloadLen);
 
-    pResultInfo->pData = pResultInfo->decompressBuf;
+    pResultInfo->pData = pResultInfo->decompBuf;
     pResultInfo->payloadLen = payloadLen;
   } else {
     pResultInfo->pData = (void*)pRsp->data;

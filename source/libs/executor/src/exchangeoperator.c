@@ -41,6 +41,8 @@ typedef struct SSourceDataInfo {
   SArray*            pSrcUidList;
   int32_t            srcOpType;
   bool               tableSeq;
+  char*              decompBuf;
+  int32_t            decompBufSize;
 } SSourceDataInfo;
 
 static void  destroyExchangeOperatorInfo(void* param);
@@ -370,7 +372,10 @@ void freeBlock(void* pParam) {
 
 void freeSourceDataInfo(void* p) {
   SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
+  taosMemoryFreeClear(pInfo->decompBuf);
   taosMemoryFreeClear(pInfo->pRsp);
+
+  pInfo->decompBufSize = 0;
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
@@ -675,14 +680,24 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   char*   pStart = pRetrieveRsp->data;
   int32_t index = 0;
   int32_t code = 0;
-  char*   p = NULL;
 
   if (pRetrieveRsp->compressed) {  // decompress the data
-    p = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-    int32_t t = tsDecompressString(pRetrieveRsp->data, pRetrieveRsp->compLen, 1, p, pRetrieveRsp->payloadLen,
-                                   ONE_STAGE_COMP, NULL, 0);
+    if (pDataInfo->decompBuf == NULL) {
+      pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
+      pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
+    } else {
+      if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
+        char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
+        if (p != NULL) {
+          pDataInfo->decompBuf = p;
+          pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
+        }
+      }
+    }
+    int32_t t = tsDecompressString(pRetrieveRsp->data, pRetrieveRsp->compLen, 1, pDataInfo->decompBuf,
+                                   pRetrieveRsp->payloadLen, ONE_STAGE_COMP, NULL, 0);
     ASSERT(t == pRetrieveRsp->payloadLen);
-    pStart = p;
+    pStart = pDataInfo->decompBuf;
   }
 
   while (index++ < pRetrieveRsp->numOfBlocks) {
@@ -703,7 +718,6 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
   }
 
-  taosMemoryFreeClear(p);
   return code;
 }
 
