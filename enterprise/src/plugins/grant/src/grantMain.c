@@ -148,17 +148,22 @@
            (item), (int64_t)(cv), (int64_t)(lv));                      \
   } while (0)
 
-#define GRANT_OPT_EXPIRE_INIT(ev, idx)                                                \
-  do {                                                                                \
-    (ev) = grantHandle.showOpts[(idx)] ? GRANT_UNIQ_UNLIMITED : GRANT_UNIQ_UNDEFINED; \
+#define GRANT_OPT_EXPIRE_INIT(ev, ed, idx) \
+  do {                                     \
+    if (grantHandle.showOpts[(idx)]) {     \
+      (ev) = GRANT_UNIQ_UNLIMITED;         \
+    } else {                               \
+      (ev) = GRANT_UNIQ_UNDEFINED;         \
+      (ed) = 1;                            \
+    }                                      \
   } while (0)
 
-#define GRANT_OPT_EXPIRE_ASSIGN(es, esv, ed, edv, idx, nv) \
-  do {                                                     \
-    if (grantHandle.showOpts[(idx)]) {                     \
-      (es) = (esv);                                        \
-      if ((nv) > 1) (ed) = (edv);                          \
-    }                                                      \
+#define GRANT_OPT_EXPIRE_ASSIGN(es, esv, ed, edv, idx) \
+  do {                                                 \
+    if (grantHandle.showOpts[(idx)]) {                 \
+      (es) = (esv);                                    \
+      (ed) = (edv);                                    \
+    }                                                  \
   } while (0)
 
 // make sure the expire_sec is not GRANT_UNIQ_UNDEFINED
@@ -377,6 +382,9 @@ void tResetGrantUniqObj(SGrantUniqObj *pObj) {
 }
 
 static void grantInitShowFlags() {
+  grantHandle.showOpts[GRANT_OPT_BASIC] = 1;
+  grantHandle.showOpts[GRANT_OPT_SERVICE] = 1;
+
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_STREAM)
   grantHandle.showOpts[GRANT_OPT_STREAM] = 1;
 #endif
@@ -458,18 +466,18 @@ static void grantInitShowFlags() {
 static void grantStatusInit(SGrantStatus *pStatus) {
   grantInitShowFlags();
 
-  GRANT_OPT_EXPIRE_INIT(pStatus->basicExpireSec, true);
-  GRANT_OPT_EXPIRE_INIT(pStatus->streamExpireSec, GRANT_OPT_STREAM);
-  GRANT_OPT_EXPIRE_INIT(pStatus->subscriptionExpireSec, GRANT_OPT_SUBSCRIPTION);
-  GRANT_OPT_EXPIRE_INIT(pStatus->auditExpireSec, GRANT_OPT_AUDIT);
-  GRANT_OPT_EXPIRE_INIT(pStatus->csvExpireSec, GRANT_OPT_CSV);
-  GRANT_OPT_EXPIRE_INIT(pStatus->viewExpireSec, GRANT_OPT_VIEW);
-  GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, GRANT_OPT_STORAGE);
-  GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, GRANT_OPT_DATA_BAK_RST);
-  GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, GRANT_OPT_OBJECT_STORAGE);
-  GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, GRANT_OPT_ACTIVE_ACTIVE);
-  GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, GRANT_OPT_DUAL_REPLICA_HA);
-  GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, GRANT_OPT_DB_ENCRYPTION);
+  GRANT_OPT_EXPIRE_INIT(pStatus->basicExpireSec, pStatus->expired, GRANT_OPT_BASIC);
+  GRANT_OPT_EXPIRE_INIT(pStatus->streamExpireSec, pStatus->streamExpired, GRANT_OPT_STREAM);
+  GRANT_OPT_EXPIRE_INIT(pStatus->subscriptionExpireSec, pStatus->subscriptionExpired, GRANT_OPT_SUBSCRIPTION);
+  GRANT_OPT_EXPIRE_INIT(pStatus->auditExpireSec, pStatus->auditExpired, GRANT_OPT_AUDIT);
+  GRANT_OPT_EXPIRE_INIT(pStatus->csvExpireSec, pStatus->csvExpired, GRANT_OPT_CSV);
+  GRANT_OPT_EXPIRE_INIT(pStatus->viewExpireSec, pStatus->viewExpired, GRANT_OPT_VIEW);
+  GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, pStatus->multiTierExpired, GRANT_OPT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_BAK_RST);
+  GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, pStatus->objectStorageExpired, GRANT_OPT_OBJECT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, pStatus->placeHolder, GRANT_OPT_ACTIVE_ACTIVE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, pStatus->dualReplicaHAExpired, GRANT_OPT_DUAL_REPLICA_HA);
+  GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, pStatus->dbEncryptionExpired, GRANT_OPT_DB_ENCRYPTION);
 
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 }
@@ -1620,33 +1628,31 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     int8_t optExpired = optExpireSec > grantCurTime ? 0 : 1;
 
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.multiTierExpireSec, optExpireSec, gStatus.multiTierExpired, optExpired,
-                            GRANT_OPT_STORAGE, 2);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.streamExpireSec, optExpireSec, gStatus.streamExpired, optExpired, GRANT_OPT_STREAM,
-                            2);
+                            GRANT_OPT_STORAGE);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.streamExpireSec, optExpireSec, gStatus.streamExpired, optExpired, GRANT_OPT_STREAM);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.subscriptionExpireSec, optExpireSec, gStatus.subscriptionExpired, optExpired,
-                            GRANT_OPT_SUBSCRIPTION, 2);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.auditExpireSec, optExpireSec, gStatus.auditExpired, optExpired, GRANT_OPT_AUDIT,
-                            2);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.csvExpireSec, optExpireSec, gStatus.csvExpired, optExpired, GRANT_OPT_CSV, 2);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.bakRstExpireSec, optExpireSec, gStatus.reserve1, 0, GRANT_OPT_DATA_BAK_RST, 1);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.viewExpireSec, optExpireSec, gStatus.viewExpired, optExpired, GRANT_OPT_VIEW, 2);
+                            GRANT_OPT_SUBSCRIPTION);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.auditExpireSec, optExpireSec, gStatus.auditExpired, optExpired, GRANT_OPT_AUDIT);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.csvExpireSec, optExpireSec, gStatus.csvExpired, optExpired, GRANT_OPT_CSV);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.bakRstExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_BAK_RST);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.viewExpireSec, optExpireSec, gStatus.viewExpired, optExpired, GRANT_OPT_VIEW);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.objectStorageExpireSec, optExpireSec, gStatus.objectStorageExpired, optExpired,
-                            GRANT_OPT_OBJECT_STORAGE, 2);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.activeActiveExpireSec, optExpireSec, gStatus.reserve1, 0, GRANT_OPT_ACTIVE_ACTIVE,
-                            1);
+                            GRANT_OPT_OBJECT_STORAGE);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.activeActiveExpireSec, optExpireSec, gStatus.placeHolder, 0,
+                            GRANT_OPT_ACTIVE_ACTIVE);
 
 #ifndef ASSERT_NOT_CORE
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireSec, gStatus.dualReplicaHAExpired, optExpired,
-                            GRANT_OPT_DUAL_REPLICA_HA, 2);
+                            GRANT_OPT_DUAL_REPLICA_HA);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireSec, gStatus.dbEncryptionExpired, optExpired,
-                            GRANT_OPT_DB_ENCRYPTION, 2);
+                            GRANT_OPT_DB_ENCRYPTION);
 #else  // release version
     int64_t optExpireEpoch = grantClusterEpoch;
     GRANT_EXPIRE_TUNE_INDUSTRY(optExpireEpoch);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireEpoch, gStatus.dualReplicaHAExpired, true,
-                            GRANT_OPT_DUAL_REPLICA_HA, 2);
+                            GRANT_OPT_DUAL_REPLICA_HA);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireEpoch, gStatus.dbEncryptionExpired, true,
-                            GRANT_OPT_DB_ENCRYPTION, 2);
+                            GRANT_OPT_DB_ENCRYPTION);
 #endif
 
     // fixed dataIns
