@@ -297,7 +297,7 @@ export default {
       let splitArr = base_url.split('//')
       let url = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
       return (
-        splitArr[0].startsWith('taos') ? '' : "taos+" +
+        (splitArr[0].startsWith('taos') ? '' : "taos+") +
         url +
         (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "")
       );
