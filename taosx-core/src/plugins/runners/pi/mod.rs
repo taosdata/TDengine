@@ -64,7 +64,8 @@ pub async fn pi_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let driver = from.driver.as_str();
+    let driver = from.driver.clone();
+    let driver = driver.as_str();
     tracing::info!("Start {} task", driver);
     #[cfg(not(target_os = "windows"))]
     {
