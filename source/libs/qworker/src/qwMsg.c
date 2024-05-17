@@ -41,6 +41,7 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, int32_t rawData
   rsp->numOfRows = htobe64(input->numOfRows);
   rsp->numOfCols = htonl(input->numOfCols);
   rsp->numOfBlocks = htonl(input->numOfBlocks);
+  ASSERT(rawDataLen != 100446);
 }
 
 void qwFreeFetchRsp(void *msg) {
