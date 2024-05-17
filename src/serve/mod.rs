@@ -97,6 +97,9 @@ pub(super) struct Cli {
     #[clap(flatten)]
     #[serde(skip)]
     pub verbose: Option<Verbosity<InfoLevel>>,
+
+    #[clap(long, env = "REPEAT_INTERVAL")]
+    pub repeat_interval: Option<u64>,
 }
 
 impl Cli {
@@ -188,6 +191,10 @@ impl Cli {
         scheduler: TaskScheduler,
         max_activities_per_entity: usize,
     ) -> Result<TaskControllerRef> {
+        if let Some(interval) = self.repeat_interval {
+            let dur = Duration::from_secs(interval);
+            controller::trigger::init_repeat_interval(dur);
+        }
         let database_url = self.get_database_url();
         let controller =
             TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
