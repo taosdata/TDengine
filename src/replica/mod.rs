@@ -327,10 +327,11 @@ impl ReplicaTask {
 
     /// Reason of error or failed status.
     fn reason(&self) -> Option<&str> {
-        if self.status == "failed" || self.status == "suspended" || self.status == "interrupted" {
-            self.reason.as_deref()
-        } else {
-            None
+        match self.status.as_str() {
+            "failed" | "suspending" | "stopping" | "stopped" | "suspended" | "interrupted" => {
+                self.reason.as_deref()
+            }
+            _ => None,
         }
     }
 }
