@@ -266,7 +266,7 @@ export default {
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
-        Message.error(this.$t("datasource.repeattip"));
+        this.$error(this.$t("datasource.repeattip"));
         return;
       } else {
         this.colData["name"] = val;

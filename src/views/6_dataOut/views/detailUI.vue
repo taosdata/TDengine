@@ -329,7 +329,7 @@ import { Message } from 'element-ui'
           })
           .catch(err => {
             this.stableList = [];
-            err.desc && this.$message.error(err.desc);
+            err.desc && this.$error(err.desc);
           })
           .finally(() => {
             this.requestIng = false;
@@ -446,14 +446,14 @@ import { Message } from 'element-ui'
             if (this.isEditable) {
               let result = await EditSource(params, this.editId);
               if (result.message) {
-                Message.error(result.message);
+                this.$error(result.message);
                 return;
               }
               this.$parent.currentName = 'dbsource';
             } else {
               let result = await AddSource(params);
               if (result.message) {
-                Message.error(result.message);
+                this.$error(result.message);
                 return;
               }
               if (result && result.id) {

@@ -98,8 +98,7 @@
   </div>
 </template>
 <script>
-import { getParser } from "@/api/explorer/datain";
-import { Message } from "element-ui";
+import { getParser, checkParseData } from "@/api/explorer/datain";
 import { parsinginZone } from "@/utils";
 import SplitExpression from "./splitExpression.vue";
 import { deepClone } from "@/utils";
@@ -244,8 +243,8 @@ export default {
             "app/SET_TRANS_RESULT_NAME",
             this.itemData.columnname
           );
-          await this.submitExtract();
-          await this.submitExtract(true);
+                      await this.submitExtract();
+                    await this.submitExtract(true);
 
           return true;
         } else {
@@ -255,9 +254,14 @@ export default {
     },
     async getParserData(data, isall) {
       try {
+        let checkResult = checkParseData(data);
+        if (checkResult) {
+          this.$message.warning(this.$t(checkResult));
+          return;
+        }
         let result = await getParser(data);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
 
@@ -304,14 +308,14 @@ export default {
                     !this.kafkaDefaultCols.includes(val)
                   ) {
                     return val;
-                  }else if(this.$store.state.app.currentDBType == "avevaHistorian"){
+                  } else if(this.$store.state.app.supportSQL){
                     return val
                   }
                 });
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index] ? data[index].toString() : null];
+              return [item.name, this.filterEmpty(data[index]) ? data[index].toString() : null];
             })
           );
         });
@@ -331,24 +335,21 @@ export default {
             "app/SET_TRANSFORMER_MAPCOLUMNS",
             transformerColumns
           );
-          
-          let newFields = this.tableColumns.concat(result[0].fields.filter(item => !this.tableColumns.find(x => x.name === item.name))) 
-          let newColumns = []
-          let len = this.tableColumns.length
-          newColumns = result[0].columns.map(col => {
-            return col.slice(-len).concat(col.slice(0,col.length-len))
-          })
-          tbdata = newColumns.map((data) => {
-            return Object.fromEntries(
-              newFields.map((item, index) => {
-                return [item.name, data[index] ? data[index].toString() : null];
-              })
-            );
+          // 将当前提取或拆分的数据放在 table 的最前面 
+          let resultData = []
+          tbdata.map((item,index) => {
+            this.tableData.map(addItem => {
+              Object.keys(addItem).forEach(key => {
+                delete item[key];
+              });
+            });
+            let addObj = this.tableData[index];
+            let newItem = {...addObj, ...item};
+            resultData.push(newItem)
           });
-
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
-          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
           
           return;
         }
@@ -384,7 +385,6 @@ export default {
     },
     //提交单个
     async submitExtract(isall) {
-      let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       let resultMsgbody = "";
       if (
@@ -416,7 +416,7 @@ export default {
               this.isJson = true;
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 
@@ -440,17 +440,17 @@ export default {
         this.indentifiedColumns
           .filter((val) => !hiddenCols.includes(val.name))
           .forEach((item) => {
-            if (this.$store.state.app.currentDBType == "mqtt") {
+                        if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                inputobj["payload"] = isall
+                                inputobj["payload"] = isall
                   ? msg
                   : this.isJson
-                  ? JSON.stringify({
-                      [`${this.itemData.columnname}`]:
-                        JSON.parse(msg)[this.itemData.columnname],
-                    })
-                  : msg;
-              } else {
+                    ? JSON.stringify({
+                        [`${this.itemData.columnname}`]:
+                          JSON.parse(msg)[this.itemData.columnname],
+                      })
+                    : msg;
+                                } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
                     ? parsinginZone(new Date())
@@ -513,19 +513,6 @@ export default {
           Object.assign(this.extractParseData["extract"], val);
         });
       let topparse = deepClone(this.$store.state.app.topParse);
-      let extractlist = {};
-      // topparse["parser"]["mutate"] = isall
-      //   ? this.$store.state.app.transformerFilterParseData
-      //     ? []
-      //         .concat(this.$store.state.app.transformerFilterParseData)
-      //         .concat(this.extractParseData)
-      //     : [].concat(this.extractParseData)
-      //   : [].concat({
-      //       extract: {
-      //         [`${this.itemData.columnname}`]:
-      //           this.extractParseData["extract"][this.itemData.columnname],
-      //       },
-      //     });
       
       const keys = Object.keys(this.extractParseData.extract);
       const slicedKeys = keys.slice(0, this.index + 1);
@@ -545,11 +532,7 @@ export default {
      
       let parser = {
         parser: {
-          parse:
-          // this.$store.state.app.currentDBType == "avevaHistorian" ? isall?this.$store.state.app.topParse.parser.parse:{
-          //   [`${this.itemData.columnname}`]:this.$store.state.app.topParse.parser.parse[this.itemData.columnname]
-          // }: 
-          this.$store.state.app.topParse.parser.parse,
+          parse: this.$store.state.app.topParse.parser.parse,
           mutate: topparse["parser"]["mutate"],
         },
 
@@ -566,7 +549,7 @@ export default {
                   }
                 }
               )
-          :this.$store.state.app.currentDBType == "avevaHistorian"?isall?this.$store.state.app.topParse.input:[].concat({
+          :this.$store.state.app.supportSQL?isall?this.$store.state.app.topParse.input:[].concat({
             [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
           }): inputList,
       };
@@ -587,10 +570,21 @@ export default {
         }
       }
       await this.getParserData(parser, isall);
-      
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
+    },
+    filterEmpty(val) {
+      if (
+        Object.is(val, undefined) | Object.is(val, "") ||
+        Object.is(val, null)
+        ) {
+        return "";
+      }
+      if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
+        return val.toString();
+      }
+      return val;
     },
   },
   mounted() {
@@ -624,12 +618,12 @@ export default {
   }
 }
 .extract-split {
-  margin-top: 20px;
   // &.active{
   //   padding: 20px;
   //   border-radius:6px;
   //   animation:heart 5s linear infinite;
   // }
+  margin-bottom: 12px;
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
@@ -668,7 +662,6 @@ export default {
   margin-bottom: 10px;
 }
 .col-list {
-  margin-top: 10px;
   margin-bottom: 25px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;

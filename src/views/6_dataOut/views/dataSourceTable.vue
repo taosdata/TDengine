@@ -361,7 +361,7 @@ export default {
         ).then(async () => {
           let result = await excuteStart(data.id);
           if (result && result.message) {
-            Message.error(result.message);
+            this.$error(result.message);
             return;
           }
           this.refresh();
@@ -395,7 +395,7 @@ export default {
       try {
         let result = await refreshTask(data.taskid);
         if (result && (result.message || result.desc)) {
-          Message.error(result.message || result.desc);
+          this.$error(result.message || result.desc);
           return;
         }
         let index = this.topicList.findIndex(

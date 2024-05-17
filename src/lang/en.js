@@ -20,6 +20,7 @@ const DocsUrl =
   (localStorage.getItem("local_language")?.includes("zh")
     ? "/docs"
     : "/docs-en");
+const IS_COMMUNITY = process.env.VUE_APP_COMMUNITY && process.env.VUE_APP_COMMUNITY == 'community'
 export default {
   //通用部分
 
@@ -34,7 +35,7 @@ export default {
   pInName: "Please enter the name",
   generateToken: "Generate Token",
   configure: "Configure",
-  urlPart: "/docs-en",
+  urlPart: IS_COMMUNITY ? "https://tdengine.com": "/docs-en",
   disbleagent: "Disable agent",
   enableagent: "Enable agent",
   database: "Database",
@@ -163,7 +164,7 @@ export default {
   clusterInfo: "Instance Information",
   clusterName: "Instance Name",
   document: "Documentation",
-  docsUrl: "/docs-en/",
+  docsUrl: IS_COMMUNITY ? "https://tdengine.com/": "/docs-en/",
   discord: "Discord",
   hour: "Hour",
   formatWrong: "wrong format",
@@ -207,7 +208,14 @@ export default {
   hours: 'h ',
   minutes: 'm ',
   seconds: 's ',
-  milliseconds: 'ms',
+  milliseconds: 'ms ',
+  microseconds: 'us ',
+  nanoseconds: 'ns ',
+  systemPrompt: 'System Prompt',
+  communityContent: 'You are using the community version of TDengine, some functionalities are not available, e.g. database backup and recovery, data replication, multi-level storage, data in for various kinds of data sources, access control, view, etc. TDengine Enterprise or Cloud provides these and some other functionalities to facilitate your business needs. Please feel free to contact the TDengine team to get access to TDengine Enterprise or Cloud. ',
+  dontDisturbMe: 'No more reminders within 7 days',
+  communityTip: "Only available in TDengine Enterprise or Cloud. To learn more, please visit the TDengine <a href='https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>official website</a>.",
+  communityDemoDataTip: 'The current list data is only sample data',
   statuses: {
     created: "Created",
     queued: "Queued",
@@ -237,6 +245,8 @@ export default {
   systemUpdate: "System update",
   ignore: "Ignore",
   update: "Update",
+  contact: 'Contact',
+  close: 'Close',
   updateContent:
     'Find the new version, click "Update" to obtain, please pay attention to save the current page data before refreshing',
   plan: {
@@ -351,6 +361,7 @@ export default {
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: "Log in Explorer",
     username: "User Name",
+    usernamePlaceholder: "Please enter the User Name, default is root",
     password: "Password",
     loginLeftMessage: {
       title:
@@ -596,6 +607,7 @@ export default {
     columns: "Columns",
     subTable: "Sub Table",
     columnNameTip: "Column Name",
+    clickColumnTip: "Click Switch to TAG",
     tagNameTip: "Tag Name",
     sub_table: "SubTable",
     subTables: "SubTables",
@@ -685,6 +697,27 @@ export default {
     metricsName: "Metrics Name",
     metricsDesc: 'Description',
     metricsValue: "Metrics Value",
+    replicationProgress: "Replication Progress",
+    tbReplicationProgress: "Data Replication Progress of Single Stable/Table",
+    tbName: "Stable/Table Name",
+    tbNameP: "Source Database.Table",
+    timeRange: "Time Range",
+    query: "Query",
+    tbHeader: {
+      table: "Stable/Table", 
+      source: "Latest Timestamp at Source",
+      sink: "Latest Timestamp at Sink", 
+      difference: "Time Difference", 
+      sourceNum: "Number of Rows at Source",
+      sinkNum: "Number of Rows at Sink",
+      topic: "Topic",
+      vgroup: "VGroup",
+      offset: "Offset",
+      latest: "Latest",
+    },
+    vgroupReplicationProgress:  "Replication Progress per Vgroup",
+    updateTime: "Updated at:",
+    refresh: "Refresh",
     check: "Check Connection",
     resume: "Scheduling strategy",
     resumeTip:
@@ -767,6 +800,14 @@ export default {
       "The SQL you input doesn't have any conditions to limit the input and output, this may cause some problems such as too much time cost, too big result set, too big resource consumption. It's strongly recommended to add some conditions to filter by time range, tags, and use 'limit/slimit' to control the number of output groups.",
     startTime: "Please enter the start time.",
     endTime: "Please enter the end time.",
+    category: "Category",
+    name: "Name",
+    type: "Type",
+    stable_name: "STable Name",
+    table_name: "Table Name",
+    create_time: "Creation Time",
+    columns: "Columns",
+    tags: "Tags"
   },
   sql: {
     analysis: "Analysis",
@@ -978,6 +1019,30 @@ export default {
     nameError: "No special characters are allowed",
     demoData: "Demo Data",
     demoDataText: "a database with 1 million data points is created",
+    title: 'TDengine Management System',
+    titleTip: 'Please register first to use TDengine explorer for better experience and technical support',
+    phone: 'Mobile phone number',
+    email: 'Email',
+    verificationCode: 'Verification code',
+    getVerificationCode: 'Get verification code',
+    regetVerificationCode: 'Resend verification code',
+    signin: 'Submit',
+    imageVerificationCode: 'Image Verification code',
+    phoneTips: "Please enter email",
+    emailTips: "Please enter email",
+    verificationCodeTips: "Please enter the verification code",
+    requirement: "The explorer must be able to connect to the Internet when you register, otherwise it will fail. After successful registration, the explorer can be used on the intranet without connecting to the Internet. For subsequent login, please use the database username and password to log in.",
+    errors: {
+      "verificationCodeNone": "You have not yet obtained the verification code. Please obtain the verification code again",
+      "verificationCodeError": "Verification code error, please re-enter",
+      "captchaInputError": "captcha input error, please re-enter",
+      "verificationCodeInputError": "Verification code error, please re-enter",
+      "network": "The explorer server cannot access the Internet.",
+    },
+    success: {
+      "verificationCodeSend": "The verification code has been sent successfully.",
+      "registerSuccess": "Registration successful, please log in using the database account",
+    }
   },
   cluster: {
     title: "Starting the TDengine  Service ...",
@@ -1332,32 +1397,41 @@ export default {
         type3: "Upload File",
         retrieve: "Retrieve From Server",
       },
+      
       filterexecuted: "Filter condition triggered",
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",
       parsefirst: "Please excute the parse,extract or split first",
       parse: "1. Parse",
+      jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
       jsontip: "Please enter the correct JSON format",
       texttip:"Please enter correct text format",
       mappingvaildtip:
         "Please fill in the correct primary key, column, and tag",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-      extractdesc: `
-      <strong>taosX supports three kinds of extractor</strong>:<br/>
-1. <strong>JSON</strong>: User could use object name such as: name , or [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> query such as $.field.sub=new_name to extract multiple fields from one string(json) field.<br/>
-2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
-      `,
-      subextractdesc:`
-      <strong>taosX supports two kinds of extractor</strong>:<br/>
-1. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
-      `,
-      filterdesc: `<strong>taosX supports a powerful expression engine to filter records. <em>false</em> records will be removed directly.</strong><br/>
-      - <strong>Bool value</strong>: bool_value if bool_value is true/false.<br/>
-      - <strong>Compare oprations</strong>: a > b with a and b fields exist, or c == "value" d > 1.1 and so on.<br/>
-      - <strong>String functions is also supported</strong>: s.contains("abc") .<br/>
-      - <strong>Mutil condition query is supported</strong>: && or || .` ,
+      extractdesc: `<strong style='paddingRight: 20px'>taosX supports two kinds of extractor currently</strong>:<br/>
+      1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
+      2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank">the enterprise version documentation</a>.</span>`,
+      subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
+      1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
+      2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit" target="_blank">the enterprise version documentation</a>.</span>`,
+      filterdesc: `<strong>Only rows with a filtering expression of true are written to TDengine:</strong><br/>
+      1. <strong>Bool type</strong> can directly use variable names of BOOL type as expressions.<br/>
+      2. <strong>String type</strong> supports functions such as is_empty, contains, start_with, ends_with, etc. For example, <em>c.start_with("taos")</em> can be used to determine whether field c is prefixed with <em>taos</em>.<br/>
+      3. <strong>Numerical types</strong> support ==, !=, >, >=, <, <=, etc for comparison operator.<br/>
+      Multiple expressions</strong> can be combined with logical operators <em>&&</em> or <em>||</em>. <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#3-filter" target="_blank">the enterprise version documentation</a>.</span>`,
+      expressiondesc: `<strong>taosX supports mapping expressions to map parsed, extracted, and split fields to the target super table</strong>:<br/>
+      1. <strong>value</strong>: Constant value, such as <em>1</em>、<em>"taos"</em>.<br/>
+      2. <strong>expr</strong>: Mathematical calculation expressions, for example, to convert Celsius to Fahrenheit values, the expression <em>centigrade * 1.8 + 32</em> can be used.<br/>
+      3. <strong>format</strong>: String formatting using placeholders <em>$\{\}</em> to reference fields, for example <em>$\{year\}-$\{month\}-$\{day\}</em> can be used to format as a date string.<br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#4-mapping" target="_blank">the enterprise version documentation</a>.</span>`,
       uploadexe: "Please upload the csv file and execute the next step",
+      extractrule: {
+        nofield: "haven't select the field to extract",
+        norule: "haven't select the extract rule",
+      },
       sp: "Please select the target super table",
       septip: "Please enter the separator",
       sepntip: "Please enter the separator number",
@@ -1368,11 +1442,10 @@ export default {
       previewmore: "Preview Result",
       more: "More",
       viewmore: "View More",
-      extract: "Extract or Split From A column",
-      filter: "2. Filter",
-      superconfig: "3. Mapping",
+      extract: "2. Extract or Split From A column",
+      filter: "3. Filter",
+      superconfig: "4. Mapping",
       target: "Target Super Table",
-      mapping: "Mapping",
       createstb: "Create STable",
       payload: "Payload Format",
       upload: "Upload Sample Data",
@@ -1390,7 +1463,16 @@ export default {
       tablenametip: "Please the table name ",
       mapcalculate: "Please calculate mapping first",
       calculate: "Preview",
+      emptyColumnName: "Column name cannot be empty: ",
+      duplicateColumnName: "Duplicate column name: ",
+      invalidColumnName: "Column name can only contain alpha letters, numbers and underscores, but cannot start with number. Invalid column name: ",
       emptySampleValues: "Please provide at least one example",
+      stableSelectOrCreateTip: "Please select or create a super table",
+      databaseSelectTip: "Please select the target database in the base information panel",
+      defaultValuePlaceholder: "default value",
+      dataRangeInputTip: "Please input integer value between {min} and {max}",
+      defaultValueErrorTip: "default value for column[{}] input error",
+      jsonExtractTip: 'JSON extract expression editor'
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
@@ -1468,6 +1550,7 @@ export default {
     mqttparsertip:
       "Ensure that all required items for the {datasource} parser have been filled out",
     mqtttitle: "MQTT Payload Parser",
+    transformerTitle: "Payload Transformation",
     parserTip: "A Data Mapping contains at least one column and one tag",
 
     addmqtttip: "Field, Column and Column Type cannot be empty before adding",
@@ -1564,7 +1647,12 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
       java: {
         step1: "Add Dependency",
         step2: "Config",
-        step3: "Connect",
+        step3: "Example",
+        step3depdesc: 'In the "pom.xml" file, please add the Spring Boot and TDengine Java connector dependencies:',
+        step3confdesc: 'In the "application.yml" file, please add the following configurations:',
+        step3mybatisdesc1: 'Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object',
+        step3mybatisdesc2: 'Create a meterMapper.xml file under src/main/resources/mapper, and add the following SQL mapping',
+        step3href: 'For more details about how to write or query data from TDngine instance through Spring, please refer to',
         step3desc:
           "Code bellow get JDBC URL from environment variables first and then create a Connection object, witch is a standard JDBC Connection object.",
       },

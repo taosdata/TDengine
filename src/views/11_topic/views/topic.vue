@@ -1,10 +1,10 @@
 <template>
   <div>
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng" style="font-size:14px;">{{
+      <el-button plain type="primary" @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng" style="font-size:14px;">{{
         $t("refresh")
       }}</el-button>
-      <el-button class="big-button" plain @click="dialog = true" size="small" icon="el-icon-plus">{{ $t("topic.createTopic") }}</el-button>
+      <el-button class="big-button" plain type="primary" @click="dialog = true" size="small" icon="el-icon-plus">{{ $t("topic.createTopic") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
@@ -236,7 +236,7 @@
               this.getTopics();
             })
             .catch((res) => {
-              this.$message.error(res?.desc);
+              this.$error(res?.desc);
             })
         });
       },

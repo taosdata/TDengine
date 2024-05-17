@@ -129,7 +129,7 @@ export default {
             this.currentTopic=this.topicList[0]
           })
           .catch((err) => {
-            // err.desc && Message.error(err.desc);
+            // err.desc && this.$error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {

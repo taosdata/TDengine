@@ -3,16 +3,24 @@
     <div class="flexEnd">
       <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
-        :disabled="requestIng"
+        :disabled="requestIng || $COMMUNITY"
         style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;"
-        >{{$t('taosuser.createbackup')}}</el-button
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
       >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY"
+          >{{$t('taosuser.createbackup')}}</el-button
+        >
+      </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column :label="$t('taosuser.directory')" width="150" prop="id">
@@ -83,6 +91,7 @@
             active-color="#13ce66"
             inactive-color="#dcdfe6"
             @change="switchOperation($event, scope.row)"
+            :disabled="$COMMUNITY"
           >
           </el-switch>
           <el-button
@@ -90,6 +99,7 @@
             size="small"
             @click="edit(scope.row, scope.$index)"
             icon="el-icon-edit"
+            :disabled="$COMMUNITY"
           ></el-button>
           <!-- <el-button
             plain
@@ -105,7 +115,7 @@
           ></el-button> -->
           <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
             <el-button
-             :disabled="scope.row.status.toLowerCase() == 'running'"
+             :disabled="scope.row.status.toLowerCase() == 'running' || $COMMUNITY"
              plain
              size="small"
              @click="handleRestorBackup(scope.row, scope.$index)"
@@ -117,6 +127,7 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
+            :disabled="$COMMUNITY"
           ></el-button>
         </template>
       </el-table-column>
@@ -210,6 +221,7 @@ import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { validDir } from '@/utils/validate';
 import { parsinginZone, decrypt } from '@/utils';
+import { backupMockData } from '@/const'
 export default {
   data() {
     return {
@@ -462,11 +474,11 @@ export default {
             this.getBackData();
             this.dialog = false;
           } else {
-            Message.error(res?.message)
+            this.$error(res?.message)
           }
         });
       } catch (err) {
-        Message.error(err);
+        this.$error(err);
         return Promise.reject(err);
       }
     },
@@ -523,11 +535,11 @@ export default {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
           } else {
-            Message.error(res?.message)
+            this.$error(res?.message)
           }
         });
       } catch (err) {
-        Message.error(err);
+        this.$error(err);
         return Promise.reject(err);
       }
     },
@@ -549,8 +561,12 @@ export default {
     },
   },
   created() {
-    this.getDatabases();
-    this.getBackData();
+    if (this.$COMMUNITY) {
+      this.topicList = backupMockData
+    } else {
+      this.getDatabases();
+      this.getBackData();
+    }
   },
 };
 </script>

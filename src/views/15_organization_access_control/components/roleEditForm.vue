@@ -86,7 +86,7 @@
             //     return !this.info.privileges[key].length;
             //   })
             // ) {
-            //   this.$message.error(this.$t("accessControl.privilegeTip"));
+            //   this.$error(this.$t("accessControl.privilegeTip"));
             //   return;
             // }
             this.requestIng = true;

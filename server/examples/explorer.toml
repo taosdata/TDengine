@@ -40,6 +40,9 @@ grpc = "http://localhost:6055"
 # CORS configuration switch, it allows cross-origin access
 cors = false
 
+# cloud open api.
+# cloud_open_api = "https://pre.ali.cloud.taosdata.com/openapi"
+
 # Enable ssl
 # If the following two files exist, enable ssl protocol
 #

@@ -634,8 +634,8 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      benchcode:`tar -xzf TDengine-enterprise-client-${localStorage.getItem('agent_version')}-Linux-x64.tar.gz
-cd TDengine-enterprise-client-${localStorage.getItem('agent_version')}
+      benchcode:`tar -xzf TDengine${this.$COMMUNITY ? '' : '-enterprise'}-client-${localStorage.getItem('agent_version')}-Linux-x64.tar.gz
+cd TDengine${this.$COMMUNITY ? '' : '-enterprise'}-client-${localStorage.getItem('agent_version')}
 sudo ./install_client.sh`
     };
   },
@@ -646,9 +646,12 @@ sudo ./install_client.sh`
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },
+    urlEnterprise() {
+      return this.$COMMUNITY ? '' : '-enterprise'
+    },
     installUrlLinux() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Linux-x64.tar.gz`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${this.version}-Linux-x64.tar.gz`;
     },
     installUrlMac() {
       const urlPart = this.urlPart;
@@ -660,7 +663,7 @@ sudo ./install_client.sh`
     },
     installUrlWindows() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Windows-x64.exe`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${this.version}-Windows-x64.exe`;
     },
   },
 };

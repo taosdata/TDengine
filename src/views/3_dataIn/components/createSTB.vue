@@ -79,6 +79,17 @@
                 @click="minusColumn(index)"
               ></el-button>
               <el-button @click="addColumn" icon="el-icon-plus"></el-button>
+              <el-tooltip
+                :content="$t('data.clickColumnTip')"
+              >
+              <el-button @click="removeToTag(index)">
+                <Icon
+                  :name="'tag'"
+                  class="console-tree-icon"
+                  style="width: 18px; height: 18px"
+                ></Icon>
+              </el-button>
+              </el-tooltip>
             </template>
           </el-input>
         </div>
@@ -192,9 +203,26 @@ export default {
       activeNames: ["1", "2"],
     };
   },
+  props: {
+    columnsArr: {
+      type: Array,
+      default: () => [],
+    }
+  },
   mounted() {
-    this.$set(this.stable_form.columns, 0, deepClone(this.column_item));
-    this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+    if (this.columnsArr.length > 0) {
+      let arr = this.columnsArr.map(item => {
+        return {
+          field: item.name,
+          type: item.localType.toUpperCase()
+        }
+      })
+      this.stable_form.columns = arr;
+      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+    } else {
+      this.$set(this.stable_form.columns, 0, deepClone(this.column_item));
+      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+    }
   },
   methods: {
     handleChange(newVal, oldVal, type, index) {
@@ -214,12 +242,12 @@ export default {
       }
     },
     minusColumn(index) {
-      if (index > 0) {
+      if (this.stable_form.columns.length > 1) {
         this.stable_form.columns.splice(index, 1);
       }
     },
     minusTags(index) {
-      if (index > 0) {
+      if (this.stable_form.tags.length > 1) {
         this.stable_form.tags.splice(index, 1);
       }
     },
@@ -230,6 +258,12 @@ export default {
     addColumn() {
       this.stable_form.columns.push(deepClone(this.column_item));
     },
+    removeToTag(index) {
+      if (this.stable_form.columns.length > 1) {
+        let column = this.stable_form.columns.splice(index, 1)[0];
+        this.stable_form.tags.push(deepClone(column));
+      }
+    }
   },
 };
 </script>

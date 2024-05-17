@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable' style="font-size:14px;">{{ $t("add") }}</el-button>
+      <el-button plain type="primary" @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isRoot' style="font-size:14px;">{{ $t("add") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
       <el-table-column :label="$t('userName')" prop="name"></el-table-column>
@@ -60,9 +60,9 @@
           <el-switch :value="scope.row.enable == 1" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
             @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
           </el-switch>&nbsp;&nbsp;
-          <el-button plain size="small" @click="edit(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+          <el-button plain size="small" @click="edit(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)|| !isRoot"
             icon="el-icon-edit"></el-button>
-          <el-button plain size="small" @click="del(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+          <el-button plain size="small" @click="del(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)|| !isRoot"
             icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
@@ -119,7 +119,8 @@ export default {
   },
   data() {
     return {
-      isDisable:localStorage.getItem('username')==='root',
+      isRoot: localStorage.getItem('username')==='root',
+      isDisable: this.isRoot && !this.$COMMUNITY,
       pageSize: 10,
       currentPage: 1,
       total: 10,

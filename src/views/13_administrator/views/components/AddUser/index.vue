@@ -35,6 +35,12 @@
         v-if="this.databaseList.length > 0"
         class="database-item"
       >
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -43,12 +49,13 @@
               class="db-pri"
               @change="changePri($event)"
             >
-              <el-checkbox label="Read">{{ $t('read') }}</el-checkbox>
-              <el-checkbox label="Write">{{ $t('write') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Read">{{ $t('read') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Write">{{ $t('write') }}</el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
             </el-checkbox-group>
           </li>
         </ul>
+      </el-tooltip>
       </el-form-item>
 
       <el-form-item
@@ -56,6 +63,12 @@
         v-if="this.topicList.length > 0"
         class="database-item"
       >
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -63,10 +76,11 @@
               v-model="selectedTopicPrivileges[item]"
               class="db-pri"
             >
-              <el-checkbox label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
+              <el-checkbox :disabled="$COMMUNITY" label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
             </el-checkbox-group>
           </li>
         </ul>
+      </el-tooltip>
       </el-form-item>
     </el-form>
 
@@ -180,7 +194,8 @@ export default {
                 ) < 0
               ) {
                 this.databaseList.push(item.name);
-                this.$set(this.selectedDatabasePrivileges, item.name, ["Read"]);
+                let privilege = this.$COMMUNITY ? ['Read', 'Write'] : ['Read']
+                this.$set(this.selectedDatabasePrivileges, item.name, privilege);
               }
             });
           })
@@ -210,12 +225,12 @@ export default {
           })
           .catch((err) => {
             this.$emit("close");
-            // err.desc && Message.error(err.desc);
+            // err.desc && this.$error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
         console.log(error);
-        // Message.error(error.desc);
+        // this.$error(error.desc);
       }
     },
     cancel() {
@@ -276,11 +291,11 @@ export default {
               })
               .catch((err) => {
                 // if (err && (err.code == "9728" || err.code == "848")) {
-                //   Message.error(this.$t("users.createNewUseErrCause"));
+                //   this.$error(this.$t("users.createNewUseErrCause"));
                 //   return;
                 // }
-                // Message.error(this.$t("users.createNewUseErrTip"));
-                err && err.desc && Message.error(err.desc);
+                // this.$error(this.$t("users.createNewUseErrTip"));
+                err && err.desc && this.$error(err.desc);
                 this.$emit("close");
                 return Promise.reject(err);
               });

@@ -68,7 +68,7 @@ export default {
           let fn = this.isShared ? this.delSharedFavorite : this.delFavorite;
           await fn(this.record.id)
             .then(() => this.$message.success(this.$t("operateSucc")))
-            .catch(() => this.$message.error(this.$t("operateFail")));
+            .catch(() => this.$error(this.$t("operateFail")));
           // this.isShared ? await this.$store.dispatch("console/getSharedFavorites") : await this.$store.dispatch("console/getFavorites");
           this.requestIng = false;
         })
@@ -110,7 +110,7 @@ export default {
           this.requestIng = true;
           // await addSharedFavorite(this.sql_sketchy)
           //   .then(() => this.$message.success(this.$t("shareSucc")))
-          //   .catch(() => this.$message.error(this.$t("shareFail")));
+          //   .catch(() => this.$error(this.$t("shareFail")));
           // await this.$store.dispatch("console/getSharedFavorites");
           if (localStorage.getItem("shared_favorites")) {
             let shared = JSON.parse(localStorage.getItem("shared_favorites"));

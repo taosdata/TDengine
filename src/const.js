@@ -1363,3 +1363,74 @@ export const RegularOperator = ["MATCH", "NMATCH", "LIKE", "NOT LIKE"]
 
 export const TDengineFill = ['NONE','VALUE','PREV','NULL','LINEAR','NEXT','NULL_F','VALUE_F']
 
+export const backupMockData = [{
+  to_expand: {path: '/data/test'},
+  database: 'myDatabse',
+  created_at: '2024-03-28T13:38:06+08:00',
+  status: 'stopped',
+}]
+
+export const replicationMockData = [{
+  id: '1',
+  fromdb: 'myDatabse',
+  hostport: 'taos+ws://root:taosdata@192.168.1.10:6041/mytest',
+  status: 'stopped',
+  reason: 'Task has been stopped',
+  finished_at: '2024-03-28T13:38:06+08:00',
+  created_at: '2024-03-28T13:38:06+08:00',
+}]
+
+export const licenseMockData = {
+
+}
+
+export const auditMockData = [{
+  ts: '2024-03-28T13:37:06+08:00',
+  client_address: '127.0.0.1:60640',
+  user_name: 'root',
+  operation: 'createStb',
+  db: 'myDatabse',
+  resource: 'meteralltype',
+  details: 'dbname:myDatabse, stable name:meteralltype'
+},{
+  ts: '2024-03-28T13:36:06+08:00',
+  client_address: '127.0.0.1:60640',
+  user_name: 'root',
+  operation: 'login',
+  db: '',
+  resource: '',
+  details: 'app:taosadapter'
+}]
+
+export const dataInMockData = [{
+  taskid: 1,
+  id: 1,
+  name: "td3-demo",
+  localname: "td3",
+  localtype: "TDengine 3.x",
+  target: 'targetDatabse',
+  created_at: "2024-03-27T10:34:15.994Z",
+  finished_at: "2024-03-27T21:20:51.681Z",
+  status: "completed",
+  completed: true,
+  taskActivities: [{
+    level: 'info',
+    at: '2024-03-27T21:20:51.681Z',
+    activity: '',
+    context: ''
+  }]
+}]
+
+export const agentMockData =[{
+  id: 1,
+  name: 'test',
+  status: 'created',
+  created_at: '2024-03-27T21:20:51.681Z',
+  agentActivities: [{
+    level: 'info',
+    at: '2024-03-27T21:20:51.681Z',
+    activity: '',
+    context: ''
+  }]
+}]
+

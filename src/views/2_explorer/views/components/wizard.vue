@@ -325,18 +325,18 @@ const conditionMap = {
 
         if (['BETWEEN', 'NOT BETWEEN'].includes(operator)) {
           if (isField && (!isValue1 || !isValue2)) {
-            this.$message.error(this.$t('console.enterTip').replace('{value}',field));
+            this.$error(this.$t('console.enterTip').replace('{value}',field));
             return false
           }
         } else if ((isField && !isValue) && !['IS NULL', 'IS NOT NULL'].includes(operator)) {
           // 选择字段没有值
-          this.$message.error(this.$t('console.enterTip').replace('{value}',field));
+          this.$error(this.$t('console.enterTip').replace('{value}',field));
           return false
         }  else {
           return true
         }
         // else if (!isField) {
-        //   this.$message.error('请输入规则字段')
+        //   this.$error('请输入规则字段')
         //   return false
         // }
         if (rules[index].rules) this.validateRules(rules[index].rules)
@@ -428,7 +428,7 @@ const conditionMap = {
         // 处理range 
 
         if (!range1) {
-          this.$message.error(this.$t('console.enterTip').replace('{value}','RANGE'))
+          this.$error(this.$t('console.enterTip').replace('{value}','RANGE'))
           return
         }
         if (range1 && !range2) {
@@ -439,13 +439,13 @@ const conditionMap = {
           } 
         } else if (range1 && range2) {
           if (!this.compareTime(range1,range2)) {
-            this.$message.error('RANGE 范围必须是 timestamp1 <= timestamp2')
+            this.$error('RANGE 范围必须是 timestamp1 <= timestamp2')
             return 
           }
           if (every_val) {
             this.sql += ` RANGE('${parsinginZone(range1)}','${parsinginZone(range2)}') EVERY(${every_val}${every_unit})`
           } else {
-            this.$message.error(this.$t('console.enterTip').replace('{value}','EVERY'))
+            this.$error(this.$t('console.enterTip').replace('{value}','EVERY'))
             return 
           }
         }
@@ -453,7 +453,7 @@ const conditionMap = {
         if (fill) { 
           if (fill === 'VALUE') {
             if (!fill_val) {
-              this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+              this.$error(this.$t('console.enterTip').replace('{value}','FILL'))
               return
             }
             this.sql += ` FILL(${fill},${fill_val})`
@@ -461,7 +461,7 @@ const conditionMap = {
             this.sql += ` FILL(${fill})`
           }
         } else {
-          this.$message.error(this.$t('console.enterTip').replace('{value}','FILL'))
+          this.$error(this.$t('console.enterTip').replace('{value}','FILL'))
           return 
         }
       }
@@ -470,7 +470,7 @@ const conditionMap = {
       if (String(this.otherRule.limit) != 'undefined') {
         this.sql += ` LIMIT ${this.otherRule.limit}`
       } else {
-        this.$message.error(this.$t('console.enterTip').replace('{value}','LIMIT'))
+        this.$error(this.$t('console.enterTip').replace('{value}','LIMIT'))
         return 
       }
       if (String(this.otherRule.offset) != 'undefined') {

@@ -1,7 +1,7 @@
 <template>
-  <div class="login">
+  <div class="login" v-loading="pageLoading">
 
-    <section class="content">
+    <section :class="['content', {'content-reginster': !registered}]">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -18,7 +18,7 @@
         </article>
       </div>
 
-      <div class="login-content">
+      <div class="login-content" v-if="registered">
         <div class="login-title">
           <span class="dynamic-title">{{ $t("systemTitle") }}</span>
         </div>
@@ -29,7 +29,7 @@
               <span>{{ $t("login.username") }}</span>
             </p>
             <el-form-item prop="username" label>
-              <el-input v-model="dynamicValidateForm.username"></el-input>
+              <el-input ref="username" :placeholder="$t('login.usernamePlaceholder')" v-model="dynamicValidateForm.username"></el-input>
             </el-form-item>
           </div>
           <div>
@@ -46,13 +46,71 @@
               $t("login.signin") }}</el-button>
           </el-form-item>
         </el-form>
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
+      <div class="login-content reginster-box" v-else>
+        <div class="login-title">
+          <span class="dynamic-title">{{ $t("register.title") }}</span>
+          <span class="activate-tip">{{ $t("register.titleTip") }}</span>
+        </div>
+        <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
+          class="demo-dynamic">
+          <div style="margin-bottom: 20px">
+            <p class="lable-form">
+              <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
+            </p>
+            <el-form-item prop="phone_email" label>
+              <el-input ref="phone_email" :placeholder="$t('register.phoneTips')" v-model="registerValidateForm.phone_email"></el-input>
+            </el-form-item>
+          </div>
+          <div>
+            <p class="lable-form">
+              <span>{{ $t("register.verificationCode") }}</span>
+            </p>
+            <el-form-item label prop="verification_code">
+              <el-input v-model="registerValidateForm.verification_code" @keyup.enter.native="submitRegisterForm('registerValidateForm')" >
+                <el-button type="primary" slot="append"
+                  :disabled="disableGetVerificationCode"
+                  style="min-width: 180px;" 
+                  @click="handlerCaptcha">
+                  {{ buttonTextOfGetVerificationCode }}
+                </el-button>
+              </el-input>
+            </el-form-item>
+          </div>
+
+          <el-form-item style="margin-bottom: 30px">
+            <el-button type="primary" @click="submitRegisterForm('registerValidateForm')" class="signin" v-loading="loading">{{
+              $t("register.signin") }}</el-button>
+          </el-form-item>
+        </el-form>
+        
+        <el-alert
+          :title="$t('register.requirement')"
+          type="warning">
+        </el-alert>
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
+      </div>
+      
     </section>
 
     <div class="copyright" v-if="!oemName">
-
       <span>{{ $t("copyright") }}</span>
     </div>
+    <el-dialog :title="$t('register.imageVerificationCode')" :visible.sync="visible" width="400px" center :close-on-click-modal="false">
+      <el-form ref="captchaForm" :model="captchaForm" :rules="captchaRulus">
+        <el-form-item label="">
+          <el-input v-model="captchaForm.captchaCode" ref="captcha" class="captcha-input" @keyup.enter.prevent="handlerVerificationCode" autocomplete="off">
+            <div slot="append" class="captcha-img-box">
+              <img height="40px" @click="handlerCaptcha" :src="imageUrl" />
+            </div>
+          </el-input>
+        </el-form-item>
+      </el-form>
+    <div slot="footer" class="dialog-footer" style="text-align: right">
+      <el-button type="primary" size="small" @click="handlerVerificationCode">{{ $t('confirm') }}</el-button>
+    </div>
+  </el-dialog>
   </div>
 </template>
 <script>
@@ -62,7 +120,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
+import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
 import Vue from 'vue'
 
@@ -76,10 +134,30 @@ export default {
       if (value === "") {
         callback(new Error(this.$t("login.passwordTips")));
       } else {
-
-
         callback();
       }
+    };
+    var validatePhoneEmail = (rule, value, callback) => {
+      if (value === "") {
+        if (this.isLocaleLanguageEn) {
+          callback(new Error(this.$t("register.emailTips")));
+        } else {
+          callback(new Error(this.$t("register.phoneTips")));
+        }
+      } else if (!this.isLocaleLanguageEn) {
+        // 校验手机号
+        if (!this.checkPhone(value)) {
+          callback(new Error(this.$t("register.phoneTips")));
+          return;
+        }
+      } else {
+        if (!(this.checkPhone(value) || this.checkEmail(value))) {
+          callback(new Error(this.$t("register.emailTips")));
+          return;
+        }
+      }
+
+      callback();
     };
     return {
       taosxStatus: true,
@@ -93,6 +171,7 @@ export default {
         password: "",
         username: "",
       },
+      pageLoading: false,
       formRules: {
         cluster: [
           {
@@ -118,7 +197,55 @@ export default {
       },
       dataJson,
       encryptedPwd: "",
+      buttonTextOfGetVerificationCode: this.$t("register.getVerificationCode"),
+      registerValidateForm: {
+        phone_email: "",
+        verification_code: "",
+      },
+      captchaForm: {
+        captchaCode: '',
+      },
+      registered: true,
+      visible: false,
+      imageUrl: "",
+      disableGetVerificationCode: false,
+      captchaRulus: {
+        captchaCode: [
+          {
+            required: true,
+            message: this.$t("required")
+          }
+        ]
+      },
+      registerFormRules: {
+        verification_code: [
+          {
+            required: true,
+            message: this.$t("register.verificationCodeTips"),
+            trigger: "change",
+          },
+        ],
+        phone_email: [
+          {
+            required: true,
+            validator: validatePhoneEmail,
+            trigger: "change",
+          },
+        ],
+      },
     };
+  },
+  computed: {
+    isLocaleLanguageEn() {
+      return this.$i18n.locale.includes('en')
+    },
+    locallanguage(){
+      if(this.$i18n.locale=='zh'){
+        return 'EN'
+      }else{
+        return '中'
+      }
+    }
   },
   methods: {
     submitForm(formName) {
@@ -188,13 +315,13 @@ export default {
         } else {
           this.loading = false;
           if (res && res.code == 11) {
-            Message.error(this.$t("login.servTaosdTip"));
+            this.$error(this.$t("login.servTaosdTip"));
           } else {
-            Message.error(res.desc || this.$t("login.errorTip"));
+            this.$error(res.desc || this.$t("login.errorTip"));
           }
         }
       } catch (error) {
-        Message.error(this.$t("login.servExceptionTip"));
+        this.$error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
       }
@@ -223,7 +350,7 @@ export default {
           this.taosxStatus = false;
         }
       } catch (error) {
-        Message.error(error);
+        this.$error(error);
       }
     },
     //获取登录用户权限
@@ -233,7 +360,7 @@ export default {
           `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         )
         if(res?.desc){
-          Message.error(res.desc)
+          this.$error(res.desc)
           return
         }
         if(res&&res.data){
@@ -246,13 +373,13 @@ export default {
             });
             if (
               result.length > 0 &&
-              ["official", "trial"].includes(result[0].version)
+              ["official", "trial", "community"].includes(result[0].version)
             ) {
               this.$router.push({
                 path: "/explorer",
               });
             } else {
-              Message.error(this.$t("login.versiontip"));
+              this.$error(this.$t("login.versiontip"));
             }
         }
         
@@ -260,11 +387,142 @@ export default {
         this.loading = false;
 
         if (err && err.code == 11) {
-          Message.error(this.$t("login.servTaosdTip"));
+          this.$error(this.$t("login.servTaosdTip"));
           return;
         }
-        console.log(err,'登陆错误提示')
-        Message.error(err?.desc);
+        this.$error(err?.desc);
+      }
+    },
+    async getIsbinding() {
+      try {
+        const result = await fetchIsbinding();
+        if (result && result.code == 0) {
+          this.registered = result.data;
+        }
+        if (this.registered) {
+          this.$refs.phone_email.focus();
+        }
+      } catch (error) {
+        console.log('error',error);
+      }
+    },
+    checkPhone(val) {
+      return /^1[3456789]\d{9}$/.test(val)
+    },
+    checkEmail(val) {
+      return /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val)
+    },
+
+    async handlerCaptcha() {
+
+      if (!this.isLocaleLanguageEn) {
+        // 校验手机号
+        if (!this.checkPhone(this.registerValidateForm.phone_email)) {
+          this.$error(this.$t('register.phoneTips'));
+          return;
+        }
+      } else {
+        // 校验邮箱
+        if (!this.checkEmail(this.registerValidateForm.phone_email)) {
+          this.$error(this.$t('register.emailTips'));
+          return;
+        }
+      }
+
+      // 弹出获取图形验证码的弹框
+      this.captchaForm.captchaCode = '';
+      this.visible = true;
+      this.ts = new Date().getTime()
+      const result = await fetchCaptcha(this.registerValidateForm.phone_email, this.ts)
+     
+      // 有正确的结果才弹框     
+      if (result) {
+        this.visible = true;
+        let imageUrl = URL.createObjectURL(result);
+        this.imageUrl = imageUrl;
+      }
+      this.$nextTick(() => {
+        this.$refs.captcha.focus();
+      })
+    },
+    
+    async handlerVerificationCode() {
+      // 调用获取手机验证码的接口
+      // 图形验证码必须填才能调用
+      this.$refs.captchaForm.validate(async (valid) => {
+        if (!valid) return;
+        const result = await fetchVerificationCode(this.registerValidateForm.phone_email,this.captchaForm.captchaCode,this.ts, this.$i18n.locale)
+        if (result && result.code == 0) {
+          this.$message.success(this.$t('register.success.verificationCodeSend'));
+          this.visible = false;
+
+          // 开启验证码倒计时
+          let count = 120;
+          this.disableGetVerificationCode = true;
+          this.timer = setInterval(() => {
+            this.buttonTextOfGetVerificationCode = `${count}s`;
+            count--;
+            if (count <= 0) {
+              clearInterval(this.timer);
+              this.timer = null;
+              this.disableGetVerificationCode = false;
+              this.buttonTextOfGetVerificationCode = this.$t('register.regetVerificationCode');
+            }
+          }, 1000)
+        } else if (result) {
+          if (result.code == 400) {
+            this.$error(this.$t("register.errors." + result.msg));
+          } else if (result.code == 501) {
+            this.$error(this.$t("register.errors.network"))
+          } else {
+            this.$error(result.msg)
+          }
+        }
+      })
+    },
+    submitRegisterForm(formName) {
+      this.$refs[formName].validate(async (valid) => {
+        if (valid) {
+          this.pageLoading = true;
+          // 提交注册接口
+          this.registerValidateForm.ts = this.ts;
+          this.registerValidateForm.taosd_version = localStorage.getItem('serverVersion') || '';
+          this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
+
+          const result = await getVerificationResult(this.registerValidateForm)
+          if (result && result.code == 0) {
+            switch (result.data) {
+              case 'pass':
+                // 如果校验通过，则注册成功 切换到登陆框
+                this.registered = true;
+                setTimeout(() => {
+                  this.pageLoading = false;
+                  this.$message.success(this.$t('register.success.registerSuccess'));
+                }, 1000)
+                
+                break;
+              case 'none':
+                this.$error(this.$t('register.errors.verificationCodeNone'));
+                this.pageLoading = false;
+                break;
+              case 'error':
+                this.$error(this.$t('register.errors.verificationCodeError'));
+                this.pageLoading = false;
+                break;
+            } 
+          }
+        } else {
+          return false;
+        }
+      });
+    },
+    switchLanguage() {
+      if(this.$i18n.locale=='zh'){
+        this.$i18n.locale='en'
+        localStorage.setItem("local_language", "en");
+      }else{
+        this.$i18n.locale='zh'
+        localStorage.setItem("local_language", "zh");
       }
     },
   },
@@ -272,9 +530,13 @@ export default {
     await this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
+    if (this.$COMMUNITY) {
+      await this.getIsbinding();
+    }
 
   },
   mounted() {
+    this.$refs.username.focus();
     this.$nextTick(() => {
       if (
         process.env.VUE_APP_CUS_NAME &&
@@ -283,7 +545,7 @@ export default {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
       }
-    });
+    })
     const timer = setTimeout(() => {
       Vue.prototype.$message = Message;
     }, 1500)
@@ -291,6 +553,20 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+
+.captcha-input {
+  ::v-deep .el-input-group__append {
+    padding:0;
+  }
+  .captcha-img-box {
+    height:38px;overflow: hidden;
+    img {
+      margin-top: -1px;
+      cursor: pointer;
+    }
+  }
+} 
+
 .login {
   display: flex;
   flex-direction: column;
@@ -391,18 +667,24 @@ export default {
         word-spacing: 4px;
       }
     }
-
+    
     .login-content {
       width: 600px;
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      position: relative;
 
       .dynamic-title {
-        width: 500px;
+        width: 100%;
         overflow: hidden;
         display: block;
         text-overflow: ellipsis;
+      }
+
+      .activate-tip {
+        color: #909399;
+        font-size: 14px !important;
       }
 
       .login-title {
@@ -416,8 +698,14 @@ export default {
         }
       }
     }
+    .reginster-box {
+      height: 600px;
+      width: 680px;
+    }
   }
-
+  .content-reginster {
+    padding: 60px calc(50vw - 600px);
+  }
   // .plans {
   //   height: 500px;
   // }
@@ -571,6 +859,25 @@ export default {
     span {
       color: #909399;
     }
+  }
+
+  .language {
+    margin-top: 4px;
+    margin-right:20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4d6992;
+    border-radius: 50%;
+    color: #4d6992;
+    display: flex;
+    justify-content: center;
+    position: absolute;
+    top: 20px;
+    right: 10px;
   }
 }
 </style>

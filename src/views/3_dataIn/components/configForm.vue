@@ -2,11 +2,19 @@
   <div class="config-form">
     <template v-for="item in config">
       <template v-if="item.children">
+
+        <ConnectivityCheck
+            v-if="item.type == 'checkConnectivity'"
+            :data="data[item.field]"
+            :parent="parent"
+            v-bind="item"
+            :key="item.label"
+          ></ConnectivityCheck>
+
         <section
           class="block-wrapper"
           :id="item.field"
-          v-if="!item.hide"
-          :class="{ 'block-wrapper': level }"
+          v-else-if="!item.hide"
           :key="item.label"
         >
           <div 
@@ -25,18 +33,6 @@
               :content="item.description"
             />
           </div>
-          <!-- <OpcTable
-            v-if="item.type == 'opcTable'"
-            :data="data[item.field]"
-            :parent="parent"
-            v-bind="item"
-          /> -->
-          <!-- <ParserComp
-            v-if="item.type == 'parser'"
-            :data="data[item.field]"
-            :parent="parent"
-            v-bind="item"
-          /> -->
           
           <CommonTransformer 
             v-if="item.type == 'parser' && constmqttCols.length > 0" 
@@ -48,12 +44,6 @@
             ref="csvdata"
             :isEditable="isEditable"
           ></CsvData>
-          <ConnectivityCheck
-            v-else-if="item.type == 'checkConnectivity'"
-            :data="data[item.field]"
-            :parent="parent"
-            v-bind="item"
-          ></ConnectivityCheck>
           <template v-else-if="item.type == 'tabs'">
             <el-tabs
               class="form-tabs"
@@ -115,7 +105,7 @@
           </template>
         </section>
         <ConfigForm
-          v-if="item.hide && !item.hideall"
+          v-if="item.hide && !item.hideall && data[item.field]"
           :key="item.label"
           :config="item.children"
           :data="data[item.field]"

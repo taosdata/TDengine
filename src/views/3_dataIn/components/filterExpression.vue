@@ -123,7 +123,7 @@ export default {
         let result = await getParser(data);
         this.tableColumns = result[0].fields.map((item) => item.name);
         if (result.message) {
-          Message.error(result.message);
+          this.$error(result.message);
           return;
         }
         this.$emit(
@@ -217,7 +217,7 @@ export default {
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
             }
           } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
+            this.$error(this.$t("datasource.transformer.jsontip"));
             return;
           }
 
@@ -252,17 +252,13 @@ export default {
       let parser = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
-          mutate:this.$store.state.app.transformExtractParseData? [].concat({
-            filter: this.ruleForm.filter_name.trim(),
-            
-          }).concat(this.$store.state.app.transformExtractParseData):[].concat({
-            filter: this.ruleForm.filter_name.trim(),
-            
-          }),
+          mutate:this.$store.state.app.transformExtractParseData
+             ? [].concat(this.$store.state.app.transformExtractParseData).concat({filter: this.ruleForm.filter_name.trim()})
+             : [].concat({filter: this.ruleForm.filter_name.trim(),}),
         },
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          :this.$store.state.app.currentDBType == "avevaHistorian"?this.$store.state.app.topParse.input: inputList,
+          :this.$store.state.app.supportSQL?this.$store.state.app.topParse.input: inputList,
       };
 
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {

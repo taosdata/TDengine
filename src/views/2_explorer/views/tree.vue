@@ -667,7 +667,7 @@ export default {
     },
     async view(data) {
       await this.handleVar(data);
-      this.$store.state.console.currentInfoType = data.typeName;
+      this.$store.state.console.currentInfoType = data.typeName === "table" ? data.type : data.typeName
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
@@ -710,10 +710,12 @@ export default {
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":
-          this.requesting = true;
-          let result = await getRunningTask();
           let task = [];
-          task = result.filter((item) => item.to_expand?.subject == data.name);
+          if (!this.$COMMUNITY) {
+            this.requesting = true;
+            let result = await getRunningTask();
+            task = result.filter((item) => item.to_expand?.subject == data.name);
+          }
           if (task.length > 0) {
             this.$alert(
               this.$t("data.delRunningTaskBb")
@@ -723,6 +725,7 @@ export default {
               {
                 confirmButtonText: this.$t("confirm"),
                 type: "warning",
+                showClose: false
               }
             ).then(() => {
               this.requesting = false;
@@ -745,13 +748,13 @@ export default {
                     this.$message.success(this.$t("delSucc"));
                   })
                   .catch((err) => {
-                    err.desc && Message.error(err.desc);
+                    err.desc && this.$error(err.desc);
                   })
                   .finally(() => {
                     this.requesting = false;
                   })
                   .catch((res) => {
-                    this.$message.error(res?.desc);
+                    this.$error(res?.desc);
                   });
               })
               .catch(() => {
@@ -779,13 +782,13 @@ export default {
                 this.$message.success(this.$t("delSucc"));
               })
               .catch((err) => {
-                err.desc && Message.error(err.desc);
+                err.desc && this.$error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
               })
               .catch((res) => {
-                this.$message.error(res?.desc);
+                this.$error(res?.desc);
               });
           });
           break;
@@ -811,13 +814,13 @@ export default {
                 this.$message.success(this.$t("delSucc"));
               })
               .catch((err) => {
-                err.desc && Message.error(err.desc);
+                err.desc && this.$error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
               })
               .catch((res) => {
-                this.$message.error(res?.desc);
+                this.$error(res?.desc);
               });
           });
           break;

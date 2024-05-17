@@ -128,7 +128,7 @@ export default {
               this.$message.success(this.$t("createSucc"));
             })
             .catch(() => {
-              this.$message.error(this.$t("data.checkFail"));
+              this.$error(this.$t("data.checkFail"));
             });
         }
       });

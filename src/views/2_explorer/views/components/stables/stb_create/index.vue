@@ -536,7 +536,7 @@ export default {
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
         })
-        .catch(err => this.$message.error(err.desc));
+        .catch(err => this.$error(err.desc));
       // 无论修改成功或失败都应该刷新数据
       await this.$store
         .dispatch("stables/getStatleStruct", this.stable_form.name)

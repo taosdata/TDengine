@@ -158,7 +158,7 @@ export default {
           }
         });
       } catch (err) {
-        err&&err.desc&Message.error(err.desc)
+        err&&err.desc&this.$error(err.desc)
         return Promise.reject(err);
       }
     },

@@ -8,22 +8,29 @@
               :class="['label required', language.includes('zh') ? 'zh' : 'en']"
               >{{ $t("datasource.upfile") }}</span
             >
-            <el-upload
-              class="upload-demo"
-              ref="upload"
-              accept=".csv"
-              :on-remove="handleRemove"
-              :data="uploadData"
-              :action="uploadUrl"
-              :on-success="handleSuccess"
-              :file-list="fileList"
-              :auto-upload="true"
-              size="small"
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
-              <el-button slot="trigger" size="small" type="primary">{{
-                $t("datasource.selectfile")
-              }}</el-button>
-            </el-upload>
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-upload
+                class="upload-demo"
+                ref="upload"
+                accept=".csv"
+                :on-remove="handleRemove"
+                :data="uploadData"
+                :action="uploadUrl"
+                :on-success="handleSuccess"
+                :file-list="fileList"
+                :auto-upload="true"
+                size="small"
+              >
+                <el-button slot="trigger" size="small" type="primary" plain :disabled="$COMMUNITY">{{
+                  $t("datasource.selectfile")
+                }}</el-button>
+              </el-upload>
+            </el-tooltip>
             <span
               style="color: red; font-size: 12px; margin-left: 10px"
               v-if="showfiletip"
@@ -38,29 +45,44 @@
             :rules="fileRules"
             label-width="220px"
           >
-            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
-              <!-- <div class="upload-file"> -->
-              <!-- <span class="label required">{{
-                  $t("datasource.fileurl")
-                }}</span> -->
+            <el-form-item prop="fileurl">
+              <template slot="label">
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template slot="content">
+                    <DocsContent
+                      :content="$t('datasource.csvFileDesc')"
+                    />
+                  </template>
+                  <span>
+                    <span>{{ $t('datasource.fileurl') }}</span>
+                    <span style="margin-left: 4px">
+                      <i class="el-icon-info"></i>
+                    </span>
+                  </span>
+                </el-tooltip>
+              </template>
               <el-input size="small" v-model="fileForm.fileurl"></el-input>
-              <!-- </div> -->
-              <DocsContent
-                :content="$t('datasource.csvFileDesc')"
-              />
             </el-form-item>
           </el-form>
         </el-tab-pane>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
-            <el-button
-              type="primary"
-              @click="getCsvColumnsData"
-              size="small"
-              class="nextbtn"
-              :loading="loading"
-              >{{ $t("datasource.csvNext") }}</el-button
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                type="primary"
+                @click="getCsvColumnsData"
+                size="small"
+                class="nextbtn"
+                :loading="loading"
+                :disabled="$COMMUNITY"
+                >{{ $t("datasource.csvNext") }}</el-button
+              >
+            </el-tooltip>
             <CommonTransformer
               ref="transform"
               :parserColumns="extractArr"
@@ -184,7 +206,7 @@ export default {
       );
       this.csvColumns = result.file_header.column_names;
       if (result && !result.sample_values) {
-        Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        this.$error(this.$t('datasource.transformer.emptySampleValues'))
         return
       }
       this.sample_values = result.sample_values ?? [];
@@ -284,6 +306,8 @@ export default {
       this.fileList = [].concat(file);
       this.showfiletip = false;
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
+
+      this.getCsvColumnsData();
     },
     submitUpload() {
       let isbreak=true
@@ -351,17 +375,8 @@ export default {
               "csv",
               parseParam
             );
-            this.loading = false
-            if (result && result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.csvColumns = result.file_header.column_names;
-            if (result && !result.sample_values) {
-              Message.error(this.$t('datasource.transformer.emptySampleValues'))
-              return
-            }
-            this.sample_values = result.sample_values ?? [];
+          } else {
+            return;
           }
         } else {
           result = await getCSVColumns(
@@ -369,25 +384,49 @@ export default {
             "csv",
             parseParam
           );
-          this.loading = false
-          if (result && result.message) {
-            Message.error(result.message);
-            return;
-          }
-          this.csvColumns = result.file_header.column_names;
-          if (result && !result.sample_values) {
-            Message.error(this.$t('datasource.transformer.emptySampleValues'))
+        }
+
+        this.loading = false
+        if (result && result.message) {
+          this.$error(result.message);
+          return;
+        }
+        
+        const columns = result.file_header.column_names;
+        const columnInObj = {};
+        const columnRegexPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+        for (let i = 0; i < columns.length; i++) {
+          if (columns[i] === "") {
+            this.$error(this.$t('datasource.transformer.emptyColumnName') + columns.join(", "));
             return
           }
-          this.sample_values = result.sample_values ?? [];
+          if (!columnRegexPattern.test(columns[i])) {
+            this.$error(this.$t('datasource.transformer.invalidColumnName') + columns[i]);
+            return
+          }
+          if (columnInObj[columns[i]]) {
+            this.$error(this.$t('datasource.transformer.duplicateColumnName') + columns[i]);
+            return
+          }
+          columnInObj[columns[i]] = true;
         }
+
+        if (result && !result.sample_values) {
+          this.$error(this.$t('datasource.transformer.emptySampleValues'));
+          return
+        }
+
+        this.csvColumns = result.file_header.column_names;
+        this.sample_values = result.sample_values ?? [];
+
+
         
         // 去掉自定义列
         // if (this.$refs.param.ruleForm.customcol) {
         //   let apiColumns = result.file_header.column_names;
         //   let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
         //   if (localcolumns.length != apiColumns.length) {
-        //     Message.error(this.$t("datasource.transformer.csvtip"));
+        //     this.$error(this.$t("datasource.transformer.csvtip"));
         //     return;
         //   }
         //   this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
@@ -402,7 +441,7 @@ export default {
         this.loading = false
       } catch (error) {
         this.loading = false
-        error && error.message && Message.error(error.message);
+        error && error.message && this.$error(error.message);
       }
     },
     //组合CSV的transfomrer页面需要的数据
@@ -496,7 +535,7 @@ export default {
         );
       } catch (error) {
         console.log("表不存在则创建");
-        // error&&error.desc&&Message.error(error.desc)
+        // error&&error.desc&&this.$error(error.desc)
       }
     },
     //获取 csv 解析需要的参数
@@ -578,7 +617,6 @@ export default {
   }
   .nextbtn {
     width: 100%;
-    margin-bottom: 20px;
   }
   .csv-config {
     margin-bottom: 20px;
