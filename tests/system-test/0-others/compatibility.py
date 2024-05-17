@@ -394,13 +394,12 @@ class TDTestCase:
         tdLog.info(tdsql.queryResult)
         # tdsql.checkRows(tableNumbers)
         
-        # wait bug fixed:
-        # tdsql.query(f"select last(*) from test.meters")
-        # tdLog.info(tdsql.queryResult)
-        # tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
-        # tdsql.checkData(0,1,119) 
-        # tdsql.checkData(0,2,191)
-        # tdsql.checkData(0,3,0.25)
+        tdsql.query(f"select last(*) from test.meters")
+        tdLog.info(tdsql.queryResult)
+        tdsql.checkData(0,0,"2033-07-14 08:39:59.001")
+        tdsql.checkData(0,1,119) 
+        tdsql.checkData(0,2,191)
+        tdsql.checkData(0,3,0.25)
         
         # tdsql.query(f"select last(*) from test.meters")
         # tdLog.info(tdsql.queryResult)
