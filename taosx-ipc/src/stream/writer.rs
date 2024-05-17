@@ -58,16 +58,34 @@ impl IpcDataType {
             IpcDataType::Int64 => "i64".to_string(),
             IpcDataType::Float32 => "f32".to_string(),
             IpcDataType::Float64 => "f32".to_string(),
-            IpcDataType::Timestamp(TimeUnit::Second) => "timestamp".to_string(),
-            IpcDataType::Timestamp(TimeUnit::Millisecond) => "timestamp(ms)".to_string(),
-            IpcDataType::Timestamp(TimeUnit::Microsecond) => "timestamp(us)".to_string(),
-            IpcDataType::Timestamp(TimeUnit::Nanosecond) => "timestamp(ns)".to_string(),
+            IpcDataType::Timestamp(_) => "timestamp".to_string(),
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
         }
     }
     pub fn sql_repr(&self) -> String {
+        match self {
+            IpcDataType::Null => "null".to_string(),
+            IpcDataType::Bool => "bool".to_string(),
+            IpcDataType::UInt8 => "tinyint unsigned".to_string(),
+            IpcDataType::UInt16 => "smallint unsigned".to_string(),
+            IpcDataType::UInt32 => "int unsigned".to_string(),
+            IpcDataType::UInt64 => "bigint unsigned".to_string(),
+            IpcDataType::Int8 => "tinyint".to_string(),
+            IpcDataType::Int16 => "smallint".to_string(),
+            IpcDataType::Int32 => "int".to_string(),
+            IpcDataType::Int64 => "bigint".to_string(),
+            IpcDataType::Float32 => "float".to_string(),
+            IpcDataType::Float64 => "double".to_string(),
+            IpcDataType::Timestamp(_) => "timestamp".to_string(),
+            IpcDataType::VarChar(len) => format!("varchar({len})"),
+            IpcDataType::NChar(len) => format!("nchar({len})"),
+            IpcDataType::Json => "json".to_string(),
+        }
+    }
+
+    pub fn sql_repr_display(&self) -> String {
         match self {
             IpcDataType::Null => "null".to_string(),
             IpcDataType::Bool => "bool".to_string(),
@@ -189,7 +207,7 @@ impl Serialize for IpcDataType {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.sql_repr())
+        serializer.serialize_str(&self.sql_repr_display())
     }
 }
 
