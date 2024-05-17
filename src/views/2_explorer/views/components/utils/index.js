@@ -213,7 +213,7 @@ export const storageCompression = {
         value: "xz",
       },
     ],
-    defaultEncode: 'simple8b',
+    defaultEncode: 'delta-i',
     defaultCompress: 'lz4',
   },
   // FLOAT/DOUBLE
@@ -303,7 +303,12 @@ export const storageCompression = {
     defaultEncode: 'bit-packing',
     defaultCompress: 'lz4',
   },
-  
+  empty: {
+    encodeList: [],
+    compressList: [],
+    defaultEncode: '',
+    defaultCompress: '',
+  }
 }
 
 export const levelList = [

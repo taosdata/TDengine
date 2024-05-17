@@ -38,7 +38,7 @@ const mutations = {
       rollup: "",
       columns: [
         { type: "TIMESTAMP", field: "", value: "",
-          varcharLength:8,ncharLength:8, encode: "simple8b", 
+          varcharLength:8,ncharLength:8, encode: "delta-i", 
           compress: "lz4", level: "medium", primaryKey: false 
         },
         {

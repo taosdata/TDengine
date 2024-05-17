@@ -60,7 +60,7 @@
                 @change="() => handleTypeChange(column, index)"
               >
                 <el-option
-                  v-for="item in column.typeList"
+                  v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
                   :key="item.value"
                   v-bind="item"
                 ></el-option>
@@ -89,7 +89,7 @@
               >
               </el-input>
               <el-tag effect="plain" type="info" v-if="index == 1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
+              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -677,15 +677,14 @@ export default {
       this.$store.commit("console/CANCEL_DETAIL");
     },
     handleEncodeList(type) {
+      if (!type) return this.storageCompression.empty
       if (groupOne.includes(type)) {
         return this.storageCompression.groupOne
       } else if (groupTwo.includes(type)) {
         return this.storageCompression.groupTwo
       } else if (groupThree.includes(type)) {
         return this.storageCompression.groupThree
-      } else if (groupFour.findIndex((item) =>
-        type.startsWith(item)
-      )) {
+      } else if (groupFour.findIndex((item) => type.startsWith(item)) !== -1) {
         return this.storageCompression.groupFour
       } else if (groupFive.includes(type)) {
         return this.storageCompression.groupFive
@@ -702,6 +701,29 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
+    },
+    handleCheckChange(val, index, type) {
+      if (!this.isEdit) {
+        if (val && this.parmaryKeyType.findIndex((item) => type.includes(item.value)) == -1) {
+          this.$set(this.table_form.columns[index], "type", '');
+          this.$set(this.table_form.columns[index], "encode", '');
+          this.$set(this.table_form.columns[index], "compress", '');
+        } 
+      }
+    },
+    handleTypeList(currentType, name) {
+      if (!this.isEdit) return this[name];
+      // 当数据类型为BINARY和NCHAR才会进行过滤并且是修改状态下的时候
+      let index = VariableTableColumnType.findIndex((item) =>
+        currentType.startsWith(item)
+      );
+      if (index == -1) return this[name];
+      return this[name].filter((item) => {
+        let cur = item.value.match(/\d+/);
+        return (
+          item.value.startsWith(VariableTableColumnType[index]) 
+        );
+      });
     },
   },
 };
