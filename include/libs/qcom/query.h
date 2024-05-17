@@ -194,10 +194,31 @@ typedef struct SBoundColInfo {
 } SBoundColInfo;
 
 typedef struct STableColsData {
-  int32_t vgId;
-  int64_t uid;
-  SArray* aCol;
+  char     tbName[TSDB_TABLE_FNAME_LEN];
+  SName    sname;
+  bool     getFromHash;
+  SArray*  aCol;
 } STableColsData;
+
+typedef struct STableVgUid {
+  uint64_t uid;
+  int32_t  vgid;
+} STableVgUid;
+
+typedef struct SStmtBuildOutputInfo {
+  void     *pCatalog;
+  void*     transport;
+  SEpSet    mgmtEpSet;
+  void*     pRequest;
+  uint64_t  requestId;
+  int64_t   requestSelf;
+  bool      tbFromHash;      
+  SRWLatch  vgroupLock;
+  SHashObj* pVgroupHash;
+  SArray*   pVgroupList;
+  SHashObj* pTableHash;
+  int64_t   tbRemainNum;
+} SStmtBuildOutputInfo;
 
 typedef struct STableDataCxt {
   STableMeta*    pMeta;

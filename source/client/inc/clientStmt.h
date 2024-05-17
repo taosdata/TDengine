@@ -52,11 +52,6 @@ typedef struct SStmtQueryResInfo {
   int32_t     precision;
 } SStmtQueryResInfo;
 
-typedef struct SStmtTableInfo {
-  uint64_t uid;
-  int32_t  vgid;
-} SStmtTableInfo;
-
 typedef struct SStmtBindInfo {
   bool     needParse;
   bool     inExecCache;
@@ -76,6 +71,11 @@ typedef struct SStmtBindInfo {
   char     statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
+typedef struct SStmtAsyncParam {
+  STableColsData *pTbData;
+  void*           pStmt;
+} SStmtAsyncParam;
+
 typedef struct SStmtExecInfo {
   int32_t        affectedRows;
   SRequestObj   *pRequest;
@@ -84,6 +84,7 @@ typedef struct SStmtExecInfo {
   SSubmitTbData *pCurrTbData;
   int32_t        tbBlkNum;
   SArray        *pTbBlkList;
+  SStmtBuildOutputInfo smInfo;
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {
@@ -101,8 +102,8 @@ typedef struct SStmtSQLInfo {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   
-  SSHashObj        *pTbInfo;
   SStmtTableCache  *pCache;
+  char              tbName[TSDB_TABLE_NAME_LEN];
 } SStmtSQLInfo;
 
 typedef struct SStmtStatInfo {
@@ -111,6 +112,7 @@ typedef struct SStmtStatInfo {
   int64_t parseSqlNum;
   int64_t setTbNameUs1;
   int64_t setTbNameUs2;
+  int64_t execWaitUs;
 } SStmtStatInfo;
 
 typedef struct STscStmt {

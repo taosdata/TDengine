@@ -118,7 +118,9 @@ int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** p
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
 void    qCleanupKeywordsTable();
 
-int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx, int32_t tbNum);
+int32_t     qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStmtBuildOutputInfo* pBuildInfo);
+int32_t     qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks);
+//int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx, int32_t tbNum);
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
 int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
@@ -161,6 +163,7 @@ SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
 SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
 void    destoryCatalogReq(SCatalogReq *pCatalogReq);
 bool    isPrimaryKeyImpl(SNode* pExpr);
+int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStmtBuildOutputInfo* pBuildInfo);
 
 #ifdef __cplusplus
 }
