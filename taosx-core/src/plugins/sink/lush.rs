@@ -311,7 +311,9 @@ pub async fn write_transformed_records_with_sql(
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
     let cols = messages[0].records.num_columns();
-    let stable = messages[0].stable_name();
+    let stable = messages[0]
+        .stable_name()
+        .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
     tracing::debug!("Writing stable");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
     for records in sqls {
@@ -334,75 +336,21 @@ pub async fn write_transformed_records_with_sql(
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!(sql = sql, "Create table");
-                            assert_create_table(pool, taos, &sql, req_id, false, metrics).await?;
-                        }
-                    }
-                    WriteError::ContainerLengthTooShort(field) => {
-                        if let Some(stable) = stable.as_deref() {
-                            let desc = taos.as_ref().unwrap().describe(stable).await?;
-                            let f = desc.iter().find(|f| f.field() == field).ok_or_else(|| {
-                                anyhow::anyhow!("field `{}` not found in table `{}`", field, stable)
-                            })?;
-                            let length = messages
-                                .iter()
-                                .flat_map(|m| m.max_var_length(f.field()))
-                                .max();
-                            if f.is_tag() {
-                                let sql = format!(
-                                    "alter table `{}` modify tag `{}` {}({})",
-                                    stable,
-                                    f.field(),
-                                    f.ty(),
-                                    length.unwrap_or_else(|| {
-                                        let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
-                                        (f.length() * 2).min(max)
-                                    })
-                                );
-                                tracing::info!(sql = sql, "Alter table");
-                                match taos
-                                    .as_ref()
-                                    .unwrap()
-                                    .exec_with_req_id(&sql, req_id.next())
-                                    .await
-                                {
-                                    Err(err) => {
-                                        tracing::error!(
-                                            req_id = req_id.get(),
-                                            sql,
-                                            "Alter table error: {err:#}"
-                                        );
+                            if let Err(err) =
+                                assert_create_table(pool, taos, &sql, req_id, false, metrics).await
+                            {
+                                match err {
+                                    WriteError::ContainerLengthTooShort(field) => {
+                                        alter_table(taos, stable, &field, &messages, req_id)
+                                            .await?;
                                     }
-                                    _ => {}
-                                }
-                            } else {
-                                let sql = format!(
-                                    "alter table `{}` modify column `{}` {}({})",
-                                    stable,
-                                    f.field(),
-                                    f.ty(),
-                                    length.unwrap_or_else(|| {
-                                        let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
-                                        (f.length() * 2).min(max)
-                                    })
-                                );
-                                tracing::info!(sql = sql, "Alter table");
-                                match taos
-                                    .as_ref()
-                                    .unwrap()
-                                    .exec_with_req_id(&sql, req_id.next())
-                                    .await
-                                {
-                                    Err(err) => {
-                                        tracing::error!(
-                                            req_id = req_id.get(),
-                                            sql,
-                                            "Alter table error: {err:#}"
-                                        );
-                                    }
-                                    _ => {}
+                                    _ => Err(err)?,
                                 }
                             }
                         }
+                    }
+                    WriteError::ContainerLengthTooShort(field) => {
+                        alter_table(taos, stable, &field, &messages, req_id).await?;
                     }
                     _ => {
                         return Err(err)?;
@@ -423,6 +371,73 @@ pub async fn write_transformed_records_with_sql(
     }
     tracing::debug!("Wrote tables {total_tables} rows {total_rows}");
     Ok(total_rows)
+}
+
+async fn alter_table(
+    taos: &mut Option<TaosConnection>,
+    stable: &str,
+    field: &str,
+    messages: &[MessageArrowRecords],
+    req_id: &RequestID,
+) -> anyhow::Result<()> {
+    let desc = taos.as_ref().unwrap().describe(stable).await?;
+    let f = desc
+        .iter()
+        .find(|f| f.field() == field)
+        .ok_or_else(|| anyhow::anyhow!("field `{}` not found in table `{}`", field, stable))?;
+    let length = messages
+        .iter()
+        .flat_map(|m| m.max_var_length(f.field()))
+        .max();
+    if f.is_tag() {
+        let sql = format!(
+            "alter table `{}` modify tag `{}` {}({})",
+            stable,
+            f.field(),
+            f.ty(),
+            length.unwrap_or_else(|| {
+                let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
+                (f.length() * 2).min(max)
+            })
+        );
+        tracing::info!(sql = sql, "Alter table");
+        match taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(&sql, req_id.next())
+            .await
+        {
+            Err(err) => {
+                tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
+                Err(err)?
+            }
+            _ => Ok(()),
+        }
+    } else {
+        let sql = format!(
+            "alter table `{}` modify column `{}` {}({})",
+            stable,
+            f.field(),
+            f.ty(),
+            length.unwrap_or_else(|| {
+                let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
+                (f.length() * 2).min(max)
+            })
+        );
+        tracing::info!(sql = sql, "Alter table");
+        match taos
+            .as_ref()
+            .unwrap()
+            .exec_with_req_id(&sql, req_id.next())
+            .await
+        {
+            Err(err) => {
+                tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
+                Err(err)?
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 fn message_to_sql(
@@ -525,6 +540,16 @@ async fn assert_create_table(
                 0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
                     taos.replace(pool.get().await?);
                 }
+                0x2653 => {
+                    // Value too long for column/tag
+                    let message = err.message();
+                    if let Some(caps) = RE_0X2653.captures(&message) {
+                        let field = caps.get(1).unwrap().as_str();
+                        tracing::debug!("Create table error: {}", message);
+                        break Err(WriteError::ContainerLengthTooShort(field.to_string()));
+                    }
+                    break Err(err)?;
+                }
                 _ => {
                     tracing::error!(
                         sql = sql,
@@ -601,6 +626,7 @@ async fn write_stable_with_sql(
                     0x2653 => {
                         // Value too long for column/tag
                         let message = err.message();
+                        tracing::debug!("Write stable error: {}", message);
                         if let Some(caps) = RE_0X2653.captures(&message) {
                             let field = caps.get(1).unwrap().as_str();
                             break Err(WriteError::ContainerLengthTooShort(field.to_string()));
