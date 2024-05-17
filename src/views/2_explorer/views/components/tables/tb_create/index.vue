@@ -149,6 +149,7 @@
               <el-button
                 icon="el-icon-minus"
                 size="small"
+                :disabled="!index || (isEdit && index == 1)"
                 @click="minusColumn(index, column)"
               ></el-button>
               <el-button

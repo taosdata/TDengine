@@ -24,13 +24,13 @@
     </el-form>
     <el-collapse v-model="activeNames" @change="handleChange">
       <el-collapse-item name="1" :title="$t('data.columns')">
-        <el-input
+        <!-- <el-input
           :placeholder="$t('data.columnNameTip')"
           v-model="stable_form.ts_field_name"
           size="small"
         >
         <div slot="prepend">TIMESTAMP</div>
-        </el-input>
+        </el-input> -->
         <div
           class="flexCenter input_row"
           v-for="(column, index) in stable_form.columns"
@@ -41,11 +41,12 @@
             size="small"
             default-first-option
             :placeholder="$t('Data') + $t('type')"
+            :disabled="index == 0"
             class="columnPrependBtn"
             @change="() => handleTypeChange(column, index)"
           >
             <el-option
-              v-for="item in dataType"
+              v-for="item in handleTypeList(column.type, index == 1 ? 'parmaryKeyType' : 'dataType')"
               :key="item.value"
               v-bind="item"
             ></el-option>
@@ -75,7 +76,7 @@
               :placeholder="$t('data.columnNameTip')"
             >
           </el-input>
-          <el-tag effect="plain" type="info" v-if="!index">
+          <el-tag effect="plain" type="info" v-if="index==1">
               <el-checkbox v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
@@ -238,6 +239,17 @@ export default {
         compress: "lz4", 
         level: "medium",
       },
+      column_item_ts:{ 
+        type: "TIMESTAMP", 
+        field: "", 
+        value: "",
+        varcharLength:8,
+        ncharLength:8, 
+        encode: "simple8b", 
+        compress: "lz4", 
+        level: "medium", 
+        primaryKey: false 
+      },
 
       stable_form: {
         name: "",
@@ -288,7 +300,8 @@ export default {
       this.stable_form.columns = arr;
       this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
     } else {
-      this.$set(this.stable_form.columns, 0, deepClone(this.column_item));
+      this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
+      this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
       this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
     }
   },
@@ -353,6 +366,9 @@ export default {
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
     },
+    handleTypeList(currentType, name) {
+      return this[name];
+    }
   },
 };
 </script>

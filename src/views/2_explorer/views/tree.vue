@@ -395,6 +395,7 @@ export default {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
     async clickAdd(data, all) {
+      console.log('clickadd')
       if (all) {
         let columns = [];
         let db = "";
@@ -404,6 +405,7 @@ export default {
             selected_db: db,
             stableName:
               data.typeName == "stable" ? data.name : data.parent.split(".")[1],
+            type: 'crea'
           }).catch(() => ({
             ts_field_name: "",
             columns: [],
@@ -687,7 +689,7 @@ export default {
           break;
         case "stable":
           this.$store.commit("dbs/HANDLE_EDIT_DB", deepClone(data));
-          await this.$store.dispatch("stables/getStatleStruct", data.name);
+          await this.$store.dispatch("stables/getStatleStruct", { stableName: data.name, type: 'create_stb'});
           this.$store.state.console.currentComponent = "StableCreate";
           break;
         case "table":

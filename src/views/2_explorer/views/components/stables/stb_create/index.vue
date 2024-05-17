@@ -66,7 +66,7 @@
           </div>
         </div>
         <div v-if="!isColumnsFold">
-          <el-input
+          <!-- <el-input
             size="small"
             v-model="stable_form.ts_field_name"
             :placeholder="$t('data.columnNameTip')"
@@ -74,7 +74,7 @@
             class="input_row"
           >
             <div slot="prepend">TIMESTAMP</div>
-          </el-input>
+          </el-input> -->
 
           <div
             class="flexCenter input_row"
@@ -84,14 +84,14 @@
             <el-select
               v-model="column.type"
               size="small"
-              :disabled="typeHasSpe(column.type)"
+              :disabled="typeHasSpe(column.type)  || index == 0"
               default-first-option
               :placeholder="$t('Data') + $t('type')"
               class="columnPrependBtn"
               @change="() => handleTypeChange(column, index)"
             >
               <el-option
-                v-for="item in handleTypeList(column.type, index == 0 ? 'parmaryKeyType' : 'dataType')"
+                v-for="item in handleTypeList(column.type, index == 1 ? 'parmaryKeyType' : 'dataType')"
                 :key="item.value"
                 v-bind="item"
               ></el-option>
@@ -121,7 +121,7 @@
               :placeholder="$t('data.columnNameTip')"
             >
             </el-input>
-            <el-tag effect="plain" type="info" v-if="!index">
+            <el-tag effect="plain" type="info" v-if="index==1">
               <el-checkbox :disabled="isEdit" v-model="column.primaryKey">PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
@@ -185,7 +185,7 @@
               size="small"
               icon="el-icon-minus"
               @click="minusColumn(index)"
-              :disabled="!index"
+              :disabled="!index || (isEdit && index == 1)"
             ></el-button>
             <el-button
               v-if="!isEdit"
@@ -664,7 +664,6 @@ export default {
       let isVariable =  VariableTableColumnType.some((item) =>
         data.type.startsWith(item)
       );
-      console.log('data',data, isVariable);
 
       let params = {
         isVariable,
@@ -707,7 +706,7 @@ export default {
         .catch(err => this.$error(err.desc));
       // 无论修改成功或失败都应该刷新数据
       await this.$store
-        .dispatch("stables/getStatleStruct", this.stable_form.name)
+        .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
       this.loading = false;
     },
@@ -726,7 +725,7 @@ export default {
       }
       // 无论修改成功或失败都应该刷新数据
       await this.$store
-        .dispatch("stables/getStatleStruct", this.stable_form.name)
+        .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
       this.loading = false;
     },
