@@ -168,7 +168,7 @@ impl PIPointModelConfig {
                 schema.push(SchemaRow {
                     column_name: "path".to_string(), // 点的路径
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(100)".to_string(),
+                    column_data_type: "NCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
                 });
                 // 追加内置 Tag 列
@@ -369,7 +369,7 @@ impl PIElementModelConfig {
                 schema.push(SchemaRow {
                     column_name: "path".to_string(),
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(100)".to_string(),
+                    column_data_type: "NCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
                 });
                 // 追加其它静态属性作为 Tag 列
