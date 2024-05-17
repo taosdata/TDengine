@@ -35,6 +35,10 @@ use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
 };
+
+#[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
+compile_error!("Only one allocator can be specified");
+
 #[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;

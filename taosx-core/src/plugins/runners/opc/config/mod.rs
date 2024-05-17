@@ -204,16 +204,27 @@ impl OPCConfig {
     /// 从 dsn 中解析参数 stable_expression 参数：超级表名的表达式
     /// “选择数据点位”时，super_table_expression 参数是必须的
     pub fn parse_stable_expression(dsn: &Dsn) -> anyhow::Result<String> {
-        let expr = dsn
+        // TODO: 使用 opc_{type} 作为默认值，是为了兼容之前的任务
+        let stable_expression = dsn
             .params
             .get("super_table_expression")
-            .ok_or(anyhow::anyhow!("super_table_expression is required"))?;
+            .map(|v| {
+                if v.is_empty() {
+                    "opc_{type}".to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or("opc_{type}".to_string());
 
-        if expr.is_empty() {
-            bail!("super_table_expression cannot be empty");
-        }
-
-        let stable_expression = expr.to_string();
+        // let expr = dsn
+        //     .params
+        //     .get("super_table_expression")
+        //     .ok_or(anyhow::anyhow!("super_table_expression is required"))?;
+        // if expr.is_empty() {
+        //     bail!("super_table_expression cannot be empty");
+        // }
+        // let stable_expression = expr.to_string();
 
         Ok(stable_expression)
     }
@@ -452,20 +463,23 @@ mod tests {
 
     #[test]
     fn test_parse_stable_expression() {
-        let dsn = "opcua://?super_table_expression=opc_{type}"
+        let dsn = "opcua://?super_table_expression=abc_{type}"
             .to_string()
             .into_dsn()
             .unwrap();
         let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
-        assert_eq!(stable_expression, "opc_{type}");
+        assert_eq!(stable_expression, "abc_{type}");
 
         let dsn = "opcua://".to_string().into_dsn().unwrap();
-        let result = OPCConfig::parse_stable_expression(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "super_table_expression is required",
-            result.err().unwrap().to_string()
-        );
+        let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
+        assert_eq!(stable_expression, "opc_{type}");
+
+        // let result = OPCConfig::parse_stable_expression(&dsn);
+        // assert!(result.is_err());
+        // assert_eq!(
+        //     "super_table_expression is required",
+        //     result.err().unwrap().to_string()
+        // );
     }
 
     #[test]
