@@ -294,7 +294,7 @@ pub fn group_by_super_table_name(
 }
 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
 pub async fn write_transformed_records_with_sql(
     pool: &TaosPool,
@@ -308,25 +308,23 @@ pub async fn write_transformed_records_with_sql(
     let mut count = 0;
     let cols = messages[0].records.num_columns();
     let stable = messages[0].stable_name();
+    tracing::debug!(stable, "Start writing");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
-    let mut retry = 0;
     for records in sqls {
+        let mut retry = 0;
         loop {
             retry += 1;
             match write_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
                     count += n;
                     metrics.add_written_points((n * cols) as u64);
+
                     break;
                 }
                 Err(err) => match err {
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::debug!(
-                                sql = stable_sql,
-                                stable = stable.as_deref(),
-                                "Create stable"
-                            );
+                            tracing::debug!(sql = stable_sql, "Create stable");
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
                                 .await?;
                         }
@@ -409,11 +407,14 @@ pub async fn write_transformed_records_with_sql(
                     }
                 },
             }
-            if retry > 3 {
+            if retry > 2 {
                 tracing::error!(stable, "Retry exceeded");
                 return Err(anyhow!("Retry exceeded"));
             }
         }
+    }
+    for m in &messages {
+        tracing::debug!("Table: {}, Rows: {}", m.table.name, m.records.num_rows());
     }
     Ok(count)
 }
