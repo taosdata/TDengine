@@ -341,8 +341,9 @@ pub async fn write_transformed_records_with_sql(
                             {
                                 match err {
                                     WriteError::ContainerLengthTooShort(field) => {
-                                        alter_table(taos, stable, &field, &messages, req_id)
-                                            .await?;
+                                        let _ =
+                                            alter_table(taos, stable, &field, &messages, req_id)
+                                                .await;
                                     }
                                     _ => Err(err)?,
                                 }
@@ -350,7 +351,7 @@ pub async fn write_transformed_records_with_sql(
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
-                        alter_table(taos, stable, &field, &messages, req_id).await?;
+                        let _ = alter_table(taos, stable, &field, &messages, req_id).await;
                     }
                     _ => {
                         return Err(err)?;
@@ -409,7 +410,7 @@ async fn alter_table(
         {
             Err(err) => {
                 tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
-                Err(err)?
+                return Err(err.into());
             }
             _ => Ok(()),
         }

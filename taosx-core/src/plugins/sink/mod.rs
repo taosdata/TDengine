@@ -3381,7 +3381,7 @@ impl IpcStreamWorker {
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
                 let v: LushModelConfig = LushModelConfig::try_from(from.clone()).unwrap();
-                tracing::info!("LushModelConfig: {}", serde_json::to_string(&v).unwrap());
+                // tracing::info!("LushModelConfig: {}", serde_json::to_string(&v).unwrap());
                 lush_model_config.set(v).unwrap();
             }
             _ => {}
