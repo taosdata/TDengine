@@ -276,7 +276,7 @@ impl Display for PIPointModelConfig {
 #[derive(Debug)]
 pub struct PIElementModelConfig {
     pub super_tables: Vec<SuperTableConfig>,
-    pub elements: Vec<ElementRow>,
+    // pub elements: Vec<ElementRow>,
 }
 
 impl PIElementModelConfig {
@@ -288,21 +288,21 @@ impl PIElementModelConfig {
     pub fn from_csv(file_name: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(file_name)?;
         // 第一步：将配置文件切分成不同的超级表定义和元素列表
-        let (super_table_csv_lines, element_lines) = split_csv_config(content, ",element,");
+        let (super_table_csv_lines, _) = split_csv_config(content, ",element,");
         // 第二步：将第一步切分好的各个部分逐个解析成对象
         let mut super_tables = Vec::<SuperTableConfig>::new();
         for csv in super_table_csv_lines {
             let super_table = SuperTableConfig::from_csv(csv)?;
             super_tables.push(super_table);
         }
-        let mut elements = Vec::<ElementRow>::new();
-        for csv in element_lines {
-            let element = ElementRow::from_csv(csv)?;
-            elements.push(element);
-        }
+        // let mut elements = Vec::<ElementRow>::new();
+        // for csv in element_lines {
+        //     let element = ElementRow::from_csv(csv)?;
+        //     elements.push(element);
+        // }
         Ok(PIElementModelConfig {
             super_tables,
-            elements,
+            // elements,
         })
     }
 
@@ -312,11 +312,11 @@ impl PIElementModelConfig {
     pub fn from_json(element_data: &str) -> anyhow::Result<Self> {
         let element_data: serde_json::Value = serde_json::from_str(element_data)?;
         let mut super_tables = Self::parse_super_tables(&element_data)?;
-        let mut elements: Vec<ElementRow> = Self::parse_elements(&element_data)?;
-        Self::append_single_elements(&mut super_tables, &mut elements, &element_data);
+        // let mut elements: Vec<ElementRow> = Self::parse_elements(&element_data)?;
+        // Self::append_single_elements(&mut super_tables, &mut elements, &element_data);
         Ok(PIElementModelConfig {
             super_tables,
-            elements,
+            // elements,
         })
     }
 
@@ -331,7 +331,7 @@ impl PIElementModelConfig {
             .iter()
             .map(|template| {
                 let template_name = template["TemplateName"].as_str().unwrap();
-                let super_table_name = Self::template_name_to_super_table_name(template_name);
+                let super_table_name = Self::default_stable_name(template_name);
                 let sub_table_name_pattern = "${element_name}_${element_id}".to_string();
                 let mut schema: Vec<SchemaRow> = Vec::new();
                 // 添加主键列
@@ -413,93 +413,93 @@ impl PIElementModelConfig {
 
     /// 模板名转超级表名
     #[inline]
-    fn template_name_to_super_table_name(template_name: &str) -> String {
+    pub fn default_stable_name(template_name: &str) -> String {
         template_name
             .to_lowercase()
             .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
     }
 
-    #[inline]
-    fn parse_elements(element_data: &serde_json::Value) -> anyhow::Result<Vec<ElementRow>> {
-        let elements = element_data["Elements"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|element| {
-                let template_name = element["TemplateName"].as_str().unwrap();
-                let super_table = Self::template_name_to_super_table_name(template_name);
-                ElementRow {
-                    element_name: element["Name"].as_str().unwrap().to_string(),
-                    super_table: super_table,
-                    element_id: element["ID"].as_str().unwrap().to_string(),
-                    path: element["Path"].as_str().map(|s| s.to_string()),
-                }
-            })
-            .collect();
-        Ok(elements)
-    }
+    // #[inline]
+    // fn parse_elements(element_data: &serde_json::Value) -> anyhow::Result<Vec<ElementRow>> {
+    //     let elements = element_data["Elements"]
+    //         .as_array()
+    //         .unwrap()
+    //         .iter()
+    //         .map(|element| {
+    //             let template_name = element["TemplateName"].as_str().unwrap();
+    //             let super_table = Self::default_stable_name(template_name);
+    //             ElementRow {
+    //                 element_name: element["Name"].as_str().unwrap().to_string(),
+    //                 super_table: super_table,
+    //                 element_id: element["ID"].as_str().unwrap().to_string(),
+    //                 path: element["Path"].as_str().map(|s| s.to_string()),
+    //             }
+    //         })
+    //         .collect();
+    //     Ok(elements)
+    // }
 
-    /// 处理 SingleElements
-    fn append_single_elements(
-        super_tables: &mut Vec<SuperTableConfig>,
-        elements: &mut Vec<ElementRow>,
-        element_data: &serde_json::Value,
-    ) {
-        let single_elements = element_data["SingleElements"].as_array().unwrap();
-        for element in single_elements {
-            let element_name = element["Name"].as_str().unwrap();
-            let element_id = element["ID"].as_str().unwrap();
-            let super_table_name =
-                Self::template_name_to_super_table_name(element_name) + "_" + element_id;
-            let path = element["Path"].as_str().map(|s| s.to_string());
-            // 添加到 Element列表
-            elements.push(ElementRow {
-                element_name: element_name.to_string(),
-                super_table: super_table_name.clone(),
-                element_id: element_id.to_string(),
-                path,
-            });
-            let mut schema: Vec<SchemaRow> = Vec::new();
-            // 添加主键列
-            schema.push(SchemaRow {
-                column_name: "ts".to_string(),
-                column_type: ColumnType::Key,
-                column_data_type: "TIMESTAMP".to_string(),
-                column_map: "$ts".to_string(),
-            });
-            // 追加普通列
-            let attributes = element["Attributes"].as_array().unwrap();
-            for attribute in attributes {
-                let column_name = attribute["Name"].as_str().unwrap();
-                schema.push(SchemaRow {
-                    column_name: column_name.to_string(),
-                    column_type: ColumnType::COLUMN,
-                    column_data_type: attribute["Type"].as_str().unwrap().to_string(),
-                    column_map: format!("${}", column_name),
-                });
-            }
-            // 追加其它静态属性作为 Tag 列
-            let static_attributes = element["StaticAttributes"].as_array().unwrap();
-            for attribute in static_attributes {
-                let column_name = attribute["Name"].as_str().unwrap();
-                schema.push(SchemaRow {
-                    column_name: column_name.to_string(),
-                    column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(100)".to_string(),
-                    column_map: format!("${}", column_name),
-                });
-            }
-            // 添加到超级表列表
-            super_tables.push(SuperTableConfig {
-                super_table_name,
-                sub_table_name_pattern: "$element_id".to_string(),
-                template_name: None,
-                filter: None,
-                schema,
-                template_schema: None,
-            });
-        }
-    }
+    // 处理 SingleElements
+    // fn append_single_elements(
+    //     super_tables: &mut Vec<SuperTableConfig>,
+    //     elements: &mut Vec<ElementRow>,
+    //     element_data: &serde_json::Value,
+    // ) {
+    //     let single_elements = element_data["SingleElements"].as_array().unwrap();
+    //     for element in single_elements {
+    //         let element_name = element["Name"].as_str().unwrap();
+    //         let element_id = element["ID"].as_str().unwrap();
+    //         let super_table_name =
+    //             Self::default_stable_name(element_name) + "_" + element_id;
+    //         let path = element["Path"].as_str().map(|s| s.to_string());
+    //         // 添加到 Element列表
+    //         elements.push(ElementRow {
+    //             element_name: element_name.to_string(),
+    //             super_table: super_table_name.clone(),
+    //             element_id: element_id.to_string(),
+    //             path,
+    //         });
+    //         let mut schema: Vec<SchemaRow> = Vec::new();
+    //         // 添加主键列
+    //         schema.push(SchemaRow {
+    //             column_name: "ts".to_string(),
+    //             column_type: ColumnType::Key,
+    //             column_data_type: "TIMESTAMP".to_string(),
+    //             column_map: "$ts".to_string(),
+    //         });
+    //         // 追加普通列
+    //         let attributes = element["Attributes"].as_array().unwrap();
+    //         for attribute in attributes {
+    //             let column_name = attribute["Name"].as_str().unwrap();
+    //             schema.push(SchemaRow {
+    //                 column_name: column_name.to_string(),
+    //                 column_type: ColumnType::COLUMN,
+    //                 column_data_type: attribute["Type"].as_str().unwrap().to_string(),
+    //                 column_map: format!("${}", column_name),
+    //             });
+    //         }
+    //         // 追加其它静态属性作为 Tag 列
+    //         let static_attributes = element["StaticAttributes"].as_array().unwrap();
+    //         for attribute in static_attributes {
+    //             let column_name = attribute["Name"].as_str().unwrap();
+    //             schema.push(SchemaRow {
+    //                 column_name: column_name.to_string(),
+    //                 column_type: ColumnType::TAG,
+    //                 column_data_type: "NCHAR(100)".to_string(),
+    //                 column_map: format!("${}", column_name),
+    //             });
+    //         }
+    //         // 添加到超级表列表
+    //         super_tables.push(SuperTableConfig {
+    //             super_table_name,
+    //             sub_table_name_pattern: "$element_id".to_string(),
+    //             template_name: None,
+    //             filter: None,
+    //             schema,
+    //             template_schema: None,
+    //         });
+    //     }
+    // }
 }
 
 /// 解析配置文件，将其切分成超级表定义和元素列表
@@ -581,26 +581,26 @@ impl Display for PIElementModelConfig {
                 )?;
             }
         }
-        writeln!(f)?;
-        for element in &self.elements {
-            if element.path.is_some() {
-                writeln!(
-                    f,
-                    "{},{},{},{}",
-                    element.element_name,
-                    "ELEMENT",
-                    element.super_table,
-                    element.element_id,
-                    // element.path.as_ref().unwrap()
-                )?;
-            } else {
-                writeln!(
-                    f,
-                    "{},{},{},{}",
-                    element.element_name, "ELEMENT", element.super_table, element.element_id,
-                )?;
-            }
-        }
+        // writeln!(f)?;
+        // for element in &self.elements {
+        //     if element.path.is_some() {
+        //         writeln!(
+        //             f,
+        //             "{},{},{},{}",
+        //             element.element_name,
+        //             "ELEMENT",
+        //             element.super_table,
+        //             element.element_id,
+        //             // element.path.as_ref().unwrap()
+        //         )?;
+        //     } else {
+        //         writeln!(
+        //             f,
+        //             "{},{},{},{}",
+        //             element.element_name, "ELEMENT", element.super_table, element.element_id,
+        //         )?;
+        //     }
+        // }
         Ok(())
     }
 }

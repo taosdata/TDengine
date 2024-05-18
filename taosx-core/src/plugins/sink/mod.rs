@@ -805,19 +805,32 @@ async fn consume_lush_record_with_transform(
                     lush_parser.transform_record_batch(&combined_records)?;
 
                 // 按超级表名分组
+                // let grouped_batches: LinkedHashMap<String, RecordBatch> =
+                //     lush::group_by_super_table_name(
+                //         &parsed_records,
+                //         name_of_table_name_column,
+                //         &lush_model_config.super_table_name_mapping,
+                //     );
                 let grouped_batches: LinkedHashMap<String, RecordBatch> =
-                    lush::group_by_super_table_name(
-                        &parsed_records,
-                        name_of_table_name_column,
-                        &lush_model_config.sub_super_mapping,
-                    );
-                for (super_table, record_batch) in grouped_batches {
+                    lush::group_by_super_table_name2(&parsed_records);
+                for (default_super_table, record_batch) in grouped_batches {
+                    let super_table = lush_model_config
+                        .super_table_name_mapping
+                        .get(default_super_table.as_str());
+                    if super_table.is_none() {
+                        tracing::error!(
+                            "default_super_table {} not found in super_table_name_mapping",
+                            default_super_table
+                        );
+                        continue;
+                    }
+                    let super_table = super_table.unwrap();
                     let parser: &transform::Parser = lush_model_config
                         .super_table_parsers
                         .get(super_table.as_str())
                         .ok_or_else(|| {
                             anyhow!(
-                                "super_table {} not found in model_config",
+                                "super_table {} not found in model_config.super_table_parsers",
                                 super_table.to_string()
                             )
                         })?;
