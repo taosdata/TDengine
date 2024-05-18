@@ -227,4 +227,7 @@ export default {
     margin-left: 1rem;
   }
 }
+::v-deep .el-upload-list__item.is-success.focusing .el-icon-close-tip {
+  display: none !important;
+}
 </style>
