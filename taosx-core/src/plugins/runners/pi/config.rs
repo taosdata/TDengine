@@ -159,18 +159,7 @@ impl PiConfig {
                 None
             } else {
                 let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            anyhow!(
-                                "invalid BackfillStartTime: {}, cause: {}",
-                                backfill_start.clone(),
-                                err.to_string()
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                    Datetime::from_str(backfill_start.as_str()).map_err(|err| {
                         anyhow!(
                             "invalid BackfillStartTime: {}, cause: {}",
                             backfill_start.clone(),
@@ -188,18 +177,7 @@ impl PiConfig {
                     to_tdengine_first_time.replace(true);
                     None
                 } else {
-                    let parsed_time =
-                        NaiveDateTime::parse_from_str(backfill_end.as_str(), "%Y-%m-%d %H:%M:%S")
-                            .map_err(|err| {
-                                anyhow!(
-                                    "invalid BackfillEndTime: {}, cause: {}",
-                                    backfill_end.clone(),
-                                    err.to_string()
-                                )
-                            })?
-                            .and_local_timezone(Local)
-                            .unwrap();
-                    let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
+                    let parsed_time = Datetime::from_str(backfill_end.as_str())
                         .map_err(|err| {
                             anyhow!(
                                 "invalid BackfillEndTime: {}, cause: {}",
