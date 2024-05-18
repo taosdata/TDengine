@@ -237,7 +237,6 @@ impl PIPointModelConfig {
 
 impl Display for PIPointModelConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", DOC_FOR_POINT_MODEL)?;
         for super_table in &self.super_tables {
             writeln!(f, "\nSuperTable,{}", super_table.super_table_name)?;
             writeln!(f, "SubTable,{}", super_table.sub_table_name_pattern)?;
@@ -556,7 +555,6 @@ fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<S
 }
 impl Display for PIElementModelConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", DOC_FOR_ELEMENT_MODEL)?;
         for super_table in &self.super_tables {
             writeln!(f, "\nSuperTable,{}", super_table.super_table_name)?;
             writeln!(f, "SubTable,{}", super_table.sub_table_name_pattern)?;
@@ -967,56 +965,6 @@ impl TryFrom<&str> for PiModelType {
         }
     }
 }
-
-const DOC_FOR_ELEMENT_MODEL: &str = r#"# ------------------- How to Configure ---------------------------------
-# This configuration file is for multiple column data model, which means there are multiple attributes values in the data schema. 
-# There are two parts of this configuration file. The first part defines data schema in TDengine. 
-# The second part defines the element list of Pi system to be imported.
-# ------------------- Part One - Data Schema Definition -----------------
-# In this part, each super table corresponds to a template in Pi system.
-# SuperTable is the leading configuration keyword, it defines the super table name in TDengine, you can change the name to whatever you want
-# SubTable is the second configuration keyword, it defines the naming pattern of subtables in TDengine, you can change the pattern, normally we recommend using $element_id
-# Template keyword is followed by the template name. 
-# Filter keyword defines the data filter rules, please do NOT change this line.
-# The following lines define the schema of the super table. Each line represents a column or a tag in the super table. Each line consists of 4 fields.
-# The first field is the name of column or tag, you can change the name.
-# The second field identifies it's a TAG or a COLUMN, you can NOT change this field.
-# The third field identifies the data type, you can NOT change this field.
-# The fourth field is the attribute defined Pi system, you can change this field to a reasonable expression consisting of the attributes.
-# Additionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
-# Or, you can remove the whole definition of a data schema if you don't want that template.
-# ---------------------Part Two - Element List ----------------------------
-# In this part, each line represents one element in Pi System. There are 5 fields in each line. 
-# The first field is the Element name, which you can NOT change. 
-# The second field is the object type, which is a keyword "ELEMENT" and you can NOT change it. 
-# The 3rd field is the super table name the element will be imported into, you can change this field but need to make sure the super table name is valid.
-# The 4th field is the element ID to distinguish in case there are duplicate element names.
-# The last field is the element path in the AF tree.
-# Also, you can remove one line if you wan't need that element.
-# --------------------------------------------------------------------------
-"#;
-
-const DOC_FOR_POINT_MODEL: &str = r#"# ------------------- How to Configure ---------------------------------
-# This configuration file is for single column data model, which means there is only single POINT value in the data schema. There are two parts of this configuration file. The first part defines data schema in TDengine. The second part defines the point list of Pi system to be imported.
-# ------------------- Part One - Data Schema Definition -----------------
-# In this part, each data schema corresponds to a point type.
-# SuperTable is the leading configuration keyword, it defines the super table name in TDengine, you can change the name to whatever you want
-# SubTable is the second configuration keyword, it defines the naming pattern of subtables in TDengine, you can change the pattern, normally we recommend using $point_name
-# Filter keyword defines the data filter rules, please do NOT change this line.
-# The following lines define the schema of the super table. Each line defines a column or a tag in the super table. Each line consists of 4 fields.
-# The first field is the name of column or tag, you can change the name.
-# The second field identifies it's a TAG or a COLUMN, you can NOT change this field.
-# The third field identifies the data type, you can NOT change this field.
-# The fourth field is the attribute defined Pi system, you can change this field to a reasonable expression consisting of the attributes.
-# Additionally, you can remove some lines following "Filter" line if you don't want to import the corresponding attributes into TDengine.
-# ---------------------Part Two - Point List ----------------------------
-# In this part, each line represents one point in Pi System. There are 3 fields in each line. 
-# The first field is the Point name, which you can NOT change. 
-# The second field is the object type, which is a keyword "POINT" and you can NOT change it. 
-# The 3rd field is the super table name the point will be imported into, you can change this field but need to make sure the super table name is valid.
-# Also, you can remove one line if you wan't need that point.
-# --------------------------------------------------------------------------
-"#;
 
 #[cfg(test)]
 mod tests {

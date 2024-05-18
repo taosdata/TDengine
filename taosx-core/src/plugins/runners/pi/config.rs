@@ -143,12 +143,6 @@ impl PiConfig {
             )?
         };
 
-        if is_real_run && point_list.is_empty() && element_id_list.is_empty() {
-            return Err(anyhow!(
-                "ElementIDList and PointList should config at least one of them"
-            ));
-        }
-
         let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&from)?;
         let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&from)?;
         let backfill_start_time = if let Some(backfill_start) =
