@@ -717,11 +717,10 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     pStart += sizeof(int32_t);
     ASSERT(compLen <= rawLen && compLen != 0);
 
+    pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
       ASSERT(t == rawLen);
-
-      pNextStart = pStart + compLen;
       pStart = pDataInfo->decompBuf;
     }
 
