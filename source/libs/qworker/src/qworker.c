@@ -363,7 +363,10 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     pOutput->precision = output.precision;
     pOutput->bufStatus = output.bufStatus;
     pOutput->useconds = output.useconds;
-    pOutput->compressed = output.compressed;
+
+    if (output.compressed) {
+      pOutput->compressed = output.compressed;
+    }
     pOutput->numOfCols = output.numOfCols;
     pOutput->numOfRows += output.numOfRows;
     pOutput->numOfBlocks++;
