@@ -637,7 +637,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
               nodesNodeToSQL(pJoinNode->pOtherOnCond, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
         }
         EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
       break;
     }
@@ -1643,7 +1643,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
           conditionsGot = true;  
         }
         EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
       break;
     }
@@ -1830,7 +1830,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   pBlock->info.rows = rowNum;
 
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + sizeof(int32_t)*2;
 
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
@@ -1842,10 +1842,14 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
-  int32_t len = blockEncode(pBlock, rsp->data, taosArrayGetSize(pBlock->pDataBlock));
+  int32_t len = blockEncode(pBlock, rsp->data + sizeof(int32_t)*2, taosArrayGetSize(pBlock->pDataBlock));
 
   rsp->compLen = htonl(len);
   rsp->payloadLen = rsp->compLen;
+  rsp->compressed = 0;
+
+  ((int32_t*)rsp->data)[0] = len;
+  ((int32_t*)rsp->data)[1] = len;
 
   blockDataDestroy(pBlock);
 

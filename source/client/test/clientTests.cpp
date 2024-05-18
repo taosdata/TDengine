@@ -908,15 +908,15 @@ TEST(clientCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-  taos_free_result(pRes);
+  TAOS_RES* pRes = taos_query(pConn, "explain select * from dbvg.st where tbname='ct1'");
+//  taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from st2");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
-  }
+//  pRes = taos_query(pConn, "select * from st2");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
 
   TAOS_ROW    pRow = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);

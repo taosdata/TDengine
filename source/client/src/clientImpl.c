@@ -2054,6 +2054,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
+
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2190,9 +2191,9 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   pResultInfo->precision = pRsp->precision;
 
   // decompress data if needed
-  if (pRsp->compressed) {
-    int32_t payloadLen = htonl(pRsp->payloadLen);
+  int32_t payloadLen = htonl(pRsp->payloadLen);
 
+  if (pRsp->compressed) {
     if (pResultInfo->decompBuf == NULL) {
       pResultInfo->decompBuf = taosMemoryMalloc(payloadLen);
       pResultInfo->decompBufSize = payloadLen;
@@ -2211,21 +2212,23 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
     }
   }
 
-  int32_t compLen = *(int32_t*)pRsp->data;
-  int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
+  if (payloadLen > 0) {
+    int32_t compLen = *(int32_t*)pRsp->data;
+    int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
 
-  char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
+    char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
 
-  if (pRsp->compressed && compLen < rawLen) {
-    int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
-    ASSERT(len == rawLen);
+    if (pRsp->compressed && compLen < rawLen) {
+      int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(len == rawLen);
 
-    pResultInfo->pData = pResultInfo->decompBuf;
-    pResultInfo->payloadLen = rawLen;
-  } else {
-    pResultInfo->pData = pStart;
-    pResultInfo->payloadLen = htonl(pRsp->compLen);
-    ASSERT(pRsp->compLen == pRsp->payloadLen);
+      pResultInfo->pData = pResultInfo->decompBuf;
+      pResultInfo->payloadLen = rawLen;
+    } else {
+      pResultInfo->pData = pStart;
+      pResultInfo->payloadLen = htonl(pRsp->compLen);
+      ASSERT(pRsp->compLen == pRsp->payloadLen);
+    }
   }
 
   // TODO handle the compressed case
