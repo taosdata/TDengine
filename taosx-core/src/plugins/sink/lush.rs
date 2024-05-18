@@ -241,7 +241,7 @@ pub fn create_tags_record(
             .get(table_name)
             .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
         let tags = table.tags().as_ref().unwrap();
-        let stable = table.stable_name().as_deref().unwrap().to_string()
+        let stable = table.stable_name().as_deref().unwrap().to_string();
         stables.push(stable);
         let values: Vec<String> = tags
             .iter()
@@ -324,12 +324,9 @@ pub fn group_by_super_table_name(
 }
 
 /// 多列模型，按 _using 列（值是默认超级表名）分组
-pub fn group_by_super_table_name2(
-    records: &RecordBatch
-) -> LinkedHashMap<String, RecordBatch> {
-    let stable_name_column: &Arc<dyn Array> = records
-        .column_by_name("_using")
-        .expect("_using not found");
+pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<String, RecordBatch> {
+    let stable_name_column: &Arc<dyn Array> =
+        records.column_by_name("_using").expect("_using not found");
     let table_name_column: &StringArray = stable_name_column
         .as_any()
         .downcast_ref::<StringArray>()
@@ -364,8 +361,6 @@ pub fn group_by_super_table_name2(
         })
         .collect()
 }
-
-
 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]

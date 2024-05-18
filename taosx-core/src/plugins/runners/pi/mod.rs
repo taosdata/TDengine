@@ -725,7 +725,7 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
         } else if let Some(pattern) = filter_template {
             (pattern, "Template")
         } else {
-            ("*", "Element")
+            ("*", "Template")
         }
     };
     (mode, pattern, pattern_type)
