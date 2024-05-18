@@ -41,7 +41,7 @@ namespace TDPIConnector.Core.Conversions
     internal class ElemenetTableConverter
     {
         internal static string GetTDTableNameForElement(AFElementWrapper element) {
-            return TDEngineProxy.GetFullTableName(element.Name).ToTDEngineNamingPattern() + "_" + element.ID.ToString();
+            return TDEngineProxy.GetFullTableName(element.Name) + "_" + element.ID.ToString();
         }
         internal static TDTable Convert(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns)
         {

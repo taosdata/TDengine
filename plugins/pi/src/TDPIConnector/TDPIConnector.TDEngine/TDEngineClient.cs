@@ -124,7 +124,7 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDValue> GetLastPIValue(string database, string pointName)
         {
-            string tdEngineTableName = GetFullTableName(pointName).ToTDEngineNamingPattern();
+            string tdEngineTableName = GetFullTableName(pointName);
             string sqlCommand = $"select * from {database}.{tdEngineTableName} order by ts desc limit 1;";
             TDEngineResponse resp = await MakeHttpRequest(sqlCommand);
             TDValues tdValues = resp.ToTDValues();
@@ -152,7 +152,7 @@ namespace TDPIConnector.TDEngine
 
             foreach (var tableName in tableNames)
             {
-                string tdEngineTableName = GetFullTableName(tableName).ToTDEngineNamingPattern();
+                string tdEngineTableName = GetFullTableName(tableName);
                 if (allLastValueTimestamps.ContainsKey(tdEngineTableName))
                 {
                     lastValueTimestamps.Add(tableName, allLastValueTimestamps[tdEngineTableName]);
@@ -169,7 +169,7 @@ namespace TDPIConnector.TDEngine
 
         public override async Task<TDValue> GetFirstPIValue(string database, string pointName)
         {
-            string tdEngineTableName = GetFullTableName(pointName).ToTDEngineNamingPattern();
+            string tdEngineTableName = GetFullTableName(pointName);
             string sqlCommand = $"select * from {database}.{tdEngineTableName} order by ts asc limit 1;";
             TDEngineResponse resp = await MakeHttpRequest(sqlCommand);
             TDValues tdValues = resp.ToTDValues();
@@ -225,7 +225,7 @@ namespace TDPIConnector.TDEngine
                     }
                 }
 
-                string tdEngineTableName = GetFullTableName(element.Name).ToTDEngineNamingPattern();
+                string tdEngineTableName = GetFullTableName(element.Name);
                 sb.Append($" IF NOT EXISTS {tdEngineTableName} USING {element.STableName.ToTDEngineNamingPattern()} (element_id");
                 foreach (KeyValuePair<string, string> tag in tags)
                 {
@@ -266,7 +266,7 @@ namespace TDPIConnector.TDEngine
             for (int i = 0; i < piPoints.Count; i++)
             {
                 var piPoint = piPoints[i];
-                string tdEngineTableName = GetFullTableName(piPoint.Name).ToTDEngineNamingPattern();
+                string tdEngineTableName = GetFullTableName(piPoint.Name);
                 sb.Append($"IF NOT EXISTS {tdEngineTableName} USING {piPoint.STableName.ToTDEngineNamingPattern()} TAGS (\"{piPoint.PointId}\") ");
                 if (i % 1000 == 0 && i > 0)
                 {
@@ -290,13 +290,13 @@ namespace TDPIConnector.TDEngine
       
         public override async Task<TDEngineResponse> DropTableForPIPoint(string database, string pointName)
         {
-            string tdEngineTableName = GetFullTableName(pointName).ToTDEngineNamingPattern();
+            string tdEngineTableName = GetFullTableName(pointName);
             string sqlCommand = $"DROP TABLE IF EXISTS {tdEngineTableName};";
             return await MakeHttpRequest(sqlCommand, database);
         }
         public override async Task<TDEngineResponse> DropTableForAFElement(string database, TDTable table)
         {
-            string tdEngineTableName = GetFullTableName(table.Name).ToTDEngineNamingPattern();
+            string tdEngineTableName = GetFullTableName(table.Name);
             string sqlCommand = $"DROP TABLE IF EXISTS {tdEngineTableName};";
             return await MakeHttpRequest(sqlCommand, database);
         }
@@ -415,7 +415,7 @@ namespace TDPIConnector.TDEngine
         {
             try
             {
-                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.{tbName} " +
+                string sqlCommand = $"ALTER TABLE {db.ToTDEngineNamingRawPattern()}.`{tbName}` " +
                     $"SET TAG {attriName.ToTDEngineNamingPattern()}='{value}';";
                 return await MakeHttpRequest(sqlCommand);
             }
@@ -429,7 +429,7 @@ namespace TDPIConnector.TDEngine
         {
             try
             {
-                string sqlCommand = $"INSERT INTO {db.ToTDEngineNamingRawPattern()}.{elementName.ToTDEngineNamingPattern()} " +
+                string sqlCommand = $"INSERT INTO {db.ToTDEngineNamingRawPattern()}.{elementName} " +
                     $"(ts, {attriName.ToTDEngineNamingPattern()}_val, {attriName.ToTDEngineNamingPattern()}_status)" +
                     $" VALUES ('{ts}', NULL, NULL);";
                 return await MakeHttpRequest(sqlCommand);

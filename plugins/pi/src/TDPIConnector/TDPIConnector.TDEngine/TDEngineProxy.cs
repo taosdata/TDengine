@@ -180,7 +180,7 @@ namespace TDPIConnector.TDEngine
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
                 string tdEngineTableName = element.Name;
-                string stableName = element.STableName.ToTDEngineNamingPattern();
+                string stableName = element.STableName;
                 
                 var taosxClient = getTaosxClient(stableName);
                 if (taosxClient != null)
@@ -362,7 +362,7 @@ namespace TDPIConnector.TDEngine
         {
             foreach (var tables in stables)
             {
-                var taosxClient = getTaosxClient(tables.Key.ToTDEngineNamingPattern());
+                var taosxClient = getTaosxClient(tables.Key);
                 if (null != taosxClient) {
                     taosxClient.AddTablesValue(tables.Value);
                 } else {

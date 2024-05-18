@@ -87,12 +87,12 @@ namespace TDPIConnector.Core
                 }
             }
 
-            public void FinishedOne() {
+            public void FinishedOne(AFElementWrapper element) {
                 lock (taskLock)
                 {
                     ++finished;
-                    log.Info($"backfill element {elementsTasks[currentBatchIndex].elements[currentIndexInBatch].Name}:" +
-                        $"{elementsTasks[currentBatchIndex].elements[currentIndexInBatch].ID} finshed: {finished}/{all}");
+                    log.Info($"backfill element {element.Name}:" +
+                        $"{element.ID} finshed: {finished}/{all}");
                 }
             }
         }
@@ -124,7 +124,7 @@ namespace TDPIConnector.Core
                         if (task != null)
                         {
                             BackfillElement(tdDatabaseName, task.element, task.startTime, task.endTime);
-                            elemmentBackfillManager.FinishedOne();
+                            elemmentBackfillManager.FinishedOne(task.element);
                         }
                         else
                         {

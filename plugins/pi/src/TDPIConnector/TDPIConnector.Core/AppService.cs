@@ -339,7 +339,6 @@ namespace TDPIConnector.Core
                 piSystemManager.Dispose();
             }
             tdEngineProxy.Dispose();
-            webApp.Dispose();
         }
         public void ReStartDataPipe()
         {
