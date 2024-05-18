@@ -36,12 +36,15 @@ use super::ipc_metric::IpcMetrics;
 pub struct LushModelConfig {
     /// The name of the column that represent sub-table name in the recived RecordBatch.
     pub table_name_column: String,
+
     /// key:  super-table name .
     /// value: parser for the super-table.
     pub super_table_parsers: HashMap<String, Parser>,
-    /// key: sub-table name.
+
+    /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
-    pub sub_super_mapping: HashMap<String, String>,
+    pub super_table_name_mapping: HashMap<String, String>,
+
     #[serde(skip)]
     pub table_tags: Arc<TableTagCache>,
 }
@@ -145,7 +148,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
-            sub_super_mapping: sub_super_mapping,
+            super_table_name_mapping: sub_super_mapping,
             table_tags: Arc::new(TableTagCache::new()),
         }
     }
@@ -153,20 +156,36 @@ impl From<PIPointModelConfig> for LushModelConfig {
 
 impl From<PIElementModelConfig> for LushModelConfig {
     fn from(config: PIElementModelConfig) -> Self {
+        let super_table_name_mapping = config
+            .super_tables
+            .iter()
+            .map(|super_table| {
+                let template = super_table.template_name.as_deref().unwrap(); // element model 的配置必须有模板名
+                let stable_name_from_template_name =
+                    PIElementModelConfig::default_stable_name(template);
+                (
+                    stable_name_from_template_name,
+                    super_table.super_table_name.clone(),
+                )
+            })
+            .collect();
+
         let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
             super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
         }
-        let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
-        for element in config.elements {
-            sub_super_mapping.insert(element.element_id, element.super_table);
-        }
+        // old code that use element_id to index super_table
+        // let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
+        // for element in config.elements {
+        //     sub_super_mapping.insert(element.element_id, element.super_table);
+        // }
+
         LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
-            sub_super_mapping: sub_super_mapping,
+            super_table_name_mapping,
             table_tags: Arc::new(TableTagCache::new()),
         }
     }
@@ -215,12 +234,15 @@ pub fn create_tags_record(
     }
     // 收集每一行 tag 值
     let mut tag_values: Vec<Vec<String>> = Vec::new();
+    let mut stables = Vec::<String>::new();
     for table_name in table_name_column.iter() {
         let table_name = table_name.unwrap();
         let table = table_cache
             .get(table_name)
             .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
         let tags = table.tags().as_ref().unwrap();
+        let stable = table.stable_name().as_deref().unwrap().to_string()
+        stables.push(stable);
         let values: Vec<String> = tags
             .iter()
             .map(|tag| {
@@ -241,12 +263,15 @@ pub fn create_tags_record(
         let array = StringArray::from(values);
         columns.push(Arc::new(array) as ArrayRef);
     }
+    // 添加 _using 列
+    fields.push(Field::new("_using".to_string(), DataType::Utf8, true));
+    columns.push(Arc::new(StringArray::from(stables)) as ArrayRef);
 
     let schema = Schema::new(fields);
     RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
 }
 
-/// 按 table_name 列（值是子表名）对应的超级表名分组
+/// 单列模型，按 table_name 列（值是子表名）对应的超级表名分组
 /// 为了避免过多的内存复制，这里不是每遍历一行就调 concat_batches 方法创建一个 RecordBatch， 而是先把连续属于同一超级表的行 slice 成一个 RecordBatch，暂存起来
 /// 最后对于每个超级表，调用一次 concat_batches 合并成一个 RecordBatch
 pub fn group_by_super_table_name(
@@ -297,6 +322,50 @@ pub fn group_by_super_table_name(
         })
         .collect()
 }
+
+/// 多列模型，按 _using 列（值是默认超级表名）分组
+pub fn group_by_super_table_name2(
+    records: &RecordBatch
+) -> LinkedHashMap<String, RecordBatch> {
+    let stable_name_column: &Arc<dyn Array> = records
+        .column_by_name("_using")
+        .expect("_using not found");
+    let table_name_column: &StringArray = stable_name_column
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+
+    let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
+    for i in 0..table_name_column.len() {
+        let super_table = table_name_column.value(i);
+        if super_table_ranges.contains_key(super_table) {
+            let ranges = super_table_ranges.get_mut(super_table).unwrap();
+            let last_range = ranges.last_mut().unwrap();
+            if last_range.end == i {
+                last_range.end += 1;
+            } else {
+                ranges.push(i..i + 1);
+            }
+        } else {
+            super_table_ranges.insert(super_table, vec![i..i + 1]);
+        }
+    }
+    let schema = records.schema();
+    super_table_ranges
+        .into_iter()
+        .map(|(super_table, ranges)| {
+            let mut record_batches: Vec<RecordBatch> = Vec::new();
+            for range in ranges {
+                let record = records.slice(range.start, range.end - range.start);
+                record_batches.push(record);
+            }
+            let record_batch = concat_batches(&schema, record_batches.iter()).unwrap();
+            (super_table.to_string(), record_batch)
+        })
+        .collect()
+}
+
+
 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
