@@ -965,6 +965,7 @@ impl TaskController {
 
         sql.push("`via` = ?");
 
+        // 一定走不到，是否应删除？
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
             self.start_task(&task).await?;
@@ -1012,6 +1013,23 @@ impl TaskController {
                 .ok_or_else(|| anyhow!("Task not found: {}", id))?;
             let scheduler = self.scheduler.clone();
             let task_in_spawn = task.task.clone();
+            let from: Dsn = task
+                .from
+                .parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+            if let Some(via) = task.via {
+                if !self.agent_alive(via).await {
+                    bail!("Agent {} is not alive", via);
+                }
+                // 检查是否有需要发送到 agent 的文件
+                let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+            }
+            
             tokio::spawn(async move {
                 let _ = scheduler.stop_task(id, Duration::from_secs(60)).await;
                 tokio::time::sleep(Duration::from_secs(2)).await;
