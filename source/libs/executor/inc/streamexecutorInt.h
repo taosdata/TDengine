@@ -12,37 +12,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_UTIL_GEOS_CTX_H_
-#define _TD_UTIL_GEOS_CTX_H_
+#ifndef STREAM_EXECUTORINT_H
+#define STREAM_EXECUTORINT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <geos_c.h>
-#include <tpcre2.h>
+#include "executorInt.h"
 
-typedef struct SGeosContext {
-  GEOSContextHandle_t handle;
-
-  GEOSWKTReader *WKTReader;
-  GEOSWKTWriter *WKTWriter;
-
-  GEOSWKBReader *WKBReader;
-  GEOSWKBWriter *WKBWriter;
-
-  pcre2_code *WKTRegex;
-  pcre2_match_data *WKTMatchData;
-
-  char errMsg[512];
-} SGeosContext;
-
-SGeosContext* getThreadLocalGeosCtx();
-void destroyThreadLocalGeosCtx();
+void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
+bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
+void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_GEOS_CTX_H_*/
+#endif  // STREAM_EXECUTORINT_H

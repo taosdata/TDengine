@@ -683,7 +683,7 @@ void transDestroySyncMsg(void* msg) {
   if (msg == NULL) return;
 
   STransSyncMsg* pSyncMsg = msg;
-  tsem_destroy(pSyncMsg->pSem);
+  tsem2_destroy(pSyncMsg->pSem);
   taosMemoryFree(pSyncMsg->pSem);
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);

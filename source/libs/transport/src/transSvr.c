@@ -680,12 +680,13 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   taosMemoryFree(smsg);
 }
 static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
-static void              destroyAllConn(SWorkThrd* pThrd) {
-               tTrace("thread %p destroy all conn ", pThrd);
-               while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
-                 queue* h = QUEUE_HEAD(&pThrd->conn);
-                 QUEUE_REMOVE(h);
-                 QUEUE_INIT(h);
+
+static void destroyAllConn(SWorkThrd* pThrd) {
+  tTrace("thread %p destroy all conn ", pThrd);
+  while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
+    queue* h = QUEUE_HEAD(&pThrd->conn);
+    QUEUE_REMOVE(h);
+    QUEUE_INIT(h);
 
                  SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
                  while (T_REF_VAL_GET(c) >= 2) {
