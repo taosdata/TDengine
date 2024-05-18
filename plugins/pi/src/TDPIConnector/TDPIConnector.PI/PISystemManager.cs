@@ -178,6 +178,8 @@ namespace TDPIConnector.PI
             using (var search = new AFElementSearch(afDatabase, "TemplateSearch", $"TemplateName: '{elementTemplateName}'"))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
+                List<AFElementWrapper> wrappedElements = new List<AFElementWrapper>(elements.Count());
+
                 return elements
                     .AsParallel()
                     .WithDegreeOfParallelism(16).

@@ -46,6 +46,7 @@ namespace TDPIConnector.Core.Conversions
         internal static TDTable Convert(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
+            var categoriesString = element.CategoriesString;
             Dictionary<string, string> tags = new Dictionary<string, string>();
             var elementColumns = new List<TDColumn>();
             foreach (var c in columns)
@@ -71,7 +72,8 @@ namespace TDPIConnector.Core.Conversions
             var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
             {
                 Columns = elementColumns,
-                Location = location
+                Location = location,
+                Categories = categoriesString
             };
             return table;
         }
@@ -79,6 +81,7 @@ namespace TDPIConnector.Core.Conversions
         internal static TDTable ConvertV2(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns, ref List<AFAttribute> attries)
         {
             var location = getLocation(element.GetPath());
+            var categoriesString = element.CategoriesString;
             Dictionary<string, string> tags = new Dictionary<string, string>();
             var elementColumns = new List<TDColumn>();
             foreach (var c in columns)
@@ -121,7 +124,8 @@ namespace TDPIConnector.Core.Conversions
             var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
             {
                 Columns = elementColumns,
-                Location = location
+                Location = location,
+                Categories = categoriesString
             };
             return table;
         }

@@ -218,10 +218,11 @@ namespace TDPIConnector.TDEngine
                             log.Debug($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
                             column.TagValue = column.TagValue.Substring(0, 99);
                         }
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue.Trim()));
                     }
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories));
 
                 taosxClient.AddAFElementTableTag(element.ID, tags);
             }

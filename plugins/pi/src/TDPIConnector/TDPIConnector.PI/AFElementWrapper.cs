@@ -3,6 +3,25 @@ using System;
 
 namespace TDPIConnector.PI
 {
+    public class ElementWrapperPool
+    {
+       //  private readonly ObjectPool<AFElementWrapper> _pool;
+       // 
+       //  public ElementWrapperPool()
+       //  {
+       //      _pool = new DefaultObjectPool<AFElementWrapper>(new DefaultPooledObjectPolicy<AFElementWrapper>());
+       //  }
+       // 
+       //  public AFElementWrapper Rent()
+       //  {
+       //      return _pool.Get();
+       //  }
+       // 
+       //  public void Return(AFElementWrapper wrapper)
+       //  {
+       //      _pool.Return(wrapper);
+       //  }
+    }
     public class AFElementWrapper
     {
         internal AFElement AFSDKObject { get; private set; }
@@ -40,6 +59,14 @@ namespace TDPIConnector.PI
             get
             {
                 return new AFAttributesWrapper(this.AFSDKObject.Attributes);
+            }
+        }
+
+        public string CategoriesString
+        {
+            get
+            {
+                return this.AFSDKObject.CategoriesString;
             }
         }
 
