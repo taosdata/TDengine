@@ -965,13 +965,6 @@ impl TaskController {
 
         sql.push("`via` = ?");
 
-        // 一定走不到，是否应删除？
-        if sql.len() == 0 {
-            let task = self.get(id).await?.unwrap();
-            self.start_task(&task).await?;
-            return Ok(Some(task));
-        }
-
         let query = format!("UPDATE `tasks` SET {} WHERE `id` = {}", sql.join(","), id);
         let mut query = sqlx::query(&query);
 

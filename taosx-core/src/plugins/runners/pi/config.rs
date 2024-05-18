@@ -403,17 +403,7 @@ impl PiConfig {
     }
 
     fn parse_date_time(date_time: &str) -> anyhow::Result<Datetime> {
-        let parsed_time = NaiveDateTime::parse_from_str(date_time, "%Y-%m-%d %H:%M:%S")
-            .map_err(|err| {
-                anyhow!(
-                    "failed to parse date time: {}, cause: {}",
-                    date_time,
-                    err.to_string()
-                )
-            })?
-            .and_local_timezone(Local)
-            .unwrap();
-        let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+        let parsed_time = Datetime::from_str(date_time).map_err(|err| {
             anyhow!(
                 "failed to parse date time: {}, cause: {}",
                 date_time,
@@ -745,15 +735,9 @@ mod tests {
 
     #[test]
     fn test_parse_date_time() {
-        let config = PiConfig::parse_date_time("2021-01-01 00:00:00").unwrap();
-        assert_eq!("2021-01-01T00:00:00+08:00", config.to_string());
-
-        let config = PiConfig::parse_date_time("2021-01-01 00:00:00.000");
-        assert!(config.is_err());
-        assert_eq!(
-            "failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
-            config.unwrap_err().to_string()
-        );
+        let config = PiConfig::parse_date_time("2024-05-01T00:00:00+08:00").unwrap();
+        println!("{:?}", config);
+        assert_eq!("2024-05-01T00:00:00+08:00", config.to_string());
     }
 
     #[tokio::test]
