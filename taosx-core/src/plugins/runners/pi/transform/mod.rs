@@ -372,6 +372,12 @@ impl PIElementModelConfig {
                     column_data_type: "NCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
                 });
+                schema.push(SchemaRow {
+                    column_name: "categories".to_string(),
+                    column_type: ColumnType::TAG,
+                    column_data_type: "NCHAR(100)".to_string(),
+                    column_map: "$categories".to_string(),
+                });
                 // 追加其它静态属性作为 Tag 列
                 let static_attributes = template["StaticAttributes"].as_array().unwrap();
                 for attribute in static_attributes {
