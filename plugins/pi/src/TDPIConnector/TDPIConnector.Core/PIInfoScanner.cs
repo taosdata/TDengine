@@ -42,8 +42,8 @@ namespace TDPIConnector.Core
         class ScanElementList
         {
             public ConcurrentBag<ScanElementTemplate> Templates = new ConcurrentBag<ScanElementTemplate>();
-            public ConcurrentBag<ScanSingleElement> SingleElements = new ConcurrentBag<ScanSingleElement>();
-            public ConcurrentBag<ScanElement> Elements = new ConcurrentBag<ScanElement>();
+            // public ConcurrentBag<ScanSingleElement> SingleElements = new ConcurrentBag<ScanSingleElement>();
+            // public ConcurrentBag<ScanElement> Elements = new ConcurrentBag<ScanElement>();
         }
         class ScanPointTags
         {
@@ -351,6 +351,26 @@ namespace TDPIConnector.Core
                 return "start param error, filterMode not found!";
             }
         }
+        internal string GetScanTemplateInfo(in List<AFElementTemplateWrapper> templates)
+        {
+            ScanElementList elmentInfo = new ScanElementList();
+            ConcurrentDictionary<string, bool> existTemplates = new ConcurrentDictionary<string, bool>();
+            ConcurrentDictionary<Guid, bool> usedElements = new ConcurrentDictionary<Guid, bool>();
+
+            foreach (var template in templates) {
+                if (!existTemplates.ContainsKey(template.Name))
+                {
+                    existTemplates[template.Name] = true;
+                    ScanElementTemplate templateInfo = new ScanElementTemplate();
+                    templateInfo.TemplateName = template.Name;
+                    templateInfo.Attributes = GetTemplateAtrributes(template);
+                    templateInfo.StaticAttributes = GetTemplateAtrributesForTag(template);
+                    elmentInfo.Templates.Add(templateInfo);
+                }
+            }
+            var json = JsonConvert.SerializeObject(elmentInfo);
+            return json;
+        }
         internal string GetScanElementInfoByElements(List<AFElementWrapper> elements) {
 
             ScanElementList elmentInfo = new ScanElementList();
@@ -385,25 +405,25 @@ namespace TDPIConnector.Core
                                     elmentInfo.Templates.Add(template);
                                 }
                             }
-                            else
-                            {
-                                ScanSingleElement temp = new ScanSingleElement();
-                                temp.ID = element.ID.ToString();
-                                temp.Name = element.Name;
-                                temp.Path = element.GetPath();
-                                temp.Attributes = GetElementAtrributes(element);
-                                if (temp.Attributes.Count == 0) continue;
-                                temp.StaticAttributes = GetElementAtrributesForTag(element);
-                                elmentInfo.SingleElements.Add(temp);
-                                continue;
-                            }
-                            ScanElement e = new ScanElement();
-                            e.ID = element.ID.ToString();
-                            e.Name = element.Name;
-                            // e.Path = element.GetPath();
-                            e.TemplateName = element.hasTemplate() ? element.Template.Name : "";
-                            // e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
-                            elmentInfo.Elements.Add(e);
+                            // else
+                            // {
+                            //     ScanSingleElement temp = new ScanSingleElement();
+                            //     temp.ID = element.ID.ToString();
+                            //     temp.Name = element.Name;
+                            //     temp.Path = element.GetPath();
+                            //     temp.Attributes = GetElementAtrributes(element);
+                            //     if (temp.Attributes.Count == 0) continue;
+                            //     temp.StaticAttributes = GetElementAtrributesForTag(element);
+                            //     elmentInfo.SingleElements.Add(temp);
+                            //     continue;
+                            // }
+                            // ScanElement e = new ScanElement();
+                            // e.ID = element.ID.ToString();
+                            // e.Name = element.Name;
+                            // // e.Path = element.GetPath();
+                            // e.TemplateName = element.hasTemplate() ? element.Template.Name : "";
+                            // // e.StaticAttributeValues = GetElementStaticAtrributeValues(element);
+                            // elmentInfo.Elements.Add(e);
                         }
                         Interlocked.Increment(ref finishedCount);
                     }
@@ -423,15 +443,17 @@ namespace TDPIConnector.Core
         {
             List<AFElementWrapper> elements = new List<AFElementWrapper>();
             var templates = piSystemManager.GetElementTemplates(AppSettings.tomlConfig.AFDatabaseName, filter);
-            foreach (var template in templates)
-            {
-                var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name).ToList();
-                elements.AddRange(es);
-            }
+            // foreach (var template in templates)
+            // {
+            //     var es = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, template.Name).ToList();
+            //     elements.AddRange(es);
+            // }
+
+
             // var elementsWithoutTemplate = piSystemManager.GetElementsNoTemplate(AppSettings.tomlConfig.AFDatabaseName);
             //elements.AddRange(elementsWithoutTemplate);
 
-            return GetScanElementInfoByElements(elements);
+            return GetScanTemplateInfo(templates.ToList());
         }
         static public FilterMode GetFilterMode(string strMode)
         {
