@@ -10,6 +10,7 @@ namespace TDPIConnector.TDEngine
     public class TDEngineStaticConfig
     {
         public string AFTreeTagName { get; set; } = "path";
+        public string ElementCategories { get; set; } = "categories";
         public string PointPath { get; set; } = "path";
 
         public string ElementsPathForPoint { get; set; } = "element_paths";

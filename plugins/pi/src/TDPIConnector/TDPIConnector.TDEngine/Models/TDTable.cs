@@ -37,6 +37,8 @@ namespace TDPIConnector.TDEngine.Models
         public IEnumerable<TDColumn> Columns { get; set; }
 
         public bool IsSingleValue { get { return string.IsNullOrEmpty(ColumnType); } }
+
+        public string Categories { get; set; }
     }
 
     public class TDSTable

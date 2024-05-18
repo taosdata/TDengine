@@ -80,6 +80,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "NCHAR(100)"));
             builder.tagNames.AddRange(tags);
             builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, "String"));
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, "String"));
 
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
