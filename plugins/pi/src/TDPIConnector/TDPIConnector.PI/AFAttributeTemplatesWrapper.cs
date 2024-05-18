@@ -19,11 +19,11 @@ namespace TDPIConnector.PI
             HashSet<string> nameList = new HashSet<string>();
             foreach (var attribute in this)
             {
-                nameList.Add(attribute.Name);
+                nameList.Add(attribute.Name.ToLower());
             }
             foreach (AFAttributeTemplate attribute in attributes)
             {
-                if (nameList.Contains(attribute.Name)) continue;
+                if (nameList.Contains(attribute.Name.ToLower())) continue;
                 this.Add(new AFAttributeTemplateWrapper(attribute));
             }
         }
