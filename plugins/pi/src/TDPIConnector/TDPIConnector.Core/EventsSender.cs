@@ -80,7 +80,7 @@ namespace TDPIConnector.Core
                     {
                         var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
                         log.Info($"element tag change {elementTbName}:{attributeName}:{valueString}");
-                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, attributeName, valueString).Wait();
+                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, attributeName, valueString.Trim()).Wait();
                     }
                     continue;
                 }
