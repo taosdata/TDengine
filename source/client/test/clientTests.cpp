@@ -905,13 +905,13 @@ TEST(clientCase, tsbs_perf_test) {
 }
 
 TEST(clientCase, projection_query_stables) {
-  TAOS* pConn = taos_connect("192.168.1.53", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use qzdata");
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from `QZ_212_DYS_02`");
+  pRes = taos_query(pConn, "select * from st2");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -928,8 +928,8 @@ TEST(clientCase, projection_query_stables) {
 
   char    str[512] = {0};
   while (1) {
-    int32_t c = taos_fetch_block_s(pRes, &numOfRows, &pRow);
-    if (numOfRows <= 0) {
+    pRow = taos_fetch_row(pRes);
+    if (pRow == NULL) {
       break;
     }
     i += numOfRows;

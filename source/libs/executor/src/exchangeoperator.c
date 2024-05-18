@@ -677,7 +677,9 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
 
-  char*   pStart = pRetrieveRsp->data;
+  char*   pNextStart = pRetrieveRsp->data;
+  char*   pStart = pNextStart;
+
   int32_t index = 0;
   int32_t code = 0;
 
@@ -694,19 +696,33 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
         }
       }
     }
-    int32_t t = tsDecompressString(pRetrieveRsp->data, pRetrieveRsp->compLen, 1, pDataInfo->decompBuf,
-                                   pRetrieveRsp->payloadLen, ONE_STAGE_COMP, NULL, 0);
-    ASSERT(t == pRetrieveRsp->payloadLen);
-    pStart = pDataInfo->decompBuf;
   }
+
 
   while (index++ < pRetrieveRsp->numOfBlocks) {
     SSDataBlock* pb = NULL;
+    pStart = pNextStart;
+
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
       pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
       blockDataCleanup(pb);
     } else {
       pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+    }
+
+    int32_t compLen = *(int32_t*) pStart;
+    pStart += sizeof(int32_t);
+
+    int32_t rawLen = *(int32_t*) pStart;
+    pStart += sizeof(int32_t);
+    ASSERT(compLen <= rawLen && compLen != 0);
+
+    if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+      int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(t == rawLen);
+
+      pNextStart = pStart + compLen;
+      pStart = pDataInfo->decompBuf;
     }
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);

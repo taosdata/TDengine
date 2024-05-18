@@ -287,7 +287,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
                               SOutputData *pOutput) {
   int64_t            len = 0;
   int64_t            rawLen = 0;
-  SRetrieveTableRsp *rsp = NULL;
+  SRetrieveTableRsp *pRsp = NULL;
   bool               queryEnd = false;
   int32_t            code = 0;
   SOutputData        output = {0};
@@ -322,33 +322,37 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
         if (!ctx->dynamicTask) {
           qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask);
         }
-
-        if (NULL == rsp) {
-          QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, len, &rsp));
+        
+        if (NULL == pRsp) {
+          QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, len, &pRsp));
           *pOutput = output;
         } else {
           pOutput->queryEnd = output.queryEnd;
           pOutput->bufStatus = output.bufStatus;
           pOutput->useconds = output.useconds;
         }
-
         break;
       }
 
       pOutput->bufStatus = DS_BUF_EMPTY;
-
       break;
     }
 
     // Got data from sink
     QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
 
-    *dataLen += len;
-    *pRawDataLen += rawLen;
+    *dataLen += len + sizeof(int32_t) * 2;
+    *pRawDataLen += rawLen + sizeof(int32_t) * 2;
 
-    QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &rsp));
+    QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &pRsp));
 
-    output.pData = rsp->data + *dataLen - len;
+    // set the serialize start position
+    output.pData = pRsp->data + *dataLen - (len + sizeof(int32_t) * 2);
+
+    ((int32_t*) output.pData)[0] = len;
+    ((int32_t*) output.pData)[1] = rawLen;
+    output.pData += sizeof(int32_t) * 2;
+
     code = dsGetDataBlock(ctx->sinkHandle, &output);
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -384,8 +388,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     }
   }
 
-  *rspMsg = rsp;
-
+  *rspMsg = pRsp;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1107,7 +1110,6 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 _return:
 
   memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
-
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
 
   if (code) {
@@ -1134,9 +1136,8 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   }
 
   SQWSchStatus *sch = NULL;
-  int32_t       taskNum = 0;
-  SQWHbInfo *   rspList = NULL;
-  SArray *      pExpiredSch = NULL;
+  SQWHbInfo    *rspList = NULL;
+  SArray       *pExpiredSch = NULL;
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
@@ -1167,8 +1168,6 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     return;
   }
 
-  void *  key = NULL;
-  size_t  keyLen = 0;
   int32_t i = 0;
   int64_t currentMs = taosGetTimestampMs();
 

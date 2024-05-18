@@ -2209,15 +2209,21 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
         pResultInfo->decompBufSize = payloadLen;
       }
     }
+  }
 
-    int32_t len = tsDecompressString((void*)pRsp->data, htonl(pRsp->compLen), 1, pResultInfo->decompBuf, payloadLen,
-                                     ONE_STAGE_COMP, NULL, 0);
-    ASSERT(len == payloadLen);
+  int32_t compLen = *(int32_t*)pRsp->data;
+  int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
+
+  char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
+
+  if (pRsp->compressed && compLen < rawLen) {
+    int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+    ASSERT(len == rawLen);
 
     pResultInfo->pData = pResultInfo->decompBuf;
-    pResultInfo->payloadLen = payloadLen;
+    pResultInfo->payloadLen = rawLen;
   } else {
-    pResultInfo->pData = (void*)pRsp->data;
+    pResultInfo->pData = pStart;
     pResultInfo->payloadLen = htonl(pRsp->compLen);
     ASSERT(pRsp->compLen == pRsp->payloadLen);
   }

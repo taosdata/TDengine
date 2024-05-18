@@ -77,10 +77,9 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pEntry->numOfRows = pInput->pData->info.rows;
   pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;
+  pEntry->rawLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   {
     if (pBuf->allocSize > 16384) {
