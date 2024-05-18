@@ -98,8 +98,23 @@ namespace TDPIConnector.PI
         public void AddSignupAttributes(ref string templateName, ref List<AFAttribute> attributes)
         {
             var index = GetDataPipeIndexByTemplate(ref templateName);
-            afDataPipes[index].SignupAttrCount += attributes.Count;
             afDataPipes[index].AddSignups(attributes);
+            afDataPipes[index].SignupAttrCount += attributes.Count;
+        }
+
+        public void RetrySignUpBatchAttributes(ref string templateName, ref List<AFAttribute> attributes)
+        {
+            var index = GetDataPipeIndexByTemplate(ref templateName);
+            foreach (var attr in attributes) {
+                try
+                {
+                    afDataPipes[index].AddSignups(new List<AFAttribute> { attr });
+                    afDataPipes[index].SignupAttrCount += 1;
+                }
+                catch {
+                    log.Error($"SignUp retry failed! {attr.Element.GetPath()}.{attr.Element.Name}.{attr.Name}!");
+                }
+            }
         }
 
         public void GetObserverEvents()

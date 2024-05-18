@@ -46,7 +46,14 @@ namespace TDPIConnector.Core.Tasks
         }
         public void SignUpBatchAttributes(string templateName, ref System.Collections.Generic.List<AFAttribute> attributes)
         {
-            afDataPipeWrapper.AddSignupAttributes(ref templateName, ref attributes);
+            try
+            {
+                afDataPipeWrapper.AddSignupAttributes(ref templateName, ref attributes);
+            }
+            catch (Exception) {
+                log.Error($"SignUp failed! Will retry one by one!");
+                afDataPipeWrapper.RetrySignUpBatchAttributes(ref templateName, ref attributes);
+            }
         }
         private void StartEventsObserver() {
             while (!stopTaskRequested)
