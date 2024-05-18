@@ -1029,7 +1029,7 @@ impl TaskController {
                     self.put_file_to_agent(via, path.clone()).await?;
                 }
             }
-            
+
             tokio::spawn(async move {
                 let _ = scheduler.stop_task(id, Duration::from_secs(60)).await;
                 tokio::time::sleep(Duration::from_secs(2)).await;
