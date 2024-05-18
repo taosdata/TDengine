@@ -6,6 +6,7 @@ using Apache.Arrow;
 using Apache.Arrow.Ipc;
 using System.IO;
 using System.Collections.Generic;
+using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine.Helper;
 using System.Threading.Tasks;
@@ -322,7 +323,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {
-                log.Error($"write record batch failed!{e}");
+                log.Error($"write record batch failed!{e.Message}");
+                Thread.Sleep(1000);
                 reconnectTaosx();
             }
         }
