@@ -272,24 +272,21 @@ impl PutStream {
 
             use futures::StreamExt;
 
-            // limit = cores/2 in [4, 32], default 4.
-            // let limit = std::thread::available_parallelism()
-            //     .map(|v| {
-            //         (v.get() / 2).max(4).min(
-            //             std::env::var("GRPC_WORKERS_CONCURRENCY")
-            //                 .ok()
-            //                 .and_then(|s| s.parse().ok())
-            //                 .unwrap_or(32),
-            //         )
-            //     })
-            //     .unwrap_or(4);
-            let limit = 1; // For lush stream with transform plugin, we should limit the concurrency to 1.
-                           // Continue to process the next batch if the previous batch has error.
+            let limit = std::thread::available_parallelism()
+                .map(|v| {
+                    (v.get() / 2).max(4).min(
+                        std::env::var("GRPC_WORKERS_CONCURRENCY")
+                            .ok()
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or(32),
+                    )
+                })
+                .unwrap_or(4);
+            tracing::info!("Start IPC stream writer with concurrency limit: {}", limit);
             let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
                     let trace_id_str = get_data_trace_id_str(trace_id);
-                    tracing::info!("Writing batch {trace_id_str}");
                     anyhow::Ok((
                         record,
                         trace_id,
@@ -311,11 +308,12 @@ impl PutStream {
                         worker,
                         parser,
                         notify_sender,
-                        _tx,
+                        tx,
                         abort_message_tx,
                         contiguous_errors,
                     )| {
                         async move {
+                            tracing::info!("Writing batch {trace_id_str}");
                             if let Err(err) = worker
                                 .process_record(
                                     record.clone(),
@@ -368,22 +366,21 @@ impl PutStream {
                                     );
                                     bail!("IPC worker will be stopped since {err:#}");
                                 }
-                                tracing::warn!("Abort record {trace_id_str}");
-                                // if let Some(tx) = tx.upgrade() {
-                                //     tracing::warn!(
-                                //         trace_id = trace_id_str,
-                                //         "Re-queue with {} rows record",
-                                //         record.num_rows()
-                                //     );
-                                //     tx.send_async((record, trace_id))
-                                //         .await
-                                //         .context("Re-queue error")?;
-                                // } else {
-                                //     tracing::warn!(
-                                //         trace_id = trace_id_str,
-                                //         "IPC channel is closed, cannot re-queue record {trace_id}"
-                                //     );
-                                // }
+                                if let Some(tx) = tx.upgrade() {
+                                    tracing::warn!(
+                                        trace_id = trace_id_str,
+                                        "Re-queue with {} rows record",
+                                        record.num_rows()
+                                    );
+                                    tx.send_async((record, trace_id))
+                                        .await
+                                        .context("Re-queue error")?;
+                                } else {
+                                    tracing::warn!(
+                                        trace_id = trace_id_str,
+                                        "IPC channel is closed, cannot re-queue record {trace_id}"
+                                    );
+                                }
                             } else {
                                 metrics.add_processed_batches(1);
                                 let last_errors =
