@@ -406,9 +406,12 @@ pub async fn write_transformed_records_with_sql(
                                 {
                                     match err {
                                         WriteError::ContainerLengthTooShort(field) => {
-                                            // 修改超级表
-                                            let _ = alter_table(taos, stable, &field, &messages, req_id).await;
-                                            // 成功则重试建表
+                                            // 尝试修改超级表
+                                            let _ = alter_table(
+                                                taos, stable, &field, &messages, req_id,
+                                            )
+                                            .await;
+                                            // 无论成功失败都重试建表
                                         }
                                         _ => Err(err)?,
                                     }
