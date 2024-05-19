@@ -516,7 +516,8 @@ fn message_to_sql(
         .into_iter()
         .flat_map(|m| {
             m.sql_insert_part_skip_null(target_precision)
-                .map(|sql| (sql, m.records.num_rows()))
+                .into_iter()
+                .map(|sql| (sql, 0))
         })
         .collect_vec();
 
