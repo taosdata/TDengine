@@ -1673,6 +1673,10 @@ impl MessageArrowRecords {
         self.table.using.as_ref().map(|s| s.as_str())
     }
 
+    pub fn table_name(&self) -> &str {
+        self.table.name.as_str()
+    }
+
     pub fn max_var_length(&self, field: &str) -> Option<usize> {
         fn array_max_var_length(array: &dyn Array) -> Option<usize> {
             match array.data_type() {
