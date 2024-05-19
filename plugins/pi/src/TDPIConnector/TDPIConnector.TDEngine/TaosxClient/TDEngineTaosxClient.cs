@@ -296,6 +296,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 else if (buffSize > QueueSize)
                 {
                     Interlocked.Exchange(ref actualQueueBufferSize, QueueSize);
+                    break;
+                }
+                else {
+                    break;
                 }
             }
         }
