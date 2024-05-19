@@ -341,13 +341,13 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     // Got data from sink
     QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
 
-    *dataLen += len + sizeof(int32_t) * 2;
-    *pRawDataLen += rawLen + sizeof(int32_t) * 2;
+    *dataLen += len + PAYLOAD_PREFIX_LEN;
+    *pRawDataLen += rawLen + PAYLOAD_PREFIX_LEN;
 
     QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &pRsp));
 
     // set the serialize start position
-    output.pData = pRsp->data + *dataLen - (len + sizeof(int32_t) * 2);
+    output.pData = pRsp->data + *dataLen - (len + PAYLOAD_PREFIX_LEN);
 
     ((int32_t*) output.pData)[0] = len;
     ((int32_t*) output.pData)[1] = rawLen;
