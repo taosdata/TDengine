@@ -107,7 +107,8 @@ namespace TDPIConnector.Core
             {
                 try
                 {
-                    pISystemManager.GetElementsByTemplate(afDBName, templateName);
+                    var template = pISystemManager.GetElementTemplates(afDBName, templateName);
+                    if(template.Count() == 0) result.Add(templateName);
                 }
                 catch (Exception)
                 {
