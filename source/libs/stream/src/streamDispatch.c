@@ -767,7 +767,7 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
 }
 
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
-  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   ASSERT(dataStrLen > 0);
 
   void*   buf = taosMemoryCalloc(1, dataStrLen);
@@ -790,8 +790,12 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
   pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
-  actualLen += sizeof(SRetrieveTableRsp);
-  ASSERT(actualLen <= dataStrLen);
+  SET_PAYLOAD_LEN(pRetrieve->data, actualLen, actualLen);
+
+  int32_t payloadLen = actualLen + PAYLOAD_PREFIX_LEN;
+  pRetrieve->payloadLen = htonl(payloadLen);
+  pRetrieve->compLen = htonl(payloadLen);
+
   taosArrayPush(pReq->dataLen, &actualLen);
   taosArrayPush(pReq->data, &buf);
 
