@@ -396,12 +396,10 @@ pub async fn write_transformed_records_with_sql(
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
                                 .await?;
                         }
-
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!(sql = sql, "Create table");
-                            // 一次最多修改 3 个长度不够的字段
-                            for _ in 0..3 {
+                            for _ in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
                                         .await
@@ -409,27 +407,13 @@ pub async fn write_transformed_records_with_sql(
                                     match err {
                                         WriteError::ContainerLengthTooShort(field) => {
                                             // 修改超级表
-                                            if let Ok(_) =
-                                                alter_table(taos, stable, &field, &messages, req_id)
-                                                    .await
-                                            {
-                                                // 重试建子表
-                                                let table_name = m.table_name();
-                                                tracing::info!(
-                                                    table_name,
-                                                    "Create table again after alter table"
-                                                );
-                                                let _ = assert_create_table(
-                                                    pool, taos, &sql, req_id, false, metrics,
-                                                )
-                                                .await;
-                                            } else {
-                                                // 重试 alter table
-                                            }
+                                            let _ = alter_table(taos, stable, &field, &messages, req_id).await;
+                                            // 成功则重试建表
                                         }
                                         _ => Err(err)?,
                                     }
                                 } else {
+                                    // 成功创建子表则退出循环
                                     break;
                                 }
                             }
