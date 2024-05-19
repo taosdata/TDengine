@@ -87,10 +87,16 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 
       int32_t dataLen = blockEncode(pInput->pData, p, numOfCols);
       int32_t len = tsCompressString(p, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
-
-      pEntry->compressed = 1;
-      pEntry->dataLen = len;
-      pEntry->rawLen = dataLen;
+      if (len < dataLen) {
+        pEntry->compressed = 1;
+        pEntry->dataLen = len;
+        pEntry->rawLen = dataLen;
+      } else {  // no need to compress data
+        pEntry->compressed = 0;
+        pEntry->dataLen = dataLen;
+        pEntry->rawLen = dataLen;
+        memcpy(pEntry->data, p, dataLen);
+      }
       taosMemoryFree(p);
     } else {
       pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
