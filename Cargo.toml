@@ -17,11 +17,11 @@ metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
 metrics-tracing-context = "0.15.0"
 tonic = "0.10"
 
-taos = { version = "0.11.22", default-features = false, features = [
+taos = { version = "0.11.23", default-features = false, features = [
     "ws",
     "deadpool",
 ] }
-taos-query = { version = "0.11.22", default-features = false, features = [
+taos-query = { version = "0.11.23", default-features = false, features = [
     "deadpool",
 ] }
 
