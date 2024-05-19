@@ -273,23 +273,23 @@ impl PutStream {
             use futures::StreamExt;
 
             // limit = cores/2 in [4, 32], default 4.
-            let limit = std::thread::available_parallelism()
-                .map(|v| {
-                    (v.get() / 2).max(4).min(
-                        std::env::var("GRPC_WORKERS_CONCURRENCY")
-                            .ok()
-                            .and_then(|s| s.parse().ok())
-                            .unwrap_or(32),
-                    )
-                })
-                .unwrap_or(4);
-            // Continue to process the next batch if the previous batch has error.
+            // let limit = std::thread::available_parallelism()
+            //     .map(|v| {
+            //         (v.get() / 2).max(4).min(
+            //             std::env::var("GRPC_WORKERS_CONCURRENCY")
+            //                 .ok()
+            //                 .and_then(|s| s.parse().ok())
+            //                 .unwrap_or(32),
+            //         )
+            //     })
+            //     .unwrap_or(4);
+            let limit = 1; // For lush stream with transform plugin, we should limit the concurrency to 1.
+                           // Continue to process the next batch if the previous batch has error.
             let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
                     let trace_id_str = get_data_trace_id_str(trace_id);
                     tracing::info!("Writing batch {trace_id_str}");
-                    tracing::debug!(columns = ?record.columns()); // debug
                     anyhow::Ok((
                         record,
                         trace_id,

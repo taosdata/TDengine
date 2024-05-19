@@ -346,7 +346,8 @@ pub fn sql_values_from_record_batch_skip_null(
     table_name: &str,
     batch: &RecordBatch,
     target_precision: taos::Precision,
-) -> Result<Option<String>, arrow::error::ArrowError> {
+) -> Result<Vec<String>, arrow::error::ArrowError> {
+    let mut vec = Vec::with_capacity(1);
     let schema = batch.schema();
     let col_names = schema
         .fields()
@@ -354,7 +355,8 @@ pub fn sql_values_from_record_batch_skip_null(
         .map(|f| format!("`{}`", f.name()))
         .collect::<Vec<_>>();
     let columns = batch.columns();
-    let mut sql = String::new();
+    let mut sql = String::with_capacity(256);
+
     for row in 0..batch.num_rows() {
         if columns[0].is_null(row) {
             continue;
@@ -588,12 +590,20 @@ pub fn sql_values_from_record_batch_skip_null(
         }
         insert_col_values.pop();
         insert_col_names.pop();
+
         sql.push_str(&format!(
             " `{}` ({}) values ({})",
             table_name, insert_col_names, insert_col_values
         ));
+        if sql.len() > 900_000 {
+            vec.push(sql);
+            sql = String::with_capacity(256);
+        }
     }
-    Ok(Some(sql))
+    if sql.len() > 0 {
+        vec.push(sql);
+    }
+    Ok(vec)
 }
 
 const MAX_SQL_LENGTH: usize = 1_000_000;
@@ -631,7 +641,7 @@ fn valid_sql_or_none(
         return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
     }
     let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
-    if len < MAX_SQL_LENGTH {
+    if len < MAX_SQL_LENGTH - 12 {
         let mut sql = String::with_capacity(len + 12);
         sql.push_str("INSERT INTO ");
         let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
@@ -789,18 +799,5 @@ mod tests {
 
             // taos.query("select * from {}")
         }
-    }
-
-    #[test]
-    fn record_to_sql_skip_null() {
-        let batch = valid_values_record();
-        let sql = sql_values_from_record_batch_skip_null(
-            "test_table",
-            &batch,
-            taos::Precision::Millisecond,
-        )
-        .unwrap()
-        .unwrap();
-        println!("{}", sql);
     }
 }

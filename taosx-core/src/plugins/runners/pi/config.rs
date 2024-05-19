@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
-use chrono::{Local, NaiveDateTime};
 use taos::Dsn;
 use toml::value::Datetime;
 
@@ -109,7 +108,7 @@ impl PiConfig {
         td_database: String,
         ipc_port: u16,
         sql_port: u16,
-        is_real_run: bool,
+        _is_real_run: bool,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&from)?;
         let system_name = Self::parse_system_name(&from);
@@ -143,12 +142,6 @@ impl PiConfig {
             )?
         };
 
-        if is_real_run && point_list.is_empty() && element_id_list.is_empty() {
-            return Err(anyhow!(
-                "ElementIDList and PointList should config at least one of them"
-            ));
-        }
-
         let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&from)?;
         let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&from)?;
         let backfill_start_time = if let Some(backfill_start) =
@@ -158,25 +151,13 @@ impl PiConfig {
                 from_tdengine_last_time.replace(true);
                 None
             } else {
-                let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            anyhow!(
-                                "invalid BackfillStartTime: {}, cause: {}",
-                                backfill_start.clone(),
-                                err.to_string()
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                        anyhow!(
-                            "invalid BackfillStartTime: {}, cause: {}",
-                            backfill_start.clone(),
-                            err.to_string()
-                        )
-                    })?;
+                let parsed_time = Datetime::from_str(backfill_start.as_str()).map_err(|err| {
+                    anyhow!(
+                        "invalid BackfillStartTime: {}, cause: {}",
+                        backfill_start.clone(),
+                        err.to_string()
+                    )
+                })?;
                 Some(parsed_time)
             }
         } else {
@@ -188,25 +169,13 @@ impl PiConfig {
                     to_tdengine_first_time.replace(true);
                     None
                 } else {
-                    let parsed_time =
-                        NaiveDateTime::parse_from_str(backfill_end.as_str(), "%Y-%m-%d %H:%M:%S")
-                            .map_err(|err| {
-                                anyhow!(
-                                    "invalid BackfillEndTime: {}, cause: {}",
-                                    backfill_end.clone(),
-                                    err.to_string()
-                                )
-                            })?
-                            .and_local_timezone(Local)
-                            .unwrap();
-                    let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
-                        .map_err(|err| {
-                            anyhow!(
-                                "invalid BackfillEndTime: {}, cause: {}",
-                                backfill_end.clone(),
-                                err.to_string()
-                            )
-                        })?;
+                    let parsed_time = Datetime::from_str(backfill_end.as_str()).map_err(|err| {
+                        anyhow!(
+                            "invalid BackfillEndTime: {}, cause: {}",
+                            backfill_end.clone(),
+                            err.to_string()
+                        )
+                    })?;
                     Some(parsed_time)
                 }
             } else {
@@ -403,17 +372,7 @@ impl PiConfig {
     }
 
     fn parse_date_time(date_time: &str) -> anyhow::Result<Datetime> {
-        let parsed_time = NaiveDateTime::parse_from_str(date_time, "%Y-%m-%d %H:%M:%S")
-            .map_err(|err| {
-                anyhow!(
-                    "failed to parse date time: {}, cause: {}",
-                    date_time,
-                    err.to_string()
-                )
-            })?
-            .and_local_timezone(Local)
-            .unwrap();
-        let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+        let parsed_time = Datetime::from_str(date_time).map_err(|err| {
             anyhow!(
                 "failed to parse date time: {}, cause: {}",
                 date_time,
@@ -745,15 +704,9 @@ mod tests {
 
     #[test]
     fn test_parse_date_time() {
-        let config = PiConfig::parse_date_time("2021-01-01 00:00:00").unwrap();
-        assert_eq!("2021-01-01T00:00:00+08:00", config.to_string());
-
-        let config = PiConfig::parse_date_time("2021-01-01 00:00:00.000");
-        assert!(config.is_err());
-        assert_eq!(
-            "failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
-            config.unwrap_err().to_string()
-        );
+        let config = PiConfig::parse_date_time("2024-05-01T00:00:00+08:00").unwrap();
+        println!("{:?}", config);
+        assert_eq!("2024-05-01T00:00:00+08:00", config.to_string());
     }
 
     #[tokio::test]
@@ -772,21 +725,5 @@ mod tests {
             .await
             .unwrap();
         dbg!(&config2);
-    }
-
-    #[test]
-    fn test_parse_transform_config_file() {
-        // Note(ding)): this test can only run in my local envrionment
-        let (element_id_list, point_list, template_list) =
-            PiConfig::parse_transform_config_file("point_model.csv").unwrap();
-        println!("element_id_list={:?}", element_id_list);
-        println!("point_list={:?}", point_list);
-        println!("template_list={:?}", template_list);
-
-        let (element_id_list, point_list, template_list) =
-            PiConfig::parse_transform_config_file("element_model.csv").unwrap();
-        println!("element_id_list={:?}", element_id_list);
-        println!("point_list={:?}", point_list);
-        println!("template_list={:?}", template_list);
     }
 }

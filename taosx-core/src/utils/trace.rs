@@ -17,7 +17,7 @@ use tracing_subscriber::{layer, Registry};
 
 const TRACE_STR: &str = "TRACE";
 const DEBUG_STR: &str = "DEBUG";
-const INFO_STR: &str = "";
+const INFO_STR: &str = "INFO";
 const WARN_STR: &str = "WARN";
 const ERROR_STR: &str = "ERROR";
 

@@ -1650,14 +1650,14 @@ impl MessageArrowRecords {
         ))
     }
 
-    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Option<String> {
+    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
         if self.records.num_rows() == 0 {
-            return None;
+            return vec![];
         }
 
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
-            return None;
+            return vec![];
         }
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         // panic on ArrowError
