@@ -1,5 +1,6 @@
 use anyhow::Context;
 use lazy_static::lazy_static;
+use log::warn;
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
 use thiserror::Error;
 
@@ -347,7 +348,7 @@ pub async fn flat_write_with_sql(
                         metrics.add_failed_sqls(1 as u64);
                         metrics.add_failed_rows(records.records() as u64);
                         metrics.add_failed_points((records.records() * cols) as u64);
-                        error!(stable, "write stable with sql error: {err:#}");
+                        tracing::warn!(stable, "write stable with sql error: {err:#}");
                         match err {
                             FlatWriteError::TableNotExits(_) => {
                                 if let Some(stable_sql) = messages[0].stable_sql() {
