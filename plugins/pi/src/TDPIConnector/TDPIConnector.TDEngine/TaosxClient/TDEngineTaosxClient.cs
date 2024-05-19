@@ -32,6 +32,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
         NetworkStream stream;
         private MessageBuilder builder;
         ArrowStreamWriter writer;
+        ArrowStreamReader reader;
+        SemaphoreSlim arrowQueueSemaphore = new SemaphoreSlim(30);
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -71,7 +73,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             List<KeyValuePair<string, string>> tags,
             int maxWaitLength)
         {
-            AckType ackType = AckType.None;
+            AckType ackType = AckType.Lush;
             builder = new MessageBuilder(PIDataMode.AFElementMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
 
@@ -101,6 +103,51 @@ namespace TDPIConnector.TDEngine.TaosxClient
         private void start() {
             Task task = new Task(work);
             task.Start();
+
+            Task responseHandler = new Task(resHandler);
+            responseHandler.Start();
+        }
+
+        private void resHandler()
+        {
+            if (stream == null) {
+                log.Info($"Stream is null, create arrow reader failed!");
+                return;
+            }
+            reader = new ArrowStreamReader(stream);
+            while (!stopTaosxSend)
+            {
+                RecordBatch msg = reader.ReadNextRecordBatch();
+                if (msg != null)
+                {
+                    if (msg.ColumnCount > 0) {
+                        IArrowArray array = msg.Column(0);
+                        switch (array)
+                        {
+                            case Int32Array int32Array:
+                                if (int32Array.Length > 0) {
+                                    int? nullableValue = int32Array.GetValue(0);
+                                    if (nullableValue.HasValue) {
+                                        int code = nullableValue.Value;
+                                        if (code == 0)
+                                        {
+                                            arrowQueueSemaphore.Release();
+                                        }
+                                    }
+                                    log.Debug($"arrow response: code:{nullableValue}");
+                                }
+                                break;
+                            default:
+                                log.Info($"Unsupported arrow response array type.{array.GetType()}");
+                                break;
+                        }
+                    }
+                }
+                else {
+                    log.Debug($"no response!");
+                    Thread.Sleep(500);
+                }
+            }
         }
 
         private void work() {
@@ -320,6 +367,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 #endif
             try
             {
+                arrowQueueSemaphore.WaitAsync().Wait();
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {
