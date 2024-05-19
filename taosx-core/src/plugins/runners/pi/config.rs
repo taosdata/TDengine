@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
-use chrono::{Local, NaiveDateTime};
 use taos::Dsn;
 use toml::value::Datetime;
 
@@ -109,7 +108,7 @@ impl PiConfig {
         td_database: String,
         ipc_port: u16,
         sql_port: u16,
-        is_real_run: bool,
+        _is_real_run: bool,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&from)?;
         let system_name = Self::parse_system_name(&from);
@@ -152,14 +151,13 @@ impl PiConfig {
                 from_tdengine_last_time.replace(true);
                 None
             } else {
-                let parsed_time =
-                    Datetime::from_str(backfill_start.as_str()).map_err(|err| {
-                        anyhow!(
-                            "invalid BackfillStartTime: {}, cause: {}",
-                            backfill_start.clone(),
-                            err.to_string()
-                        )
-                    })?;
+                let parsed_time = Datetime::from_str(backfill_start.as_str()).map_err(|err| {
+                    anyhow!(
+                        "invalid BackfillStartTime: {}, cause: {}",
+                        backfill_start.clone(),
+                        err.to_string()
+                    )
+                })?;
                 Some(parsed_time)
             }
         } else {
@@ -171,14 +169,13 @@ impl PiConfig {
                     to_tdengine_first_time.replace(true);
                     None
                 } else {
-                    let parsed_time = Datetime::from_str(backfill_end.as_str())
-                        .map_err(|err| {
-                            anyhow!(
-                                "invalid BackfillEndTime: {}, cause: {}",
-                                backfill_end.clone(),
-                                err.to_string()
-                            )
-                        })?;
+                    let parsed_time = Datetime::from_str(backfill_end.as_str()).map_err(|err| {
+                        anyhow!(
+                            "invalid BackfillEndTime: {}, cause: {}",
+                            backfill_end.clone(),
+                            err.to_string()
+                        )
+                    })?;
                     Some(parsed_time)
                 }
             } else {

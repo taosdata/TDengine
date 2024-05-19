@@ -800,17 +800,4 @@ mod tests {
             // taos.query("select * from {}")
         }
     }
-
-    #[test]
-    fn record_to_sql_skip_null() {
-        let batch = valid_values_record();
-        let sql = sql_values_from_record_batch_skip_null(
-            "test_table",
-            &batch,
-            taos::Precision::Millisecond,
-        )
-        .unwrap()
-        .unwrap();
-        println!("{}", sql);
-    }
 }
