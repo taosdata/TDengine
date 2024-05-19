@@ -145,6 +145,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                 break;
                         }
                     }
+
+                    msg.Dispose();
                 }
                 else {
                     log.Debug($"no response!");
