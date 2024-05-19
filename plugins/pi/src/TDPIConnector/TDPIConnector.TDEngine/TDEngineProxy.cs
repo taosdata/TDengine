@@ -229,6 +229,17 @@ namespace TDPIConnector.TDEngine
             taosxClient.InitTables();
             return Task.CompletedTask;
         }
+        public virtual void ArrowMsgQueueWait(string superTableName) {
+            var taosxClient = getTaosxClient(superTableName.ToTDEngineNamingPattern());
+            if (taosxClient != null)
+            {
+                taosxClient.ArrowMsgQueueWait();
+            }
+            else
+            {
+                log.Error($"arrowMsgQueueWait failed, not found {superTableName}");
+            }
+        }
         public virtual Task CreateTablesForPIPoints(string database, List<TDTable> piPoints)
         {
             for (int i = 0; i < piPoints.Count; i++)
