@@ -25,14 +25,6 @@
 
 extern SConfig* tsCfg;
 
-#define PAYLOAD_PREFIX_LEN ((sizeof(int32_t))<<1)
-
-#define SET_PAYLOAD_LEN(_p, _compLen, _fullLen) \
-  do {                                          \
-    ((int32_t*)(_p))[0] = (_compLen);           \
-    ((int32_t*)(_p))[1] = (_fullLen);           \
-  } while (0);
-
 static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
