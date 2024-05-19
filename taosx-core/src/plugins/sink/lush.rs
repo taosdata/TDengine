@@ -481,8 +481,19 @@ async fn alter_table(
             .await
         {
             Err(err) => {
-                tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
-                return Err(err.into());
+                // Alter table error: [0x264B] Internal error: `Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased`
+                let code = err.code();
+                let errno: i32 = code.into();
+                match errno {
+                    0x264B => {
+                        // tracing::warn!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
+                        return Ok(());
+                    }
+                    _ => {
+                        tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
+                        return Err(err.into());
+                    }
+                }
             }
             _ => Ok(()),
         }
