@@ -382,12 +382,22 @@ impl PIElementModelConfig {
                 for attribute in static_attributes {
                     let column_name =
                         Self::attribute_name_to_column_name(attribute["Name"].as_str().unwrap());
-                    schema.push(SchemaRow {
-                        column_name: column_name.clone(),
-                        column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(50)".to_string(),
-                        column_map: format!("${}", column_name),
-                    });
+                    let lower_name = column_name.to_lowercase();
+                    if lower_name.contains("path") {
+                        schema.push(SchemaRow {
+                            column_name: column_name.clone(),
+                            column_type: ColumnType::TAG,
+                            column_data_type: "NCHAR(200)".to_string(),
+                            column_map: format!("${}", column_name),
+                        });
+                    } else {
+                        schema.push(SchemaRow {
+                            column_name: column_name.clone(),
+                            column_type: ColumnType::TAG,
+                            column_data_type: "NCHAR(50)".to_string(),
+                            column_map: format!("${}", column_name),
+                        });
+                    }
                 }
                 SuperTableConfig {
                     super_table_name,
