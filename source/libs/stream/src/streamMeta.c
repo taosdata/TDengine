@@ -791,11 +791,11 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
 }
 
 int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
-  int64_t chkpId = 0;
+  int64_t checkpointId = 0;
 
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    return chkpId;
+    return checkpointId;
   }
 
   void*    pKey = NULL;
@@ -816,16 +816,16 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     }
     tDecoderClear(&decoder);
 
-    chkpId = TMAX(chkpId, info.checkpointId);
+    checkpointId = TMAX(checkpointId, info.checkpointId);
   }
 
-  stDebug("get max chkp id: %" PRId64 "", chkpId);
+  stDebug("vgId:%d get max checkpointId:%" PRId64, pMeta->vgId, checkpointId);
 
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
 
-  return chkpId;
+  return checkpointId;
 }
 
 // not allowed to return error code

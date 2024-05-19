@@ -390,7 +390,7 @@ int32_t rebuildFromRemoteCheckpoint(const char* key, char* chkpPath, int64_t che
   } else if (type == DATA_UPLOAD_RSYNC) {
     return rebuildFromRemoteChkp_rsync(key, chkpPath, checkpointId, defaultPath);
   } else {
-    stError("%s not remote backup checkpoint data for:%" PRId64" restore ", key, checkpointId);
+    stError("%s no remote backup checkpoint data for:%" PRId64, key, checkpointId);
   }
 
   return -1;
@@ -543,7 +543,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
   }
   taosMemoryFree(checkpointRoot);
 
-  stDebug("%s check local default:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
+  stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
 
   char* chkptPath = taosMemoryCalloc(1, strlen(path) + 256);
   if (chkptId > 0) {
@@ -557,6 +557,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     if (code != 0) {
       stError("failed to start stream backend at %s, reason: %s, restart from default defaultPath:%s", chkptPath,
              tstrerror(code), defaultPath);
+      code = 0;    // reset the error code
     }
   } else {  // no valid checkpoint id
     stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data", key);
