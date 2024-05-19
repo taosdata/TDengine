@@ -37,7 +37,23 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*) taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    blockDecode(pDataBlock, pRetrieve->data);
+
+    int32_t compLen = *(int32_t*)pRetrieve->data;
+    int32_t fullLen = *(int32_t*)(pRetrieve->data + sizeof(int32_t));
+
+    char* pInput = pRetrieve->data + PAYLOAD_PREFIX_LEN;
+    if (pRetrieve->compressed && compLen < fullLen) {
+      char* p = taosMemoryMalloc(fullLen);
+      int32_t len = tsDecompressString(pInput, compLen, 1, p, fullLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(len == fullLen);
+      pInput = p;
+    }
+
+    blockDecode(pDataBlock, pInput);
+
+    if (pRetrieve->compressed && compLen < fullLen) {
+      taosMemoryFree(pInput);
+    }
 
     // TODO: refactor
     pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
