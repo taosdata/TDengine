@@ -384,7 +384,7 @@ pub async fn write_transformed_records_with_sql(
         let mut retry = 0;
         loop {
             retry += 1;
-            match write_stable_with_sql(pool, taos, req_id, &records, metrics).await {
+            match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
                     metrics.add_written_points((n * cols) as u64);
                     break;
@@ -400,16 +400,37 @@ pub async fn write_transformed_records_with_sql(
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!(sql = sql, "Create table");
-                            if let Err(err) =
-                                assert_create_table(pool, taos, &sql, req_id, false, metrics).await
-                            {
-                                match err {
-                                    WriteError::ContainerLengthTooShort(field) => {
-                                        let _ =
-                                            alter_table(taos, stable, &field, &messages, req_id)
+                            // 一次最多修改 3 个长度不够的字段
+                            for _ in 0..3 {
+                                if let Err(err) =
+                                    assert_create_table(pool, taos, &sql, req_id, false, metrics)
+                                        .await
+                                {
+                                    match err {
+                                        WriteError::ContainerLengthTooShort(field) => {
+                                            // 修改超级表
+                                            if let Ok(_) =
+                                                alter_table(taos, stable, &field, &messages, req_id)
+                                                    .await
+                                            {
+                                                // 重试建子表
+                                                let table_name = m.table_name();
+                                                tracing::info!(
+                                                    table_name,
+                                                    "Create table again after alter table"
+                                                );
+                                                let _ = assert_create_table(
+                                                    pool, taos, &sql, req_id, false, metrics,
+                                                )
                                                 .await;
+                                            } else {
+                                                // 重试 alter table
+                                            }
+                                        }
+                                        _ => Err(err)?,
                                     }
-                                    _ => Err(err)?,
+                                } else {
+                                    break;
                                 }
                             }
                         }
@@ -423,8 +444,8 @@ pub async fn write_transformed_records_with_sql(
                 },
             }
             if retry > 2 {
-                tracing::error!(stable, "Retry exceeded");
-                return Err(anyhow!("Retry exceeded"));
+                tracing::error!(stable, "Retry insert exceeded {retry}");
+                return Err(anyhow!("Retry insert exceeded {retry}"));
             }
         }
     }
@@ -650,7 +671,7 @@ lazy_static! {
 }
 
 #[instrument(skip_all)]
-async fn write_stable_with_sql(
+async fn write_lush_stable_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     req_id: &RequestID,
