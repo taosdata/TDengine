@@ -1830,7 +1830,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   pBlock->info.rows = rowNum;
 
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + sizeof(int32_t)*2;
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
 
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {

@@ -1994,6 +1994,14 @@ typedef struct {
   char    data[];
 } SRetrieveTableRsp;
 
+#define PAYLOAD_PREFIX_LEN ((sizeof(int32_t)) << 1)
+
+#define SET_PAYLOAD_LEN(_p, _compLen, _fullLen) \
+  do {                                          \
+    ((int32_t*)(_p))[0] = (_compLen);           \
+    ((int32_t*)(_p))[1] = (_fullLen);           \
+  } while (0);
+
 typedef struct {
   int64_t version;
   int64_t numOfRows;

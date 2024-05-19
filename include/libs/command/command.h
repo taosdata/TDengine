@@ -20,14 +20,6 @@
 #include "plannodes.h"
 #include "tmsg.h"
 
-#define PAYLOAD_PREFIX_LEN ((sizeof(int32_t)) << 1)
-
-#define SET_PAYLOAD_LEN(_p, _compLen, _fullLen) \
-  do {                                          \
-    ((int32_t*)(_p))[0] = (_compLen);           \
-    ((int32_t*)(_p))[1] = (_fullLen);           \
-  } while (0);
-
 typedef struct SExplainCtx SExplainCtx;
 
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode *pStmt, SRetrieveTableRsp **pRsp, int8_t biMode);

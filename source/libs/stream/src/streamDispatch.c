@@ -225,7 +225,8 @@ int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq* req) {
 
 static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBlock, SStreamRetrieveReq* req){
   SRetrieveTableRsp* pRetrieve = NULL;
-  int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+
+  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
 
   pRetrieve = taosMemoryCalloc(1, dataStrLen);
   if (pRetrieve == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -242,7 +243,14 @@ static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBl
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
   pRetrieve->version = htobe64(pBlock->info.version);
 
-  int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
+  int32_t actualLen = blockEncode(pBlock, pRetrieve->data+ PAYLOAD_PREFIX_LEN, numOfCols);
+
+  SET_PAYLOAD_LEN(pRetrieve->data, actualLen, actualLen);
+
+  int32_t payloadLen = actualLen + PAYLOAD_PREFIX_LEN;
+  pRetrieve->payloadLen = htonl(payloadLen);
+  pRetrieve->compLen = htonl(payloadLen);
+  pRetrieve->compressed = 0;
 
   req->streamId = pTask->id.streamId;
   req->srcNodeId = pTask->info.nodeId;
