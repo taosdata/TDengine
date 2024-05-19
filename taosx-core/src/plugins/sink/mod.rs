@@ -793,9 +793,13 @@ async fn consume_lush_record_with_transform(
                     .unwrap();
 
                 // 只包含 tag 列的值
-                let tags_records: RecordBatch =
-                    lush::create_tags_record(table_name_column, &lush_model_config.table_tags)?;
-
+                let tags_records: Result<RecordBatch, anyhow::Error> =
+                    lush::create_tags_record(table_name_column, &lush_model_config.table_tags);
+                if let Err(err) = tags_records {
+                    tracing::error!("{err:#}");
+                    continue;
+                }
+                let tags_records: RecordBatch = tags_records.unwrap();
                 // 左右合并 RecordBatch
                 let combined_records: RecordBatch =
                     lush::join_record_batch(&tags_records, values_records);
