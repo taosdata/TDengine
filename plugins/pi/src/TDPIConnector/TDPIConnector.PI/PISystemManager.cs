@@ -163,6 +163,11 @@ namespace TDPIConnector.PI
                 return elements.Select(e => new AFElementWrapper(e));
             }
         }
+        public AFElementWrapper GetElementsById(string afDatabaseName, Guid id)
+        {
+            var e = AFElement.FindElement(piSystem, id);
+            return  new AFElementWrapper(e);
+        }
         public IEnumerable<AFElementWrapper> GetElementsByTemplate(string afDatabaseName, string elementTemplateName)
         {
             AFDatabase afDatabase = piSystem.Databases[afDatabaseName];

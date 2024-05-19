@@ -27,25 +27,28 @@ namespace TDPIConnector.Core
 
         private class ElementBackfillTask
         {
-            public AFElementWrapper element;
+            public Guid elementID;
             public DateTime startTime;
             public DateTime endTime;
 
-            public ElementBackfillTask(in AFElementWrapper element, DateTime startTime, DateTime endTime)
+            public ElementBackfillTask(in Guid elementID, DateTime startTime, DateTime endTime)
             {
-                this.element = element;
+                this.elementID = elementID;
                 this.startTime = startTime;
                 this.endTime = endTime;
             }
         }
         private class BackfillTask {
-            public List<AFElementWrapper> elements;
+            public List<Guid> elementIDS;
             public DateTime startTime;
             public DateTime endTime;
 
             public BackfillTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
             {
-                this.elements = elements;
+                this.elementIDS = new List<Guid>();
+                foreach (var element in elements) {
+                    elementIDS.Add(element.ID);
+                };
                 this.startTime = startTime;
                 this.endTime = endTime;
             }
@@ -59,7 +62,7 @@ namespace TDPIConnector.Core
             int all = 0;
             private readonly Object taskLock = new Object();
 
-            public void AddNewElementsTask(List<AFElementWrapper> elements, DateTime startTime, DateTime endTime) {
+            public void AddNewElementsTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime) {
                 lock (taskLock) {
                     elementsTasks.Add(new BackfillTask(elements, startTime, endTime));
                     all += elements.Count();
@@ -72,14 +75,14 @@ namespace TDPIConnector.Core
                     if (currentBatchIndex >= elementsTasks.Count()) return null;
                     int nextBatchIndex = currentBatchIndex;
                     int nextIndexInBatch = currentIndexInBatch + 1;
-                    if (nextIndexInBatch == elementsTasks[currentBatchIndex].elements.Count()) {
+                    if (nextIndexInBatch == elementsTasks[currentBatchIndex].elementIDS.Count()) {
                         nextBatchIndex += 1;
                         nextIndexInBatch = 0;
                     }
                     ++started;
-                    log.Info($"backfill element {elementsTasks[currentBatchIndex].elements[currentIndexInBatch].Name}:" +
-                        $"{elementsTasks[currentBatchIndex].elements[currentIndexInBatch].ID} startting: {started}/{all}");
-                    ElementBackfillTask task = new ElementBackfillTask(elementsTasks[currentBatchIndex].elements[currentIndexInBatch],
+                    log.Info($"backfill element " +
+                        $"{elementsTasks[currentBatchIndex].elementIDS[currentIndexInBatch].ToString()} startting: {started}/{all}");
+                    ElementBackfillTask task = new ElementBackfillTask(elementsTasks[currentBatchIndex].elementIDS[currentIndexInBatch],
                         elementsTasks[currentBatchIndex].startTime, elementsTasks[currentBatchIndex].endTime);
                     currentBatchIndex = nextBatchIndex;
                     currentIndexInBatch = nextIndexInBatch;
@@ -92,7 +95,7 @@ namespace TDPIConnector.Core
                 {
                     ++finished;
                     log.Info($"backfill element {element.Name}:" +
-                        $"{element.ID} finshed: {finished}/{all}");
+                        $"{element.ID.ToString()} finshed: {finished}/{all}");
                 }
             }
         }
@@ -123,8 +126,11 @@ namespace TDPIConnector.Core
                         var task = elemmentBackfillManager.GetNextTask();
                         if (task != null)
                         {
-                            BackfillElement(tdDatabaseName, task.element, task.startTime, task.endTime);
-                            elemmentBackfillManager.FinishedOne(task.element);
+                            var element = piSystemManager.GetElementsById(AppSettings.tomlConfig.AFDatabaseName,task.elementID);
+                            if (element != null) {
+                                BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
+                                elemmentBackfillManager.FinishedOne(element);
+                            }
                         }
                         else
                         {
@@ -275,7 +281,7 @@ namespace TDPIConnector.Core
             Task.WaitAll(tasks.ToArray());
         }
 
-        internal void BackfillElements(string tdDatabaseName, List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
+        internal void BackfillElements(string tdDatabaseName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
             elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime); 
         }
