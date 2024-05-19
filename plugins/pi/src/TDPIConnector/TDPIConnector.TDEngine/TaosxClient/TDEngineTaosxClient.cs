@@ -2,6 +2,7 @@
 
 using log4net;
 using System;
+using System.Diagnostics;
 using Apache.Arrow;
 using Apache.Arrow.Ipc;
 using System.IO;
@@ -33,7 +34,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
         private MessageBuilder builder;
         ArrowStreamWriter writer;
         ArrowStreamReader reader;
-        SemaphoreSlim arrowQueueSemaphore = new SemaphoreSlim(30);
+        Stopwatch stopwatch = new Stopwatch();
+        const long QueueSize = 30;
+        long actualQueueBufferSize = QueueSize;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -131,7 +134,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                         int code = nullableValue.Value;
                                         if (code == 0)
                                         {
-                                            arrowQueueSemaphore.Release();
+                                            Interlocked.Increment(ref actualQueueBufferSize);
                                         }
                                     }
                                     log.Debug($"arrow response: code:{nullableValue}");
@@ -270,6 +273,37 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
+        internal void ArrowMsgQueueWait()
+        {
+            stopwatch.Reset();
+            stopwatch.Start();
+            while (true) {
+                long buffSize = Interlocked.Read(ref actualQueueBufferSize);
+                if (buffSize <= 0)
+                {
+                    long cost = stopwatch.ElapsedMilliseconds;
+                    if (cost > 20000)
+                    {
+                        log.Info($"ArrowMsgQueueWait cost {cost} ms!");
+                        Interlocked.Exchange(ref actualQueueBufferSize, 1);
+                    }
+                    else if (cost > 500)
+                    {
+                        log.Info($"ArrowMsgQueueWait cost {cost} ms!");
+                    }
+                    Thread.Sleep(500);
+                }
+                else if (buffSize > QueueSize)
+                {
+                    Interlocked.Exchange(ref actualQueueBufferSize, QueueSize);
+                    break;
+                }
+                else {
+                    break;
+                }
+            }
+        }
+
         internal void AddAFElementTableTag(string elementId, List<KeyValuePair<string, string>> tags)
         {
             lock (stLock)
@@ -367,7 +401,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 #endif
             try
             {
-                arrowQueueSemaphore.WaitAsync().Wait();
+                Interlocked.Decrement(ref actualQueueBufferSize);
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {

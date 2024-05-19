@@ -295,6 +295,7 @@ namespace TDPIConnector.Core
             var currentStart = startTime;
             do
             {
+                tdEngineProxy.ArrowMsgQueueWait(element.TemplateName());
                 stopwatch.Reset();
                 stopwatch.Start();
                 IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, AppSettings.tomlConfig.BackfillBatchSize);

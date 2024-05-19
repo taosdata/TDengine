@@ -100,5 +100,15 @@ namespace TDPIConnector.PI
         public bool hasTemplate() {
             return Template.AFSDKObject != null;
         }
+
+        public string TemplateName() {
+            if (hasTemplate())
+            {
+                return Template.AFSDKObject.Name;
+            }
+            else {
+                return this.AFSDKObject.Name;
+            }
+        }
     }
 }
