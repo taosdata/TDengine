@@ -631,7 +631,7 @@ fn valid_sql_or_none(
         return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
     }
     let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
-    if len < MAX_SQL_LENGTH {
+    if len < MAX_SQL_LENGTH - 12 {
         let mut sql = String::with_capacity(len + 12);
         sql.push_str("INSERT INTO ");
         let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
