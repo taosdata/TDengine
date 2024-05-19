@@ -98,7 +98,8 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   taosArrayPush(pArray, &(SSDataBlock){0});
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
-  blockDecode(pDataBlock, pRetrieve->data);
+
+  blockDecode(pDataBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN);
 
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
