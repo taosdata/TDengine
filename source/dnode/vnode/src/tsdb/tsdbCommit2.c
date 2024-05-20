@@ -604,6 +604,18 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
 
     // scan tomb data
     for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
+      for (int32_t i = taosArrayGetSize(tsdb->commitInfo->arr) - 1; i >= 0; i--) {
+        int64_t             minKey, maxKey;
+        SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
+
+        tsdbFidKeyRange(info->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
+
+        if (pDelData->sKey > maxKey || pDelData->eKey < minKey) {
+          continue;
+        } else if (!info->hasDataToCommit) {
+          info->hasDataToCommit = true;
+        }
+      }
     }
   }
 
