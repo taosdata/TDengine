@@ -358,6 +358,7 @@ import { dataType, tagType, parmaryKeyType, storageCompression, levelList, group
 import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/gateway/data/tables";
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
+import { Message } from "element-ui";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -614,6 +615,14 @@ export default {
     handleCreateTable() {
       this.$refs.table_form.validate((valid) => {
         if (valid) {
+          for (let i = 0; i < this.table_form.columns.length; i++) {
+            const element = this.table_form.columns[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
+            }
+          }
           this.handleData();
           this.$store.dispatch("tables/submitTableForm").then(() => {
             this.$message.success(this.$t("createSucc"));
@@ -697,12 +706,14 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.table_form.columns[index], "encode", defaultEncode);
       this.$set(this.table_form.columns[index], "compress", defaultCompress);
+      this.$set(this.table_form.columns[index], "level", 'medium');
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
+      this.$set(this.currentData, "level", 'medium');
     },
     handleCheckChange(val, index, type) {
       if (!this.isEdit) {
@@ -710,6 +721,7 @@ export default {
           this.$set(this.table_form.columns[index], "type", '');
           this.$set(this.table_form.columns[index], "encode", '');
           this.$set(this.table_form.columns[index], "compress", '');
+          this.$set(this.table_form.columns[index], "level", '');
         } 
       }
     },
