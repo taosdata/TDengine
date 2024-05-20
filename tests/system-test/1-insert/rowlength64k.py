@@ -304,15 +304,15 @@ class TDTestCase:
         print("==============step1, regular table, 1 ts + 4094 cols + 1 binary==============")
         startTime = time.time() 
         sql = "create table db.regular_table_1(ts timestamp, "
-        for i in range(4094):
+        for i in range(16382):
             sql += "col%d int, " % (i + 1)
-        sql += "col4095 binary(22))"  
+        sql += "col16383 binary(22))"
         tdLog.info(len(sql))      
         tdSql.execute(sql)
 
         for i in range(self.num):
             sql = "insert into db.regular_table_1 values(%d, "
-            for j in range(4094):
+            for j in range(16382):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
@@ -322,7 +322,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(4096 * 4)
 
         self.ins_query()
 
@@ -332,7 +332,7 @@ class TDTestCase:
         #insert in order
         tdLog.info('test insert in order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col4095) values(%d, "
+            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col16383) values(%d, "
             for j in range(10):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
@@ -343,12 +343,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(2*self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(4096 * 4)
 
         #insert out of order
         tdLog.info('test insert out of order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col4095) values(%d, "
+            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col16383) values(%d, "
             for j in range(10):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
@@ -359,7 +359,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 3*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(3*self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(4096 * 4)
 
         self.ins_query()
         
@@ -369,9 +369,9 @@ class TDTestCase:
         tdLog.info('test regular table exceeds row num') 
         # column > 4096
         sql = "create table db.regular_table_2(ts timestamp, "
-        for i in range(4095):
+        for i in range(16383):
             sql += "col%d int, " % (i + 1)
-        sql += "col4096 binary(22))"  
+        sql += "col16384 binary(22))"
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
