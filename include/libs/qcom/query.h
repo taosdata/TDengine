@@ -194,10 +194,9 @@ typedef struct SBoundColInfo {
 } SBoundColInfo;
 
 typedef struct STableColsData {
-  char     tbName[TSDB_TABLE_FNAME_LEN];
-  SName    sname;
-  bool     getFromHash;
+  char    *tbName;
   SArray*  aCol;
+  bool     getFromHash;
 } STableColsData;
 
 typedef struct STableVgUid {
@@ -207,6 +206,8 @@ typedef struct STableVgUid {
 
 typedef struct SStmtBuildOutputInfo {
   void     *pCatalog;
+  int32_t   acctId;
+  char*     dbname;
   void*     transport;
   SEpSet    mgmtEpSet;
   void*     pRequest;

@@ -483,7 +483,7 @@ int insColDataComp(const void* lp, const void* rp) {
 }
 
 
-int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStmtBuildOutputInfo* pBuildInfo, int32_t* vgId, STableColsData* pTbData) {
+int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStmtBuildOutputInfo* pBuildInfo, int32_t* vgId, STableColsData* pTbData, SName* sname) {
   if (*vgId >= 0 && taosHashGet(pAllVgHash, (const char*)vgId, sizeof(*vgId))) {
     return TSDB_CODE_SUCCESS;
   }
@@ -494,7 +494,7 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStmtBuildOutputInfo* pBu
                            .requestObjRefId = pBuildInfo->requestSelf,
                            .mgmtEps = pBuildInfo->mgmtEpSet};
 
-  int32_t code = catalogGetTableHashVgroup((SCatalog*)pBuildInfo->pCatalog, &conn, &pTbData->sname, &vgInfo);
+  int32_t code = catalogGetTableHashVgroup((SCatalog*)pBuildInfo->pCatalog, &conn, sname, &vgInfo);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -517,15 +517,18 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStmtBuildOutputInfo* pBuildI
   } 
 
   if (NULL == pTbInfo) {
+    SName sname;
+    qCreateSName(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+
     STableMeta*      pTableMeta = NULL;
     SRequestConnInfo conn = {.pTrans = pBuildInfo->transport,
                              .requestId = pBuildInfo->requestId,
                              .requestObjRefId = pBuildInfo->requestSelf,
                              .mgmtEps = pBuildInfo->mgmtEpSet};
-    code = catalogGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &pTbData->sname, &pTableMeta);
+    code = catalogGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta);
 
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-      parserDebug("tb %s.%s not exist", pTbData->sname.dbname, pTbData->sname.tname);
+      parserDebug("tb %s.%s not exist", sname.dbname, sname.tname);
       return code;
     }
 
@@ -539,7 +542,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStmtBuildOutputInfo* pBuildI
     STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId};
     taosHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
 
-    code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData);
+    code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
     
     taosMemoryFree(pTableMeta);
   } else {

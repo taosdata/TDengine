@@ -759,6 +759,8 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
 
   if (pStmt->sql.staticMode) {
     pStmt->exec.smInfo.transport = taos->pAppInfo->pTransporter;
+    pStmt->exec.smInfo.acctId = taos->acctId;
+    pStmt->exec.smInfo.dbname = taos->db;
     pStmt->exec.smInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->exec.smInfo.pTableHash = taosHashInit(400000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (NULL == pStmt->exec.smInfo.pTableHash) {
@@ -1023,9 +1025,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       pStmt->exec.tbBlkTotal++;
     //}
 
-    strcpy(pTbData->tbName, pStmt->bInfo.tbName);
-    STMT_ERR_RET(qCreateSName(&pTbData->sname, pTbData->tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
-                              pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+    pTbData->tbName = strdup(pStmt->bInfo.tbName);
 
     pStmt->exec.tbBlkNum++;
   }
@@ -1060,7 +1060,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
   if (pStmt->sql.staticMode) {
     if (NULL == pStmt->exec.smInfo.pVgroupHash) {
-      pStmt->exec.smInfo.pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      pStmt->exec.smInfo.pVgroupHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
     }
     if (NULL == pStmt->exec.smInfo.pVgroupList) {
       pStmt->exec.smInfo.pVgroupList = taosArrayInit(8, POINTER_BYTES);
@@ -1288,9 +1288,8 @@ int stmtExec(TAOS_STMT* stmt) {
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
       
       STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.smInfo.pVgroupList));
-      taosHashClear(pStmt->exec.smInfo.pVgroupHash);
-      //taosArrayClear(pStmt->exec.smInfo.pVgroupList);
-      //pStmt->exec.smInfo.pVgroupHash = NULL;
+      taosHashCleanup(pStmt->exec.smInfo.pVgroupHash);
+      pStmt->exec.smInfo.pVgroupHash = NULL;
       pStmt->exec.smInfo.pVgroupList = NULL;
     } else {
       tDestroySubmitTbData(pStmt->exec.pCurrTbData, TSDB_MSG_FLG_ENCODE);
