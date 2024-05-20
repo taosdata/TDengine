@@ -408,7 +408,7 @@ pub async fn write_transformed_records_with_sql(
                                         WriteError::ContainerLengthTooShort(field) => {
                                             // 尝试修改超级表
                                             let _ = alter_table(
-                                                taos, stable, &field, &messages, req_id,
+                                                pool, taos, stable, &field, &messages, req_id,
                                             )
                                             .await;
                                             // 无论成功失败都重试建表
@@ -423,7 +423,7 @@ pub async fn write_transformed_records_with_sql(
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
-                        let _ = alter_table(taos, stable, &field, &messages, req_id).await;
+                        let _ = alter_table(pool, taos, stable, &field, &messages, req_id).await;
                     }
                     _ => {
                         return Err(err)?;
@@ -447,79 +447,146 @@ pub async fn write_transformed_records_with_sql(
 }
 
 async fn alter_table(
+    pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     stable: &str,
     field: &str,
     messages: &[MessageArrowRecords],
     req_id: &RequestID,
 ) -> anyhow::Result<()> {
-    let desc = taos.as_ref().unwrap().describe(stable).await?;
-    let f = desc
-        .iter()
-        .find(|f| f.field() == field)
-        .ok_or_else(|| anyhow::anyhow!("field `{}` not found in table `{}`", field, stable))?;
-    let length = messages
-        .iter()
-        .flat_map(|m| m.max_var_length(f.field()))
-        .max();
-    if f.is_tag() {
-        let sql = format!(
-            "alter table `{}` modify tag `{}` {}({})",
-            stable,
-            f.field(),
-            f.ty(),
-            length.unwrap_or_else(|| {
-                let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
-                (f.length() * 2).min(max)
-            })
-        );
-        tracing::info!(sql = sql, "Alter table");
-        match taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(&sql, req_id.next())
-            .await
-        {
-            Err(err) => {
-                // Alter table error: [0x264B] Internal error: `Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased`
-                let code = err.code();
-                let errno: i32 = code.into();
-                match errno {
-                    0x264B => {
-                        // tracing::warn!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
-                        return Ok(());
-                    }
-                    _ => {
-                        tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
+    let alter_table_max_retry = 3;
+    let mut retry = 0;
+    loop {
+        retry += 1;
+        let desc = taos.as_ref().unwrap().describe(stable).await;
+        if let Err(err) = desc {
+            let code = err.code();
+            let errno: i32 = code.into();
+            match errno {
+                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    taos.replace(pool.get().await?);
+                    if retry > alter_table_max_retry {
+                        tracing::error!("Alter table retry execeeded {retry}, {err:#}");
                         return Err(err.into());
+                    } else {
+                        continue;
                     }
                 }
+                _ => {
+                    tracing::error!(req_id = req_id.get(), "Describe table error: {err:#}");
+                    return Err(err.into());
+                }
             }
-            _ => Ok(()),
         }
-    } else {
-        let sql = format!(
-            "alter table `{}` modify column `{}` {}({})",
-            stable,
-            f.field(),
-            f.ty(),
-            length.unwrap_or_else(|| {
-                let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
-                (f.length() * 2).min(max)
-            })
-        );
-        tracing::info!(sql = sql, "Alter table");
-        match taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(&sql, req_id.next())
-            .await
-        {
-            Err(err) => {
-                tracing::error!(req_id = req_id.get(), sql, "Alter table error: {err:#}");
-                Err(err)?
+        let desc = desc.unwrap();
+        let f = desc
+            .iter()
+            .find(|f| f.field() == field)
+            .ok_or_else(|| anyhow::anyhow!("field `{}` not found in table `{}`", field, stable))?;
+        let length = messages
+            .iter()
+            .flat_map(|m| m.max_var_length(f.field()))
+            .max();
+        if f.is_tag() {
+            let sql = format!(
+                "alter table `{}` modify tag `{}` {}({})",
+                stable,
+                f.field(),
+                f.ty(),
+                length.unwrap_or_else(|| {
+                    let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
+                    (f.length() * 2).min(max)
+                })
+            );
+            tracing::info!(sql = sql, "Alter table");
+            match taos
+                .as_ref()
+                .unwrap()
+                .exec_with_req_id(&sql, req_id.next())
+                .await
+            {
+                Err(err) => {
+                    // Alter table error: [0x264B] Internal error: `Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased`
+                    let code = err.code();
+                    let errno: i32 = code.into();
+                    match errno {
+                        0x264B | 0x036F => {
+                            tracing::warn!(
+                                req_id = req_id.get(),
+                                sql,
+                                "Ignore alter table error: {err:#}"
+                            );
+                            return Ok(());
+                        }
+                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                            taos.replace(pool.get().await?);
+                            if retry > alter_table_max_retry {
+                                tracing::error!("Alter table retry execeeded {retry}, {err:#}");
+                                return Err(err.into());
+                            }
+                        }
+                        _ => {
+                            tracing::error!(
+                                req_id = req_id.get(),
+                                sql,
+                                "Alter table error: {err:#}"
+                            );
+                            return Err(err.into());
+                        }
+                    }
+                }
+                _ => return Ok(()),
             }
-            _ => Ok(()),
+        } else {
+            let sql = format!(
+                "alter table `{}` modify column `{}` {}({})",
+                stable,
+                f.field(),
+                f.ty(),
+                length.unwrap_or_else(|| {
+                    let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
+                    (f.length() * 2).min(max)
+                })
+            );
+            tracing::info!(sql = sql, "Alter table");
+            match taos
+                .as_ref()
+                .unwrap()
+                .exec_with_req_id(&sql, req_id.next())
+                .await
+            {
+                Err(err) => {
+                    // Alter table error: [0x264B] Internal error: `Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased`
+                    let code = err.code();
+                    let errno: i32 = code.into();
+                    match errno {
+                        0x264B | 0x036F => {
+                            tracing::warn!(
+                                req_id = req_id.get(),
+                                sql,
+                                "Ignore alter table error: {err:#}"
+                            );
+                            return Ok(());
+                        }
+                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                            taos.replace(pool.get().await?);
+                            if retry > alter_table_max_retry {
+                                tracing::error!("Alter table retry execeeded {retry}, {err:#}");
+                                return Err(err.into());
+                            }
+                        }
+                        _ => {
+                            tracing::error!(
+                                req_id = req_id.get(),
+                                sql,
+                                "Alter table error: {err:#}"
+                            );
+                            return Err(err.into());
+                        }
+                    }
+                }
+                _ => return Ok(()),
+            }
         }
     }
 }

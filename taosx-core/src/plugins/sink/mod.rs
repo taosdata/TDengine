@@ -113,7 +113,7 @@ async fn ipc_tcp_forward(
     }
     let schema: Arc<Schema> = Arc::new(schema);
 
-    info!(client, remote, "reading batches");
+    info!(client, remote, "Reading batches");
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id);
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 

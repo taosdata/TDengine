@@ -24,44 +24,7 @@
 //! 点位列表的每一行都有关键字是 “POINT”，元素列表的每一行都有关键字 “ELEMENT”。
 //! TAG 列默认类型为 NCHAR(100).
 //! 最后需要说明的是，所有关键字都不区分大小写。
-//! 一个单利模型配置文件的示例：
-//! ```csv
-//! # There are a total of 2 super tables, 2 points
-//! SuperTable,pi_afenumerationvalue
-//! SubTable,$point_name
-//! Filter,
-//! ts,KEY,TIMESTAMP,$ts
-//! value,COLUMN,NCHAR(100),$value
-//! status,COLUMN,INT,$status
-//! tag,TAG,NCHAR(100),$tag
-//! descriptor,TAG,NCHAR(100),$descriptor
-//! exdesc,TAG,NCHAR(100),$exdesc
-//! engunits,TAG,NCHAR(100),$engunits
-//! pointsource,TAG,NCHAR(100),$pointsource
-//! step,TAG,NCHAR(100),$step
-//! future,TAG,NCHAR(100),$future
-//!
-//! SuperTable,meter_per_second_single
-//! SubTable,$point_name
-//! ts,KEY,TIMESTAMP,$ts
-//! value,COLUMN,FLOAT,$value
-//! status,COLUMN,INT,$status
-//! path,TAG,NCHAR(100),$path
-//! tag,TAG,NCHAR(100),$tag
-//! descriptor,TAG,NCHAR(100),$descriptor
-//! exdesc,TAG,NCHAR(100),$exdesc
-//! engunits,TAG,NCHAR(100),$engunits
-//! pointsource,TAG,NCHAR(100),$pointsource
-//! step,TAG,NCHAR(100),$step
-//! future,TAG,NCHAR(100),$future
-//! element_paths,TAG,NCHAR(100),$elements
-//!
-//! OSIDemo_GE001.Lost Revenue Rate,POINT,dollars_per_kilowatt_hour_ts_system.single_$/kwh
-//! OSIDemo_GE001.Status Cause,POINT,pi_ts_osisoft.af.asset.afenumerationvalue
-//!```
-//!
-//! 配置文件中的一个超级表定义将对应一个 taosx_core::plugins::transform::Parser 对象。
-//!
+//
 use crate::plugins::transform::filter::expr::ExprRecordFilter;
 use crate::plugins::transform::filter::{Filter, FilterImpl};
 use crate::plugins::transform::map::expr::ExprValueBuilder;
@@ -168,7 +131,7 @@ impl PIPointModelConfig {
                 schema.push(SchemaRow {
                     column_name: "path".to_string(), // 点的路径
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(200)".to_string(),
+                    column_data_type: "VARCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
                 });
                 // 追加内置 Tag 列
@@ -176,7 +139,7 @@ impl PIPointModelConfig {
                     schema.push(SchemaRow {
                         column_name: tag_name.to_string(),
                         column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(100)".to_string(),
+                        column_data_type: "VARCHAR(100)".to_string(),
                         column_map: format!("${}", tag_name),
                     });
                 }
@@ -185,7 +148,7 @@ impl PIPointModelConfig {
                     schema.push(SchemaRow {
                         column_name: "element_paths".to_string(),
                         column_type: ColumnType::TAG,
-                        column_data_type: "NCHAR(512)".to_string(),
+                        column_data_type: "VARCHAR(512)".to_string(),
                         column_map: r#"`$element_paths.replace("\\", ".")`"#.to_string(),
                     });
                 }
@@ -362,19 +325,19 @@ impl PIElementModelConfig {
                 schema.push(SchemaRow {
                     column_name: "element_name".to_string(),
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(50)".to_string(),
+                    column_data_type: "VARCHAR(100)".to_string(),
                     column_map: "$element_name".to_string(),
                 });
                 schema.push(SchemaRow {
                     column_name: "path".to_string(),
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(200)".to_string(),
+                    column_data_type: "VARCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
                 });
                 schema.push(SchemaRow {
                     column_name: "categories".to_string(),
                     column_type: ColumnType::TAG,
-                    column_data_type: "NCHAR(50)".to_string(),
+                    column_data_type: "VARCHAR(100)".to_string(),
                     column_map: "$categories".to_string(),
                 });
                 // 追加其它静态属性作为 Tag 列
@@ -387,14 +350,14 @@ impl PIElementModelConfig {
                         schema.push(SchemaRow {
                             column_name: column_name.clone(),
                             column_type: ColumnType::TAG,
-                            column_data_type: "NCHAR(200)".to_string(),
+                            column_data_type: "VARCHAR(200)".to_string(),
                             column_map: format!("${}", column_name),
                         });
                     } else {
                         schema.push(SchemaRow {
                             column_name: column_name.clone(),
                             column_type: ColumnType::TAG,
-                            column_data_type: "NCHAR(50)".to_string(),
+                            column_data_type: "VARCHAR(50)".to_string(),
                             column_map: format!("${}", column_name),
                         });
                     }
