@@ -205,6 +205,7 @@ namespace TDPIConnector.Core
                 backfillManager.GetBackfill().WaitTask();
             }
             else {
+                backfillManager.GetBackfill().StopAddTask();
                 while (true)
                 {
                     var str = Console.ReadLine();

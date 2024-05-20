@@ -63,7 +63,8 @@ namespace TDPIConnector.Core.Tasks
                     try
                     {
                         afDataPipeWrapper.GetObserverEvents();
-                        Task.Delay(AppSettings.tomlConfig.UpdateInterval);
+                        // Task.Delay(AppSettings.tomlConfig.UpdateInterval);
+                        Thread.Sleep(AppSettings.tomlConfig.UpdateInterval);
                     }
                     catch (Exception ex)
                     {
