@@ -483,6 +483,7 @@ import { mapState } from "vuex";
 import { dataType, tagType, parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive } from "../../utils";
 import { changeStableStruct, changeStableStructOther } from "@/api/gateway/data/stables";
 import { VariableTableColumnType } from "@/const";
+import { Message } from "element-ui";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -611,12 +612,14 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
+      this.$set(this.stable_form.columns[index], "level", 'medium');
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
+      this.$set(this.currentData, "level", 'medium');
     },
     // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
     handleTypeList(currentType, name) {
@@ -828,6 +831,22 @@ export default {
     handleCreateStable() {
       this.$refs.stable_form.validate((valid) => {
         if (valid) {
+          for (let i = 0; i < this.stable_form.columns.length; i++) {
+            const element = this.stable_form.columns[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
+            }
+          }
+          for (let i = 0; i < this.stable_form.tags.length; i++) {
+            const element = this.stable_form.tags[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.tagNameTip")
+              );
+            }
+          }
           this.handleData();
           this.$store
             .dispatch("stables/submitStableForm", this.selected_db)
@@ -874,6 +893,7 @@ export default {
           this.$set(this.stable_form.columns[index], "type", '');
           this.$set(this.stable_form.columns[index], "encode", '');
           this.$set(this.stable_form.columns[index], "compress", '');
+          this.$set(this.stable_form.columns[index], "level", '');
         } 
       }
     }
