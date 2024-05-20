@@ -353,10 +353,11 @@ export default {
           
           return;
         }
-        this.$store.commit(
-          "app/SET_TRANSFORMER_MAPCOLUMNS",
-          transformerColumns
-        );
+        // 增量的 MAPCOLUMNS 不做存储
+        // this.$store.commit(
+        //   "app/SET_TRANSFORMER_MAPCOLUMNS",
+        //   transformerColumns
+        // );
         this.tableColumns = colLists.map((item) => {
           let obj = {};
           let finalVal = tbdata.map(
