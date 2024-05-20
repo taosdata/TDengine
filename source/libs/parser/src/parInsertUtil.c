@@ -732,6 +732,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       }
     }
   } else {
+    bool hasTs = false;
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
         SSchema* pColSchema = &pSchema[j];
@@ -741,6 +742,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
                                          pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
             ret = TSDB_CODE_INVALID_PARA;
             goto end;
+          }
+
+          if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            hasTs = true;
           }
 
           int8_t* offset = pStart;
@@ -766,6 +771,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
           break;
         }
       }
+    }
+
+    if(!hasTs){
+      if (errstr != NULL) snprintf(errstr, errstrLen, "timestamp column(primary key) not found in raw data");
+      ret = TSDB_CODE_INVALID_PARA;
+      goto end;
     }
 
     for (int c = 0; c < boundInfo->numOfBound; ++c) {
