@@ -55,6 +55,15 @@
         </div>
         <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
           class="demo-dynamic">
+          
+          <div style="margin-bottom: 20px">
+            <p class="lable-form">
+              <span>{{ $t("register.name") }}</span>
+            </p>
+            <el-form-item prop="name" label>
+              <el-input ref="name" :placeholder="$t('register.nameTips')" v-model="registerValidateForm.name"></el-input>
+            </el-form-item>
+          </div>
           <div style="margin-bottom: 20px">
             <p class="lable-form">
               <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
@@ -120,7 +129,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha } from "@/api/explorer/login";
+import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha, reportTaosdInfo } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
 import Vue from 'vue'
 
@@ -199,6 +208,7 @@ export default {
       encryptedPwd: "",
       buttonTextOfGetVerificationCode: this.$t("register.getVerificationCode"),
       registerValidateForm: {
+        name: "",
         phone_email: "",
         verification_code: "",
       },
@@ -218,6 +228,13 @@ export default {
         ]
       },
       registerFormRules: {
+        name: [
+          {
+            required: true,
+            message: this.$t("register.nameTips"),
+            trigger: "change",
+          },
+        ],
         verification_code: [
           {
             required: true,
@@ -267,7 +284,8 @@ export default {
         let res=await sendSQLReq(`select id from information_schema.ins_cluster;`)
         if(res&&res.data){
           let id = res.data.flat(Infinity).toString();
-            localStorage.setItem("local_clusterID", id);
+          localStorage.setItem("local_clusterID", id);
+          return id;
         }
       } catch (error) {
         localStorage.removeItem("TDengine-Token");
@@ -278,7 +296,7 @@ export default {
       try {
         let res = await sendSQLReq('select server_version()')
         if (res?.code == 0) {
-          localStorage.setItem('serverVersion',res.data[0])
+          return res.data[0][0];
         }
       } catch (error) {
         console.log(error);
@@ -310,8 +328,22 @@ export default {
 
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
-          await this.getClusterID();
           await this.getUserAuthority();
+
+          const [cluster_id, taosd_version] = await Promise.all([this.getClusterID(), this.getVersion()]);
+          const phone_email = sessionStorage.getItem("registerKey");
+          const lang = localStorage.getItem('local_language') || '';
+          if (phone_email) {
+            reportTaosdInfo({
+              phone_email,
+              lang,
+              cluster_id,
+              taosd_version,
+            }).finally(() => {
+              sessionStorage.removeItem("registerKey");
+            });
+          }
+
         } else {
           this.loading = false;
           if (res && res.code == 11) {
@@ -321,6 +353,7 @@ export default {
           }
         }
       } catch (error) {
+        console.log('error',error);
         this.$error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
@@ -486,7 +519,6 @@ export default {
           this.pageLoading = true;
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
-          this.registerValidateForm.taosd_version = localStorage.getItem('serverVersion') || '';
           this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
 
           const result = await getVerificationResult(this.registerValidateForm)
@@ -495,6 +527,8 @@ export default {
               case 'pass':
                 // 如果校验通过，则注册成功 切换到登陆框
                 this.registered = true;
+                sessionStorage.setItem('registerKey', this.registerValidateForm.phone_email);
+
                 setTimeout(() => {
                   this.pageLoading = false;
                   this.$message.success(this.$t('register.success.registerSuccess'));
@@ -699,7 +733,7 @@ export default {
       }
     }
     .reginster-box {
-      height: 600px;
+      height: 700px;
       width: 680px;
     }
   }
