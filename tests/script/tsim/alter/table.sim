@@ -659,16 +659,24 @@ endi
 
 print =============== error for normal table
 sql create table tb2023(ts timestamp, f int);
-sql_error alter table tb2023 add column v varchar(65518);
-sql_error alter table tb2023 add column v varchar(65531);
-sql_error alter table tb2023 add column v varchar(65535);
-sql alter table tb2023 add column v varchar(65517);
-sql_error alter table tb2023 modify column v varchar(65518);
+#sql_error alter table tb2023 add column v varchar(65518);
+#sql_error alter table tb2023 add column v varchar(65531);
+#sql_error alter table tb2023 add column v varchar(65535);
+sql_error alter table tb2023 add column v varchar(262126);
+sql_error alter table tb2023 add column v varchar(262131);
+sql_error alter table tb2023 add column v varchar(262135);
+#sql alter table tb2023 add column v varchar(65517);
+#sql_error alter table tb2023 modify column v varchar(65518);
+sql alter table tb2023 add column v varchar(262125);
+sql_error alter table tb2023 modify column v varchar(262126);
 sql desc tb2023
 sql alter table tb2023 drop column v
-sql_error alter table tb2023 add column v nchar(16380);
-sql alter table tb2023 add column v nchar(16379);
-sql_error alter table tb2023 modify column v nchar(16380);
+#sql_error alter table tb2023 add column v nchar(16380);
+#sql alter table tb2023 add column v nchar(16379);
+#sql_error alter table tb2023 modify column v nchar(16380);
+sql_error alter table tb2023 add column v nchar(65532);
+sql alter table tb2023 add column v nchar(65531);
+sql_error alter table tb2023 modify column v nchar(65532);
 sql desc tb2023
 
 print =============== modify column for normal table
@@ -679,16 +687,24 @@ sql alter table ntb1_ts3841 modify column c0 nchar(15001);
 
 print =============== error for super table
 sql create table stb2023(ts timestamp, f int) tags(t1 int);
-sql_error alter table stb2023 add column v varchar(65518);
-sql_error alter table stb2023 add column v varchar(65531);
-sql_error alter table stb2023 add column v varchar(65535);
-sql alter table stb2023 add column v varchar(65517);
-sql_error alter table stb2023 modify column v varchar(65518);
+#sql_error alter table stb2023 add column v varchar(65518);
+#sql_error alter table stb2023 add column v varchar(65531);
+#sql_error alter table stb2023 add column v varchar(65535);
+#sql alter table stb2023 add column v varchar(65517);
+#sql_error alter table stb2023 modify column v varchar(65518);
+sql_error alter table stb2023 add column v varchar(262126);
+sql_error alter table stb2023 add column v varchar(262131);
+sql_error alter table stb2023 add column v varchar(262135);
+sql alter table stb2023 add column v varchar(262125);
+sql_error alter table stb2023 modify column v varchar(262126);
 sql desc stb2023
 sql alter table stb2023 drop column v
-sql_error alter table stb2023 add column v nchar(16380);
-sql alter table stb2023 add column v nchar(16379);
-sql_error alter table stb2023 modify column v nchar(16380);
+#sql_error alter table stb2023 add column v nchar(16380);
+#sql alter table stb2023 add column v nchar(16379);
+#sql_error alter table stb2023 modify column v nchar(16380);
+sql_error alter table stb2023 add column v nchar(65532);
+sql alter table stb2023 add column v nchar(65531);
+sql_error alter table stb2023 modify column v nchar(65532);
 sql desc stb2023
 
 print =============== modify column/tag for super table
