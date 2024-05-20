@@ -32,11 +32,9 @@ int32_t stmtEnqueue(STscStmt* pStmt, SStmtQNode* param) {
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
 
-  int64_t startUs = taosGetTimestampUs();
   //tsem_post(&pStmt->queue.reqSem);
   pStmt->stat.bindDataNum++;
   atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
-  pStmt->stat.bindDataUs2 += taosGetTimestampUs() - startUs;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1003,6 +1001,9 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     pStmt->exec.pCurrBlock = *pDataBlock;
   }
 
+  int64_t startUs2 = taosGetTimestampUs();
+  pStmt->stat.bindDataUs1 += startUs2 - startUs;    
+
   STableColsData *pTbData = NULL;
   if (pStmt->sql.staticMode) {
     //if (pStmt->exec.tbBlkNum < pStmt->exec.tbBlkTotal) {
@@ -1029,6 +1030,9 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     pStmt->exec.tbBlkNum++;
   }
 
+  int64_t startUs3 = taosGetTimestampUs();
+  pStmt->stat.bindDataUs2 += startUs3 - startUs2;    
+
   if (colIdx < 0) {
     code = qBindStmtColsValue(*pDataBlock, pTbData->aCol, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
     if (code) {
@@ -1051,7 +1055,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
                             pStmt->bInfo.sBindRowNum);
   }
 
-  int64_t startUs2 = taosGetTimestampUs();
+  int64_t startUs4 = taosGetTimestampUs();
+  pStmt->stat.bindDataUs3 += startUs4 - startUs3;    
 
   if (pStmt->sql.staticMode) {
     if (NULL == pStmt->exec.smInfo.pVgroupHash) {
@@ -1094,8 +1099,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     param->pTbData = pTbData;
     param->pStmt = pStmt;
 
-    pStmt->stat.bindDataUs1 += taosGetTimestampUs() - startUs2;    
-
     stmtEnqueue(pStmt, param);
 /*    
     code = taosAsyncExec(stmtAsyncOutput, param, NULL);
@@ -1105,6 +1108,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     }
 */    
   }
+
+  pStmt->stat.bindDataUs4 += taosGetTimestampUs() - startUs4;    
 
   return TSDB_CODE_SUCCESS;
 }

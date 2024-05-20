@@ -115,6 +115,8 @@ typedef struct SStmtStatInfo {
   int64_t setTbNameUs;
   int64_t bindDataUs1;
   int64_t bindDataUs2;
+  int64_t bindDataUs3;
+  int64_t bindDataUs4;
   int64_t addBatchUs;
   int64_t execWaitUs;
   int64_t execUseUs;
