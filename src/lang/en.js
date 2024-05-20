@@ -1032,7 +1032,7 @@ export default {
     regetVerificationCode: 'Resend verification code',
     signin: 'Submit',
     imageVerificationCode: 'Image Verification code',
-    nameTips: "Please enter your name",
+    nameTips: "Please enter your name, maximum of 80 characters",
     phoneTips: "Please enter email",
     emailTips: "Please enter email",
     verificationCodeTips: "Please enter the verification code",
