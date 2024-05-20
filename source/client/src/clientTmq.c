@@ -105,7 +105,7 @@ struct tmq_t {
   STaosQueue* mqueue;        // queue of rsp
   STaosQall*  qall;
   STaosQueue* delayedTask;  // delayed task queue for heartbeat and auto commit
-  tsem_t      rspSem;
+  tsem2_t      rspSem;
 };
 
 typedef struct SAskEpInfo {
@@ -727,7 +727,7 @@ static void generateTimedTask(int64_t refId, int32_t type) {
 
   *pTaskType = type;
   taosWriteQitem(tmq->delayedTask, pTaskType);
-  tsem_post(&tmq->rspSem);
+  tsem2_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -742,7 +742,7 @@ void tmqReplayTask(void* param, void* tmrId) {
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) goto END;
 
-  tsem_post(&tmq->rspSem);
+  tsem2_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 END:
   taosMemoryFree(param);
@@ -1033,7 +1033,7 @@ void tmqFreeImpl(void* handle) {
   }
 
   taosFreeQall(tmq->qall);
-  tsem_destroy(&tmq->rspSem);
+  tsem2_destroy(&tmq->rspSem);
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
@@ -1121,7 +1121,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->consumerId = tGenIdPI64();
 
   // init semaphore
-  if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
+  if (tsem2_init(&pTmq->rspSem, 0, 0) != 0) {
     tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
     SET_ERROR_MSG_TMQ("init t_sem failed")
@@ -1132,7 +1132,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) {
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-    tsem_destroy(&pTmq->rspSem);
+    tsem2_destroy(&pTmq->rspSem);
     SET_ERROR_MSG_TMQ("init tscObj failed")
     goto _failed;
   }
@@ -1434,7 +1434,7 @@ END:
   taosReleaseRef(tmqMgmt.rsetId, refId);
 
 FAIL:
-  if (tmq) tsem_post(&tmq->rspSem);
+  if (tmq) tsem2_post(&tmq->rspSem);
   taosMemoryFree(pParam);
   if (pMsg) taosMemoryFreeClear(pMsg->pData);
   if (pMsg) taosMemoryFreeClear(pMsg->pEpSet);
@@ -1805,14 +1805,15 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
     }
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-      if (taosGetTimestampMs() - pVg->emptyBlockReceiveTs < EMPTY_BLOCK_POLL_IDLE_DURATION) {  // less than 10ms
+      int64_t elapsed = taosGetTimestampMs() - pVg->emptyBlockReceiveTs;
+      if (elapsed < EMPTY_BLOCK_POLL_IDLE_DURATION && elapsed >= 0) {  // less than 10ms
         tscDebug("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
                  tmq->epoch, pVg->vgId);
         continue;
       }
 
-      if (tmq->replayEnable &&
-          taosGetTimestampMs() - pVg->blockReceiveTs < pVg->blockSleepForReplay) {  // less than 10ms
+      elapsed = taosGetTimestampMs() - pVg->blockReceiveTs;
+      if (tmq->replayEnable && elapsed < pVg->blockSleepForReplay && elapsed >= 0) {
         tscDebug("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for %" PRId64 "ms before start next poll when replay",
                  tmq->consumerId, tmq->epoch, pVg->vgId, pVg->blockSleepForReplay);
         continue;
@@ -2127,15 +2128,15 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     if (timeout >= 0) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
-      if (elapsedTime > timeout) {
+      if (elapsedTime > timeout || elapsedTime < 0) {
         tscDebug("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
                  tmq->consumerId, tmq->epoch, startTime, currentTime);
         return NULL;
       }
-      tsem_timewait(&tmq->rspSem, (timeout - elapsedTime));
+      tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
     } else {
       // use tsem_timewait instead of tsem_wait to avoid unexpected stuck
-      tsem_timewait(&tmq->rspSem, 1000);
+      tsem2_timewait(&tmq->rspSem, 1000);
     }
   }
 }
