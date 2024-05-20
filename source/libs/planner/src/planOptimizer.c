@@ -172,11 +172,10 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
 
 static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
-    if (pNode->pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
-      if (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) return true;
-    } else {
+    if (!pNode->pParent || QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) ||
+        WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)
       return !scanPathOptHaveNormalCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
-    }
+    return false;
   }
 
   if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
