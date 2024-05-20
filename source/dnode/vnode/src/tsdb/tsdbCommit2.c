@@ -23,9 +23,7 @@ typedef struct {
 } SFileSetCommitInfo;
 
 typedef struct {
-  STsdb       *tsdb;
-  TFileOpArray fopArray[1];
-
+  STsdb  *tsdb;
   int32_t minutes;
   int8_t  precision;
   int32_t minRow;
@@ -50,15 +48,15 @@ typedef struct {
 
   // reader
   TSttFileReaderArray sttReaderArray[1];
-
   // iter
   TTsdbIterArray dataIterArray[1];
   SIterMerger   *dataIterMerger;
   TTsdbIterArray tombIterArray[1];
   SIterMerger   *tombIterMerger;
-
   // writer
   SFSetWriter *writer;
+
+  TFileOpArray fopArray[1];
 } SCommitter2;
 
 static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
@@ -441,8 +439,8 @@ _exit:
 }
 
 static int32_t tFileSetCommitInfoCompare(const void *arg1, const void *arg2) {
-  SFileSetCommitInfo *info1 = *(SFileSetCommitInfo **)arg1;
-  SFileSetCommitInfo *info2 = *(SFileSetCommitInfo **)arg2;
+  SFileSetCommitInfo *info1 = (SFileSetCommitInfo *)arg1;
+  SFileSetCommitInfo *info2 = (SFileSetCommitInfo *)arg2;
 
   if (info1->fid < info2->fid) {
     return -1;
@@ -451,6 +449,10 @@ static int32_t tFileSetCommitInfoCompare(const void *arg1, const void *arg2) {
   } else {
     return 0;
   }
+}
+
+static int32_t tFileSetCommitInfoPCompare(const void *arg1, const void *arg2) {
+  return tFileSetCommitInfoCompare(*(SFileSetCommitInfo **)arg1, *(SFileSetCommitInfo **)arg2);
 }
 
 static uint32_t tFileSetCommitInfoHash(const void *arg) {
@@ -463,6 +465,13 @@ static int32_t tsdbCommitInfoDestroy(STsdb *pTsdb) {
   int32_t lino = 0;
 
   if (pTsdb->commitInfo) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
+      SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
+      vHashDrop(pTsdb->commitInfo->ht, info);
+      tsdbTFileSetClear(&info->fset);
+      taosMemoryFree(info);
+    }
+
     vHashDestroy(&pTsdb->commitInfo->ht);
     taosArrayDestroy(pTsdb->commitInfo->arr);
     pTsdb->commitInfo->arr = NULL;
@@ -529,7 +538,7 @@ static int32_t tsdbCommitInfoAdd(STsdb *tsdb, const SFileSetCommitInfo *info) {
     if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
-    taosArraySort(tsdb->commitInfo->arr, NULL /* TODO */);
+    taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
   }
 
 _exit:
@@ -563,22 +572,23 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   }
   taosThreadMutexUnlock(&tsdb->mutex);
 
-  // scan time-series data
   iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
   for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
-    STbData    *pTbData = TCONTAINER_OF(node, STbData, rbtn);
-    STbDataIter tbDataIter = {0};
-    TSDBKEY     from = {INT64_MIN, INT64_MIN};
-    for (;;) {
-      int64_t  minKey, maxKey;
-      TSDBROW *row;
-      tsdbTbDataIterOpen(pTbData, &from, 0, &tbDataIter);
+    STbData *pTbData = TCONTAINER_OF(node, STbData, rbtn);
 
+    // scan time-series data
+    for (TSDBKEY from = {INT64_MIN, INT64_MIN};;) {
+      int64_t     minKey, maxKey;
+      STbDataIter tbDataIter = {0};
+      TSDBROW    *row;
+      int32_t     fid;
+
+      tsdbTbDataIterOpen(pTbData, &from, 0, &tbDataIter);
       if ((row = tsdbTbDataIterGet(&tbDataIter)) == NULL) {
         break;
       }
 
-      int32_t fid = tsdbKeyFid(TSDBROW_TS(row), tsdb->keepCfg.days, tsdb->keepCfg.precision);
+      fid = tsdbKeyFid(TSDBROW_TS(row), tsdb->keepCfg.days, tsdb->keepCfg.precision);
       tsdbFidKeyRange(fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
 
       SFileSetCommitInfo info = {
@@ -591,15 +601,15 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
 
       from.ts = maxKey + 1;
     }
-  }
 
-  // scan tomb data
-  if (tsdb->imem->nDel > 0) {
-    // TODO
+    // scan tomb data
+    for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
+    }
   }
 
 _exit:
   if (code) {
+    tsdbCommitInfoDestroy(tsdb);
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
@@ -608,8 +618,6 @@ _exit:
 static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  memset(committer, 0, sizeof(committer[0]));
 
   committer->tsdb = tsdb;
   committer->minutes = tsdb->keepCfg.days;
