@@ -1,8 +1,10 @@
-export const groupOne = ['TINYINT','TINYINT UNSIGNED','SMALLINT','SMALLINT','UNSIGNED','INT','INT UNSIGNED'];
-export const groupTwo = ['BIGINT','TIMESTAMP','BIGINT UNSIGNED']
+export const groupOne = ['TINYINT','TINYINT UNSIGNED','SMALLINT','SMALLINT UNSIGNED','INT','INT UNSIGNED'];
+export const groupTwo = ['BIGINT','BIGINT UNSIGNED']
 export const groupThree = ['FLOAT','DOUBLE'];
 export const groupFour = ['BINARY','NCHAR','VARCHAR'];
 export const groupFive = ['BOOL'];
+export const groupSix = ['TIMESTAMP'];
+
 export const dataType = [
   {
     label: "INT",
@@ -179,7 +181,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'simple8b',
+    defaultCompress: 'lz4',
   },
   // BIGINT/TIMESTAMP/BIGINT UNSIGNED
   groupTwo: {
@@ -210,7 +214,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'delta-i',
+    defaultCompress: 'lz4',
   },
   // FLOAT/DOUBLE
   groupThree: {
@@ -237,7 +243,9 @@ export const storageCompression = {
         label: "tsz",
         value: "tsz",
       },
-    ]
+    ],
+    defaultEncode: 'delta-d',
+    defaultCompress: 'lz4',
   },
   // BINARY /NCHAR/ VARCHAR
   groupFour: {
@@ -264,7 +272,9 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'disabled',
+    defaultCompress: 'lz4',
   },
   // BOOL
   groupFive: {
@@ -291,9 +301,44 @@ export const storageCompression = {
         label: "xz",
         value: "xz",
       },
-    ]
+    ],
+    defaultEncode: 'bit-packing',
+    defaultCompress: 'lz4',
   },
-  
+  groupSix: {
+    encodeList: [
+      {
+        label: "delta-i",
+        value: "delta-i",
+      }
+    ],
+    compressList: [
+      {
+        label: "lz4",
+        value: "lz4",
+      },
+      {
+        label: "zlib",
+        value: "zlib",
+      },
+      {
+        label: "zstd",
+        value: "zstd",
+      },
+      {
+        label: "xz",
+        value: "xz",
+      },
+    ],
+    defaultEncode: 'delta-i',
+    defaultCompress: 'lz4',
+  },
+  empty: {
+    encodeList: [],
+    compressList: [],
+    defaultEncode: '',
+    defaultCompress: '',
+  }
 }
 
 export const levelList = [

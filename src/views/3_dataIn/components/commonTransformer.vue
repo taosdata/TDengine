@@ -1828,11 +1828,11 @@ export default {
           try {
             const { ts_field_name, tags, columns } =
               this.$refs.createstb.stable_form;
-            if (!ts_field_name) {
-              return Message.warning(
-                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
-              );
-            }
+            // if (!ts_field_name) {
+            //   return Message.warning(
+            //     this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+            //   );
+            // }
             for (let i = 0; i < columns.length; i++) {
               const element = columns[i];
               if (!element.field) {
