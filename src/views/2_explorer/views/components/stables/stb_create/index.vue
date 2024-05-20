@@ -712,6 +712,7 @@ export default {
       await this.$store
         .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
+      await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       this.loading = false;
     },
     async updateDataOther(params) {
@@ -731,6 +732,7 @@ export default {
       await this.$store
         .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
+      await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       this.loading = false;
     },
     foldColumns() {
