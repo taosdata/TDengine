@@ -728,7 +728,7 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
 
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       committer.ctx->info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-      if (committer.ctx->info->hasDataToCommit && committer.ctx->info->fset) {
+      if (committer.ctx->info->hasDataToCommit) {
         code = tsdbCommitFileSet(&committer);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
