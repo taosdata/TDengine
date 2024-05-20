@@ -434,9 +434,9 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
-git#else
+#else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
+            "%s: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", TD_EDITION_NAME,
            buildinfo);
 #endif
 
