@@ -795,6 +795,7 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
     SVATaskCancelInfo *cancel = (SVATaskCancelInfo *)taosArrayGet(cancelArray, i);
     cancel->cancel(cancel->arg);
   }
+  taosArrayDestroy(cancelArray);
 
   channelID->async = 0;
   channelID->id = 0;
