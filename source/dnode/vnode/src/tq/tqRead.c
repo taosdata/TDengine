@@ -444,7 +444,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
     pReader->msg.msgStr = NULL;
 
     int64_t elapsed = taosGetTimestampMs() - st;
-    if(elapsed > 1000 && elapsed < 0){
+    if(elapsed > 1000 || elapsed < 0){
       return false;
     }
   }
