@@ -194,7 +194,7 @@ typedef struct SBoundColInfo {
 } SBoundColInfo;
 
 typedef struct STableColsData {
-  char    *tbName;
+  char    tbName[TSDB_TABLE_NAME_LEN];
   SArray*  aCol;
   bool     getFromHash;
 } STableColsData;
@@ -219,6 +219,9 @@ typedef struct SStmtBuildOutputInfo {
   SArray*   pVgroupList;
   SHashObj* pTableHash;
   int64_t   tbRemainNum;
+  void*     buff;
+  int64_t   buffSize;
+  int64_t   buffIdx;
 } SStmtBuildOutputInfo;
 
 typedef struct STableDataCxt {

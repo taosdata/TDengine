@@ -8,6 +8,17 @@
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+void* stmtAllocFromBuf(STscStmt* pStmt, int32_t size) {
+  if ((pStmt->exec.smInfo.buffIdx + size) < pStmt->exec.smInfo.buffSize) {
+    void* p = pStmt->exec.smInfo.buff + pStmt->exec.smInfo.buffIdx;
+    pStmt->exec.smInfo.buffIdx += size;
+    return p;
+  } else {
+    pStmt->exec.smInfo.buffIdx = size;
+    return pStmt->exec.smInfo.buff;
+  }
+}
+
 bool stmtDequeue(STscStmt* pStmt, SStmtQNode **param) {
   while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
     taosUsleep(1);
@@ -19,7 +30,7 @@ bool stmtDequeue(STscStmt* pStmt, SStmtQNode **param) {
   SStmtQNode *node = pStmt->queue.head->next;
   pStmt->queue.head = pStmt->queue.head->next;
 
-  taosMemoryFreeClear(orig);
+  //taosMemoryFreeClear(orig);
 
   *param = node;
 
@@ -662,8 +673,7 @@ int32_t stmtAsyncOutput(void* param) {
 
   STMT_ERR_RET(qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pParam->pTbData, pStmt->exec.pCurrBlock, &pStmt->exec.smInfo));
 
-  //stmtFreeTableBlkList(pParam->pTbData);
-  taosMemoryFree(pParam->pTbData);
+  //taosMemoryFree(pParam->pTbData);
 
   atomic_sub_fetch_64(&pStmt->exec.smInfo.tbRemainNum, 1);
 
@@ -768,6 +778,9 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
       taosMemoryFree(pStmt);
       return NULL;
     }
+    pStmt->exec.smInfo.buffSize = 1048576L * 2048;
+    pStmt->exec.smInfo.buff = taosMemoryMalloc(pStmt->exec.smInfo.buffSize);
+    
     //pStmt->exec.pTbBlkList = taosArrayInit(400000, sizeof(STableColsData));
     //if (NULL == pStmt->exec.pTbBlkList) {
     //  terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1013,7 +1026,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     //  STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, true));
     //} else {
       
-      pTbData = taosMemoryMalloc(sizeof(STableColsData));
+      pTbData = stmtAllocFromBuf(pStmt, sizeof(STableColsData));
       //pTbData = (STableColsData*)taosArrayReserve(pStmt->exec.pTbBlkList, 1);
       if (pStmt->sql.pCache) {
         pTbData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
@@ -1025,7 +1038,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       pStmt->exec.tbBlkTotal++;
     //}
 
-    pTbData->tbName = strdup(pStmt->bInfo.tbName);
+    strcpy(pTbData->tbName, pStmt->bInfo.tbName);
 
     pStmt->exec.tbBlkNum++;
   }
@@ -1095,9 +1108,10 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     atomic_add_fetch_64(&pStmt->exec.smInfo.tbRemainNum, 1);
 
 
-    SStmtQNode* param = taosMemoryCalloc(1, sizeof(SStmtQNode));
+    SStmtQNode* param = stmtAllocFromBuf(pStmt, sizeof(SStmtQNode));
     param->pTbData = pTbData;
     param->pStmt = pStmt;
+    param->next = NULL;
 
     stmtEnqueue(pStmt, param);
 /*    
