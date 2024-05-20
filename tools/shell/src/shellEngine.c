@@ -1201,10 +1201,10 @@ bool shellGetGrantInfo(char* buf) {
       community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
       community = false;
-      sprintf(buf, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
