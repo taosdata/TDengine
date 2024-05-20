@@ -790,7 +790,7 @@ async fn write_lush_stable_with_sql(
                     }
                     _ => {
                         tracing::error!(
-                            sql = sql,
+                            sql = truncate_sql_in_log_message(sql),
                             req_id = req_id.get(),
                             "Write SQL error: {err:#}"
                         );
@@ -799,5 +799,13 @@ async fn write_lush_stable_with_sql(
                 }
             }
         }
+    }
+}
+
+fn truncate_sql_in_log_message(sql: &str) -> &str {
+    if sql.len() > 500 {
+        &sql[0..500]
+    } else {
+        sql
     }
 }
