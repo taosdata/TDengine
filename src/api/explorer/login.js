@@ -69,3 +69,16 @@ export function getVerificationResult(data) {
         }
     });
 }
+
+// 校验验证码
+export function reportTaosdInfo(data) {
+    return request({
+        baseURL:process.env.VUE_APP_EXPLORER_API,
+        url: `/taosd-info`,
+        method: "post",
+        data,
+        headers: {
+            noAuth: true
+        }
+    });
+}
