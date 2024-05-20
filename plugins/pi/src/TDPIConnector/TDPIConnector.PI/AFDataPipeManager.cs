@@ -14,6 +14,8 @@ namespace TDPIConnector.PI
         private readonly List<List<AFAttribute>> attributeSetLists;
         private readonly Dictionary<string, int> templaltePipeDic = new Dictionary<string, int>();
 
+        const int MaxPipeSignCounts = 10000;
+
         public AFDataPipeManager(int numberOfDataPipes)
         {
             afDataPipes = new List<AFDataPipeWrapper>(numberOfDataPipes);
@@ -87,6 +89,11 @@ namespace TDPIConnector.PI
         private int GetDataPipeIndexByTemplate(ref string templateName) {
             if (templaltePipeDic.ContainsKey(templateName))
             {
+                if (afDataPipes[templaltePipeDic[templateName]].SignupAttrCount > MaxPipeSignCounts)
+                {
+                    int index = GetLowPressurePipe();
+                    templaltePipeDic[templateName] = index;
+                }
                 return templaltePipeDic[templateName];
             }
             else {
