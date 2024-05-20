@@ -73,7 +73,7 @@ impl OpcModelConfig {
         Ok(point_config)
     }
 
-    pub fn build_table_config(&self) -> anyhow::Result<TableConfig> {
+    pub fn build_table_config(&self, point_type: Option<String>) -> anyhow::Result<TableConfig> {
         let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
             "super_table_expression and child_table_expression should be set before add points"
         ))?;
@@ -81,10 +81,16 @@ impl OpcModelConfig {
         let primary_key = point_model_config.primary_key.clone();
         let primary_key_alias = point_model_config.primary_key_alias.clone();
 
+        let value_type = point_type
+            .map(|t| {
+                Ty::from_str(t.as_str()).map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
+            })
+            .transpose()?;
+
         let mut column_configs = vec![];
         column_configs.push(ColumnConfig {
             name: ColumnConfig::VALUE.to_string(),
-            r#type: None,
+            r#type: value_type,
             alias: Some(String::from("val")),
             transform: None,
             is_primary_key: false,
@@ -137,11 +143,12 @@ impl OpcModelConfig {
             let point_type = p.r#type;
 
             // point_config
-            let point_config = self.build_point_config(index, point_id.clone(), point_type)?;
+            let point_config =
+                self.build_point_config(index, point_id.clone(), point_type.clone())?;
             self.point_config_map.insert(point_id.clone(), point_config);
 
             // table_config
-            let table_config = self.build_table_config()?;
+            let table_config = self.build_table_config(point_type.clone())?;
             self.table_config_map.insert(point_id.clone(), table_config);
 
             index += 1;
@@ -746,6 +753,20 @@ fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Col
             }
         });
 
+    let value_type = header
+        .get_column("type")
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
+            if val.is_empty() {
+                None
+            } else {
+                let val_type = Ty::from_str(val)
+                    .map_err(|_err| anyhow::anyhow!("invalid column data type: {}", val));
+                Some(val_type)
+            }
+        })
+        .transpose()?;
+
     let value_transform = header
         .get_column("value_transform")
         .and_then(|col| row.get(col.index))
@@ -781,7 +802,7 @@ fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Col
 
     Ok(ColumnConfig {
         name: ColumnConfig::VALUE.to_string(),
-        r#type: None,
+        r#type: value_type,
         alias: value_name,
         transform: value_transform,
         is_primary_key: false,
@@ -1056,7 +1077,7 @@ mod table_config_tests {
     }
 }
 
-#[derive(Clone, Deserialize, Debug, Serialize)]
+#[derive(Clone, Deserialize, Debug, Serialize, PartialEq)]
 pub struct ColumnConfig {
     pub name: String, // original_ts / received_ts / value / quality
     pub r#type: Option<Ty>,
