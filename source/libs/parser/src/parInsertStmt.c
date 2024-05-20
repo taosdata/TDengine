@@ -64,9 +64,9 @@ int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDat
     code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
   }
 
-  //if (pStmt->freeArrayFunc) {
-  //  pStmt->freeArrayFunc(pVgDataBlocks);
-  //}
+  if (pStmt->freeArrayFunc) {
+    pStmt->freeArrayFunc(pVgDataBlocks);
+  }
   return code;
 }
 
