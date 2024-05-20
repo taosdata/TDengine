@@ -580,7 +580,7 @@
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
         :visible.sync="showCreateDIalog"
-        width="40%"
+        width="70%"
         center
         destroy-on-close
         :append-to-body="true"
