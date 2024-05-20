@@ -518,6 +518,10 @@ async fn alter_table(
                             );
                             return Ok(());
                         }
+                        0x03D3 => {
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            return Ok(());
+                        }
                         0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
