@@ -210,6 +210,10 @@ namespace TDPIConnector.Core
             stopAddNewTask = true;
             Task.WaitAll(backFillTasks.ToArray());
         }
+        internal void StopAddTask()
+        {
+            stopAddNewTask = true;
+        }
 
         public async Task<Dictionary<string, DateTime>> GetTDTableLastRecordedValueFromPIPoints(string tdDatabaseName, List<TDTable> piPointTables)
         {

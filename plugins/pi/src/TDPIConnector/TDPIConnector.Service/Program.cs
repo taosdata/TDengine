@@ -175,9 +175,6 @@ namespace TDPIConnector.Service
                 logger.Info("Running in service mode");
             }
             service.Start();
-            if (AppSettings.tomlConfig.ForBackfill) { 
-
-            }
             service.Wait();
             logger.Info("TD PI Connector quit.");
             service.Stop();

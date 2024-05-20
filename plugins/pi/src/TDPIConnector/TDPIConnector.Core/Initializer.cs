@@ -70,7 +70,7 @@ namespace TDPIConnector.Core
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
             //get all elements based on template
-            List<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate).ToList();
+            List<AFElementWrapper> elements = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, elementTemplate.Name).ToList();
             log.Info($"Found {elements.Count()} elements in template:{elementTemplate.Name}.");
 
             int chunkSize = 500;

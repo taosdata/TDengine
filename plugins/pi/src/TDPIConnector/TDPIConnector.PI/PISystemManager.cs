@@ -145,7 +145,19 @@ namespace TDPIConnector.PI
             using (var search = new AFElementSearch(elementTemplate.AFSDKObject.Database, "Find_" + elementTemplate.Name, $"Template: '{elementTemplate.Name}'"))
             {
                 IEnumerable<AFElement> elements = search.FindObjects(fullLoad: true);
-                return elements.Select(e => new AFElementWrapper(e));
+                return elements.
+                    AsParallel().
+                    Select(e => new AFElementWrapper(e));
+            }
+        }
+        public IEnumerable<AFElementWrapper> GetElementTemplatePage(AFElementTemplateWrapper elementTemplate, int index, int pageSize)
+        {
+            using (var search = new AFElementSearch(elementTemplate.AFSDKObject.Database, "Find_" + elementTemplate.Name, $"Template: '{elementTemplate.Name}'"))
+            {
+                IEnumerable<AFElement> elements = search.FindObjects(index, false, pageSize);
+                return elements.
+                    AsParallel().
+                    Select(e => new AFElementWrapper(e));
             }
         }
         public IEnumerable<AFElementWrapper> GetElementsByIds(string afDatabaseName, List<String> ids)
