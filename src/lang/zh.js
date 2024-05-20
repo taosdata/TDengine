@@ -905,7 +905,7 @@ export default {
     regetVerificationCode: '重新获取验证码',
     imageVerificationCode: '图形验证码',
     signin: '提交',
-    nameTips: "请输入姓名",
+    nameTips: "请输入姓名，最多 80 个字符",
     phoneTips: "请输入手机号，只支持中国大陆手机号码",
     emailTips: "请输入邮箱",
     verificationCodeTips: "请输入验证码",
