@@ -1569,7 +1569,7 @@ async fn consume_point_record(
                     None => None,
                     Some(point_model_config) => match point_model_config.update_mode {
                         UpdateMode::Append | UpdateMode::Update => {
-                            Some(config.build_table_config()?)
+                            Some(config.build_table_config(Some(value_raw_type.to_string()))?)
                         }
                         UpdateMode::None => None,
                     },
@@ -1789,6 +1789,16 @@ async fn consume_point_record(
                             sql_insertion.overflow = true;
                             continue;
                         } else {
+                            // 不同点位入宽表的情况，需要合并column_configs
+                            let exist_column_configs =
+                                &mut sql_insertion.point_insertion.column_configs;
+                            let column_configs = &table_config.column_configs;
+                            for column_config in column_configs {
+                                if !exist_column_configs.contains(column_config) {
+                                    exist_column_configs.push(column_config.clone());
+                                }
+                            }
+
                             sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
                         }
