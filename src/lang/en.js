@@ -989,7 +989,7 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='${IS_COMMUNITY ? "https://tdengine.com": "/docs-en"}/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='${IS_COMMUNITY ? "https://docs.tdengine.com": "/docs-en"}/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip:
       "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
     subscriptionTitle: `Subscribe to data updates using`,
