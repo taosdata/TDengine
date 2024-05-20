@@ -104,7 +104,7 @@ impl PutStream {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
         // data channel
-        let (tx, rx) = flume::bounded(1024);
+        let (tx, rx) = flume::bounded(512);
         let tx = Arc::new(tx);
         // response channel
         let schema = stream
