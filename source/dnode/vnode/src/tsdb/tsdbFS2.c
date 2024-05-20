@@ -1066,7 +1066,7 @@ int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
   if (sttTrigger == 1) {
     STFileSet *fset = NULL;
     tsdbFSGetFSet(tsdb->pFS, fid, &fset);
-    if (fset != NULL && fset->numWaitTask > 0) {
+    if (fset != NULL && fset->taskRunning && fset->numWaitTask > 0) {
       fset->taskRunning = false;
       taosThreadCondSignal(&fset->beginTask);
     }
