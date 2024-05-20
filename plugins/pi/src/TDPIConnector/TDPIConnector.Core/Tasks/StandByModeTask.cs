@@ -1,5 +1,6 @@
 ﻿using log4net;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
@@ -41,8 +42,7 @@ namespace TDPIConnector.Core.Tasks
                             StandbyManager.Instance.ReportPIConnectionFailure();
                             log.Debug("Checking PI Data Archive connection: FAILED");
                         }
-
-                        await Task.Delay(5000);
+                        Thread.Sleep(5000);
                     }
 
                     if (StandbyManager.Instance.StandByModeEnabled && !stopRequested)
@@ -57,12 +57,12 @@ namespace TDPIConnector.Core.Tasks
                             log.Debug("Checking TDEngine connection: FAILED");
                         }
 
-                        await Task.Delay(5000);
+                        Thread.Sleep(5000);
                     }
 
                     if (!stopRequested)
                     {
-                        await Task.Delay(1000);
+                        Thread.Sleep(1000);
                     }
                 }
             });

@@ -47,7 +47,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 catch (SocketException e)
                 {
                     log.Error($"Connection to taosx server failed. {e.ToString()}.Retrying in 5 seconds...");
-                    Task.Delay(5000).Wait();
+                    Thread.Sleep(5000);
                 }
             }
         }
@@ -79,7 +79,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         return null;
                     }
                     log.Error($"Send data to taosx failed.{e.ToString()} Retrying in 2 seconds...");
-                    Task.Delay(1000).Wait();
+                    Thread.Sleep(1000);
                 }
             }
         }

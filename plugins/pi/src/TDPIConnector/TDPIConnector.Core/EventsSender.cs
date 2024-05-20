@@ -25,6 +25,7 @@ namespace TDPIConnector.Core
         public event EventHandler<AFDataPipeEventWrapper> OnPIEventReceivedSuccess = delegate { };
         public event EventHandler<AFDataPipeEventWrapper> OnAFEventReceivedSuccess = delegate { };
 
+        List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
         RangeDeleteEventsSender deleteSender;
 
         public EventsSender(TDEngineProxy tdEngineProxy)
@@ -151,8 +152,6 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
-
             while (!this.dpAFEvents.IsEmpty)
             {
                 bool result = this.dpAFEvents.TryDequeue(out AFDataPipeEventWrapper dpEvent);
@@ -172,6 +171,7 @@ namespace TDPIConnector.Core
             }
 
             OnAFElementEventBatch(ref allEvents);
+            allEvents.Clear();
         }
 
         public void OnPIPointEvents()
@@ -180,8 +180,6 @@ namespace TDPIConnector.Core
             {
                 return;
             }
-
-            List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
 
             while (!this.dpPIEvents.IsEmpty)
             {
@@ -218,6 +216,7 @@ namespace TDPIConnector.Core
                     throw e.InnerException;
                 }
             }
+            allEvents.Clear();
         }
 
         internal void AddPIValue(AFDataPipeEventWrapper dpEvent)

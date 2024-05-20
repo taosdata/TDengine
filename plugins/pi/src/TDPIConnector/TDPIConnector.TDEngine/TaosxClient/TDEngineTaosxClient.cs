@@ -167,13 +167,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     catch (Exception e)
                     {
                         log.Error($"Send data to taosx failed! {e.ToString()}");
-                        Task.Delay(1000).Wait();
+                        Thread.Sleep(1000);
                     }
-                    Task.Delay(100).Wait();
+                    Thread.Sleep(10);
                 }
                 else
                 {
-                    Task.Delay(1000).Wait();
+                    Thread.Sleep(1000);
                 }
             }
         }

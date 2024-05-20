@@ -53,6 +53,7 @@ namespace TDPIConnector.Core
             else
             {
                 elementModeTask.SignUpBatchAttributes(elementTemplate.Name, ref attries);
+                attries.Clear();
                 if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
                 {
                     var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
@@ -106,6 +107,7 @@ namespace TDPIConnector.Core
             }
             Task.WaitAll(tasks.ToArray());
             log.Info($"Start info: {elements.Count()} elements in template:{elementTemplate.Name}.");
+            elements.Clear();
             return;
         }
 
@@ -140,7 +142,7 @@ namespace TDPIConnector.Core
 
             List<Task> tasks = new List<Task>();
 
-            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(10);
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(5);
             foreach (AFElementTemplateWrapper elementTemplate in elementTemplates)
             {
                 tasks.Add(Task.Run(async () =>
