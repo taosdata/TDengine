@@ -372,7 +372,7 @@ export default {
       return this[name];
     },
     handleCheckChange(val, index, type) {
-      if (val && this.parmaryKeyType.findIndex((item) => type.includes(item.value)) == -1) {
+      if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
         this.$set(this.stable_form.columns[index], "type", '');
         this.$set(this.stable_form.columns[index], "encode", '');
         this.$set(this.stable_form.columns[index], "compress", '');
