@@ -193,11 +193,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
                     builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
                 }
-            }
-           
-            if (builder.tsArrowArray.Length > maxWaitLength)
-            {
-                send();
+                if (builder.tsArrowArray.Length > maxWaitLength)
+                {
+                    send();
+                }
             }
         }
 
@@ -205,10 +204,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void AddTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tablesValue)
         {
             addTablesValue(tablesValue);
-            if (builder.tsArrowArray.Length > maxWaitLength)
-            {
-                send();
-            }
         }
         public void addTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
@@ -271,6 +266,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             }
                         }
                     }
+                }
+                if (builder.tsArrowArray.Length > maxWaitLength)
+                {
+                    send();
                 }
             }
         }
