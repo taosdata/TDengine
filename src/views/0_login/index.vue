@@ -231,6 +231,7 @@ export default {
         name: [
           {
             required: true,
+            max: 80,
             message: this.$t("register.nameTips"),
             trigger: "change",
           },
