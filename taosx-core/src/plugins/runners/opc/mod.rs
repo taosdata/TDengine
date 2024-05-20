@@ -7,6 +7,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncTBuilder, Dsn, DsnError, TaosBuilder};
+use taosx_ipc::prelude::IpcDataType;
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -439,14 +440,18 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
-fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<String>) -> String {
+fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<IpcDataType>) -> String {
     let mut stable = stable_expr.clone();
     if stable_expr.contains(".") {
         stable = stable.replace(".", "_");
     }
 
     if let Some(t) = value_type {
-        stable = stable.replace("{type}", t.as_str());
+        stable = match t {
+            IpcDataType::VarChar(_len) => stable.replace("{type}", "varchar"),
+            IpcDataType::NChar(_len) => stable.replace("{type}", "nchar"),
+            _ => stable.replace("{type}", &t.sql_repr().replace(" ", "_")),
+        };
     }
 
     stable

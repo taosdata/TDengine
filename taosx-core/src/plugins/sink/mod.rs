@@ -1542,7 +1542,7 @@ async fn consume_point_record(
                             let point_config = config.build_point_config(
                                 index,
                                 point_id.clone(),
-                                Some(value_raw_type.to_string()),
+                                Some(value_raw_type.clone()),
                             )?;
                             Some(point_config)
                         }
@@ -1569,7 +1569,7 @@ async fn consume_point_record(
                     None => None,
                     Some(point_model_config) => match point_model_config.update_mode {
                         UpdateMode::Append | UpdateMode::Update => {
-                            Some(config.build_table_config(Some(value_raw_type.to_string()))?)
+                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
                         }
                         UpdateMode::None => None,
                     },
