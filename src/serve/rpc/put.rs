@@ -103,8 +103,28 @@ impl PutStream {
 
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
+        let from_dsn: Dsn = task.from.parse()?;
+        let to_dsn: Dsn = task.to.parse()?;
+
+        let connector = match from_dsn.driver.as_str() {
+            "opcda" => Some("opc_da"),
+            "opcua" => Some("opc_ua"),
+            "pi" => Some("pi"),
+            "pibackfill" => Some("pi"),
+            "influxdb" => Some("influxdb"),
+            "opentsdb" => Some("opentsdb"),
+            taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
+            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
+            "mqtt" => Some("mqtt"),
+            _ => None,
+        };
+
         // data channel
-        let (tx, rx) = flume::bounded(512);
+        let (tx, rx) = match from_dsn.driver.as_str() {
+            "pibackfill" => flume::bounded(50),
+            _ => flume::bounded(1024),
+        };
+
         let tx = Arc::new(tx);
         // response channel
         let schema = stream
@@ -121,21 +141,6 @@ impl PutStream {
         tracing::trace!(schema = ?schema, "parsing put stream schema");
         let tx_cloned = Arc::downgrade(&tx);
         let taos = pool.get().await?;
-        let from_dsn: Dsn = task.from.parse()?;
-        let to_dsn: Dsn = task.to.parse()?;
-
-        let connector = match from_dsn.driver.as_str() {
-            "opcda" => Some("opc_da"),
-            "opcua" => Some("opc_ua"),
-            "pi" => Some("pi"),
-            "pibackfill" => Some("pi"),
-            "influxdb" => Some("influxdb"),
-            "opentsdb" => Some("opentsdb"),
-            taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
-            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
-            "mqtt" => Some("mqtt"),
-            _ => None,
-        };
 
         let ipc_error_strategy = IpcErrorStrategy::from(connector);
 
