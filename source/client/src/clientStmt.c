@@ -988,10 +988,10 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
   STableColsData *pTbData = NULL;
   if (pStmt->sql.staticMode) {
-    if (pStmt->exec.tbBlkNum < pStmt->exec.tbBlkTotal) {
-      pTbData = (STableColsData*)taosArrayGet(pStmt->exec.pTbBlkList, pStmt->exec.tbBlkNum);
-      STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, true));
-    } else {
+    //if (pStmt->exec.tbBlkNum < pStmt->exec.tbBlkTotal) {
+    //  pTbData = (STableColsData*)taosArrayGet(pStmt->exec.pTbBlkList, pStmt->exec.tbBlkNum);
+    //  STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, true));
+    //} else {
       pTbData = (STableColsData*)taosArrayReserve(pStmt->exec.pTbBlkList, 1);
       if (pStmt->sql.pCache) {
         pTbData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
@@ -1001,7 +1001,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
         //STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, true));
       }
       pStmt->exec.tbBlkTotal++;
-    }
+    //}
 
     strcpy(pTbData->tbName, pStmt->bInfo.tbName);
     STMT_ERR_RET(qCreateSName(&pTbData->sname, pTbData->tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
