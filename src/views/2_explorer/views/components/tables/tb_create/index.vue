@@ -564,6 +564,7 @@ export default {
             stableName: this.table_form.stbTmpl,
           })
           .catch(() => false);
+        this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       }
     },
     async updateTypeField(params, rename_params, other_params) {
