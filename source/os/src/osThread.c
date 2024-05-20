@@ -170,6 +170,16 @@ int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr) {
 #endif
 }
 
+int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId) {
+#ifdef __USE_WIN_THREAD
+  return 0;
+#elif defined(__APPLE__)
+  return 0;
+#else
+  return pthread_condattr_setclock(attr, clockId);
+#endif
+}
+
 int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr *attr, int32_t pshared) {
 #ifdef __USE_WIN_THREAD
   return 0;

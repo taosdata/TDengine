@@ -240,8 +240,8 @@ int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 
 // lossy compress 7
-char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
-                               // can close lossy compress.
+char tsLossyColumns[32] = "float|double";  // "float|double" means all float and double columns can be lossy compressed.
+                                           // set empty can close lossy compress.
 // below option can take effect when tsLossyColumns not empty
 float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
@@ -271,7 +271,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 300;    // 5min by default.
+int32_t tsStreamCheckpointInterval = 300;  // 5min by default.
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 16;
 int32_t tsTtlUnit = 86400;
@@ -296,6 +296,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+int8_t tsS3EnabledCfg = false;
 int8_t tsS3Oss = false;
 int8_t tsS3StreamEnabled = false;
 
@@ -375,6 +376,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
 #if defined(USE_COS) || defined(USE_S3)
 #ifdef TD_ENTERPRISE
     /*if (tsDiskCfgNum > 1) */ tsS3Enabled = true;
+    tsS3EnabledCfg = true;
 #endif
     tsS3StreamEnabled = true;
 #endif
@@ -813,7 +815,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
-  if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1274,7 +1275,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
-  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "lossyColumns")->str, sizeof(tsLossyColumns));
   tsFPrecision = cfgGetItem(pCfg, "fPrecision")->fval;
   tsDPrecision = cfgGetItem(pCfg, "dPrecision")->fval;
   tsMaxRange = cfgGetItem(pCfg, "maxRange")->i32;
@@ -1394,7 +1394,7 @@ static int32_t taosCheckGlobalCfg() {
 }
 
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc) {
+                    bool tsc, bool isDumpCfg) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -1441,7 +1441,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
-  cfgDumpCfg(tsCfg, tsc, false);
+  if(isDumpCfg) cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
     return -1;

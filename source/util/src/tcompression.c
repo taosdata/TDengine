@@ -61,9 +61,7 @@
 #include "zstd.h"
 #endif
 
-#ifdef TD_TSZ
 #include "td_sz.h"
-#endif
 
 int32_t tsCompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type);
 int32_t tsDecompressPlain2(const char *const input, const int32_t nelements, char *const output, const char type);
@@ -322,7 +320,6 @@ static const int32_t TEST_NUMBER = 1;
 
 #define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
-#ifdef TD_TSZ
 bool lossyFloat = false;
 bool lossyDouble = false;
 
@@ -340,8 +337,6 @@ int32_t tsCompressInit(char *lossyColumns, float fPrecision, double dPrecision, 
 }
 // exit call
 void tsCompressExit() { tdszExit(); }
-
-#endif
 
 /*
  * Compress Integer (Simple8B).
@@ -1214,7 +1209,6 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
   return nelements * FLOAT_BYTES;
 }
 
-#ifdef TD_TSZ
 //
 //   ----------  float double lossy  -----------
 //
@@ -1283,7 +1277,6 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
   // decompressed with sz
   return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
 }
-#endif
 
 #ifdef BUILD_NO_CALL
 /*************************************************************************
@@ -2463,13 +2456,11 @@ int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, 
 // Float =====================================================
 int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                         int32_t nBuf) {
-#ifdef TD_TSZ
   // lossy mode
   if (lossyFloat) {
     return tsCompressFloatLossyImp(pIn, nEle, pOut);
     // lossless mode
   } else {
-#endif
     if (cmprAlg == ONE_STAGE_COMP) {
       return tsCompressFloatImp(pIn, nEle, pOut);
     } else if (cmprAlg == TWO_STAGE_COMP) {
@@ -2479,19 +2470,15 @@ int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
       ASSERTS(0, "compress algo invalid");
       return -1;
     }
-#ifdef TD_TSZ
   }
-#endif
 }
 
 int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
-#ifdef TD_TSZ
   if (HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
   } else {
-#endif
     // decompress lossless
     if (cmprAlg == ONE_STAGE_COMP) {
       return tsDecompressFloatImp(pIn, nEle, pOut);
@@ -2502,20 +2489,16 @@ int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
       ASSERTS(0, "compress algo invalid");
       return -1;
     }
-#ifdef TD_TSZ
   }
-#endif
 }
 
 // Double =====================================================
 int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
-#ifdef TD_TSZ
   if (lossyDouble) {
     // lossy mode
     return tsCompressDoubleLossyImp(pIn, nEle, pOut);
   } else {
-#endif
     // lossless mode
     if (cmprAlg == ONE_STAGE_COMP) {
       return tsCompressDoubleImp(pIn, nEle, pOut);
@@ -2526,19 +2509,15 @@ int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
       ASSERTS(0, "compress algo invalid");
       return -1;
     }
-#ifdef TD_TSZ
   }
-#endif
 }
 
 int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                            int32_t nBuf) {
-#ifdef TD_TSZ
   if (HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
   } else {
-#endif
     // decompress lossless
     if (cmprAlg == ONE_STAGE_COMP) {
       return tsDecompressDoubleImp(pIn, nEle, pOut);
@@ -2549,9 +2528,7 @@ int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
       ASSERTS(0, "compress algo invalid");
       return -1;
     }
-#ifdef TD_TSZ
   }
-#endif
 }
 
 // Binary =====================================================

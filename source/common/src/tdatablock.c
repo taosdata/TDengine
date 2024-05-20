@@ -2411,13 +2411,24 @@ _end:
 
 void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId) {
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  if (stbName == NULL) {
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%" PRIu64, groupId);
-  } else {
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%" PRIu64, stbName, groupId);
+  if (stbName == NULL){
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+  }else{
+    int32_t i = strlen(stbName) - 1;
+    for(; i >= 0; i--){
+      if (stbName[i] == '.'){
+        break;
+      }
+    }
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName + i + 1, groupId);
   }
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
+  for(int i = 0; i < strlen(ctbName); i++){
+    if(ctbName[i] == '.'){
+      ctbName[i] = '_';
+    }
+  }
 }
 
 // auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
