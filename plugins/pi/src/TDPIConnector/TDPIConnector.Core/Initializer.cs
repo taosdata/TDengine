@@ -36,7 +36,6 @@ namespace TDPIConnector.Core
             elementModeTask.Start();
         }
 
-
         public void InitTaskForElements(ref string tdDatabaseName, ref AFElementTemplateWrapper elementTemplate, ref TDSTable superTable, ref List<AFElementWrapper> elements, ref IEnumerable<TDColumn> templateAttributeColumns) {
             List<TDTable> tables = new List<TDTable>();
             List<AFAttribute> attries = new List<AFAttribute>();
@@ -45,8 +44,10 @@ namespace TDPIConnector.Core
                 tables.Add(table);
             }
             tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            tables.Clear();
             if (AppSettings.tomlConfig.ForBackfill)
             {
+                attries.Clear();
                 backfill.BackfillElements(tdDatabaseName, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
                                 AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
             }
@@ -91,9 +92,10 @@ namespace TDPIConnector.Core
                 int groupIndex = i;
                 tasks.Add(Task.Run(async () =>
                 {
+                    Stopwatch stopwatch = new Stopwatch();
                     for (int j = groupIndex; j < chunks.Count(); j += groups)
                     {
-                        Stopwatch stopwatch = new Stopwatch();
+                        stopwatch.Reset();
                         stopwatch.Start();
                         var elementChunk = chunks[j];
                         InitTaskForElements(ref tdDatabaseName, ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
@@ -158,9 +160,7 @@ namespace TDPIConnector.Core
                         concurrencySemaphore.Release();
                     }
                 }));
-
             }
-
 
             foreach (string elementName in AppSettings.tomlConfig.ElementList)
             {
@@ -180,7 +180,5 @@ namespace TDPIConnector.Core
 
             return;
         }
-
     }
-
 }

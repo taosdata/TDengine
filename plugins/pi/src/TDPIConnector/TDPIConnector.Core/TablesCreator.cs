@@ -29,10 +29,6 @@ namespace TDPIConnector.Core
             this.tdEngineProxy = tdEngineProxy;
         }
 
-        public async Task CreateDatabase(string databaseName)
-        {
-            await tdEngineProxy.CreateDatabase(databaseName);
-        }
         public List<TDColumn> GetPiPointTags(PIPointWrapper point) {
             var pointTags = new List<TDColumn>();
             var tagVals = point.GetPointSavedAttrsValue();

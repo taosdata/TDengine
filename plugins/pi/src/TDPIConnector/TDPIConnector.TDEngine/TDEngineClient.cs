@@ -93,35 +93,7 @@ namespace TDPIConnector.TDEngine
             string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
             return await MakeHttpRequest(sqlCommand);
         }
-        public override void VerifyLicenseCompability()
-        {
-#if ONLY_PI_TEST
-            return;
-#endif
-            if (!baseUrl.Contains("cloud.tdengine.com"))
-            {
 
-#if CLOUD_LICENSE_ONLY
-                throw new TDEngineInvalidOnPremiseLicenseException();
-#endif
-            }
-        }
-
-        public override async Task<TDEngineResponse> CreateDatabase(string dbName)
-        {
-#if ONLY_PI_TEST
-            return null;
-#endif
-            if (!baseUrl.Contains("cloud.tdengine.com"))
-            {
-                string sqlCommand = $"CREATE DATABASE IF NOT EXISTS {dbName.ToTDEngineNamingRawPattern()};";
-                return await MakeHttpRequest(sqlCommand);
-            }
-            else
-            {
-                return null;
-            }
-        }
         public override async Task<TDValue> GetLastPIValue(string database, string pointName)
         {
             string tdEngineTableName = GetFullTableName(pointName);

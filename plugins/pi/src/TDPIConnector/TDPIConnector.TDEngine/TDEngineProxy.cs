@@ -96,11 +96,6 @@ namespace TDPIConnector.TDEngine
             }
         }
 
-        public virtual Task<TDEngineResponse> CreateDatabase(string dbName)
-        {
-            log.Info($"Create Database {dbName}, taosx skip.");
-            return Task.FromResult<TDEngineResponse>(null);
-        }
         public virtual Task<TDValue> GetLastPIValue(string database, string pointName)
         {
             return taosxCommonClient.GetLastPIValue(database, pointName);
@@ -369,7 +364,7 @@ namespace TDPIConnector.TDEngine
             }
             return Task.FromResult<TDEngineResponse>(null);
         }
-        public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, List<string> columnNames)
+        public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, in Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, in List<string> columnNames)
         {
             foreach (var tables in stables)
             {

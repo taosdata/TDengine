@@ -290,7 +290,7 @@ namespace TDPIConnector.Core
             elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime); 
         }
 
-        internal void BackfillElement(string tdDatabaseName, AFElementWrapper element, DateTime startTime, DateTime endTime)
+        internal void BackfillElement(string tdDatabaseName, in AFElementWrapper element, DateTime startTime, DateTime endTime)
         {
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -358,7 +358,7 @@ namespace TDPIConnector.Core
             log.Info($"Backfill TDEngine element {element.Name}:{element.ID} values written finished.");
         }
 
-        private void ConvertAFAttibutesAndValuesToTDTables(AFAttributeWrapper attribute, AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)
+        private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)
         {
             tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
             columnNames = new List<string>();

@@ -22,7 +22,6 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PointModeObserver pointModeObserver;
         private ElementModeObserver elementModeObserver;
-        private IDisposable webApp;
         private IMonitoringService monitoringService;
         private PointModeTask pointModeTask;
         private ElementModeTask elementModeTask;
@@ -52,8 +51,6 @@ namespace TDPIConnector.Core
             }
             try
             {
-                //ConfigureMonitoring();
-
                 if (piServerManager != null)
                 {
                     piServerManager.Connect();
@@ -87,16 +84,6 @@ namespace TDPIConnector.Core
 
             try
             {
-                tdEngineProxy.VerifyLicenseCompability();
-            }
-            catch (Exception e)
-            {
-                log.Fatal("panic: error starting the application.", e);
-                throw e;
-            }
-            ConfigureMonitoringTDEngine();
-            try
-            {
                 tdEngineProxy.Connect();
             }
             catch (Exception e)
@@ -106,59 +93,25 @@ namespace TDPIConnector.Core
             }
         }
         public void InitializeConnections() {
-            //InitMonitoring();
             InitializePIConnections();
             InitializeTaosConnections();
             InitObserver();
         }
-        private void InitMonitoring() {
-            monitoringService = Container.Resolve<IMonitoringService>();
-            monitoringService.Enabled = AppSettings.WebMonitoringEventsEnabled;
-        }
+
         private void InitObserver()
         {
             this.eventsSender = new EventsSender(this.tdEngineProxy);
             this.pointModeObserver = new PointModeObserver(eventsSender);
             this.elementModeObserver = new ElementModeObserver(eventsSender);
-
-            // eventsSender.OnPIEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastPIEvent(dpEventList);
-            // eventsSender.OnAFEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastAFEvent(dpEventList);
-            // eventsSender.OnPIEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishPIEvent(dpEvent);
-            // eventsSender.OnAFEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishAFEvent(dpEvent);
-            // pointModeObserver.OnPIEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-            // elementModeObserver.OnAFEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-        }
-        private void ConfigureMonitoring()
-        {
-            piServerManager.OnConnectSuccess += (sender, piConnectionInfo) => monitoringService.PublishPIConnectionStatus(piConnectionInfo);
-            piServerManager.OnConnectFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-        }
-        private void ConfigureMonitoringTDEngine()
-        {
-            tdEngineProxy.OnHttpResponseReceived += (sender, httpResponse) => monitoringService.PublishTDEngineHttpResponse(httpResponse);
-            tdEngineProxy.OnServerVersionReceived += (sender, version) => monitoringService.PublishTDEngineServerVersion(version);
-            tdEngineProxy.OnExceptionThrown += (sender, ex) => monitoringService.PublishTDException(ex);
         }
         public async void Start()
         {
-            //startWebService();
             InitializeConnections();
             backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
             eventsSender.SetBackfill(backfillManager);
 
             this.tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
             this.initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
-
-            try
-            {
-                await tablesCreator.CreateDatabase(AppSettings.tomlConfig.TDDataBase);
-                log.Info("TDengine database has been created,taosx will skip.");
-            }
-            catch (Exception e)
-            {
-                log.Fatal("Error creating TDengine database.", e);
-                throw e;
-            }
 
             if (piServerManager != null)
             {
@@ -246,19 +199,6 @@ namespace TDPIConnector.Core
                 ReStartDataPipe();
             }
         }
-        private void startWebService() {
-            try
-            {
-                webApp = WebApp.Start<WebStartup>(url: $"{AppSettings.WebBaseUrl}:{AppSettings.WebBasePort}");
-                log.Info("Web application has started.");
-            }
-            catch (Exception e)
-            {
-                log.Fatal("Error starting the web application.", e);
-                throw e;
-            }
-        }
-
         public void StartBackfill()
         {
             try

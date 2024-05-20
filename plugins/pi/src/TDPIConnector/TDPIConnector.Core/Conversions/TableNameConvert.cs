@@ -7,7 +7,7 @@ namespace TDPIConnector.Core.Conversions
     {
         private static string sigle_element_prefix = "sigle_";
 
-        public static string GetAFPointSuperTableName(AFElementTemplateWrapper template)
+        public static string GetAFPointSuperTableName(in AFElementTemplateWrapper template)
         {
             return template.Name;
         }
@@ -28,7 +28,7 @@ namespace TDPIConnector.Core.Conversions
             }
             throw new Exception("PointType not found.");
         }
-        public static string GetSingleElementSuperTableName(AFElementWrapper element)
+        public static string GetSingleElementSuperTableName(in AFElementWrapper element)
         {
             return $"{sigle_element_prefix}{element.Name}";
         }

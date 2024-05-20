@@ -201,11 +201,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         // write data
-        public void AddTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tablesValue)
+        public void AddTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tablesValue)
         {
             addTablesValue(tablesValue);
         }
-        public void addTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tables)
+        public void addTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
             lock (stLock)
             {
