@@ -64,9 +64,9 @@ int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDat
     code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
   }
 
-  if (pStmt->freeArrayFunc) {
-    pStmt->freeArrayFunc(pVgDataBlocks);
-  }
+  //if (pStmt->freeArrayFunc) {
+  //  pStmt->freeArrayFunc(pVgDataBlocks);
+  //}
   return code;
 }
 
@@ -276,7 +276,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -288,7 +288,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
-    SColData* pCol = taosArrayGet(pDataBlock->pData->aCol, c);
+    SColData* pCol = taosArrayGet(pCols, c);
 
     if (bind[c].num != rowNum) {
       code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -435,6 +435,22 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
+  int32_t        colNum = taosArrayGetSize(pCols);
+
+  for (int32_t i = 0; i < colNum; ++i) {
+    SColData* pCol = (SColData*)taosArrayGet(pCols, i);
+    if (deepClear) {
+      tColDataDeepClear(pCol);
+    } else {
+      tColDataClear(pCol);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   STableDataCxt* pBlock = (STableDataCxt*)block;

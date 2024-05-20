@@ -83,6 +83,7 @@ typedef struct SStmtExecInfo {
   STableDataCxt *pCurrBlock;
   SSubmitTbData *pCurrTbData;
   int32_t        tbBlkNum;
+  int32_t        tbBlkTotal;
   SArray        *pTbBlkList;
   SStmtBuildOutputInfo smInfo;
 } SStmtExecInfo;
@@ -110,10 +111,27 @@ typedef struct SStmtStatInfo {
   int64_t ctgGetTbMetaNum;
   int64_t getCacheTbInfo;
   int64_t parseSqlNum;
-  int64_t setTbNameUs1;
-  int64_t setTbNameUs2;
+  int64_t setTbNameUs;
+  int64_t bindDataUs;
+  int64_t addBatchUs;
   int64_t execWaitUs;
+  int64_t execUseUs;
 } SStmtStatInfo;
+
+typedef struct SStmtQNode {
+  SStmtAsyncParam*     param;
+  struct SStmtQNode*   next;
+} SStmtQNode;
+
+typedef struct SStmtQueue {
+  SRWLatch   qlock;
+  bool       stopQueue;
+  SStmtQNode* head;
+  SStmtQNode* tail;
+  tsem_t     reqSem;
+  uint64_t   qRemainNum;
+} SStmtQueue;
+
 
 typedef struct STscStmt {
   STscObj  *taos;
@@ -121,6 +139,8 @@ typedef struct STscStmt {
   int32_t   affectedRows;
   uint32_t  seqId;
   uint32_t  seqIds[STMT_MAX];
+  TdThread  bindThread;
+  SStmtQueue    queue;
 
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;
@@ -181,6 +201,7 @@ extern char *gStmtStatusStr[];
   } while (0)
 
 
+#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
 
