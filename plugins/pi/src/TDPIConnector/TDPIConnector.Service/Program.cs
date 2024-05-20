@@ -4,11 +4,9 @@ using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
 using TDPIConnector.Core.ScanPiInfo;
-using System.Threading;
 using System.Reflection;
 using System.Linq;
 using System.Diagnostics;
-using log4net.Repository;
 
 namespace TDPIConnector.Service
 {

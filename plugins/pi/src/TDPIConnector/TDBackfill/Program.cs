@@ -141,17 +141,6 @@ namespace TDBackfill
 
                 try
                 {
-                    tdEngineProxy.VerifyLicenseCompability();
-                }
-                catch (Exception e)
-                {
-                    log.Fatal("TDengine verify failed!", e);
-                    return;
-                }
-
-                try
-
-                {
                     if (piServerManager != null)
                     {
                         piServerManager.Connect();

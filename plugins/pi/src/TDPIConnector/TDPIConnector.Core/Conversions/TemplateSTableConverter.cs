@@ -40,10 +40,10 @@ namespace TDPIConnector.Core.Conversions
     }
     internal class ElemenetTableConverter
     {
-        internal static string GetTDTableNameForElement(AFElementWrapper element) {
+        internal static string GetTDTableNameForElement(in AFElementWrapper element) {
             return TDEngineProxy.GetFullTableName(element.Name) + "_" + element.ID.ToString();
         }
-        internal static TDTable Convert(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns)
+        internal static TDTable Convert(in AFElementWrapper element, in string sTableName, ref IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
             var categoriesString = element.CategoriesString;
