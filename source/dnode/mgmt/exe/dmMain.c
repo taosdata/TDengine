@@ -205,11 +205,11 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       if(i < argc - 1) {
         int32_t len = strlen(argv[++i]);
         if (len < ENCRYPT_KEY_LEN_MIN) {
-          printf("encrypt key is too short, it should be great or equal to %d\n", ENCRYPT_KEY_LEN_MIN);
+          printf("Error: Encrypt key should be at least %d characters\n", ENCRYPT_KEY_LEN_MIN);
           return -1;
         }
         if (len > ENCRYPT_KEY_LEN) {
-          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPT_KEY_LEN);
+          printf("Error: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
           return -1;
         }
         tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
@@ -325,7 +325,7 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmParseArgs(argc, argv) != 0) {
-    printf("failed to start since parse args error\n");
+    //printf("failed to start since parse args error\n");
     taosCleanupArgs();
     return -1;
   }
@@ -380,7 +380,11 @@ int mainWindows(int argc, char **argv) {
 
   dmPrintArgs(argc, argv);
 
-  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
+  bool isDumpCfg = true;
+  if(global.generateCode) {
+    isDumpCfg = false;
+  }
+  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0, isDumpCfg) != 0) {
     dError("failed to start since read config error");
     taosCloseLog();
     taosCleanupArgs();

@@ -224,6 +224,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
 
     taosUpdateItemSize(qinfo.queue, 1);
   }
+  DestoryThreadLocalRegComp();
 
   return NULL;
 }

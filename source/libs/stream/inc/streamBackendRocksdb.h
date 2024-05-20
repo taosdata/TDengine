@@ -247,6 +247,7 @@ int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
+int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo);
 
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
 

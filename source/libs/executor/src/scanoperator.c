@@ -20,6 +20,7 @@
 #include "os.h"
 #include "querynodes.h"
 #include "systable.h"
+#include "streamexecutorInt.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -2426,10 +2427,13 @@ void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
   if (!pInfo->pState) {
     return;
   }
-  void* pBuf = NULL;
-  int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
-  pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
-  taosMemoryFree(pBuf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    void* pBuf = NULL;
+    int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
+    pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
+    taosMemoryFree(pBuf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 // other properties are recovered from the execution plan
@@ -2582,6 +2586,7 @@ FETCH_NEXT_BLOCK:
       case STREAM_NORMAL:
       case STREAM_GET_ALL:
         printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        setStreamOperatorState(&pInfo->basic, pBlock->info.type);
         return pBlock;
       case STREAM_RETRIEVE: {
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
@@ -2622,6 +2627,7 @@ FETCH_NEXT_BLOCK:
 
           if (pInfo->pDeleteDataRes->info.rows > 0) {
             printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
+            setStreamOperatorState(&pInfo->basic, pInfo->pDeleteDataRes->info.type);
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -2639,6 +2645,7 @@ FETCH_NEXT_BLOCK:
           if (pInfo->pDeleteDataRes->info.rows > 0) {
             pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
             printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result", GET_TASKID(pTaskInfo));
+            setStreamOperatorState(&pInfo->basic, pInfo->pDeleteDataRes->info.type);
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -2652,6 +2659,7 @@ FETCH_NEXT_BLOCK:
         break;
     }
     printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
     return pBlock;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
     qDebug("stream scan mode:%d, %s", pInfo->scanMode, id);
@@ -2659,6 +2667,7 @@ FETCH_NEXT_BLOCK:
       case STREAM_SCAN_FROM_RES: {
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
         doCheckUpdate(pInfo, pInfo->pRes->info.window.ekey, pInfo->pRes);
+        setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
         pInfo->pRes->info.dataLoad = 1;
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
@@ -2762,6 +2771,7 @@ FETCH_NEXT_BLOCK:
         }
 
         doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
+        setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 

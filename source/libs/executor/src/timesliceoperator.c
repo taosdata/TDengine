@@ -205,6 +205,11 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
   SRowKey cur = {.ts = currentTs, .numOfPKs = (pPkCol != NULL)? 1:0};
   if (pPkCol != NULL) {
     cur.pks[0].type = pPkCol->info.type;
+    if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
+      cur.pks[0].pData = (uint8_t*)colDataGetVarData(pPkCol, curIndex);
+    } else {
+      memcpy(&cur.pks[0].val, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
+    }
   }
 
   // let's discard the duplicated ts

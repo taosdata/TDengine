@@ -38,14 +38,18 @@ extern "C" {
     (_k)->ekey.ts = INT64_MIN; \
   } while (0);
 
-#define tRowGetKeyEx(_pRow, _pKey)                                \
-  do {                                                            \
-    if ((_pRow)->type == TSDBROW_ROW_FMT) {                       \
-      tRowGetKey((_pRow)->pTSRow, (_pKey));                       \
-    } else {                                                      \
-      tColRowGetKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey)); \
-    }                                                             \
-  } while (0)
+#define tRowGetKeyEx(_pRow, _pKey)                                         \
+  {                                                                        \
+    if ((_pRow)->type == TSDBROW_ROW_FMT) {                                \
+      (_pKey)->ts = (_pRow)->pTSRow->ts;                                   \
+      if ((_pRow)->pTSRow->numOfPKs > 0) {                                 \
+        tRowGetPrimaryKey((_pRow)->pTSRow, (_pKey));                       \
+      }                                                                    \
+    } else {                                                               \
+      (_pKey)->ts = (_pRow)->pBlockData->aTSKEY[(_pRow)->iRow];            \
+      tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey));   \
+    }                                                                      \
+  }
 
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,

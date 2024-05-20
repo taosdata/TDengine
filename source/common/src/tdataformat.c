@@ -1183,8 +1183,7 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
   }
 }
 
-void tRowGetKey(SRow *row, SRowKey *key) {
-  key->ts = row->ts;
+void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
   key->numOfPKs = row->numOfPKs;
 
   if (key->numOfPKs == 0) {
@@ -1283,10 +1282,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
 // NOTE:
 // set key->numOfPKs to 0 as the smallest key with ts
 // set key->numOfPKs to (TD_MAX_PK_COLS + 1) as the largest key with ts
-int32_t tRowKeyCompare(const void *p1, const void *p2) {
-  SRowKey *key1 = (SRowKey *)p1;
-  SRowKey *key2 = (SRowKey *)p2;
-
+FORCE_INLINE int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2) {
   if (key1->ts < key2->ts) {
     return -1;
   } else if (key1->ts > key2->ts) {
