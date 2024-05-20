@@ -44,7 +44,7 @@ impl OpcModelConfig {
         &self,
         index: usize,
         point_id: String,
-        point_type: Option<String>,
+        point_type: Option<IpcDataType>,
     ) -> anyhow::Result<PointConfig> {
         let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
             "super_table_expression and child_table_expression should be set before add points"
@@ -56,36 +56,28 @@ impl OpcModelConfig {
 
         let tbname = generate_tbname_from_pattern(&driver, &tbname_expr, point_id.as_str());
         let stable = generate_stable_from_pattern(&stable_expr, &point_type);
-        let value_type = point_type
-            .map(|t| {
-                IpcDataType::from_str(t.as_str())
-                    .map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
-            })
-            .transpose()?;
         let point_config = PointConfig {
             row_index: index,
             code: tbname,
             stable: Some(stable),
             tag_values: None,
-            value_type,
+            value_type: point_type,
         };
 
         Ok(point_config)
     }
 
-    pub fn build_table_config(&self, point_type: Option<String>) -> anyhow::Result<TableConfig> {
+    pub fn build_table_config(
+        &self,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<TableConfig> {
         let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
             "super_table_expression and child_table_expression should be set before add points"
         ))?;
 
         let primary_key = point_model_config.primary_key.clone();
         let primary_key_alias = point_model_config.primary_key_alias.clone();
-
-        let value_type = point_type
-            .map(|t| {
-                Ty::from_str(t.as_str()).map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
-            })
-            .transpose()?;
+        let value_type = point_type.map(|t| t.ty());
 
         let mut column_configs = vec![];
         column_configs.push(ColumnConfig {
@@ -142,13 +134,21 @@ impl OpcModelConfig {
             let point_id = p.id;
             let point_type = p.r#type;
 
+            let value_type = point_type
+                .map(|t| {
+                    IpcDataType::from_str(t.as_str()).map_err(|_err| {
+                        anyhow::anyhow!("failed to convert point type: {} to IpcDataType", t)
+                    })
+                })
+                .transpose()?;
+
             // point_config
             let point_config =
-                self.build_point_config(index, point_id.clone(), point_type.clone())?;
+                self.build_point_config(index, point_id.clone(), value_type.clone())?;
             self.point_config_map.insert(point_id.clone(), point_config);
 
             // table_config
-            let table_config = self.build_table_config(point_type.clone())?;
+            let table_config = self.build_table_config(value_type.clone())?;
             self.table_config_map.insert(point_id.clone(), table_config);
 
             index += 1;
