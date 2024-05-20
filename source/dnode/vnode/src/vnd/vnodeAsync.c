@@ -68,6 +68,11 @@ struct SVATask {
   struct SVATask *next;
 };
 
+typedef struct {
+  void (*cancel)(void *);
+  void *arg;
+} SVATaskCancelInfo;
+
 #define VATASK_PIORITY(task_) ((task_)->priority - ((task_)->priorScore / 4))
 
 // async channel
@@ -176,7 +181,7 @@ static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
   return 0;
 }
 
-static int32_t vnodeAsyncCancelAllTasks(SVAsync *async) {
+static int32_t vnodeAsyncCancelAllTasks(SVAsync *async, SArray *cancelArray) {
   while (async->queue[0].next != &async->queue[0] || async->queue[1].next != &async->queue[1] ||
          async->queue[2].next != &async->queue[2]) {
     for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
@@ -184,6 +189,12 @@ static int32_t vnodeAsyncCancelAllTasks(SVAsync *async) {
         SVATask *task = async->queue[i].next;
         task->prev->next = task->next;
         task->next->prev = task->prev;
+        if (task->cancel) {
+          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                         .cancel = task->cancel,
+                                         .arg = task->arg,
+                                     });
+        }
         vnodeAsyncTaskDone(async, task);
       }
     }
@@ -194,6 +205,7 @@ static int32_t vnodeAsyncCancelAllTasks(SVAsync *async) {
 static void *vnodeAsyncLoop(void *arg) {
   SVWorker *worker = (SVWorker *)arg;
   SVAsync  *async = worker->async;
+  SArray   *cancelArray = taosArrayInit(0, sizeof(SVATaskCancelInfo));
 
   setThreadName(async->label);
 
@@ -209,12 +221,12 @@ static void *vnodeAsyncLoop(void *arg) {
     for (;;) {
       if (async->stop || worker->workerId >= async->numWorkers) {
         if (async->stop) {  // cancel all tasks
-          vnodeAsyncCancelAllTasks(async);
+          vnodeAsyncCancelAllTasks(async, cancelArray);
         }
         worker->state = EVA_WORKER_STATE_STOP;
         async->numLaunchWorkers--;
         taosThreadMutexUnlock(&async->mutex);
-        return NULL;
+        goto _exit;
       }
 
       for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
@@ -259,6 +271,12 @@ static void *vnodeAsyncLoop(void *arg) {
     worker->runningTask->execute(worker->runningTask->arg);
   }
 
+_exit:
+  for (int32_t i = 0; i < taosArrayGetSize(cancelArray); i++) {
+    SVATaskCancelInfo *cancel = (SVATaskCancelInfo *)taosArrayGet(cancelArray, i);
+    cancel->cancel(cancel->arg);
+  }
+  taosArrayDestroy(cancelArray);
   return NULL;
 }
 
@@ -708,6 +726,10 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   SVAChannel  channel2 = {
        .channelId = channelID->id,
   };
+  SArray *cancelArray = taosArrayInit(0, sizeof(SVATaskCancelInfo));
+  if (cancelArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   taosThreadMutexLock(&async->mutex);
 
@@ -725,6 +747,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         SVATask *task = channel->queue[i].next;
         task->prev->next = task->next;
         task->next->prev = task->prev;
+        if (task->cancel) {
+          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                         .cancel = task->cancel,
+                                         .arg = task->arg,
+                                     });
+        }
         vnodeAsyncTaskDone(async, task);
       }
     }
@@ -734,6 +762,12 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
       if (channel->scheduled) {
         channel->scheduled->prev->next = channel->scheduled->next;
         channel->scheduled->next->prev = channel->scheduled->prev;
+        if (channel->scheduled->cancel) {
+          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                         .cancel = channel->scheduled->cancel,
+                                         .arg = channel->scheduled->arg,
+                                     });
+        }
         vnodeAsyncTaskDone(async, channel->scheduled);
       }
       taosMemoryFree(channel);
@@ -757,6 +791,10 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
   }
 
   taosThreadMutexUnlock(&async->mutex);
+  for (int32_t i = 0; i < taosArrayGetSize(cancelArray); i++) {
+    SVATaskCancelInfo *cancel = (SVATaskCancelInfo *)taosArrayGet(cancelArray, i);
+    cancel->cancel(cancel->arg);
+  }
 
   channelID->async = 0;
   channelID->id = 0;

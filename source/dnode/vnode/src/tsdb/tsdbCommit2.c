@@ -771,7 +771,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
 
     taosThreadMutexUnlock(&tsdb->mutex);
 
-    // unref memtable
+    tsdbCommitInfoDestroy(tsdb);
     tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
@@ -801,6 +801,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
     }
   }
   taosThreadMutexUnlock(&pTsdb->mutex);
+  tsdbCommitInfoDestroy(pTsdb);
 
 _exit:
   if (code) {
