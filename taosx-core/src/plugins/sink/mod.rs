@@ -280,7 +280,7 @@ async fn ipc_tcp_forward(
                 let rsp = res;
                 match rsp {
                     Ok(rsp) => {
-                        tracing::debug!("Response ok: {:?}", rsp);
+                        tracing::trace!("Response ok: {:?}", rsp);
                     }
                     Err(err) => match &err {
                         FlightError::Tonic(status) => {
