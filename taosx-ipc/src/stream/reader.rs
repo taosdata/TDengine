@@ -491,7 +491,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(512);
+        let (tx, rx) = flume::bounded(256);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
