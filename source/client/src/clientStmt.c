@@ -8,7 +8,11 @@
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
-void stmtDequeue(STscStmt* pStmt, SStmtAsyncParam **param) {
+void stmtDequeue(STscStmt* pStmt, SStmtQNode **param) {
+  while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
+    taosUsleep(1);
+  }
+
   SStmtQNode *orig = pStmt->queue.head;
 
   SStmtQNode *node = pStmt->queue.head->next;
@@ -16,33 +20,20 @@ void stmtDequeue(STscStmt* pStmt, SStmtAsyncParam **param) {
 
   taosMemoryFreeClear(orig);
 
-  *param = node->param;
+  *param = node;
+
+  atomic_sub_fetch_64(&pStmt->queue.qRemainNum, 1);
 }
 
-int32_t stmtEnqueue(STscStmt* pStmt, SStmtAsyncParam* param) {
-  SStmtQNode *node = taosMemoryCalloc(1, sizeof(SStmtQNode));
-  if (NULL == node) {
-    qError("calloc %d failed", (int32_t)sizeof(SStmtQNode));
-    taosMemoryFree(param);
-    STMT_RET(TSDB_CODE_OUT_OF_MEMORY);
-  }
+int32_t stmtEnqueue(STscStmt* pStmt, SStmtQNode* param) {
+  pStmt->queue.tail->next = param;
+  pStmt->queue.tail = param;
 
-  node->param = param;
-
-  //taosWLockLatch(&pStmt->queue.qlock);
-
-  if (pStmt->queue.stopQueue) {
-    taosMemoryFree(param);
-    taosWUnLockLatch(&pStmt->queue.qlock);
-    STMT_RET(-1);
-  }
-
-  pStmt->queue.tail->next = node;
-  pStmt->queue.tail = node;
-
-  //taosWUnLockLatch(&pStmt->queue.qlock);
-
-  tsem_post(&pStmt->queue.reqSem);
+  int64_t startUs = taosGetTimestampUs();
+  //tsem_post(&pStmt->queue.reqSem);
+  pStmt->stat.bindDataNum++;
+  atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+  pStmt->stat.bindDataUs2 += taosGetTimestampUs() - startUs;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -656,7 +647,7 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
 
 
 int32_t stmtAsyncOutput(void* param) {
-  SStmtAsyncParam* pParam = (SStmtAsyncParam*)param;
+  SStmtQNode* pParam = (SStmtQNode*)param;
   STscStmt* pStmt = pParam->pStmt;
 
   STMT_ERR_RET(qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pParam->pTbData, pStmt->exec.pCurrBlock, &pStmt->exec.smInfo));
@@ -675,20 +666,18 @@ void *stmtBindThreadFunc(void *param) {
   STscStmt* pStmt = (STscStmt*)param;
 
   while (true) {
-    if (tsem_wait(&pStmt->queue.reqSem)) {
-      qError("stmt tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
-    }
+    //if (tsem_wait(&pStmt->queue.reqSem)) {
+    //  qError("stmt tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    //}
 
-    if (atomic_load_8((int8_t *)&pStmt->queue.stopQueue)) {
-      break;
-    }
+    //if (atomic_load_8((int8_t *)&pStmt->queue.stopQueue)) {
+    //  break;
+    //}
 
-    SStmtAsyncParam *asyncParam = NULL;
+    SStmtQNode *asyncParam = NULL;
     stmtDequeue(pStmt, &asyncParam);
     
     stmtAsyncOutput(asyncParam);
-
-    taosMemoryFreeClear(asyncParam);
   }
 
   qInfo("stmt bind thread stopped");
@@ -1043,6 +1032,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
                             pStmt->bInfo.sBindRowNum);
   }
 
+  int64_t startUs2 = taosGetTimestampUs();
+
   if (pStmt->sql.staticMode) {
     if (NULL == pStmt->exec.smInfo.pVgroupHash) {
       pStmt->exec.smInfo.pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -1079,9 +1070,12 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     atomic_add_fetch_64(&pStmt->exec.smInfo.tbRemainNum, 1);
 
-    SStmtAsyncParam* param = taosMemoryCalloc(1, sizeof(SStmtAsyncParam));
+
+    SStmtQNode* param = taosMemoryCalloc(1, sizeof(SStmtQNode));
     param->pTbData = pTbData;
     param->pStmt = pStmt;
+
+    pStmt->stat.bindDataUs1 += taosGetTimestampUs() - startUs2;    
 
     stmtEnqueue(pStmt, param);
 /*    
@@ -1092,10 +1086,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     }
 */    
   }
-
-
-  int64_t startUs2 = taosGetTimestampUs();
-  pStmt->stat.bindDataUs += startUs2 - startUs;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1326,9 +1316,10 @@ int stmtClose(TAOS_STMT* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   STMT_FLOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64
-    ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ", addBatchUs:%" PRId64 ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64, 
-    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum,
-    pStmt->stat.setTbNameUs, pStmt->stat.bindDataUs, pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
+    ", pStmt->stat.bindDataNum=>%" PRId64
+    ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64 ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64, 
+    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, 
+    pStmt->stat.setTbNameUs, pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
 
   stmtCleanSQLInfo(pStmt);
   taosMemoryFree(stmt);

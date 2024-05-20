@@ -111,15 +111,18 @@ typedef struct SStmtStatInfo {
   int64_t ctgGetTbMetaNum;
   int64_t getCacheTbInfo;
   int64_t parseSqlNum;
+  int64_t bindDataNum;
   int64_t setTbNameUs;
-  int64_t bindDataUs;
+  int64_t bindDataUs1;
+  int64_t bindDataUs2;
   int64_t addBatchUs;
   int64_t execWaitUs;
   int64_t execUseUs;
 } SStmtStatInfo;
 
 typedef struct SStmtQNode {
-  SStmtAsyncParam*     param;
+  STableColsData      *pTbData;
+  void*                pStmt;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
