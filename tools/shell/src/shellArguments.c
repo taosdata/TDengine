@@ -434,10 +434,12 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "%s: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", TD_EDITION_NAME, version,
+           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-            "%s: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", TD_EDITION_NAME,
-           buildinfo);
+           "%s: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", TD_EDITION_NAME, version, compatible_version, gitinfo, buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
