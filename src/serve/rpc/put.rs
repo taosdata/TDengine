@@ -477,21 +477,40 @@ impl PutStream {
             .in_current_span(),
         );
         let cur_span = Span::current();
-
+        let notify_sender = self.notify_sender.clone();
+        let task_id = self.task_id;
         let stream = stream
             .then(move |message| {
+                let _ = cur_span.enter();
                 let metrics = metrics_arc.ipc();
-                let message = message.map(|message| {
-                    let app_metadata = message.app_metadata();
-                    let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
-                    cur_span.in_scope(|| {
+                let message = message
+                    .map(|message| {
+                        let app_metadata = message.app_metadata();
+                        let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
                         metrics.add_received_batches(1);
-                        tracing::info!("Receive batch {}", get_data_trace_id_str(trace_id));
+                        tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                        (message, app_metadata, trace_id, tx.clone())
+                    })
+                    .inspect_err(|err| {
+                        tracing::warn!(
+                            error.source = format!("{err:#}"),
+                            "Put stream message error"
+                        );
+                        if let Err(err) = notify_sender.send(
+                            crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                agent_id,
+                                TaskActivity::warn(task_id, format!("{err:#}")),
+                            ),
+                        ) {
+                            tracing::warn!(
+                                error.source = format!("{err:#}"),
+                                "Put stream message error"
+                            );
+                        }
                     });
-                    (message, app_metadata, trace_id, tx.clone())
-                });
                 async move {
-                    let (message, app_metadata, trace_id, tx) = message?;
+                    let (message, app_metadata, trace_id, tx) = message
+                        .map_err(|err| Status::cancelled(format!("IPC stream error: {:#}", err)))?;
                     Ok(match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
@@ -511,7 +530,10 @@ impl PutStream {
                                 PutResult { app_metadata }
                             }
                         }
-                        _ => PutResult { app_metadata },
+                        payload => {
+                            tracing::warn!(payload = ?payload, metadata = ?app_metadata, "Invalid IPC message");
+                            PutResult { app_metadata }
+                        },
                     })
                 }
             })
