@@ -2741,7 +2741,7 @@ int32_t tsDecompressTimestamp2(void *pIn, int32_t nIn, int32_t nEle, void *pOut,
 int32_t tsCompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                          int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && lossyFloat) {
+  if (l2 == L2_TSZ && lvl != 0 && lossyFloat) {
     return tsCompressFloatLossyImp(pIn, nEle, pOut);
   }
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_FLOAT, 1);
@@ -2760,7 +2760,7 @@ int32_t tsDecompressFloat2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 int32_t tsCompressDouble2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
   DEFINE_VAR(cmprAlg)
-  if (lvl != 0 && lossyDouble) {
+  if (l2 == L2_TSZ && lvl != 0 && lossyDouble) {
     // lossy mode
     return tsCompressDoubleLossyImp(pIn, nEle, pOut);
   }
