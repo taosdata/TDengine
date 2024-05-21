@@ -1,6 +1,5 @@
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
-use bigdecimal::num_traits::Float;
 use itertools::Itertools;
 
 /// Escape a string value for SQL.

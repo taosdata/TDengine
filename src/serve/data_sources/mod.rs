@@ -12,15 +12,21 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
-use tracing::instrument;
+use tracing::{instrument, Instrument, Span};
 use utoipa::*;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::{plugins::transform::sample::DsSampleIn, runners::pi::{parse_query_datasource_params, transform::{PIElementModelConfig, PIPointModelConfig}}};
 use taosx_core::{dsv::DataSourceValidation, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{
+    plugins::transform::sample::DsSampleIn,
+    runners::pi::{
+        parse_query_datasource_params,
+        transform::{PIElementModelConfig, PIPointModelConfig},
+    },
+};
 
 mod definition;
 mod query;
@@ -338,10 +344,10 @@ pub(super) async fn data_source_is_valid(
 
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
-
+    let span = Span::current();
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_datasource_valid_impl(controller, query),
+        is_datasource_valid_impl(controller, query).instrument(span),
     )
     .await;
     match result {
@@ -671,13 +677,13 @@ pub async fn get_pi_default_config(
 
         let req = QueryDataSourceReq {
             from: params.from.clone(),
-            args
+            args,
         };
         let pi_data =
             query::query_data_source(req, params.via, Some(controller.into_inner().as_ref()))
                 .await?;
         let config_data: String = match mode {
-            "-pp"=> {
+            "-pp" => {
                 let config = PIPointModelConfig::from_json(pi_data.as_str(), false).unwrap();
                 config.to_string()
             }
