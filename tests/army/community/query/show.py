@@ -118,6 +118,11 @@ class TDTestCase(TBase):
         tdSql.query(sql)
         tdSql.checkRows(5)
 
+        # verification for TD-30030
+        tdSql.execute("create table t200 (ts timestamp, c1 varchar(100))")
+
+        tdSql.error("show tags from t200", expectErrInfo="Tags can only applied to super table and child table")
+
     def checkShow(self):
         # not support
         sql = "show accounts;"
