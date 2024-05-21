@@ -119,7 +119,9 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 </TabItem>
 <TabItem label="Windows 安装" value="windows">
 
-注意：目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+注意：
+- 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+- Windows 上需要安装 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170), 如果已经安装此运行库可忽略。
 
 1. 从列表中下载获得 exe 安装程序；
    <PkgListV3 type={3}/>
