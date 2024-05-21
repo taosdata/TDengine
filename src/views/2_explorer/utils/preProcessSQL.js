@@ -20,7 +20,8 @@ function replaceMoreSnt(str) {
 // 去除字符串尾部的分号, 和去除分号后的空格
 function removeComma(str) {
   if (str && /\s*;\s*/.test(str)) {
-    return str.split(/\s*;\s*/)[0];
+    // return str.split(/\s*;\s*/)[0];
+    return str.split(/;(?=(?:(?:[^'"]*['"]){2})*[^'"]*$)/)[0]
   } else {
     return str;
   }
