@@ -207,40 +207,40 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
         public void addTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
-            lock (stLock)
+            foreach (var table in tables)
             {
-                foreach (var table in tables)
+                foreach (var row in table.Value)
                 {
-                    foreach (var row in table.Value)
+                    Dictionary<string, string> valDic = new Dictionary<string, string> { };
+                    Dictionary<string, int> statusDic = new Dictionary<string, int> { };
+                    if (row.Value.Count == 0) continue;
+                    DateTime ts = new DateTime();
+                    foreach (var value in row.Value)
                     {
-                        Dictionary<string, string> valDic = new Dictionary<string, string> { };
-                        Dictionary<string, int> statusDic = new Dictionary<string, int> { };
-                        if (row.Value.Count == 0) continue;
-                        DateTime ts = new DateTime();
-                        foreach (var value in row.Value)
+                        string columnName = value.Name.ToTDEngineNamingPattern();
+                        ts = value.Timestamp;
+                        var colValName = TDEngineTableFormat.AFValColomn(columnName);
+                        if (valDic.ContainsKey(colValName))
                         {
-                            string columnName = value.Name.ToTDEngineNamingPattern();
-                            ts = value.Timestamp;
-                            var colValName = TDEngineTableFormat.AFValColomn(columnName);
-                            if (valDic.ContainsKey(colValName))
+                            if (valDic[colValName] != value.ValueString)
                             {
-                                if (valDic[colValName] != value.ValueString)
-                                {
-                                    log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
-                                }
-                                continue;
+                                log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
                             }
-                            if (value.Quality == 0)
-                            {
-                                valDic.Add(colValName, value.ValueString);
-                                statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), 0);
-                            }
-                            else
-                            {
-                                valDic.Add(colValName, null);
-                                statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), value.Quality);
-                            }
+                            continue;
                         }
+                        if (value.Quality == 0)
+                        {
+                            valDic.Add(colValName, value.ValueString);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), 0);
+                        }
+                        else
+                        {
+                            valDic.Add(colValName, null);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), value.Quality);
+                        }
+                    }
+                    lock (stLock)
+                    {
                         builder.tableUniqKeyArrowArray.Append(table.Key);
                         builder.tsArrowArray.Append(ts);
                         foreach (var objRow in builder.valArrowArrayList)

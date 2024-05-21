@@ -123,21 +123,29 @@ namespace TDPIConnector.Core
                 {
                     while (true)
                     {
-                        var task = elemmentBackfillManager.GetNextTask();
-                        if (task != null)
+                        try
                         {
-                            var element = piSystemManager.GetElementsById(AppSettings.tomlConfig.AFDatabaseName,task.elementID);
-                            if (element != null) {
-                                BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
-                                elemmentBackfillManager.FinishedOne(element);
+                            var task = elemmentBackfillManager.GetNextTask();
+                            if (task != null)
+                            {
+                                var element = piSystemManager.GetElementsById(AppSettings.tomlConfig.AFDatabaseName, task.elementID);
+                                if (element != null)
+                                {
+                                    BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
+                                    elemmentBackfillManager.FinishedOne(element);
+                                }
+                            }
+                            else
+                            {
+                                if (stopAddNewTask)
+                                {
+                                    return;
+                                }
+                                Thread.Sleep(1000);
                             }
                         }
-                        else
-                        {
-                            if (stopAddNewTask) {
-                                return;
-                            }
-                            Thread.Sleep(1000);
+                        catch (Exception e) {
+                            log.Error($"Exception in backfill task: {e.Message}");
                         }
                     }
                 }));
@@ -301,6 +309,15 @@ namespace TDPIConnector.Core
                     attributes.Add(attribute);
                 }
             }
+            string superTableName;
+            if (!element.hasTemplate())
+            {
+                superTableName = TableNameConvert.GetSingleElementSuperTableName(element);
+            }
+            else
+            {
+                superTableName = TableNameConvert.GetAFPointSuperTableName(element.Template);
+            }
 
             var currentStart = startTime;
             do
@@ -324,18 +341,12 @@ namespace TDPIConnector.Core
                             log.Debug($"element tag {element.Name}: {attribute.Name}:{valuestring}");
                             continue;
                         }
-                        string superTableName;
-                        if (!attribute.Element.hasTemplate()) {
-                            superTableName = TableNameConvert.GetSingleElementSuperTableName(element);
-                        } else {
-                            superTableName = TableNameConvert.GetAFPointSuperTableName(attribute.Element.Template);
-                        }
+
                         ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
                         var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
                         stables.Add(superTableName, tables);
                         this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-                        log.Debug($"Backfill TDEngine attribute {element.Name}\\{attribute.Name}, {values.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
-                 
+
                         if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime
                             && values[values.Count - 1].AFSDKObject.IsGood == true)
                         {

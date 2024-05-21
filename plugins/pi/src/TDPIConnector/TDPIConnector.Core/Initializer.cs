@@ -92,18 +92,23 @@ namespace TDPIConnector.Core
                 int groupIndex = i;
                 tasks.Add(Task.Run(async () =>
                 {
-                    Stopwatch stopwatch = new Stopwatch();
-                    for (int j = groupIndex; j < chunks.Count(); j += groups)
-                    {
-                        stopwatch.Reset();
-                        stopwatch.Start();
-                        var elementChunk = chunks[j];
-                        InitTaskForElements(ref tdDatabaseName, ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
-                        Interlocked.Add(ref finishedCount, elementChunk.Count);
-                        stopwatch.Stop();
-                        TimeSpan elapsed = stopwatch.Elapsed;
-                        log.Info($"Start(Init) info: {Interlocked.Read(ref finishedCount)}/{elements.Count()}" +
-                            $" elements in template:{elementTemplate.Name} group:{groupIndex} cost time:{elapsed.TotalSeconds} seconds.");
+                    try {
+                        Stopwatch stopwatch = new Stopwatch();
+                        for (int j = groupIndex; j < chunks.Count(); j += groups)
+                        {
+                            stopwatch.Reset();
+                            stopwatch.Start();
+                            var elementChunk = chunks[j];
+                            InitTaskForElements(ref tdDatabaseName, ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
+                            Interlocked.Add(ref finishedCount, elementChunk.Count);
+                            stopwatch.Stop();
+                            TimeSpan elapsed = stopwatch.Elapsed;
+                            log.Info($"Start(Init) info: {Interlocked.Read(ref finishedCount)}/{elements.Count()}" +
+                                $" elements in template:{elementTemplate.Name} group:{groupIndex} cost time:{elapsed.TotalSeconds} seconds.");
+                        }
+                    }
+                    catch (Exception e) {
+                        log.Error($"InitTaskForElements Exception: {e.Message}");
                     }
                 }));
             }
@@ -154,6 +159,9 @@ namespace TDPIConnector.Core
                     {
                         await InitTaskForElementTemplate(tdDatabaseName, elementTemplate);
                         log.Info($"template {elementTemplate.Name} Init finished.");
+                    }
+                    catch (Exception e) {
+                        log.Error($"InitTaskForElementTemplate Excepiton : {e.Message}");
                     }
                     finally
                     {
