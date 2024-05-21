@@ -1,3 +1,4 @@
+use std::cmp;
 use std::{
     any::Any,
     cell::Cell,
@@ -1606,7 +1607,7 @@ async fn consume_point_record(
             let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
 
             let mut value_column_name = "value";
-            let mut value_column_length = 128;
+            let mut value_column_length = 0;
             let mut values = String::new();
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &point_insertion.columns {
@@ -1649,7 +1650,7 @@ async fn consume_point_record(
                         .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
                     value_column_name = temp_alias;
-                    value_column_length = value_column.len();
+                    value_column_length = cmp::max(value_column.len(), value_column_length);
                 } else if temp_name == "quality" {
                     values.push_str(
                         format!(
@@ -1773,6 +1774,7 @@ async fn consume_point_record(
                 });
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
+                // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
                 let sql_vec = sql_vec.unwrap();
 
                 for index in 0..sql_vec.len() {
@@ -1789,7 +1791,7 @@ async fn consume_point_record(
                             sql_insertion.overflow = true;
                             continue;
                         } else {
-                            // 不同点位入宽表的情况，需要合并column_configs
+                            // 不同点位入同一张表的情况，需要合并column_configs
                             let exist_column_configs =
                                 &mut sql_insertion.point_insertion.column_configs;
                             let column_configs = &table_config.column_configs;
@@ -1798,6 +1800,11 @@ async fn consume_point_record(
                                     exist_column_configs.push(column_config.clone());
                                 }
                             }
+                            // 需要更新 modify.value_column_length
+                            let exist_value_column_length =
+                                sql_insertion.modify.value_column_length;
+                            sql_insertion.modify.value_column_length =
+                                cmp::max(exist_value_column_length, value_column_length);
 
                             sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
@@ -2200,6 +2207,8 @@ async fn consume_point_record(
                                             )?;
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
                                 retry += 1;
