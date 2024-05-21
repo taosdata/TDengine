@@ -1629,6 +1629,14 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
 
+  // input idle
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetNULL(pColInfo, numOfRows);
+
+  // dispatch data
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetNULL(pColInfo, numOfRows);
+
   // output queue
   //          sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
   //        STR_TO_VARSTR(vbuf, buf);
@@ -1678,6 +1686,10 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   // checkpoint version
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   colDataSetVal(pColInfo, numOfRows, (const char*)&pe->checkpointInfo.latestVer, false);
+
+  // checkpoint size
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetNULL(pColInfo, numOfRows);
 
   // checkpoint backup status
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
