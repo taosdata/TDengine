@@ -273,7 +273,7 @@ impl PIElementModelConfig {
     /// * `element_data` - 从 PI 连接返回的元素数据
     pub fn from_json(element_data: &str) -> anyhow::Result<Self> {
         let element_data: serde_json::Value = serde_json::from_str(element_data)?;
-        let mut super_tables = Self::parse_super_tables(&element_data)?;
+        let super_tables = Self::parse_super_tables(&element_data)?;
         // let mut elements: Vec<ElementRow> = Self::parse_elements(&element_data)?;
         // Self::append_single_elements(&mut super_tables, &mut elements, &element_data);
         Ok(PIElementModelConfig {

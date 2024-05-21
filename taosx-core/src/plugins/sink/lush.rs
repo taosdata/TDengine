@@ -392,13 +392,13 @@ pub async fn write_transformed_records_with_sql(
                 Err(err) => match err {
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::debug!(sql = stable_sql, "Create stable");
+                            tracing::info!("Create stable sql={stable_sql}");
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
                                 .await?;
                         }
                         for m in &messages {
                             let sql = m.table_sql();
-                            tracing::info!(sql = sql, "Create table");
+                            tracing::info!("Create table sql={sql}");
                             for _ in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)

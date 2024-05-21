@@ -22,7 +22,7 @@ use std::{
 };
 use taos::IntoDsn;
 use taosx_core::{
-    get_data_dir, runners::pi::config::PiConfig, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
+    get_data_dir, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
 };
 #[cfg(unix)]
 use tokio::net::UnixListener;

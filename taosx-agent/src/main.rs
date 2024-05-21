@@ -386,7 +386,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         ret = Err(err);
                         break;
                     } else {
-                        tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
+                        tracing::error!("Connection closed. Retry in 5 seconds");
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
                             ret = Err(err);

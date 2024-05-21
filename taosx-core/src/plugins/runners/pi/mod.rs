@@ -13,6 +13,7 @@ use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
+use crate::utils::log_cache::LogCache;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
@@ -65,10 +66,10 @@ pub async fn pi_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!("Start {} task", from.driver);
-    #[cfg(not(target_os = "windows"))]
-    {
-        anyhow::bail!("PI connector support only windows platform");
-    }
+    // #[cfg(not(target_os = "windows"))]
+    // {
+    //     anyhow::bail!("PI connector support only windows platform");
+    // }
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
     let target_pool_for_ipc = target_pool.clone();
@@ -237,6 +238,8 @@ pub async fn pi_to_taos(
         .take()
         .expect("Failed to capture stderr");
     let log_task_id = task_id.unwrap_or_default();
+    let pi_log_cache = LogCache::new(100);
+    let pi_log_cache_clone = pi_log_cache.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -248,6 +251,7 @@ pub async fn pi_to_taos(
                 break; // End of stream, exit the loop
             }
             // Write the line to log_rotation
+            pi_log_cache_clone.push(line.clone());
             write!(log_rotation, "[task:{}]{}", log_task_id, line).unwrap();
             line.clear();
         }
@@ -307,14 +311,14 @@ pub async fn pi_to_taos(
                 tracing::info!("PI connector exit with {}", status);
                 if !status.success() {
                     safe_exit!();
-                    anyhow::bail!("PI connector exit with {}", status);
+                    anyhow::bail!("PI connector exit with {}. PI Logs:\n{}", status, pi_log_cache.get());
                 }
             },
             err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
                     safe_exit!(wait);
-                    anyhow::bail!("PI writer error: {err}");
+                    anyhow::bail!("PI writer error: {err}. PI Logs:\n{}", pi_log_cache.get());
                 }
             },
             _ = cancel.cancelled() => {
