@@ -892,6 +892,7 @@ pub struct ElementRow {
     pub path: Option<String>,
 }
 
+#[cfg(test)]
 impl ElementRow {
     fn from_csv(csv: String) -> anyhow::Result<Self> {
         let parts = csv.split(',').collect::<Vec<&str>>();
@@ -953,8 +954,6 @@ mod tests {
             println!("{}", part);
         }
     }
-
-    #[test]
     fn test_parse_point_data() {
         let config = PIPointModelConfig::from_json(POINT_DATA, true).unwrap();
         std::fs::write("point_model.csv", config.to_string()).unwrap();
@@ -962,7 +961,6 @@ mod tests {
         println!("{}", config.to_csv());
     }
 
-    #[test]
     fn test_parse_element_data() {
         let config = PIElementModelConfig::from_json(ELEMENT_DATA);
         std::fs::write("element_model.csv", config.unwrap().to_string()).unwrap();
@@ -972,6 +970,9 @@ mod tests {
 
     #[test]
     fn test_from_csv() {
+        test_parse_point_data();
+        test_parse_element_data();
+
         let config = PIPointModelConfig::from_csv("point_model.csv").unwrap();
         let config: LushModelConfig = config.into();
         println!("{:?}", config);
