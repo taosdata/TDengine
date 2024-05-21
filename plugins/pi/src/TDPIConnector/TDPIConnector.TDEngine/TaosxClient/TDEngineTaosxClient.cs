@@ -120,36 +120,47 @@ namespace TDPIConnector.TDEngine.TaosxClient
             reader = new ArrowStreamReader(stream);
             while (!stopTaosxSend)
             {
-                RecordBatch msg = reader.ReadNextRecordBatch();
-                if (msg != null)
+                try
                 {
-                    if (msg.ColumnCount > 0) {
-                        IArrowArray array = msg.Column(0);
-                        switch (array)
+                    RecordBatch msg = reader.ReadNextRecordBatch();
+                    if (msg != null)
+                    {
+                        if (msg.ColumnCount > 0)
                         {
-                            case Int32Array int32Array:
-                                if (int32Array.Length > 0) {
-                                    int? nullableValue = int32Array.GetValue(0);
-                                    if (nullableValue.HasValue) {
-                                        int code = nullableValue.Value;
-                                        if (code == 0)
+                            IArrowArray array = msg.Column(0);
+                            switch (array)
+                            {
+                                case Int32Array int32Array:
+                                    if (int32Array.Length > 0)
+                                    {
+                                        int? nullableValue = int32Array.GetValue(0);
+                                        if (nullableValue.HasValue)
                                         {
-                                            Interlocked.Increment(ref actualQueueBufferSize);
+                                            int code = nullableValue.Value;
+                                            if (code == 0)
+                                            {
+                                                Interlocked.Increment(ref actualQueueBufferSize);
+                                            }
                                         }
+                                        log.Debug($"arrow response: code:{nullableValue}");
                                     }
-                                    log.Debug($"arrow response: code:{nullableValue}");
-                                }
-                                break;
-                            default:
-                                log.Info($"Unsupported arrow response array type.{array.GetType()}");
-                                break;
+                                    break;
+                                default:
+                                    log.Info($"Unsupported arrow response array type.{array.GetType()}");
+                                    break;
+                            }
                         }
-                    }
 
-                    msg.Dispose();
+                        msg.Dispose();
+                    }
+                    else
+                    {
+                        log.Debug($"no response!");
+                        Thread.Sleep(500);
+                    }
                 }
-                else {
-                    log.Debug($"no response!");
+                catch (Exception e) {
+                    log.Debug($"Exception: Arrow response handle! {e.Message}");
                     Thread.Sleep(500);
                 }
             }
@@ -166,10 +177,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     }
                     catch (Exception e)
                     {
-                        log.Error($"Send data to taosx failed! {e.ToString()}");
+                        log.Error($"Send data to taosx failed! {e.Message}");
                         Thread.Sleep(1000);
                     }
-                    Thread.Sleep(10);
+                    Thread.Sleep(1000);
                 }
                 else
                 {
@@ -265,11 +276,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                 objRow.Value.Append(null);
                             }
                         }
+                        if (builder.tsArrowArray.Length > maxWaitLength)
+                        {
+                            send();
+                        }
                     }
-                }
-                if (builder.tsArrowArray.Length > maxWaitLength)
-                {
-                    send();
                 }
             }
         }
