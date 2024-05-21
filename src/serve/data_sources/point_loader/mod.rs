@@ -10,10 +10,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use taos::IntoDsn;
-use taosx_core::plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig};
 use tempfile::TempPath;
 use tokio::sync::RwLock;
-use tracing::instrument;
 use utoipa::*;
 
 use taosx_core::{list_datasets_from, DataSetsReq};

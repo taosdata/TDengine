@@ -1,29 +1,34 @@
 //！ 缓存连接器最后 n 行日志
+use std::cell::RefCell;
 use std::collections::LinkedList;
+use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub struct LogCache {
-    capacity: usize,
-    inner: LinkedList<String>,
+    cache: Arc<RefCell<LinkedList<String>>>,
+    max_size: usize,
 }
 
 impl LogCache {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            capacity,
-            inner: LinkedList::new(),
+    pub fn new(max_size: usize) -> Self {
+        LogCache {
+            cache: Arc::new(RefCell::new(LinkedList::new())),
+            max_size,
         }
     }
 
-    pub fn push(&mut self, log: String) {
-        if self.inner.len() >= self.capacity {
-            self.inner.pop_front();
+    pub fn push(&self, log: String) {
+        let mut cache = self.cache.borrow_mut();
+        cache.push_back(log);
+        if cache.len() > self.max_size {
+            cache.pop_front();
         }
-        self.inner.push_back(log);
     }
 
     pub fn get(self) -> String {
-        self.inner
-            .iter()
-            .fold(String::new(), |acc, x| acc + x.as_str())
+        let cache = self.cache.borrow();
+        cache.iter().fold(String::new(), |acc, x| acc + x.as_str())
     }
 }
+
+unsafe impl std::marker::Send for LogCache {}

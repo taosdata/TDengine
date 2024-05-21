@@ -1,6 +1,5 @@
 use anyhow::Context;
 use lazy_static::lazy_static;
-use log::warn;
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
 use thiserror::Error;
 
