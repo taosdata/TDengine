@@ -189,7 +189,6 @@ typedef struct {
   SArray*       pRpcArray;
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
-  TdThreadMutex mutex;
 } STrans;
 
 typedef struct {
