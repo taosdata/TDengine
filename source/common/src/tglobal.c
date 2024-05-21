@@ -624,7 +624,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
-  tsNumOfSupportVnodes = tsNumOfCores * 2;
+  tsNumOfSupportVnodes = tsNumOfCores * 2 + 5;
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
   if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
@@ -878,7 +878,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "supportVnodes");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfSupportVnodes = numOfCores * 2;
+    tsNumOfSupportVnodes = numOfCores * 2 + 5;
     tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
     pItem->i32 = tsNumOfSupportVnodes;
     pItem->stype = stype;
