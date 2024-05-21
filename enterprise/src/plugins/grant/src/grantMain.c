@@ -151,8 +151,8 @@
 #endif
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
 #define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_SUCCESS)
-#define GRANT_EXPIRED_B_G(expb, expg, errg) \
-  ((expb) ? TSDB_CODE_GRANT_BASIC_EXPIRED : ((expg) ? (errg) : TSDB_CODE_SUCCESS))
+#define GRANT_EXPIRED_OPT(expbasic, expopt, erropt) \
+  ((expbasic) ? TSDB_CODE_GRANT_BASIC_EXPIRED : ((expopt) ? (erropt) : TSDB_CODE_SUCCESS))
 #define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0))
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
@@ -1719,17 +1719,17 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_VIEW:
       return grantCheckViews(true, DEBUG_ERROR);
     case TSDB_GRANT_AUDIT:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.auditExpired, TSDB_CODE_GRANT_VIEW_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.auditExpired, TSDB_CODE_GRANT_AUDIT_EXPIRED);
     case TSDB_GRANT_CSV:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.csvExpired, TSDB_CODE_GRANT_VIEW_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.csvExpired, TSDB_CODE_GRANT_CSV_EXPIRED);
     case TSDB_GRANT_MULTI_TIER:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.multiTierExpired, TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.multiTierExpired, TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED);
     case TSDB_GRANT_OBJECT_STORAGE:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.objectStorageExpired, TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.objectStorageExpired, TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED);
     case TSDB_GRANT_DUAL_REPLICA_HA:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.dualReplicaHAExpired, TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dualReplicaHAExpired, TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED);
     case TSDB_GRANT_DB_ENCRYPTION:
-      return GRANT_EXPIRED_B_G(gStatus.expired, gStatus.dbEncryptionExpired, TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dbEncryptionExpired, TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED);
     default:
       break;
   }
