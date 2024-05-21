@@ -14,6 +14,7 @@ pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod trace;
+pub mod log_cache;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {
