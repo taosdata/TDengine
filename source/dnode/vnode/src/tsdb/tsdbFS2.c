@@ -1056,6 +1056,7 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
         break;
       }
     }
+    tsdbInfo("vgId:%d begin task on file set:%d", TD_VID(tsdb->pVnode), fid);
   }
 
   return 0;
@@ -1066,9 +1067,12 @@ int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
   if (sttTrigger == 1) {
     STFileSet *fset = NULL;
     tsdbFSGetFSet(tsdb->pFS, fid, &fset);
-    if (fset != NULL && fset->taskRunning && fset->numWaitTask > 0) {
+    if (fset != NULL && fset->taskRunning) {
       fset->taskRunning = false;
-      taosThreadCondSignal(&fset->beginTask);
+      if (fset->numWaitTask > 0) {
+        taosThreadCondSignal(&fset->beginTask);
+      }
+      tsdbInfo("vgId:%d finish task on file set:%d", TD_VID(tsdb->pVnode), fid);
     }
   }
 
