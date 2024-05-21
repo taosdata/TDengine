@@ -103,6 +103,9 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
+    if (pTableName->n == 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "invalid table name");
+    }
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
@@ -111,6 +114,8 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
+    if (name[0] == '\0')
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
 
     code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
