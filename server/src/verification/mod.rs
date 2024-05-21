@@ -1,6 +1,7 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
 use lazy_static::lazy_static;
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
@@ -139,7 +140,7 @@ pub async fn send_verification_code_with_cloud_open_api(
     let json_body = serde_json::to_string(&body)?;
     log::debug!("json_body: {}", json_body);
 
-    let response = post_json_data(url, json_body, string_to_sign)
+    let response = request_cloud(url, Method::POST, json_body, string_to_sign)
         .await?
         .json::<ResponseCloudOpenApi>()
         .await?;
@@ -147,8 +148,9 @@ pub async fn send_verification_code_with_cloud_open_api(
     Ok(response.code)
 }
 
-async fn post_json_data(
+async fn request_cloud(
     url: String,
+    method: Method,
     json_body: String,
     params_to_sign: String,
 ) -> anyhow::Result<reqwest::Response> {
@@ -170,7 +172,7 @@ async fn post_json_data(
         .build()?;
 
     let response = http_client
-        .post(url)
+        .request(method, &url)
         .header(
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),
@@ -197,7 +199,7 @@ fn get_explore_version() -> String {
     //     }
     // }
     // version
-    "1.6.0".to_string()
+    "1.6.1".to_string()
 }
 
 #[derive(Serialize, Debug)]
@@ -205,6 +207,7 @@ struct RequestBodyReportVerificationStatus {
     phone: String,
     email: String,
     code: String,
+    name: String,
     #[serde(rename = "taosdVersion")]
     taosd_version: String,
     #[serde(rename = "explorerVersion")]
@@ -217,7 +220,7 @@ pub async fn report_verification_status_to_cloud(
     phone_email: &str,
     code: &str,
     lang: &str,
-    taosd_version: &str,
+    name: &str,
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
@@ -231,8 +234,8 @@ pub async fn report_verification_status_to_cloud(
 
     let explorer_version = get_explore_version();
     let string_to_sign = format!(
-        "code={}&email={}&explorerVersion={}&phone={}&taosdVersion={}",
-        code, email, explorer_version, phone, taosd_version
+        "code={}&email={}&explorerVersion={}&name={}&phone={}&taosdVersion=",
+        code, email, explorer_version, name, phone
     );
     log::debug!("string_to_sign: {}", string_to_sign);
 
@@ -240,13 +243,69 @@ pub async fn report_verification_status_to_cloud(
         phone: phone.to_string(),
         email: email.to_string(),
         code: code.to_string(),
-        taosd_version: taosd_version.to_string(),
+        name: name.to_string(),
+        taosd_version: "".to_string(),
         explorer_version,
     };
     let json_body = serde_json::to_string(&body)?;
     log::debug!("json_body: {}", json_body);
 
-    let response = post_json_data(url, json_body, string_to_sign)
+    let response = request_cloud(url, Method::POST, json_body, string_to_sign)
+        .await?
+        .json::<ResponseCloudOpenApi>()
+        .await?;
+    log::debug!(
+        "report_verification_status_to_cloud success: {}",
+        response.code
+    );
+
+    Ok(response.code)
+}
+
+#[derive(Serialize, Debug)]
+struct RequestBodyTaosdInfo {
+    phone: String,
+    email: String,
+    #[serde(rename = "taosdVersion")]
+    taosd_version: String,
+    #[serde(rename = "instanceId")]
+    cluster_id: String,
+}
+
+// 上报连接的 taosd 信息到云端
+pub async fn report_taosd_info_to_cloud(
+    url_config: Option<String>,
+    phone_email: &str,
+    lang: &str,
+    cluster_id: &str,
+    taosd_version: &str,
+) -> anyhow::Result<u32> {
+    let mut phone = "";
+    let mut email = "";
+    match phone_email.find("@") {
+        Some(_) => email = phone_email,
+        None => phone = phone_email,
+    }
+
+    let mut url = get_url_prefix(url_config, lang);
+    url.push_str("/trial/verification-result");
+
+    let string_to_sign = format!(
+        "email={}&instanceId={}&phone={}&taosdVersion={}",
+        email, cluster_id, phone, taosd_version
+    );
+    log::debug!("string_to_sign: {}", string_to_sign);
+
+    let body = RequestBodyTaosdInfo {
+        phone: phone.to_string(),
+        email: email.to_string(),
+        taosd_version: taosd_version.to_string(),
+        cluster_id: cluster_id.to_string(),
+    };
+    let json_body = serde_json::to_string(&body)?;
+    log::debug!("json_body: {}", json_body);
+
+    let response = request_cloud(url, Method::PUT, json_body, string_to_sign)
         .await?
         .json::<ResponseCloudOpenApi>()
         .await?;
