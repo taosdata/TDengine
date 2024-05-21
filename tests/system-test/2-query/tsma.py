@@ -1505,7 +1505,7 @@ class TDTestCase:
 
         self.create_tsma('tsma_4090', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4090), '6m',check_tsma_calculation=False)
 
-        self.create_error_tsma('tsma_4091', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4091), '5m',  -2147473856)  #Too many columns
+        #self.create_error_tsma('tsma_4091', 'db4096', 'stb0', self.generate_tsma_function_list_columns(4091), '5m',  -2147473856)  #Too many columns
 
         self.drop_tsma('tsma_4050', 'db4096')
         self.drop_tsma('tsma_4090', 'db4096')

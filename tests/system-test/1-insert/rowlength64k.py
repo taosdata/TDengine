@@ -603,12 +603,14 @@ class TDTestCase:
             sql += "binary_%d binary(40), " % (i + 1) #290*(40+2)=12180 sum=65188
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1) #4*8=32   sum=65220
-        sql += "col4095 binary(309))"       #309+2=311 sum=65531
+        #sql += "col4095 binary(309))"       #309+2=311 sum=65531
+        sql += "col4095 binary(196917))"       #309+2=311 sum=65531
         tdSql.execute(sql)
         tdSql.query("select * from db.regular_table_5")
         tdSql.checkCols(4096)
         
-        sql = "alter table db.regular_table_5 modify column col4095 binary(310); "
+        #sql = "alter table db.regular_table_5 modify column col4095 binary(310); "
+        sql = "alter table db.regular_table_5 modify column col4095 binary(196918); "
         tdSql.error(sql)    
 
         self.ins_query() 
@@ -619,9 +621,11 @@ class TDTestCase:
         sql = "select * from db.regular_table_5; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table db.regular_table_5 add column col4095 binary(310); "
+        #sql = "alter table db.regular_table_5 add column col4095 binary(310); "
+        sql = "alter table db.regular_table_5 add column col4095 binary(196918); "
         tdSql.error(sql) 
-        sql = "alter table db.regular_table_5 add column col4095 binary(309); "
+        #sql = "alter table db.regular_table_5 add column col4095 binary(309); "
+        sql = "alter table db.regular_table_5 add column col4095 binary(196917); "
         tdSql.execute(sql)
         sql = "select * from db.regular_table_5; "
         tdSql.query(sql)
@@ -650,7 +654,8 @@ class TDTestCase:
             sql += "binary_%d binary(40), " % (i + 1)
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1)
-        sql += "col4095 binary(310))"  
+        #sql += "col4095 binary(310))"
+        sql += "col4095 binary(196918))"
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
