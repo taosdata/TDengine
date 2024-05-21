@@ -74,6 +74,14 @@ namespace TDPIConnector.Core
                     log.Debug($"element range delete event {elementTbName}:{attributeName} {startTime.LocalTime}-{endTime.LocalTime}");
                     continue;
                 }
+                if (dpEvent.Value.Attribute.IsChild())
+                {
+                    tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(dpEvent.Value.Attribute.Parent, dpEvent.Value.Attribute);
+                }
+                else
+                {
+                    tdValue.Name = dpEvent.Value.Attribute.Name;
+                }
                 if (dpEvent.Value.Attribute.IsTDengineTag())
                 {
                     if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update ||
@@ -81,7 +89,7 @@ namespace TDPIConnector.Core
                     {
                         var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
                         log.Info($"element tag change {elementTbName}:{attributeName}:{valueString}");
-                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, attributeName, valueString.Trim()).Wait();
+                        this.tdEngineProxy.ChangeTagValueForAFElements(AppSettings.tomlConfig.TDDataBase, elementTbName, tdValue.Name, valueString.Trim()).Wait();
                     }
                     continue;
                 }
@@ -100,12 +108,6 @@ namespace TDPIConnector.Core
                 if (!columnNames.Contains(attributeName))
                 {
                     columnNames.Add(attributeName);
-                }
-
-                if (dpEvent.Value.Attribute.IsChild()) {
-                    tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(dpEvent.Value.Attribute.Parent, dpEvent.Value.Attribute);
-                } else {
-                    tdValue.Name = dpEvent.Value.Attribute.Name;
                 }
 
                 if (stables.ContainsKey(stableName))
