@@ -14,8 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndUser.h"
+
+// clang-format off
 #include <uv.h>
+#include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
@@ -24,6 +26,8 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
+
+// clang-format on
 
 #define USER_VER_NUMBER   5
 #define USER_RESERVE_SIZE 64
