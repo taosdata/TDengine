@@ -108,9 +108,9 @@ datasets:
             type: str
         - name: child_table_expression
           display: Table Name
-          value: t_{tagname}
+          value: t_{tag_name}
           description: |
-            Support <child table prefix>_{tagname} pattern, {tagname} is the name of the OPC point.
+            Support <child table prefix>_{tag_name} pattern, {tag_name} is the name of the OPC point.
           required: true
           hint:
             type: str
