@@ -6168,6 +6168,7 @@ static const char* jkAlterUserStmtAlterType = "AlterType";
 static const char* jkAlterUserStmtPassword = "Password";
 static const char* jkAlterUserStmtEnable = "Enable";
 static const char* jkAlterUserStmtSysinfo = "Sysinfo";
+static const char* jkAlterUserStmtCreatedb = "Createdb";
 
 static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   const SAlterUserStmt* pNode = (const SAlterUserStmt*)pObj;
@@ -6184,6 +6185,9 @@ static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtSysinfo, pNode->sysinfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtCreatedb, pNode->createdb);
   }
 
   return code;
@@ -6204,6 +6208,9 @@ static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtSysinfo, &pNode->sysinfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtCreatedb, &pNode->createdb);
   }
 
   return code;
