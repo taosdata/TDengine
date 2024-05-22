@@ -574,6 +574,7 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
+        let addr = req.remote_addr();
         let (meta, _extension, req) = req.into_parts();
 
         let task_id = meta
@@ -593,6 +594,7 @@ impl FlightService for FlightServiceImpl {
             task_id,
             req,
             self.notify_sender.clone(),
+            addr,
         );
 
         Ok(Response::new(Box::pin(

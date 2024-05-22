@@ -1267,7 +1267,11 @@ impl TaskJob {
                                         }
                                     },
                                     "failed" => {
-                                        tracing::error!("task failed: {}", activity.activity);
+                                        tracing::error!(
+                                            is_cron_job,
+                                            "task failed: {}",
+                                            activity.activity
+                                        );
                                         if is_cron_job {
                                             activity.status = "interrupted".to_string();
                                             global.send_task_activity(activity);
@@ -1278,11 +1282,21 @@ impl TaskJob {
                                         let should_stop =
                                             state.stop_condition.should_stop_with(&result);
                                         if should_stop {
+                                            tracing::warn!(
+                                                should_stop,
+                                                "task failed: {}",
+                                                activity.activity
+                                            );
                                             global.send_task_activity(activity.clone());
                                             state.state.write().await.fail(activity.activity);
                                             break Ok(AgentTaskState::Failed);
                                         } else {
                                             activity.status = "interrupted".to_string();
+                                            tracing::warn!(
+                                                should_stop,
+                                                "task interrupted: {}",
+                                                activity.activity
+                                            );
                                             global.send_task_activity(activity);
                                             state.state.write().await.interrupted();
                                             break Ok(AgentTaskState::Interrupted);

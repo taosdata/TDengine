@@ -75,7 +75,7 @@ pub mod flat;
 pub mod ipc_metric;
 pub mod lush;
 
-#[instrument(skip_all, fields(task.id = task_id))]
+#[instrument(skip_all, fields(task.id = task_id, client))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -97,11 +97,14 @@ async fn ipc_tcp_forward(
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
+        .in_current_span()
         .await?
         .context("Build IPC stream reader error")?;
     let ack = ipc_reader.ack();
     let ipc_ack_writer =
-        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
+        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
+            .in_current_span()
+            .await?;
 
     let schema = ipc_reader.schema.clone();
     let mut schema = schema.as_ref().clone();
@@ -289,6 +292,8 @@ async fn ipc_tcp_forward(
                                 .contains("stream closed because of a broken pipe")
                                 || status.message() == "ExternalError(Disconnected)"
                                 || status.message().contains("connection reset")
+                                || status.message().contains("connection closed")
+                                || status.message().contains("h2 protocol error")
                             {
                                 tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
@@ -298,7 +303,8 @@ async fn ipc_tcp_forward(
                                 last_retry_tick!();
                                 continue 'start;
                             }
-                            tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
+
+                            tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
                             return Err(err).context("Got server response with error");
                         }
                         _ => {
@@ -320,7 +326,7 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
         .keep_alive_while_idle(true)
         .keep_alive_timeout(Duration::from_secs(300))
         .http2_keep_alive_interval(Duration::from_secs(39))
-        .tcp_keepalive(Some(Duration::from_secs(300)));
+        .tcp_keepalive(Some(Duration::from_secs(7200))); // keep alive for 2 hours
     let channel = endpoint.connect().await?;
     Ok(channel)
 }

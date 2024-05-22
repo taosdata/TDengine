@@ -33,6 +33,7 @@ pub struct PutStream {
     controller: TaskControllerRef,
     task_id: i64,
     notify_sender: AgentNotifySender,
+    remote: Option<std::net::SocketAddr>,
 }
 
 use serde::{Deserialize, Serialize};
@@ -48,16 +49,18 @@ impl PutStream {
         task_id: i64,
         req: Streaming<FlightData>,
         notify_sender: AgentNotifySender,
+        remote: Option<std::net::SocketAddr>,
     ) -> Self {
         Self {
             req,
             controller,
             task_id,
             notify_sender,
+            remote,
         }
     }
 
-    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id))]
+    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
     pub async fn into_flight_put_result(
         self,
         stream_trace_id: String,
@@ -545,7 +548,11 @@ impl PutStream {
             loop {
                 tokio::select! {
                     _ = heartbeat.tick() => {
-                        put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await?;
+                        tracing::debug!("Send heartbeat");
+                        if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await {
+                            tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                            break;
+                        };
                     }
                     message = stream.next() => {
                         if message.is_none() {
@@ -553,16 +560,23 @@ impl PutStream {
                         }
                         let message = message.unwrap();
 
-                        let item = process_item(message).await;
+                        let item = process_item(message).in_current_span().await;
 
-                        put_tx.send_async(item.map_err(|err: FlightError| {
+                        if let Err(err) = put_tx.send_async(item.map_err(|err: FlightError| {
                             tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
                             Status::data_loss(format!("IPC worker seems stopped: {:#}", err))
-                        })).await?;
+                        })).await {
+                            tracing::info!(error.source = format!("{err:#}"), "Put stream receiver closed");
+                            break;
+                        }
                     }
                     abort = abort_message_rx.recv_async() => {
-                        let abort = abort?;
-                        put_tx.send_async(abort).await?;
+                        tracing::info!("IPC stream abort");
+                        if let Ok(abort) = abort {
+                            if let Err(err) = put_tx.send_async(abort).await {
+                                tracing::info!(error.source = format!("{err:#}"), "IPC stream aborted");
+                            }
+                        }
                         break;
                     }
                 }
