@@ -36,4 +36,4 @@ VOLUME /data/taosx/
 EXPOSE 6050
 EXPOSE 6055
 
-CMD ["/usr/bin/taosx", "serve", "-vv"]
+CMD ["/usr/bin/taosx", "serve", "-v"]
