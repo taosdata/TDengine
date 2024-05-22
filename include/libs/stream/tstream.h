@@ -357,8 +357,12 @@ typedef struct STaskExecStatisInfo {
   double        step2El;
   int32_t       updateCount;
   int64_t       latestUpdateTs;
-  int32_t       processDataBlocks;
-  int64_t       processDataSize;
+  int32_t       inputDataBlocks;
+  int64_t       inputDataSize;
+  double        procsThroughput;
+  int64_t       outputDataBlocks;
+  int64_t       outputDataSize;
+  double        outputThroughput;
   int32_t       dispatch;
   int64_t       dispatchDataSize;
   int32_t       checkpoint;
@@ -566,6 +570,8 @@ typedef struct STaskCkptInfo {
   int64_t latestId;            // saved checkpoint id
   int64_t latestVer;           // saved checkpoint ver
   int64_t latestTime;          // latest checkpoint time
+  int64_t latestSize;          // latest checkpoint size
+  int8_t  remoteBackup;        // latest checkpoint backup done
   int64_t activeId;  // current active checkpoint id
   int32_t activeTransId;       // checkpoint trans id
   int8_t  failed;              // denote if the checkpoint is failed or not
@@ -583,8 +589,12 @@ typedef struct STaskStatusEntry {
   int64_t       inputQUnchangeCounter;
   double        inputQUsed;  // in MiB
   double        inputRate;
-  double        sinkQuota;     // existed quota size for sink task
-  double        sinkDataSize;  // sink to dst data size
+  double        procsThroughput;     // duration between one element put into input queue and being processed.
+  double        procsTotal;          // duration between one element put into input queue and being processed.
+  double        outputThroughput;    // the size of dispatched result blocks in bytes
+  double        outputTotal;         // the size of dispatched result blocks in bytes
+  double        sinkQuota;           // existed quota size for sink task
+  double        sinkDataSize;        // sink to dst data size
   int64_t       startTime;
   int64_t       startCheckpointId;
   int64_t       startCheckpointVer;

@@ -335,6 +335,10 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputQUsed) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->procsTotal) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->procsThroughput) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->outputTotal) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->outputThroughput) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->sinkQuota) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->sinkDataSize) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->processedVer) < 0) return -1;
@@ -346,6 +350,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestVer) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestTime) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.latestSize) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointInfo.remoteBackup) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointVer) < 0) return -1;
@@ -381,6 +387,10 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.procsTotal) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.procsThroughput) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.outputTotal) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.outputThroughput) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.sinkQuota) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.sinkDataSize) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.processedVer) < 0) return -1;
@@ -393,6 +403,8 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestVer) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestTime) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestSize) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointInfo.remoteBackup) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointVer) < 0) return -1;

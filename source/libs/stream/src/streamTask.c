@@ -771,6 +771,10 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->stage = pSrc->stage;
   pDst->inputQUsed = pSrc->inputQUsed;
   pDst->inputRate = pSrc->inputRate;
+  pDst->procsTotal = pSrc->procsTotal;
+  pDst->procsThroughput = pSrc->procsThroughput;
+  pDst->outputTotal = pSrc->outputTotal;
+  pDst->outputThroughput = pSrc->outputThroughput;
   pDst->processedVer = pSrc->processedVer;
   pDst->verRange = pSrc->verRange;
   pDst->sinkQuota = pSrc->sinkQuota;

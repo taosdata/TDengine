@@ -1620,22 +1620,75 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
 
   // input queue
-  char        vbuf[30] = {0};
-  char        buf[25] = {0};
-  const char *queueInfoStr = "%4.2fMiB (%5.2f%)";
+  char        vbuf[40] = {0};
+  char        buf[40] = {0};
+  const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
   sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputRate);
   STR_TO_VARSTR(vbuf, buf);
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
 
-  // input idle
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataSetNULL(pColInfo, numOfRows);
+  // input total
+  const char* formatTotalMb = "%7.2f MiB";
+  const char* formatTotalGb = "%7.2f GiB";
+  if (pe->procsTotal < 1024) {
+    sprintf(buf, formatTotalMb, pe->procsTotal);
+  } else {
+    sprintf(buf, formatTotalGb, pe->procsTotal / 1024);
+  }
 
-  // dispatch data
+  memset(vbuf, 0, tListLen(vbuf));
+  STR_TO_VARSTR(vbuf, buf);
+
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataSetNULL(pColInfo, numOfRows);
+  colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+
+  // process throughput
+  const char* formatKb = "%7.2f KiB/s";
+  const char* formatMb = "%7.2f MiB/s";
+  if (pe->procsThroughput < 1024) {
+    sprintf(buf, formatKb, pe->procsThroughput);
+  } else {
+    sprintf(buf, formatMb, pe->procsThroughput / 1024);
+  }
+
+  memset(vbuf, 0, tListLen(vbuf));
+  STR_TO_VARSTR(vbuf, buf);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+
+  // output total
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    colDataSetNULL(pColInfo, numOfRows);
+  } else {
+    sprintf(buf, formatTotalMb, pe->outputTotal);
+    memset(vbuf, 0, tListLen(vbuf));
+    STR_TO_VARSTR(vbuf, buf);
+
+    colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+  }
+
+  // output throughput
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    colDataSetNULL(pColInfo, numOfRows);
+  } else {
+    if (pe->outputThroughput < 1024) {
+      sprintf(buf, formatKb, pe->outputThroughput);
+    } else {
+      sprintf(buf, formatMb, pe->outputThroughput / 1024);
+    }
+
+    memset(vbuf, 0, tListLen(vbuf));
+    STR_TO_VARSTR(vbuf, buf);
+
+    colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+  }
 
   // output queue
   //          sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
@@ -1646,12 +1699,14 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
 
   // info
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    const char *sinkStr = "%.2fMiB";
+    const char *sinkStr = "%.2f MiB";
     sprintf(buf, sinkStr, pe->sinkDataSize);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // offset info
     const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    sprintf(buf, offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+    snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+  } else {
+    memset(buf, 0, tListLen(buf));
   }
 
   STR_TO_VARSTR(vbuf, buf);

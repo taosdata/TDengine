@@ -96,7 +96,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   *totalSize = 0;
 
   int32_t size = 0;
-  int32_t numOfBlocks = 0;
+  int32_t numOfBlocks= 0;
   SArray* pRes = NULL;
 
   while (1) {
@@ -586,6 +586,9 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
     }
 
+    pTask->execInfo.inputDataBlocks += numOfBlocks;
+    pTask->execInfo.inputDataSize += blockSize;
+
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
@@ -601,11 +604,21 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
       ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT);
 
+      int64_t st = taosGetTimestampMs();
+
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
         pTask->execInfo.sink.dataSize += blockSize;
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
+
+        double el = (taosGetTimestampMs() - st) / 1000.0;
+        if (fabs(el - 0.0) <= DBL_EPSILON) {
+          pTask->execInfo.procsThroughput = 0;
+        } else {
+          pTask->execInfo.procsThroughput = (blockSize / el);
+        }
+
         continue;
       }
     }
@@ -639,13 +652,23 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     int64_t ver = pTask->chkInfo.processedVer;
     doSetStreamInputBlock(pTask, pInput, &ver, id);
 
-    int64_t resSize = 0;
+    int64_t totalSize = 0;
     int32_t totalBlocks = 0;
-    streamTaskExecImpl(pTask, pInput, &resSize, &totalBlocks);
+    streamTaskExecImpl(pTask, pInput, &totalSize, &totalBlocks);
 
     double el = (taosGetTimestampMs() - st) / 1000.0;
     stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-           SIZE_IN_MiB(resSize), totalBlocks);
+           SIZE_IN_MiB(totalSize), totalBlocks);
+
+    pTask->execInfo.outputDataBlocks += totalBlocks;
+    pTask->execInfo.outputDataSize += totalSize;
+    if (fabs(el - 0.0) <= DBL_EPSILON) {
+      pTask->execInfo.procsThroughput = 0;
+      pTask->execInfo.outputThroughput = 0;
+    } else {
+      pTask->execInfo.outputThroughput = (totalSize / el);
+      pTask->execInfo.procsThroughput = (blockSize / el);
+    }
 
     SCheckpointInfo* pInfo = &pTask->chkInfo;
 

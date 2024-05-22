@@ -1017,8 +1017,13 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
         .checkpointInfo.latestId = (*pTask)->chkInfo.checkpointId,
         .checkpointInfo.latestVer = (*pTask)->chkInfo.checkpointVer,
         .checkpointInfo.latestTime = (*pTask)->chkInfo.checkpointTime,
+        .checkpointInfo.latestSize = 0,
+        .checkpointInfo.remoteBackup = 0,
         .hTaskId = (*pTask)->hTaskInfo.id.taskId,
-
+        .procsTotal = SIZE_IN_MiB((*pTask)->execInfo.inputDataSize),
+        .outputTotal = SIZE_IN_MiB((*pTask)->execInfo.outputDataSize),
+        .procsThroughput = SIZE_IN_KiB((*pTask)->execInfo.procsThroughput),
+        .outputThroughput = SIZE_IN_KiB((*pTask)->execInfo.outputThroughput),
         .startCheckpointId = (*pTask)->execInfo.startCheckpointId,
         .startCheckpointVer = (*pTask)->execInfo.startCheckpointVer,
     };
