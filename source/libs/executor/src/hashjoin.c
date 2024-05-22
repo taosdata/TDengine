@@ -44,6 +44,10 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
       if (allFetched) {
         ++pCtx->probeStartIdx;
       }
+
+      if (pCtx->probeStartIdx <= pCtx->probeEndIdx) {
+        pJoin->ctx.rowRemains = true;
+      } 
       
       return code;
     } else {
@@ -71,6 +75,10 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
       if (pRes->info.rows >= pRes->info.capacity) {
         if (allFetched) {
           ++pCtx->probeStartIdx;
+        }
+
+        if (pCtx->probeStartIdx <= pCtx->probeEndIdx) {
+          pJoin->ctx.rowRemains = true;
         }
         
         return code;

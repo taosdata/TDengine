@@ -61,14 +61,14 @@ int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 10;
-int32_t tsNumOfMnodeQueryThreads = 4;
+int32_t tsNumOfMnodeQueryThreads = 10;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
-int32_t tsNumOfVnodeQueryThreads = 4;
+int32_t tsNumOfVnodeQueryThreads = 10;
 float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
-int32_t tsNumOfQnodeQueryThreads = 4;
+int32_t tsNumOfQnodeQueryThreads = 10;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
@@ -645,7 +645,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   tsNumOfVnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 10);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) !=
       0)
     return -1;
@@ -666,7 +666,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 10);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) !=
       0)
     return -1;
@@ -918,7 +918,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfVnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeQueryThreads = numOfCores * 2;
-    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 10);
     pItem->i32 = tsNumOfVnodeQueryThreads;
     pItem->stype = stype;
   }
@@ -948,7 +948,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfQnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfQnodeQueryThreads = numOfCores * 2;
-    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 10);
     pItem->i32 = tsNumOfQnodeQueryThreads;
     pItem->stype = stype;
   }

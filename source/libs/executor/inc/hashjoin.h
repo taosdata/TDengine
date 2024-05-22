@@ -19,15 +19,16 @@
 extern "C" {
 #endif
 
+#define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
+#define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
+#define HJOIN_BLK_THRESHOLD_RATIO 0.9
+
 #if 1
 #define HJOIN_DEFAULT_BLK_ROWS_NUM 3 //4096
 #define HJOIN_BLK_SIZE_LIMIT 0 //10485760
 #else
-#define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
 #define HJOIN_DEFAULT_BLK_ROWS_NUM 4096
 #define HJOIN_BLK_SIZE_LIMIT 10485760
-#define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
-#define HJOIN_BLK_THRESHOLD_RATIO 0.9
 #endif
 
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
@@ -66,7 +67,7 @@ typedef struct SHJoinColInfo {
   int32_t          dstSlot;
   bool             keyCol;
   bool             vardata;
-  int32_t*         offset;
+  int32_t          offset;
   int32_t          bytes;
   char*            data;
   char*            bitMap;

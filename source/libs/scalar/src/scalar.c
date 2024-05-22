@@ -72,7 +72,7 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
     return code;
   }
 
-  colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
+  colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), pValueNode->isNull);
 
   colInfoDataEnsureCapacity(out->columnData, 1, true);
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);

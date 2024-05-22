@@ -71,7 +71,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       1000
+#define JT_MAX_LOOP       10000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -82,21 +82,25 @@ enum {
 #define RIGHT_TABLE_COLS  0x2
 #define ALL_TABLE_COLS    (LEFT_TABLE_COLS | RIGHT_TABLE_COLS)
 
+#define JT_BINARY_MAX_LEN (3 + 2)
 #define JT_MAX_JLIMIT     20
 #define JT_MAX_WINDOW_OFFSET 5
 #define JT_KEY_SOLT_ID    (MAX_SLOT_NUM - 1)
 #define JT_PRIM_TS_SLOT_ID 0
-int32_t jtInputColType[MAX_SLOT_NUM] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BIGINT};
+#define JT_INPUT_COL_BYTES(i) ((TSDB_DATA_TYPE_BINARY != jtInputColType[i]) ? tDataTypes[jtInputColType[i]].bytes : JT_BINARY_MAX_LEN)
+int64_t TIMESTAMP_FILTER_VALUE = 10000000000;
+int32_t INT_FILTER_VALUE = 200000000;
+int64_t BIGINT_FILTER_VALUE = 3000000000000000;
+char   BINARY_FILTER_VALUE[] = "  mbc";
+
+int32_t jtInputColType[MAX_SLOT_NUM] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_BIGINT};
+int64_t jtFilterValue[] =              {TIMESTAMP_FILTER_VALUE  , INT_FILTER_VALUE  , 0                    , BIGINT_FILTER_VALUE};
 
 char* jtColCondStr[] = {"", "NO COND", "EQ COND", "ON COND", "FULL COND"};
 char* jtJoinTypeStr[] = {"INNER", "LEFT", "RIGHT", "FULL"};
 char* jtSubTypeStr[] = {"", "OUTER", "SEMI", "ANTI", "ASOF", "WINDOW"};
 
-int64_t TIMESTAMP_FILTER_VALUE = 10000000000;
-int32_t INT_FILTER_VALUE = 200000000;
-int64_t BIGINT_FILTER_VALUE = 3000000000000000;
 
-int64_t jtFilterValue[] = {TIMESTAMP_FILTER_VALUE, INT_FILTER_VALUE, INT_FILTER_VALUE, BIGINT_FILTER_VALUE};
 
 bool jtErrorRerun = false;
 bool jtInRerun = false;
@@ -111,9 +115,11 @@ typedef struct {
 
 
 typedef struct {
+  bool    mJoin;
   bool    filter;
   bool    asc;
   bool    grpJoin;
+  bool    tbTimeRange;
   int32_t leftMaxRows;
   int32_t leftMaxGrpRows;
   int32_t rightMaxRows;
@@ -134,7 +140,10 @@ typedef struct {
   int32_t inputStat;
 
   int32_t colEqNum;
-  int32_t colEqList[MAX_SLOT_NUM];
+  int32_t colEqList[MAX_SLOT_NUM];  
+  int32_t colEqSlotList[MAX_SLOT_NUM];
+  int32_t colEqHashOffset[MAX_SLOT_NUM];
+  int32_t colEqHashKeySize;
 
   int32_t colOnNum;
   int32_t colOnList[MAX_SLOT_NUM];
@@ -160,6 +169,7 @@ typedef struct {
   char*   colRowDataBuf;
   int32_t colRowOffset[MAX_SLOT_NUM];
 
+  int64_t beginTs;
   int64_t curTs;
   int64_t curKeyOffset;
   int32_t grpOffset[MAX_SLOT_NUM];
@@ -189,6 +199,7 @@ typedef struct {
   SArray*  rightFilterOut;
 
   int64_t  startTsUs;
+  int64_t  runtimes;
 } SJoinTestCtx;
 
 typedef struct {
@@ -211,7 +222,7 @@ typedef struct {
 
 
 SJoinTestCtx jtCtx = {0};
-SJoinTestCtrl jtCtrl = {0, 0, 0, 0, 0};
+SJoinTestCtrl jtCtrl = {1, 1, 1, 0, 0};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
@@ -245,6 +256,9 @@ void printResRow(char* value, int32_t type) {
         break;
       case TSDB_DATA_TYPE_BIGINT:
         printf("%18" PRId64, *(int64_t*)(value + jtCtx.resColOffset[slot]));
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+        printf("%18.*s", *(int16_t*)(value + jtCtx.resColOffset[slot]), (char*)(value + jtCtx.resColOffset[slot] + 2));
         break;
     }
   }
@@ -388,11 +402,14 @@ void createTargetSlotList(SNodeList** pTargets) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol->dataBlockId = LEFT_BLK_ID;
       pCol->slotId = i;
+      pCol->node.resType.type = jtInputColType[i];
+      pCol->node.resType.bytes = JT_INPUT_COL_BYTES(i);
+      
       pTarget->dataBlockId = RES_BLK_ID;
       pTarget->slotId = dstIdx++;
       pTarget->pExpr = (SNode*)pCol;
-      dstOffset += tDataTypes[jtInputColType[i]].bytes;
-      jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
+      dstOffset += JT_INPUT_COL_BYTES(i);
+      jtCtx.resColSize += JT_INPUT_COL_BYTES(i);
       
       nodesListMakeStrictAppend(pTargets, (SNode*)pTarget);
 
@@ -412,11 +429,14 @@ void createTargetSlotList(SNodeList** pTargets) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol->dataBlockId = RIGHT_BLK_ID;
       pCol->slotId = i;
+      pCol->node.resType.type = jtInputColType[i];
+      pCol->node.resType.bytes = JT_INPUT_COL_BYTES(i);
+
       pTarget->dataBlockId = RES_BLK_ID;
       pTarget->slotId = dstIdx++;
       pTarget->pExpr = (SNode*)pCol;
-      dstOffset += tDataTypes[jtInputColType[i]].bytes;
-      jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
+      dstOffset += JT_INPUT_COL_BYTES(i);
+      jtCtx.resColSize += JT_INPUT_COL_BYTES(i);
       
       nodesListMakeStrictAppend(pTargets, (SNode*)pTarget);
       jtCtx.resColNum++;
@@ -446,13 +466,15 @@ void createColEqCondStart(void* p, bool mJoin) {
     ++i;
   }
 
+  int32_t slotIdx = 0;
+  int32_t bufSize = sizeof(bool);
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.colEqList[i]) {
       SColumnNode* pCol1 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol1->dataBlockId = LEFT_BLK_ID;
       pCol1->slotId = i;
       pCol1->node.resType.type = jtInputColType[i];
-      pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol1->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       
       nodesListMakeStrictAppend(mJoin ? &((SSortMergeJoinPhysiNode*)p)->pEqLeft : &((SHashJoinPhysiNode*)p)->pOnLeft, (SNode*)pCol1);
 
@@ -460,11 +482,19 @@ void createColEqCondStart(void* p, bool mJoin) {
       pCol2->dataBlockId = RIGHT_BLK_ID;
       pCol2->slotId = i;
       pCol2->node.resType.type = jtInputColType[i];
-      pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol2->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       
       nodesListMakeStrictAppend(mJoin ? &((SSortMergeJoinPhysiNode*)p)->pEqRight : &((SHashJoinPhysiNode*)p)->pOnRight, (SNode*)pCol2);
+
+      jtCtx.colEqSlotList[slotIdx] = i;
+      jtCtx.colEqHashOffset[slotIdx] = bufSize;
+
+      bufSize += JT_INPUT_COL_BYTES(i);
+      slotIdx++;
     }
   }
+
+  jtCtx.colEqHashKeySize = bufSize;
 }
 
 void createColOnCondStart() {
@@ -515,13 +545,13 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
-      pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol1->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       
       SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
-      pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol2->node.resType.bytes = JT_INPUT_COL_BYTES(i);
 
       SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
       pOp->opType = OP_TYPE_EQUAL;
@@ -563,13 +593,13 @@ void createColOnCondEnd(void* p, bool mJoin) {
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
-      pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol1->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       
       SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
-      pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol2->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       
       SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
       pOp->opType = OP_TYPE_GREATER_THAN;
@@ -645,6 +675,11 @@ void* getFilterValue(int32_t type) {
       return &INT_FILTER_VALUE;
     case TSDB_DATA_TYPE_BIGINT:
       return &BIGINT_FILTER_VALUE;
+    case TSDB_DATA_TYPE_BINARY: {
+      char* p = (char*)taosMemoryMalloc(JT_BINARY_MAX_LEN);
+      memcpy(p, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN);
+      return p;
+    }  
     default:
       return NULL;
   }
@@ -728,12 +763,12 @@ void createFilterEnd(SNode** pCond, bool filter) {
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(i);
       pCol->node.resType.type = jtInputColType[i];
-      pCol->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       sprintf(pCol->colName, "l%d", i);
 
       SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
       pVal->node.resType.type = jtInputColType[i];
-      pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pVal->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i]));
 
       SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -758,12 +793,12 @@ void createFilterEnd(SNode** pCond, bool filter) {
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol->node.resType.type = jtInputColType[i];
-      pCol->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pCol->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       sprintf(pCol->colName, "r%d", i);
 
       SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
       pVal->node.resType.type = jtInputColType[i];
-      pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
+      pVal->node.resType.bytes = JT_INPUT_COL_BYTES(i);
       nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i]));
 
       SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -793,7 +828,7 @@ void updateColRowInfo() {
 
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     jtCtx.colRowOffset[i] = jtCtx.blkRowSize;
-    jtCtx.blkRowSize += tDataTypes[jtInputColType[i]].bytes;
+    jtCtx.blkRowSize += JT_INPUT_COL_BYTES(i);
   }
 }
 
@@ -807,7 +842,7 @@ void createBlockDescNode(SDataBlockDescNode** ppNode) {
     pSlot->slotId = i;
     int32_t slotIdx = jtCtx.resColInSlot[i] >= MAX_SLOT_NUM ? jtCtx.resColInSlot[i] - MAX_SLOT_NUM : jtCtx.resColInSlot[i];
     pSlot->dataType.type = jtInputColType[slotIdx];
-    pSlot->dataType.bytes = tDataTypes[pSlot->dataType.type].bytes;
+    pSlot->dataType.bytes = ((TSDB_DATA_TYPE_BINARY != pSlot->dataType.type) ? tDataTypes[pSlot->dataType.type].bytes : JT_BINARY_MAX_LEN);
 
     nodesListMakeStrictAppend(&pDesc->pSlots, (SNode *)pSlot);
   }
@@ -816,6 +851,8 @@ void createBlockDescNode(SDataBlockDescNode** ppNode) {
 }
 
 SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param) {
+  jtCtx.mJoin = true;
+
   SSortMergeJoinPhysiNode* p = (SSortMergeJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
   p->joinType = param->joinType;
   p->subType = param->subType;
@@ -875,6 +912,8 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
 
 
 SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
+  jtCtx.mJoin = false;
+  
   SHashJoinPhysiNode* p = (SHashJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN);
   p->joinType = param->joinType;
   p->subType = param->subType;
@@ -919,6 +958,7 @@ SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
   jtCtx.leftColOnly = (JOIN_TYPE_LEFT == param->joinType && JOIN_STYPE_SEMI == param->subType);
   jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == param->joinType && JOIN_STYPE_SEMI == param->subType);
   jtCtx.inGrpId = 1;
+  jtCtx.tbTimeRange = taosRand() % 2;
 
   createColCond(p, param->cond, false);
   createFilterStart(param->filter);
@@ -950,7 +990,7 @@ SSDataBlock* createDummyBlock(int32_t blkId) {
 
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     SColumnInfoData idata =
-        createColumnInfoData(jtInputColType[i], tDataTypes[jtInputColType[i]].bytes, i);
+        createColumnInfoData(jtInputColType[i], JT_INPUT_COL_BYTES(i), i);
 
     blockDataAppendColInfo(p, &idata);
   }
@@ -968,7 +1008,7 @@ void appendAsofLeftEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rig
     if (*((bool*)leftInRow + c)) {
       *(char*)(jtCtx.resColBuf + c) = true;
     } else {
-      memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+      memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], JT_INPUT_COL_BYTES(c));
     }
   }
 
@@ -984,10 +1024,10 @@ void appendAsofLeftEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rig
       if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
         if (*(bool*)(rightResRows + c)) {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
-          memset(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], 0, tDataTypes[jtInputColType[c]].bytes);
+          memset(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], 0, JT_INPUT_COL_BYTES(c));
         } else {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = false;
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rightResRows + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rightResRows + jtCtx.inColOffset[c], JT_INPUT_COL_BYTES(c));
         }
       }
     }
@@ -1007,7 +1047,7 @@ void appendLeftNonMatchGrp(char* leftInRow) {
       if (*((bool*)leftInRow + c)) {
         *(char*)(jtCtx.resColBuf + c) = true;
       } else {
-        memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+        memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], JT_INPUT_COL_BYTES(c));
       }
     }
     
@@ -1110,7 +1150,7 @@ void appendWinEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rightRow
     if (*((bool*)leftInRow + c)) {
       *(char*)(jtCtx.resColBuf + c) = true;
     } else {
-      memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+      memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], JT_INPUT_COL_BYTES(c));
     }
   }
 
@@ -1127,10 +1167,10 @@ void appendWinEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rightRow
       if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
         if (*(bool*)(rightResRows + c)) {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
-          memset(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], 0, tDataTypes[jtInputColType[c]].bytes);
+          memset(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], 0, JT_INPUT_COL_BYTES(c));
         } else {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = false;
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rightResRows + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rightResRows + jtCtx.inColOffset[c], JT_INPUT_COL_BYTES(c));
         }
       }
     }
@@ -1218,7 +1258,7 @@ void trimForAsofJlimit() {
   taosArrayPopFrontBatch(jtCtx.rightFilterOut, rowNum - jtCtx.jLimit);
 }
 
-void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
+void createMJoinGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   if (grpRows <= 0) {
     return;
   }
@@ -1270,6 +1310,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   bool isNull = false;
   bool filterOut = false;
   bool addToRowList = false;
+  char tmpBinary[JT_BINARY_MAX_LEN + 1] = {0};
   int32_t vRange = TMAX(grpRows / 3, 3);
   for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
     jtCtx.grpOffset[c] = c * TMAX(100, grpRows);
@@ -1320,6 +1361,27 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
             }
           }
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          if (taosRand() % 10) {
+            memcpy(tmpBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN);
+            if (taosRand() % 2) {
+              tmpBinary[2] += taosRand() % 3;
+            } else {
+              tmpBinary[2] -= taosRand() % 3;
+            }
+            
+            pData = tmpBinary;
+            isNull = false;
+            if (!filterOut && filterNum && filterCol[c] && memcmp(tmpBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0) {
+              filterOut = true;
+            }
+          } else {
+            isNull = true;
+            if (filterNum && filterCol[c]) {
+              filterOut = true;
+            }
+          }
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           tmpBigint = (taosRand() % 2) ? BIGINT_FILTER_VALUE + jtCtx.curKeyOffset++ : BIGINT_FILTER_VALUE - jtCtx.curKeyOffset++;
           pData = (char*)&tmpBigint;
@@ -1340,7 +1402,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
           if (isNull) {
             *(char*)(jtCtx.inColBuf + c) = true;
           } else {
-            memcpy(jtCtx.inColBuf + jtCtx.inColOffset[c], pData, tDataTypes[jtInputColType[c]].bytes);
+            memcpy(jtCtx.inColBuf + jtCtx.inColOffset[c], pData, JT_INPUT_COL_BYTES(c));
           }
         } else {
           addToRowList = false;
@@ -1349,7 +1411,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
         if (isNull) {
           *(char*)(jtCtx.resColBuf + tableOffset + c) = true;
         } else {
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], pData, tDataTypes[jtInputColType[c]].bytes);
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], pData, JT_INPUT_COL_BYTES(c));
         }
       }
     }
@@ -1393,9 +1455,111 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
 
 }
 
+
+void createHJoinGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
+  if (grpRows <= 0) {
+    return;
+  }
+
+  if (NULL == *ppBlk) {
+    *ppBlk = createDummyBlock((blkId == LEFT_BLK_ID) ? LEFT_BLK_ID : RIGHT_BLK_ID);
+    blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows);
+    taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk);
+  }
+
+  if (jtCtx.grpJoin) {
+    (*ppBlk)->info.id.groupId = jtCtx.inGrpId;
+  }
+
+  jtCtx.inputStat |= (1 << blkId);
+  
+  char* pData = NULL;
+  int32_t tmpInt = 0;
+  int64_t tmpBigint = 0;
+  bool isNull = false;
+  char tmpBinary[JT_BINARY_MAX_LEN + 1] = {0};
+  int32_t vRange = TMAX(grpRows / 3, 3);
+  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+    jtCtx.grpOffset[c] = c * TMAX(100, grpRows);
+  }
+  
+  for (int32_t i = 0; i < grpRows; ++i) {
+    if ((*ppBlk)->info.rows >= (*ppBlk)->info.capacity) {
+      *ppBlk = createDummyBlock((blkId == LEFT_BLK_ID) ? LEFT_BLK_ID : RIGHT_BLK_ID);
+      blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows);
+      taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk);
+      if (jtCtx.grpJoin) {
+        (*ppBlk)->info.id.groupId = jtCtx.inGrpId;
+      }
+    }
+    
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      switch (jtInputColType[c]) {
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          jtCtx.asc ? ++jtCtx.curTs : --jtCtx.curTs;
+          pData = (char*)&jtCtx.curTs;
+          isNull = false;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          if (taosRand() % 10) {
+            tmpInt = (taosRand() % 2) ? INT_FILTER_VALUE + jtCtx.grpOffset[c] + taosRand() % vRange : INT_FILTER_VALUE - jtCtx.grpOffset[c] - taosRand() % vRange;
+            pData = (char*)&tmpInt;
+            isNull = false;
+          } else {
+            isNull = true;
+          }
+          break;
+        case TSDB_DATA_TYPE_BINARY:
+          if (taosRand() % 10) {
+            memcpy(tmpBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN);
+            if (taosRand() % 2) {
+              tmpBinary[2] += taosRand() % 4;
+            } else {
+              tmpBinary[2] -= taosRand() % 4;
+            }
+            
+            pData = tmpBinary;
+            isNull = false;
+          } else {
+            isNull = true;
+          }
+/*          
+          isNull = false;
+          memcpy(tmpBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN);
+          pData = tmpBinary;
+*/          
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          tmpBigint = (taosRand() % 2) ? BIGINT_FILTER_VALUE + jtCtx.curKeyOffset++ : BIGINT_FILTER_VALUE - jtCtx.curKeyOffset++;
+          pData = (char*)&tmpBigint;
+          isNull = false;
+          break;
+        default:
+          break;
+      }
+      
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet((*ppBlk)->pDataBlock, c);
+      colDataSetVal(pCol, (*ppBlk)->info.rows, pData, isNull);
+    }
+    
+    (*ppBlk)->info.rows++;
+  }
+
+}
+
+
+void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
+  if (grpRows <= 0) {
+    return;
+  }
+
+  jtCtx.mJoin ? createMJoinGrpRows(ppBlk, blkId, grpRows) : createHJoinGrpRows(ppBlk, blkId, grpRows);
+}
+
 void createRowData(SSDataBlock* pBlk, int64_t tbOffset, int32_t rowIdx, int32_t vRange) {
   int32_t tmpInt = 0;
   int64_t tmpBig = 0;
+  char tmpBinary[JT_BINARY_MAX_LEN + 1] = {0};
   
   for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, c);
@@ -1416,6 +1580,22 @@ void createRowData(SSDataBlock* pBlk, int64_t tbOffset, int32_t rowIdx, int32_t 
           colDataSetVal(pCol, pBlk->info.rows, NULL, true);
         }
         break;
+      case TSDB_DATA_TYPE_BINARY:
+        if (taosRand() % 10) {
+          memcpy(tmpBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN);
+          if (taosRand() % 2) {
+            tmpBinary[2] += taosRand() % 4;
+          } else {
+            tmpBinary[2] -= taosRand() % 4;
+          }
+          
+          memcpy(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + jtCtx.colRowOffset[c], tmpBinary, JT_BINARY_MAX_LEN);
+          colDataSetVal(pCol, pBlk->info.rows, (char*)tmpBinary, false);
+        } else {
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + c) = true;
+          colDataSetVal(pCol, pBlk->info.rows, NULL, true);
+        }
+        break;        
       case TSDB_DATA_TYPE_BIGINT:
         tmpBig = (taosRand() % 2) ? BIGINT_FILTER_VALUE + jtCtx.curKeyOffset++ : BIGINT_FILTER_VALUE - jtCtx.curKeyOffset++;
         *(int64_t*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + jtCtx.colRowOffset[c]) = tmpBig;
@@ -1435,6 +1615,7 @@ void makeAppendBlkData(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   if (jtCtx.colRowDataBufSize < totalSize) {
     jtCtx.colRowDataBuf = (char*)taosMemoryRealloc(jtCtx.colRowDataBuf, totalSize);
+    jtCtx.colRowDataBufSize = totalSize;
   }
 
   memset(jtCtx.colRowDataBuf, 0, totalSize);
@@ -1482,7 +1663,7 @@ void putNMatchRowToRes(char* lrow, int32_t tableOffset, int32_t peerOffset) {
         if (*(bool*)(lrow + c)) {
           *(bool*)(jtCtx.resColBuf + tableOffset + c) = true;
         } else {
-          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[tableOffset + c], lrow + jtCtx.colRowOffset[c], JT_INPUT_COL_BYTES(c));
         }
       }
     }
@@ -1507,7 +1688,7 @@ void putMatchRowToRes(char* lrow, char* rrow, int32_t cols) {
           if (*(bool*)(lrow + c)) {
             *(bool*)(jtCtx.resColBuf + c) = true;
           } else {
-            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], lrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], lrow + jtCtx.colRowOffset[c], JT_INPUT_COL_BYTES(c));
           }
         }
       }
@@ -1519,7 +1700,7 @@ void putMatchRowToRes(char* lrow, char* rrow, int32_t cols) {
           if (*(bool*)(rrow + c)) {
             *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
           } else {
-            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rrow + jtCtx.colRowOffset[c], tDataTypes[jtInputColType[c]].bytes);
+            memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rrow + jtCtx.colRowOffset[c], JT_INPUT_COL_BYTES(c));
           }
         }
       }
@@ -1536,6 +1717,7 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   void* lValue = NULL, *rValue = NULL, *filterValue = NULL;
   int64_t lBig = 0, rBig = 0, fbig = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
   
   for (int32_t l = 0; l < leftGrpRows; ++l) {
     char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
@@ -1545,6 +1727,7 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       lValue = lrow + jtCtx.colRowOffset[c];
+      lBinary = NULL;
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -1554,6 +1737,9 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           fbig = INT_FILTER_VALUE;
           lBig = *(int32_t*)lValue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          lBinary = (char*)lValue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           lBig = *(int64_t*)lValue;
@@ -1562,7 +1748,7 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           break;
       }
       
-      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) || (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -1594,6 +1780,7 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           rValue = rrow + jtCtx.colRowOffset[c];
         }
 
+        lBinary = rBinary = NULL;
         switch (jtInputColType[c]) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             fbig = TIMESTAMP_FILTER_VALUE;
@@ -1605,6 +1792,10 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             lBig = *(int32_t*)lValue;
             rBig = *(int32_t*)rValue;
             break;
+          case TSDB_DATA_TYPE_BINARY:
+            lBinary = (char*)lValue;
+            rBinary = (char*)rValue;
+            break;
           case TSDB_DATA_TYPE_BIGINT:
             fbig = BIGINT_FILTER_VALUE;
             lBig = *(int64_t*)lValue;
@@ -1614,17 +1805,17 @@ void innerJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             break;
         }
       
-        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || lBig != rBig)) {
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig != rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || lBig <= rBig)) {
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || rBig <= fbig)) {
+        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && rBig <= fbig) || (NULL != lBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
           filterOut = true;
           break;
         }
@@ -1648,6 +1839,7 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   void* lValue = NULL, *rValue = NULL, *filterValue = NULL;
   int64_t lBig = 0, rBig = 0, fbig = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
   
   for (int32_t l = 0; l < leftGrpRows; ++l) {
     char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
@@ -1657,6 +1849,8 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       lValue = lrow + jtCtx.colRowOffset[c];
+
+      lBinary = rBinary = NULL;      
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -1666,6 +1860,9 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           fbig = INT_FILTER_VALUE;
           lBig = *(int32_t*)lValue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          lBinary = (char*)lValue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           lBig = *(int64_t*)lValue;
@@ -1674,7 +1871,7 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           break;
       }
       
-      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) || (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -1712,6 +1909,7 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           rValue = rrow + jtCtx.colRowOffset[c];
         }
 
+        lBinary = rBinary = NULL;      
         switch (jtInputColType[c]) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             fbig = TIMESTAMP_FILTER_VALUE;
@@ -1723,6 +1921,10 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             lBig = *(int32_t*)lValue;
             rBig = *(int32_t*)rValue;
             break;
+          case TSDB_DATA_TYPE_BINARY:
+            lBinary = (char*)lValue;
+            rBinary = (char*)rValue;
+            break;
           case TSDB_DATA_TYPE_BIGINT:
             fbig = BIGINT_FILTER_VALUE;
             lBig = *(int64_t*)lValue;
@@ -1732,17 +1934,17 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             break;
         }
       
-        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || lBig != rBig)) {
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig != rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || lBig <= rBig)) {
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || rBig <= fbig)) {
+        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && rBig <= fbig) || (NULL != lBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
           filterOut = true;
         }
       }
@@ -1777,6 +1979,7 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   int64_t leftTbOffset = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
   char* rrow = NULL;
+  char* lBinary = NULL, *rBinary = NULL;
   
   for (int32_t l = 0; l < leftGrpRows; ++l) {
     char* lrow = jtCtx.colRowDataBuf + leftTbOffset + jtCtx.blkRowSize * l;
@@ -1786,6 +1989,8 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       lValue = lrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;      
+
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -1795,6 +2000,9 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           fbig = INT_FILTER_VALUE;
           lBig = *(int32_t*)lValue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          lBinary = (char*)lValue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           lBig = *(int64_t*)lValue;
@@ -1803,7 +2011,7 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           break;
       }
       
-      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) || (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -1835,6 +2043,8 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           rValue = rrow + jtCtx.colRowOffset[c];
         }
 
+        lBinary = rBinary = NULL;      
+
         switch (jtInputColType[c]) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             fbig = TIMESTAMP_FILTER_VALUE;
@@ -1846,6 +2056,10 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             lBig = *(int32_t*)lValue;
             rBig = *(int32_t*)rValue;
             break;
+          case TSDB_DATA_TYPE_BINARY:
+            lBinary = (char*)lValue;
+            rBinary = (char*)rValue;
+            break;
           case TSDB_DATA_TYPE_BIGINT:
             fbig = BIGINT_FILTER_VALUE;
             lBig = *(int64_t*)lValue;
@@ -1855,17 +2069,17 @@ void semiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             break;
         }
       
-        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || lBig != rBig)) {
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig != rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || lBig <= rBig)) {
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || rBig <= fbig)) {
+        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && rBig <= fbig) || (NULL != lBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
           filterOut = true;
           break;
         }
@@ -1894,6 +2108,7 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   void* lValue = NULL, *rValue = NULL, *filterValue = NULL;
   int64_t lBig = 0, rBig = 0, fbig = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
 
   ASSERT(0 == jtCtx.rightFilterNum);
   
@@ -1905,6 +2120,8 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       lValue = lrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;      
+
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -1914,6 +2131,9 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           fbig = INT_FILTER_VALUE;
           lBig = *(int32_t*)lValue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          lBinary = (char*)lValue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           lBig = *(int64_t*)lValue;
@@ -1922,7 +2142,7 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           break;
       }
       
-      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) || (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -1957,6 +2177,8 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           rValue = rrow + jtCtx.colRowOffset[c];
         }
 
+        lBinary = rBinary = NULL;      
+
         switch (jtInputColType[c]) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             fbig = TIMESTAMP_FILTER_VALUE;
@@ -1968,6 +2190,10 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             lBig = *(int32_t*)lValue;
             rBig = *(int32_t*)rValue;
             break;
+          case TSDB_DATA_TYPE_BINARY:
+            lBinary = (char*)lValue;
+            rBinary = (char*)rValue;
+            break;
           case TSDB_DATA_TYPE_BIGINT:
             fbig = BIGINT_FILTER_VALUE;
             lBig = *(int64_t*)lValue;
@@ -1977,12 +2203,12 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             break;
         }
       
-        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || lBig != rBig)) {
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig != rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
           rightMatch = false;
           break;
         }
 
-        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || lBig <= rBig)) {
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
           rightMatch = false;
           break;
         }
@@ -2009,7 +2235,8 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
   int32_t filterNum = leftTable ? jtCtx.leftFilterNum : jtCtx.rightFilterNum;
   int32_t* filterCol = leftTable ? jtCtx.leftFilterColList : jtCtx.rightFilterColList;
   SArray* rowList = leftTable ? jtCtx.leftRowsList : jtCtx.rightRowsList;
-
+  char* cBinary = NULL;
+  
   if (!leftTable) {
     rowsNum = TMIN(rowsNum, jtCtx.jLimit);
   }
@@ -2021,6 +2248,8 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       cvalue = row + jtCtx.colRowOffset[c];
+      cBinary = NULL;
+      
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -2030,6 +2259,9 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
           fbig = INT_FILTER_VALUE;
           cbig = *(int32_t*)cvalue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          cBinary = (char*)cvalue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           cbig = *(int64_t*)cvalue;
@@ -2038,7 +2270,7 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
           break;
       }
       
-      if (filterNum && filterCol[c] && ((*(bool*)(row + c)) || cbig <= fbig)) {
+      if (filterNum && filterCol[c] && ((*(bool*)(row + c)) || (NULL == cBinary && cbig <= fbig) || (NULL != cBinary && memcmp(cBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -2139,6 +2371,7 @@ void addWinEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
   int32_t filterNum = leftTable ? jtCtx.leftFilterNum : jtCtx.rightFilterNum;
   int32_t* filterCol = leftTable ? jtCtx.leftFilterColList : jtCtx.rightFilterColList;
   SArray* rowList = leftTable ? jtCtx.leftRowsList : jtCtx.rightRowsList;
+  char* cBinary = NULL;
 
   for (int32_t l = 0; l < rowsNum; ++l) {
     char* row = jtCtx.colRowDataBuf + tbOffset + jtCtx.blkRowSize * l;
@@ -2147,6 +2380,8 @@ void addWinEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       cvalue = row + jtCtx.colRowOffset[c];
+      cBinary = NULL;
+      
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -2156,6 +2391,9 @@ void addWinEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
           fbig = INT_FILTER_VALUE;
           cbig = *(int32_t*)cvalue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          cBinary = (char*)cvalue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           cbig = *(int64_t*)cvalue;
@@ -2164,7 +2402,7 @@ void addWinEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
           break;
       }
       
-      if (filterNum && filterCol[c] && ((*(bool*)(row + c)) || cbig <= fbig)) {
+      if (filterNum && filterCol[c] && ((*(bool*)(row + c)) || (NULL == cBinary && cbig <= fbig) || (NULL != cBinary && memcmp(cBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         filterOut = true;
         break;
       }
@@ -2197,6 +2435,7 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   void* lValue = NULL, *rValue = NULL, *filterValue = NULL;
   int64_t lBig = 0, rBig = 0, fbig = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
 
   memset(jtCtx.rightFinMatch, 0, rightGrpRows * sizeof(bool));
   
@@ -2208,6 +2447,8 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       lValue = lrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;      
+
       switch (jtInputColType[c]) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           fbig = TIMESTAMP_FILTER_VALUE;
@@ -2217,6 +2458,9 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           fbig = INT_FILTER_VALUE;
           lBig = *(int32_t*)lValue;
           break;
+        case TSDB_DATA_TYPE_BINARY:
+          lBinary = (char*)lValue;
+          break;
         case TSDB_DATA_TYPE_BIGINT:
           fbig = BIGINT_FILTER_VALUE;
           lBig = *(int64_t*)lValue;
@@ -2225,7 +2469,7 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           break;
       }
       
-      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) || (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
         lfilterOut = true;
       }
     }
@@ -2242,6 +2486,8 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
           rValue = rrow + jtCtx.colRowOffset[c];
         }
 
+        lBinary = rBinary = NULL;      
+
         switch (jtInputColType[c]) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             fbig = TIMESTAMP_FILTER_VALUE;
@@ -2253,6 +2499,10 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             lBig = *(int32_t*)lValue;
             rBig = *(int32_t*)rValue;
             break;
+          case TSDB_DATA_TYPE_BINARY:
+            lBinary = (char*)lValue;
+            rBinary = (char*)rValue;
+            break;
           case TSDB_DATA_TYPE_BIGINT:
             fbig = BIGINT_FILTER_VALUE;
             lBig = *(int64_t*)lValue;
@@ -2262,15 +2512,15 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
             break;
         }
       
-        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || lBig != rBig)) {
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || (NULL == lBinary && lBig != rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
           rightMatch = false;
         }
 
-        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || lBig <= rBig)) {
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || (NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
           rightMatch = false;
         }
 
-        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || rBig <= fbig)) {
+        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || (NULL == lBinary && rBig <= fbig) || (NULL != lBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
           rfilterOut = true;
         }
       }
@@ -2377,11 +2627,365 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   makeAppendBlkData(ppLeft, ppRight, leftGrpRows, rightGrpRows);
 
-  appendEqGrpRes(leftGrpRows, rightGrpRows);
+  if (jtCtx.mJoin) {
+    appendEqGrpRes(leftGrpRows, rightGrpRows);
+  }
 }
 
+bool jtFilterBlockRows(SSDataBlock* pBlk, int32_t rowIdx) {
+  int32_t blkId = pBlk->info.id.blockId;
+  
+  int32_t filterNum = (blkId == LEFT_BLK_ID) ? jtCtx.leftFilterNum : jtCtx.rightFilterNum;
+  int32_t peerFilterNum = (blkId == LEFT_BLK_ID) ? jtCtx.rightFilterNum : jtCtx.leftFilterNum;
+  int32_t* filterCol = (blkId == LEFT_BLK_ID) ? jtCtx.leftFilterColList : jtCtx.rightFilterColList;
+  
+  if (filterNum <= 0) {
+    return false;
+  }
+
+  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+    if (0 == filterCol[c]) {
+      continue;
+    }
+    
+    SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, c);
+
+    if (colDataIsNull_s(pCol, rowIdx)) {
+      return true;
+    }
+  
+    switch (jtInputColType[c]) {
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        if (*(int64_t*)(colDataGetData(pCol, rowIdx)) <= TIMESTAMP_FILTER_VALUE) {
+          return true;
+        }
+        break;
+      case TSDB_DATA_TYPE_INT:
+        if (*(int32_t*)(colDataGetData(pCol, rowIdx)) <= INT_FILTER_VALUE) {
+          return true;
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        if (*(int64_t*)(colDataGetData(pCol, rowIdx)) <= BIGINT_FILTER_VALUE) {
+          return true;
+        }
+        break;
+      case TSDB_DATA_TYPE_BINARY: {
+        if (memcmp(colDataGetData(pCol, rowIdx), BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0) {
+          return true;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return false;
+}
+
+void jtAddBlockRowsToHash(SSDataBlock* pBlk, char* pBuf, int32_t blkIdx, SSHashObj* pHash) {
+  int32_t value[2] = {blkIdx, 0};
+  for (int32_t i = 0; i < pBlk->info.rows; ++i) {
+    if (jtFilterBlockRows(pBlk, i)) {
+      qDebug("row [%d:%d] in right block filterd out", blkIdx, i);
+      continue;
+    }
+
+    memset(pBuf, 0, jtCtx.colEqHashKeySize);
+    
+    for (int32_t c = 0; c < jtCtx.colEqNum; ++c) {
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, jtCtx.colEqSlotList[c]);
+      
+      if (colDataIsNull_s(pCol, i)) {
+        *(bool*)pBuf = true;
+        qDebug("row [%d:%d] in right block filterd out cause of NULL value", blkIdx, i);
+        break;
+      }
+      
+      memcpy(pBuf + jtCtx.colEqHashOffset[c], colDataGetData(pCol, i), colDataGetRowLength(pCol, i));
+    }
+
+    if (!*(bool*)pBuf) {
+      SArray** p = (SArray**)tSimpleHashGet(pHash, pBuf, jtCtx.colEqHashKeySize);
+      if (NULL != p) {
+        value[1] = i;
+        taosArrayPush(*p, value);
+        continue;
+      }
+
+      SArray* newArr = taosArrayInit(10, 2 * sizeof(int32_t));
+      value[1] = i;
+      taosArrayPush(newArr, value);
+
+      tSimpleHashPut(pHash, pBuf, jtCtx.colEqHashKeySize, &newArr, POINTER_BYTES);
+    }
+  }
+}
+
+void jtBuildHashFromBlkList(SArray* pRightBlkList, int32_t capacity, SSHashObj** pHash) {
+  *pHash = tSimpleHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  char* pBuf = (char*)taosMemoryMalloc(jtCtx.colEqHashKeySize);
+
+  int32_t blkNum = taosArrayGetSize(pRightBlkList);
+  for (int32_t i = 0; i < blkNum; ++i) {
+    SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(pRightBlkList, i);
+    jtAddBlockRowsToHash(pBlk, pBuf, i, *pHash);
+  }
+
+  taosMemoryFree(pBuf);
+}
+
+void jtCopyRowData(SSDataBlock* pBlk, int64_t tbOffset, int32_t rowIdx) {
+  for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+    SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, c);
+
+    switch (jtInputColType[c]) {
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        *(int64_t*)(jtCtx.colRowDataBuf + tbOffset + jtCtx.colRowOffset[c]) = *(int64_t*)colDataGetData(pCol, rowIdx);
+      *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = false;
+        break;
+      case TSDB_DATA_TYPE_INT:
+        if (!colDataIsNull_s(pCol, rowIdx)) {
+          *(int32_t*)(jtCtx.colRowDataBuf + tbOffset + jtCtx.colRowOffset[c]) = *(int32_t*)colDataGetData(pCol, rowIdx);
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = false;
+        } else {
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = true;
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        if (!colDataIsNull_s(pCol, rowIdx)) {
+          *(int64_t*)(jtCtx.colRowDataBuf + tbOffset + jtCtx.colRowOffset[c]) = *(int64_t*)colDataGetData(pCol, rowIdx);
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = false;
+        } else {
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = true;
+        }
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+        if (!colDataIsNull_s(pCol, rowIdx)) {
+          memcpy(jtCtx.colRowDataBuf + tbOffset + jtCtx.colRowOffset[c], colDataGetData(pCol, rowIdx), colDataGetRowLength(pCol, rowIdx));
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = false;
+        } else {
+          *(bool*)(jtCtx.colRowDataBuf + tbOffset + c) = true;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+
+void jtAppendEqHashGroupResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, int32_t rowIdx, SArray* pBuildRows, int32_t* appendNum) {
+  int64_t totalSize = 2 * jtCtx.blkRowSize;
+
+  if (jtCtx.colRowDataBufSize < totalSize) {
+    jtCtx.colRowDataBuf = (char*)taosMemoryRealloc(jtCtx.colRowDataBuf, totalSize);
+    jtCtx.colRowDataBufSize = totalSize;
+  }
+
+  memset(jtCtx.colRowDataBuf, 0, totalSize);
+
+  jtCopyRowData(pLeftBlk, 0, rowIdx);
+
+  if (appendNum) {
+    *appendNum = 0;
+  }
+  
+  int32_t *pBlkIdx = NULL;
+  int32_t *pRowIdx = NULL;
+  int32_t bRows = taosArrayGetSize(pBuildRows);
+  for (int32_t i = 0; i < bRows; ++i) {
+    pBlkIdx = (int32_t*)taosArrayGet(pBuildRows, i);
+    pRowIdx = pBlkIdx + 1;
+    
+    jtCopyRowData((SSDataBlock*)taosArrayGetP(pRightBlkList, *pBlkIdx), jtCtx.blkRowSize, *pRowIdx);
+
+    if (jtCtx.colOnNum > 0) {
+      bool condMatch = true;
+      
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        if (jtCtx.colOnList[c]) {
+          if ((*(bool*)(jtCtx.colRowDataBuf + c)) || (*(bool*)(jtCtx.colRowDataBuf + jtCtx.blkRowSize + c))) {
+            condMatch = false;
+            break;
+          }
+          
+          char* lBinary = NULL, *rBinary = NULL;
+          int64_t lBig = 0, rBig = 0;
+          switch (jtInputColType[c]) {
+            case TSDB_DATA_TYPE_BINARY:
+              lBinary = jtCtx.colRowDataBuf + jtCtx.colRowOffset[c];
+              rBinary = jtCtx.colRowDataBuf + jtCtx.blkRowSize + jtCtx.colRowOffset[c];
+              break;
+            case TSDB_DATA_TYPE_TIMESTAMP:
+            case TSDB_DATA_TYPE_BIGINT:  
+              lBig = *(int64_t*)(jtCtx.colRowDataBuf + jtCtx.colRowOffset[c]);
+              rBig = *(int64_t*)(jtCtx.colRowDataBuf + jtCtx.blkRowSize + jtCtx.colRowOffset[c]);
+              break;
+            case TSDB_DATA_TYPE_INT:
+              lBig = *(int32_t*)(jtCtx.colRowDataBuf + jtCtx.colRowOffset[c]);
+              rBig = *(int32_t*)(jtCtx.colRowDataBuf + jtCtx.blkRowSize + jtCtx.colRowOffset[c]);
+              break;
+            default:
+              break;
+          }
+          
+          if ((NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0)) {
+            condMatch = false;
+            break;
+          }
+        }
+
+      }
+
+      if (!condMatch) {
+        continue;
+      }
+    }
+    
+    putMatchRowToRes(jtCtx.colRowDataBuf, jtCtx.colRowDataBuf + jtCtx.blkRowSize, ALL_TABLE_COLS);   
+    if (appendNum) {
+      (*appendNum)++;
+    }
+  }
+}
+
+void jtAppendNMatchHashGroupResRows(SSDataBlock* pBlk, int32_t rowIdx) {
+  if (JOIN_TYPE_INNER == jtCtx.joinType) {
+    return;
+  }
+
+  int64_t totalSize = jtCtx.blkRowSize;
+
+  if (jtCtx.colRowDataBufSize < totalSize) {
+    jtCtx.colRowDataBuf = (char*)taosMemoryRealloc(jtCtx.colRowDataBuf, totalSize);
+    jtCtx.colRowDataBufSize = totalSize;
+  }
+  
+  memset(jtCtx.colRowDataBuf, 0, totalSize);
+
+  jtCopyRowData(pBlk, 0, rowIdx);
+
+  putNMatchRowToRes(jtCtx.colRowDataBuf, 0, MAX_SLOT_NUM);
+}
+
+void jtHashInnerJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx) {
+  if (!*(bool*)keyBuf) {
+    SArray** p = (SArray**)tSimpleHashGet(pHash, keyBuf, jtCtx.colEqHashKeySize);
+    if (NULL != p) {
+      jtAppendEqHashGroupResRows(pRightBlkList, pBlk, rowIdx, *p, NULL);
+    } else {
+      qDebug("row [%d:%d] in left block not matched in hash", blkIdx, rowIdx);
+    }
+  } else {
+    qDebug("row [%d:%d] in left block filterd out cause of NULL value", blkIdx, rowIdx);
+  }
+
+}
+
+void jtHashLeftJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx) {
+  int32_t appendNum = 0;
+  
+  if (!*(bool*)keyBuf) {
+    SArray** p = (SArray**)tSimpleHashGet(pHash, keyBuf, jtCtx.colEqHashKeySize);
+    if (NULL != p) {
+      jtAppendEqHashGroupResRows(pRightBlkList, pBlk, rowIdx, *p, &appendNum);
+      if (appendNum > 0) {
+        return;
+      }
+    } else {
+      qDebug("row [%d:%d] in left block not matched in hash", blkIdx, rowIdx);
+    }
+  
+    jtAppendNMatchHashGroupResRows(pBlk, rowIdx);
+  } else {
+    qDebug("row [%d:%d] in left block filterd out cause of NULL value", blkIdx, rowIdx);
+  }
+
+}
+
+
+void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx) {
+  switch (jtCtx.joinType) {
+    case JOIN_TYPE_INNER:
+      jtHashInnerJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx);
+      break;
+    case JOIN_TYPE_LEFT: {
+      switch (jtCtx.subType) {
+        case JOIN_STYPE_OUTER:
+          jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx);
+          break;
+        case JOIN_STYPE_SEMI:
+          break;
+        case JOIN_STYPE_ANTI:
+          break;
+        case JOIN_STYPE_ASOF:
+          break;
+        case JOIN_STYPE_WIN:
+          break;
+        default:
+          break;
+      }
+      break;
+    }
+    case JOIN_TYPE_FULL:
+      break;
+    default:
+      break;
+  }
+}
+
+
+void jtAppendBlkHashJoinResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf) {
+  for (int32_t i = 0; i < pBlk->info.rows; ++i) {
+    if (jtFilterBlockRows(pBlk, i)) {
+      qDebug("row [%d:%d] in left block filterd out", blkIdx, i);
+      continue;
+    }
+
+    memset(keyBuf, 0, jtCtx.colEqHashKeySize);
+    
+    for (int32_t c = 0; c < jtCtx.colEqNum; ++c) {
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, jtCtx.colEqSlotList[c]);
+      
+      if (colDataIsNull_s(pCol, i)) {
+        *(bool*)keyBuf = true;
+        break;
+      }
+      
+      memcpy(keyBuf + jtCtx.colEqHashOffset[c], colDataGetData(pCol, i), colDataGetRowLength(pCol, i));
+    }
+
+    jtHashJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, i);
+  }
+}
+
+void jtCalcHJoinResRows() {
+  if (taosArrayGetSize(jtCtx.leftBlkList) <= 0 || taosArrayGetSize(jtCtx.rightBlkList) <= 0) {
+    return;
+  }
+
+  SSHashObj* pHash = NULL;
+  jtBuildHashFromBlkList(jtCtx.rightBlkList, jtCtx.rightTotalRows * 2, &pHash);
+
+  char* keyBuf = (char*)taosMemoryMalloc(jtCtx.colEqHashKeySize);
+  
+  int32_t blkNum = taosArrayGetSize(jtCtx.leftBlkList);
+  for (int32_t i = 0; i < blkNum; ++i) {
+    SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.leftBlkList, i);
+    
+    jtAppendBlkHashJoinResRows(jtCtx.rightBlkList, pBlk, i, pHash, keyBuf);
+  }
+
+  tSimpleHashCleanup(pHash);
+}
+
+
 void forceFlushResRows() {
-  if (JOIN_STYPE_ASOF == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
+  if (!jtCtx.mJoin) {
+    jtCalcHJoinResRows();
+  } else if (JOIN_STYPE_ASOF == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
     ASSERT((jtCtx.asc && (OP_TYPE_LOWER_EQUAL == jtCtx.asofOpType || OP_TYPE_LOWER_THAN == jtCtx.asofOpType))
          || (!jtCtx.asc && (OP_TYPE_GREATER_EQUAL == jtCtx.asofOpType || OP_TYPE_GREATER_THAN == jtCtx.asofOpType)));
     chkAppendAsofForwardGrpResRows(true);
@@ -2392,7 +2996,6 @@ void forceFlushResRows() {
   taosArrayClear(jtCtx.rightRowsList);
   taosArrayClear(jtCtx.rightFilterOut);
   taosArrayClear(jtCtx.leftRowsList);
-  
 }
 
 void createBothBlkRowsData(void) {
@@ -2405,6 +3008,7 @@ void createBothBlkRowsData(void) {
   int32_t minTotalRows = TMIN(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
   int32_t maxTotalRows = TMAX(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
   jtCtx.curTs = jtCtx.asc ? (TIMESTAMP_FILTER_VALUE - minTotalRows / 5) : (TIMESTAMP_FILTER_VALUE + 4 * maxTotalRows / 5); 
+  jtCtx.beginTs = jtCtx.curTs;
 
   int32_t leftTotalRows = 0, rightTotalRows = 0;
   int32_t leftGrpRows = 0, rightGrpRows = 0;
@@ -2470,6 +3074,7 @@ void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rig
   jtCtx.rightMaxRows = rightMaxRows;
   jtCtx.rightMaxGrpRows = rightMaxGrpRows;
   jtCtx.blkRows = blkRows;
+  jtCtx.runtimes = -1;
 
   int32_t maxGrpRows = TMAX(leftMaxGrpRows, rightMaxGrpRows);
   if (maxGrpRows > jtCtx.rightFinMatchNum) {
@@ -2488,6 +3093,8 @@ void rerunBlockedHere() {
   while (jtInRerun) {
     taosSsleep(1);
   }
+  
+  jtCtx.runtimes++;
 }
 
 
@@ -2532,6 +3139,26 @@ void joinTestReplaceRetrieveFp() {
     }
 #endif
   }
+
+  stub.set(getNextBlockFromDownstream, getDummyInputBlock);
+  {
+#ifdef WINDOWS
+    AddrAny                       any;
+    std::map<std::string, void *> result;
+    any.get_func_addr("getNextBlockFromDownstream", result);
+    for (const auto &f : result) {
+      stub.set(f.second, getDummyInputBlock);
+    }
+#endif
+#ifdef LINUX
+    AddrAny                       any("libexecutor.so");
+    std::map<std::string, void *> result;
+    any.get_global_func_addr_dynsym("^getNextBlockFromDownstream$", result);
+    for (const auto &f : result) {
+      stub.set(f.second, getDummyInputBlock);
+    }
+#endif
+  }
 }
 
 void printColList(char* title, bool left, int32_t* colList, bool filter, char* opStr) {
@@ -2545,7 +3172,11 @@ void printColList(char* title, bool left, int32_t* colList, bool filter, char* o
       }
       first = false;
       if (filter) {
-        printf("%sc%d%s%" PRId64 , left ? "l" : "r", i, opStr, jtFilterValue[i]);
+        if (TSDB_DATA_TYPE_BINARY == jtInputColType[i]) {
+          printf("%sc%d%s%.*s", left ? "l" : "r", i, opStr, *(int16_t*)BINARY_FILTER_VALUE, &BINARY_FILTER_VALUE[2]);
+        } else {
+          printf("%sc%d%s%" PRId64 , left ? "l" : "r", i, opStr, jtFilterValue[i]);
+        }
       } else {
         printf("lc%d%src%d", i, opStr, i);
       }
@@ -2571,6 +3202,9 @@ void printInputRowData(SSDataBlock* pBlk, int32_t* rowIdx) {
           break;
         case TSDB_DATA_TYPE_INT:
           printf("%18d", *(int32_t*)colDataGetData(pCol, *rowIdx));
+          break;
+        case TSDB_DATA_TYPE_BINARY:
+          printf("%18.*s", *(int16_t*)colDataGetData(pCol, *rowIdx), (char*)colDataGetData(pCol, *rowIdx) + 2);
           break;
         default:
           ASSERT(0);
@@ -2788,6 +3422,13 @@ void putRowToResColBuf(SSDataBlock* pBlock, int32_t r, bool ignoreTbCols) {
           *(int32_t*)(jtCtx.resColBuf + jtCtx.resColOffset[slot]) = *(int32_t*)colDataGetData(pCol, r);
         }
         break;
+      case TSDB_DATA_TYPE_BINARY:
+        if (colDataIsNull_s(pCol, r)) {
+          *(bool*)(jtCtx.resColBuf + slot) = true;
+        } else {
+          memcpy(jtCtx.resColBuf + jtCtx.resColOffset[slot], colDataGetData(pCol, r), JT_BINARY_MAX_LEN);
+        }
+        break;
       default:
         break;
     }
@@ -2832,7 +3473,7 @@ void checkJoinRes(SSDataBlock* pBlock) {
   }
 }
 
-void resetForJoinRerun(int32_t dsNum, void* pNode, SExecTaskInfo* pTask, bool mJoin) {
+void resetForJoinRerun(int32_t dsNum, void* pNode, SExecTaskInfo* pTask) {
   jtCtx.leftBlkReadIdx = 0;
   jtCtx.rightBlkReadIdx = 0;
   jtCtx.curKeyOffset = 0;
@@ -2840,10 +3481,22 @@ void resetForJoinRerun(int32_t dsNum, void* pNode, SExecTaskInfo* pTask, bool mJ
   memset(&jtRes, 0, sizeof(jtRes));
   jtRes.succeed = true;
 
+  if (!jtCtx.mJoin && jtCtx.tbTimeRange && jtCtx.runtimes <= 0) {
+    SHashJoinPhysiNode* pHashJoin = (SHashJoinPhysiNode*)pNode;
+    pHashJoin->timeRangeTarget = taosRand() % 3 + 1;
+    int64_t range = jtCtx.beginTs < jtCtx.curTs ? (jtCtx.curTs - jtCtx.beginTs) : (jtCtx.beginTs - jtCtx.curTs);
+    int64_t offset = taosRand() % (0 == range ? 10 : 2 * range);
+    pHashJoin->timeRange.skey = TMIN(jtCtx.beginTs, jtCtx.curTs) + (taosRand() % 2) ? -1 * offset : offset;
+    pHashJoin->timeRange.ekey = TMAX(jtCtx.beginTs, jtCtx.curTs) + (taosRand() % 2) ? -1 * offset : offset;
+    if (pHashJoin->timeRange.skey > pHashJoin->timeRange.ekey) {
+      TSWAP(pHashJoin->timeRange.skey, pHashJoin->timeRange.ekey);
+    }
+  }
+
   SOperatorInfo* pDownstreams[2];
   createDummyDownstreamOperators(2, pDownstreams);  
   SOperatorInfo* ppDownstreams[] = {pDownstreams[0], pDownstreams[1]};
-  jtCtx.pJoinOp = mJoin ? createMergeJoinOperatorInfo(ppDownstreams, 2, (SSortMergeJoinPhysiNode*)pNode, pTask) : createHashJoinOperatorInfo(ppDownstreams, 2, (SHashJoinPhysiNode*)pNode, pTask);
+  jtCtx.pJoinOp = jtCtx.mJoin ? createMergeJoinOperatorInfo(ppDownstreams, 2, (SSortMergeJoinPhysiNode*)pNode, pTask) : createHashJoinOperatorInfo(ppDownstreams, 2, (SHashJoinPhysiNode*)pNode, pTask);
   ASSERT_TRUE(NULL != jtCtx.pJoinOp);
 }
 
@@ -2881,6 +3534,8 @@ void jtInitLogFile() {
 
 
 void initJoinTest() {
+  *(int16_t*)BINARY_FILTER_VALUE = JT_BINARY_MAX_LEN - 2;
+  
   jtCtx.leftBlkList = taosArrayInit(10, POINTER_BYTES);
   jtCtx.rightBlkList = taosArrayInit(10, POINTER_BYTES);
   jtCtx.jtResRows = tSimpleHashInit(10000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -2894,7 +3549,7 @@ void initJoinTest() {
   int32_t offset = MAX_SLOT_NUM * sizeof(bool);
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     jtCtx.inColOffset[i] = offset;
-    offset += tDataTypes[jtInputColType[i]].bytes;
+    offset += JT_INPUT_COL_BYTES(i);
   }
   jtCtx.inColSize = offset;
   jtCtx.inColBuf = (char*)taosMemoryMalloc(jtCtx.inColSize);
@@ -2938,11 +3593,11 @@ void runSingleMJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
-    resetForJoinRerun(2, pNode, param->pTask, true);
+    resetForJoinRerun(2, pNode, param->pTask);
     printBasicInfo(caseName);
     printOutputInfo();
 
@@ -2968,11 +3623,11 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
-  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
-    resetForJoinRerun(2, pNode, param->pTask, false);
+    resetForJoinRerun(2, pNode, param->pTask);
     printBasicInfo(caseName);
     printOutputInfo();
 

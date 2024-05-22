@@ -286,7 +286,17 @@ int32_t colDataCopyAndReassign(SColumnInfoData* pColumnInfoData, uint32_t curren
 
   if (numOfRows > 1) {
     int32_t* pOffset = pColumnInfoData->varmeta.offset;
-    memset(&pOffset[currentRow + 1], pOffset[currentRow], sizeof(pOffset[0]) * (numOfRows - 1));
+    int32_t  colBytes = sizeof(*pOffset);
+    uint32_t num = 1;
+
+    while (num < numOfRows) {
+      int32_t maxNum = num << 1;
+      int32_t tnum = maxNum > numOfRows ? (numOfRows - num) : num;
+
+      memcpy(pOffset + currentRow + num, pOffset + currentRow, tnum * colBytes);
+      num += tnum;
+    }    
+
     pColumnInfoData->reassigned = true;
   }
 

@@ -168,6 +168,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
     pTable->keyCols[i].srcSlot = pColNode->slotId;
     pTable->keyCols[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
     pTable->keyCols[i].bytes = pColNode->node.resType.bytes;
+    pTable->keyCols[i].offset = 0;
     bufSize += pColNode->node.resType.bytes;
     ++i;
   }  
@@ -227,8 +228,8 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
       if (hJoinIsValColInKeyCols(pColNode->slotId, pTable->keyNum, pTable->keyCols, &pTable->valCols[i].srcSlot)) {
         pTable->valCols[i].keyCol = true;
       } else {
-        pTable->valCols[i].keyCol = false;
         pTable->valCols[i].srcSlot = pColNode->slotId;
+        pTable->valCols[i].keyCol = false;
         pTable->valColExist = true;
         colNum++;
       }
@@ -479,21 +480,23 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
   int32_t probeIdx = 0;
   SBufRowInfo* pRow = pStart;
   int32_t code = 0;
+  char* pColData = NULL;
+  bool isNull = false;
+  int32_t keyIdx = 0;
 
   for (int32_t r = 0; r < rowNum; ++r) {
     char* pData = hJoinRetrieveColDataFromRowBufs(pJoin->pRowBufs, pRow);
     char* pValData = pData + pBuild->valBitMapSize;
-    char* pKeyData = pProbe->keyData;
     buildIdx = buildValIdx = probeIdx = 0;
     for (int32_t i = 0; i < pJoin->pResColNum; ++i) {
       if (pJoin->pResColMap[i]) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pBuild->valCols[buildIdx].dstSlot);
         if (pBuild->valCols[buildIdx].keyCol) {
-          code = colDataSetVal(pDst, pRes->info.rows + r, pKeyData, false);
+          keyIdx = pBuild->valCols[buildIdx].srcSlot;
+          code = colDataSetVal(pDst, pRes->info.rows + r, pProbe->keyData + pProbe->keyCols[keyIdx].offset, false);
           if (code) {
             return code;
           }
-          pKeyData += pBuild->valCols[buildIdx].vardata ? varDataTLen(pKeyData) : pBuild->valCols[buildIdx].bytes;
         } else {
           if (colDataIsNull_f(pData, buildValIdx)) {
             code = colDataSetVal(pDst, pRes->info.rows + r, NULL, true);
@@ -511,13 +514,22 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
         }
         buildIdx++;
       } else if (0 == r) {
-        SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pProbe->valCols[probeIdx].dstSlot);
-    
-        code = colDataCopyNItems(pDst, pRes->info.rows, colDataGetData(pSrc, pJoin->ctx.probeStartIdx), rowNum, colDataIsNull_s(pSrc, pJoin->ctx.probeStartIdx));
+        if (pProbe->valCols[probeIdx].keyCol) {
+          keyIdx = pProbe->valCols[probeIdx].srcSlot;
+          pColData = pProbe->keyData + pProbe->keyCols[keyIdx].offset;
+          isNull = false;
+        } else {
+          SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
+          pColData = colDataGetData(pSrc, pJoin->ctx.probeStartIdx);
+          isNull = colDataIsNull_s(pSrc, pJoin->ctx.probeStartIdx);
+        }
+
+        code = colDataCopyNItems(pDst, pRes->info.rows, pColData, rowNum, isNull);
         if (code) {
           return code;
         }
+
         probeIdx++;
       }
     }
@@ -592,7 +604,7 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
       return true;
     }
     if (pTable->keyCols[0].vardata) {
-      pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
+      pData = pTable->keyCols[0].data + pTable->keyCols[0].colData->varmeta.offset[rowIdx];
       bufLen = varDataTLen(pData);
     } else {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].bytes * rowIdx;
@@ -604,8 +616,11 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
       if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
         return true;
       }
+      
+      pTable->keyCols[i].offset = bufLen;
+      
       if (pTable->keyCols[i].vardata) {
-        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
+        pData = pTable->keyCols[i].data + pTable->keyCols[i].colData->varmeta.offset[rowIdx];
         memcpy(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
         bufLen += varDataTLen(pData);
       } else {
@@ -636,9 +651,6 @@ static int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) 
       return TSDB_CODE_INVALID_PARA;
     }
     pTable->keyCols[i].data = pCol->pData;
-    if (pTable->keyCols[i].vardata) {
-      pTable->keyCols[i].offset = pCol->varmeta.offset;
-    }
     pTable->keyCols[i].colData = pCol;
   }
 
@@ -666,9 +678,7 @@ static int32_t hJoinSetValColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) 
       pTable->valCols[i].bitMap = pCol->nullbitmap;
     }
     pTable->valCols[i].data = pCol->pData;
-    if (pTable->valCols[i].vardata) {
-      pTable->valCols[i].offset = pCol->varmeta.offset;
-    }
+    pTable->valCols[i].colData = pCol;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -689,10 +699,10 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
       continue;
     }
     if (pTable->valCols[i].vardata) {
-      if (-1 == pTable->valCols[i].offset[rowIdx]) {
+      if (-1 == pTable->valCols[i].colData->varmeta.offset[rowIdx]) {
         colDataSetNull_f(pTable->valData, m);
       } else {
-        pData = pTable->valCols[i].data + pTable->valCols[i].offset[rowIdx];
+        pData = pTable->valCols[i].data + pTable->valCols[i].colData->varmeta.offset[rowIdx];
         memcpy(pTable->valData + bufLen, pData, varDataTLen(pData));
         bufLen += varDataTLen(pData);
       }
@@ -748,8 +758,10 @@ static FORCE_INLINE int32_t hJoinGetValBufSize(SHJoinTableCtx* pTable, int32_t r
   int32_t varColNum = taosArrayGetSize(pTable->valVarCols);
   for (int32_t i = 0; i < varColNum; ++i) {
     varColIdx = taosArrayGet(pTable->valVarCols, i);
-    char* pData = pTable->valCols[*varColIdx].data + pTable->valCols[*varColIdx].offset[rowIdx];
-    bufLen += varDataTLen(pData);
+    if (!colDataIsNull_s(pTable->valCols[*varColIdx].colData, rowIdx)) {
+      char* pData = pTable->valCols[*varColIdx].data + pTable->valCols[*varColIdx].colData->varmeta.offset[rowIdx];
+      bufLen += varDataTLen(pData);
+    }
   }
 
   return bufLen;
@@ -1001,25 +1013,33 @@ static SSDataBlock* hJoinMainProcess(struct SOperatorInfo* pOperator) {
 
   blockDataCleanup(pRes);
 
-  if (pJoin->ctx.rowRemains) {
-    code = (*pJoin->joinFp)(pOperator);
-    if (code) {
-      pTaskInfo->code = code;
-      T_LONG_JMP(pTaskInfo->env, code);
+  while (true) {
+    if (pJoin->ctx.rowRemains) {
+      code = (*pJoin->joinFp)(pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
+      
+      if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
+        doFilter(pRes, pJoin->pFinFilter, NULL);
+      }
+      
+      if (pRes->info.rows > 0) {
+        return pRes;
+      }
+
+      continue;
     }
     
-    if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      doFilter(pRes, pJoin->pFinFilter, NULL);
-    }
-    if (pRes->info.rows > 0) {
-      return pRes;
-    }
-  }
-
-  while (true) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, pJoin->pProbe->downStreamIdx);
     if (NULL == pBlock) {
       hJoinSetDone(pOperator);
+
+      if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
+        doFilter(pRes, pJoin->pFinFilter, NULL);
+      }
+
       break;
     }
 
@@ -1131,7 +1151,6 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   
   return TSDB_CODE_SUCCESS;
 }
-
 
 SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
