@@ -7,8 +7,8 @@
       <el-button class="big-button" plain type="primary" @click="dialog = true" size="small" icon="el-icon-plus">{{ $t("topic.createTopic") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
-      <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
-      <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
+      <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name" show-overflow-tooltip></el-table-column>
+      <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name" show-overflow-tooltip></el-table-column>
       <el-table-column min-width="200" label="SQL" prop="sql">
         <template slot-scope="scope">
           <el-tooltip
@@ -37,7 +37,7 @@
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column width="210" :label="$t('createTime')" prop="create_time">
+      <el-table-column width="210" :label="$t('createTime')" prop="create_time" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
       </el-table-column>
      <!-- 云服务有自己的用户管理，企业版没有，从 schema 中无法获取 topic 的创建用户 -->

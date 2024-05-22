@@ -421,6 +421,7 @@ export function getLocalTimezone() {
 
 // format time
 export function parsinginZone(value, format) {
+  if (!value) return value;
   let timezone = getLocalTimezone();
   return momentTimezone(value).tz(timezone).format(format);
 }

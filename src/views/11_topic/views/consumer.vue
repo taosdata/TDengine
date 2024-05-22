@@ -6,18 +6,18 @@
       }}</el-button>
     </div>
     <el-table size="mini" :data="consumerList" style="margin-top: 20px">
-      <el-table-column :label="$t('topic.consumerID')" prop="consumer_id"></el-table-column>
-      <el-table-column :label="$t('topic.consumerGroup')" prop="consumer_group"></el-table-column>
-      <el-table-column :label="$t('topic.clientID')" prop="client_id"></el-table-column>
-      <el-table-column :label="$t('status')" prop="status"></el-table-column>
-      <el-table-column :label="$t('route.topic')" prop="topics"></el-table-column>
-      <el-table-column :label="$t('topic.upTime')" prop="up_time">
+      <el-table-column :label="$t('topic.consumerID')" prop="consumer_id" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('topic.consumerGroup')" prop="consumer_group" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('topic.clientID')" prop="client_id" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('status')" prop="status" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('route.topic')" prop="topics" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('topic.upTime')" prop="up_time" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.up_time) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('topic.subscribeTime')" prop="subscribe_time">
+      <el-table-column :label="$t('topic.subscribeTime')" prop="subscribe_time" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.subscribe_time) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('topic.rebalanceTime')" prop="rebalance_time">
+      <el-table-column :label="$t('topic.rebalanceTime')" prop="rebalance_time" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.rebalance_time) }}</span>
       </el-table-column>
       <!-- <el-table-column label="Pid" prop="pid"></el-table-column> -->

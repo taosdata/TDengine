@@ -23,14 +23,14 @@
       </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column :label="$t('taosuser.directory')" width="150" prop="id">
+      <el-table-column :label="$t('taosuser.directory')" width="150" prop="id" show-overflow-tooltip>
         <span slot-scope="scope">{{ scope.row.to_expand.path }}</span>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
+      <el-table-column :label="$t('taosuser.database')" prop="database" show-overflow-tooltip></el-table-column>
       <el-table-column :label="$t('taosuser.createtime')" prop="created_at">
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.lastbackup')" prop="status">
+      <el-table-column :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -45,11 +45,11 @@
             >
               <div v-html="scope.row.last_modified_at" slot="content"></div>
               <div slot="content" v-html="scope.row.reason"></div>
-              <span style="width: 80px; display: inline-block">{{
+              <span>{{
                handleDSStatus(scope.row.status)
               }}</span>
             </el-tooltip>
-            <span style="width: 80px; display: inline-block" v-else>{{
+            <span v-else>{{
               handleDSStatus(scope.row.status)
             }}</span>
             <!-- <template v-if="scope.row.status.toLowerCase() !== 'running'">
