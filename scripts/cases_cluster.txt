@@ -14,6 +14,9 @@ taostest --setup=bug_regression/TS-4478.yaml --case=bug_regression/bug_ts4478.py
 # nevados
 # taostest --setup=cluster/cluster_common_insert.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --containers --disable_data_collection --case-param="\"--prepare-param-file=cases/stability/insert/scenario_test/fh_nevados_prepare_data.json --insert-param-file=cases/stability/insert/scenario_test/fh_nevados_stream_insert.json\""
 
+taostest --setup=common_insert.yaml --case=bug_regression/bug_ts4805.py --keep --containers
+
+
 
 
 
