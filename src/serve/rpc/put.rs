@@ -489,14 +489,16 @@ impl PutStream {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
             tokio::pin!(stream);
             let process_item = |message: Result<DecodedFlightData, FlightError>| {
-                let _ = cur_span.enter();
                 let metrics = metrics_arc.ipc();
                 let message = message
                     .map(|message| {
                         let app_metadata = message.app_metadata();
                         let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
                         metrics.add_received_batches(1);
-                        tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                        cur_span.in_scope(|| {
+                            metrics.add_received_batches(1);
+                            tracing::info!("Receive batch {}", get_data_trace_id_str(trace_id));
+                        });
                         (message, app_metadata, trace_id, tx.clone())
                     })
                     .inspect_err(|err| {
