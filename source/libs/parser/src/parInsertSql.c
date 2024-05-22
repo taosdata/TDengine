@@ -2474,7 +2474,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
+    code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
   }
 
   return code;

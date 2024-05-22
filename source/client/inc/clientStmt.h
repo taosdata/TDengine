@@ -40,6 +40,7 @@ typedef enum {
   STMT_MAX,
 } STMT_STATUS;
 
+
 typedef struct SStmtTableCache {
   STableDataCxt *pDataCtx;
   void          *boundTags;
@@ -108,6 +109,7 @@ typedef struct SStmtSQLInfo {
 } SStmtSQLInfo;
 
 typedef struct SStmtStatInfo {
+  int64_t bufIdxSum;
   int64_t ctgGetTbMetaNum;
   int64_t getCacheTbInfo;
   int64_t parseSqlNum;

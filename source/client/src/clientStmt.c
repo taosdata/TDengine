@@ -8,7 +8,7 @@
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
-void* stmtAllocFromBuf(STscStmt* pStmt, int32_t size) {
+static FORCE_INLINE void* stmtAllocFromBuf(STscStmt* pStmt, int32_t size) {
   if ((pStmt->exec.smInfo.buffIdx + size) < pStmt->exec.smInfo.buffSize) {
     void* p = pStmt->exec.smInfo.buff + pStmt->exec.smInfo.buffIdx;
     pStmt->exec.smInfo.buffIdx += size;
@@ -307,6 +307,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
 
   pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
+  pStmt->exec.smInfo.pQuery = pStmt->sql.pQuery;
   
   pStmt->bInfo.needParse = false;
 
@@ -352,6 +353,9 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
 
   if (pStmt->sql.staticMode) {
     pStmt->exec.tbBlkNum = 0;
+    pStmt->exec.smInfo.pColIdx = 0;
+    pStmt->stat.bufIdxSum += pStmt->exec.smInfo.buffIdx;
+    pStmt->exec.smInfo.buffIdx = 0;
     if (deepClean) {
       //int32_t tbNum = taosArrayGetSize(pStmt->exec.pTbBlkList);
       //for (int32_t i = 0; i < tbNum; ++i) {
@@ -778,7 +782,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
       taosMemoryFree(pStmt);
       return NULL;
     }
-    pStmt->exec.smInfo.buffSize = 1048576L * 2048;
+    pStmt->exec.smInfo.buffSize = 1048576L * 20;
     pStmt->exec.smInfo.buff = taosMemoryMalloc(pStmt->exec.smInfo.buffSize);
     
     //pStmt->exec.pTbBlkList = taosArrayInit(400000, sizeof(STableColsData));
@@ -867,6 +871,10 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
     pStmt->sql.pCache = taosMemoryMalloc(sizeof(SStmtTableCache));
     
     pStmt->sql.pCache->pDataCtx = pDst;
+    for (int32_t i = 0; i < STMT_COL_BUF_SIZE; i++) {
+      pStmt->exec.smInfo.pCols[i] = taosArrayDup(pDst->pData->aCol, NULL);
+    }
+    
     pStmt->sql.pCache->boundTags = pStmt->bInfo.boundTags;
   }
 
@@ -937,6 +945,24 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
 
   return TSDB_CODE_SUCCESS;
 }
+
+/*
+SArray* stmtGetFreeCol(STscStmt* pStmt, int32_t* idx) {
+  while (true) {
+    if (pStmt->exec.smInfo.pColIdx >= STMT_COL_BUF_SIZE) {
+      pStmt->exec.smInfo.pColIdx = 0;
+    }
+    
+    if ((pStmt->exec.smInfo.pColIdx + 1) == atomic_load_32(&pStmt->exec.smInfo.pColFreeIdx)) {
+      taosUsleep(1);
+      continue;
+    }
+
+    *idx = pStmt->exec.smInfo.pColIdx;
+    return pStmt->exec.smInfo.pCols[pStmt->exec.smInfo.pColIdx++];
+  }
+}
+*/
 
 int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1027,7 +1053,16 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     //} else {
       
       pTbData = stmtAllocFromBuf(pStmt, sizeof(STableColsData));
-      //pTbData = (STableColsData*)taosArrayReserve(pStmt->exec.pTbBlkList, 1);
+      #if 1
+      pTbData->aCol = pStmt->exec.smInfo.pCols[pStmt->exec.smInfo.pColIdx++];
+      //STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, false));
+      int32_t        colNum = taosArrayGetSize(pTbData->aCol);
+
+      for (int32_t i = 0; i < colNum; ++i) {
+        SColData* pCol = (SColData*)taosArrayGet(pTbData->aCol, i);
+        tColDataClear(pCol);
+      }      
+      #else
       if (pStmt->sql.pCache) {
         pTbData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
         if (NULL == pTbData->aCol) {
@@ -1035,7 +1070,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
         }      
         //STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, true));
       }
-      pStmt->exec.tbBlkTotal++;
+      #endif
+      //pStmt->exec.tbBlkTotal++;
     //}
 
     strcpy(pTbData->tbName, pStmt->bInfo.tbName);
@@ -1297,7 +1333,7 @@ int stmtExec(TAOS_STMT* stmt) {
     if (pStmt->sql.staticMode) {
       int64_t startTs = taosGetTimestampUs();
       while (atomic_load_64(&pStmt->exec.smInfo.tbRemainNum)) {
-        ;
+        taosUsleep(1);
       }
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
       
@@ -1356,10 +1392,11 @@ int stmtClose(TAOS_STMT* stmt) {
 
   taosMsleep(10);
 
-  STMT_FLOG("stmt %p closed, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64
-    ", pStmt->stat.bindDataNum=>%" PRId64
+  STMT_FLOG("stmt %p closed, statInfo: bufIdxSum:%" PRId64 ", ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64
+    ", pStmt->stat.bindDataNum=>%" PRId64 ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
     ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64 ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64, 
-    pStmt, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, 
+    pStmt, pStmt->stat.bufIdxSum, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo, pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, 
+    pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND], pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE], 
     pStmt->stat.setTbNameUs, pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4, 
     pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
 

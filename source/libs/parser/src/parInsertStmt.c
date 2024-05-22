@@ -61,12 +61,12 @@ int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDat
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
+    code = insBuildVgDataBlocks(pAllVgHash, pVgDataBlocks, &pStmt->pDataBlocks, true);
   }
 
-  //if (pStmt->freeArrayFunc) {
-  //  pStmt->freeArrayFunc(pVgDataBlocks);
-  //}
+  if (pStmt->freeArrayFunc) {
+    pStmt->freeArrayFunc(pVgDataBlocks);
+  }
   return code;
 }
 
@@ -104,7 +104,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
   }
   
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildVgDataBlocks(pVgHash, pVgDataBlocks, &pStmt->pDataBlocks);
+    code = insBuildVgDataBlocks(pVgHash, pVgDataBlocks, &pStmt->pDataBlocks, false);
   }
 
   if (pStmt->freeArrayFunc) {
