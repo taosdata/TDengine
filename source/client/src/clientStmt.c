@@ -85,7 +85,10 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
       pStmt->errCode = 0;    
       break;
     case STMT_SETTBNAME:
-      if (STMT_STATUS_EQ(INIT) || STMT_STATUS_EQ(BIND) || STMT_STATUS_EQ(BIND_COL)) {
+      if (STMT_STATUS_EQ(INIT)) {
+        code = TSDB_CODE_TSC_STMT_API_ERROR;
+      }
+      if (!pStmt->sql.staticMode && (STMT_STATUS_EQ(BIND) || STMT_STATUS_EQ(BIND_COL))) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
       break;
