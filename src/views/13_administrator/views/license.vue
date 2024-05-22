@@ -344,7 +344,7 @@ export default {
             } 
             // 3.3.0.1 之后增加 oracle
             if (this.version_greater_than_3301){
-              this.tableData = allData;
+              this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
             } 
             this.advancedTableData = array
               .filter((item) => item.limits.indexOf("{") == -1)

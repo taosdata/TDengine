@@ -240,6 +240,10 @@ export const storageCompression = {
         value: "zstd",
       },
       {
+        label: "xz",
+        value: "xz",
+      },
+      {
         label: "tsz",
         value: "tsz",
       },

@@ -292,12 +292,18 @@ export default {
   },
   mounted() {
     if (this.columnsArr.length > 0) {
-      let arr = this.columnsArr.map(item => {
+      let arr = this.columnsArr.reverse().map(item => {
+        let type = item.localType.toUpperCase()
+        type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
         return {
           field: item.name,
-          type: item.localType.toUpperCase()
+          type: type,
+          encode: this.handleEncodeList(type)['defaultEncode'],
+          compress: this.handleEncodeList(type)['defaultCompress'],
+          level: 'medium'
         }
       })
+      arr.unshift(deepClone(this.column_item_ts))
       this.stable_form.columns = arr;
       this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
     } else {
