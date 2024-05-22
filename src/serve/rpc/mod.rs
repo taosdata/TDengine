@@ -19,6 +19,7 @@ use std::{
     path::PathBuf,
     pin::Pin,
     sync::{atomic::Ordering, Arc},
+    time::Duration,
 };
 use taos::IntoDsn;
 use taosx_core::{
@@ -48,7 +49,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use taosx_metrics::MetricsEvents;
-use tracing::{info, instrument, warn, error};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use super::{
@@ -309,14 +310,15 @@ async fn action_to_arrow(
             });
             return Ok(Some(batch));
         }
-        AgentAction::QueryDataSource(query_data_source_req, sender, ) => {
+        AgentAction::QueryDataSource(query_data_source_req, sender) => {
             let context: ArrayRef =
                 Arc::new(StringArray::from_iter_values([serde_json::to_string(
                     &query_data_source_req,
                 )
                 .unwrap()]));
-            let action: ArrayRef =
-                Arc::new(StringArray::from_iter_values(["query-data-source".to_string()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                "query-data-source".to_string()
+            ]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -810,7 +812,7 @@ impl FlightService for FlightServiceImpl {
                                                     "PutFileResp has no receiver"
                                                 );
                                             }
-                                        
+
                                         });
                                     }
                                     "query-data-source" => {
@@ -1173,6 +1175,8 @@ impl RpcConfig {
         if let Some(tcp) = self.tcp {
             Server::builder()
                 .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
                 .add_service(flight_service.clone())
                 .serve_with_shutdown(tcp, async {
                     let _ = tokio::signal::ctrl_c().await;
@@ -1187,6 +1191,8 @@ impl RpcConfig {
             // let service = FlightServiceImpl { controller };
             Server::builder()
                 .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
                 .add_service(flight_service)
                 .serve_with_incoming_shutdown(stream, async {
                     let _ = tokio::signal::ctrl_c().await;

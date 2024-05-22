@@ -20,7 +20,9 @@ use tonic::transport::Endpoint;
 use tracing::info;
 
 use taosx_core::{
-    get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq, QueryDataSourceResp, RespAction, Response, SampleResponse
+    get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq,
+    Fail, HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
+    QueryDataSourceResp, RespAction, Response, SampleResponse,
 };
 
 use crate::runner::Action;
@@ -373,10 +375,9 @@ impl Client {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                         Utc::now().timestamp_millis()
                     ])) as ArrayRef;
-                    let action: ArrayRef =
-                        Arc::new(StringArray::from_iter_values(
-                            ["query-data-source".to_string()],
-                        ));
+                    let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                        "query-data-source".to_string(),
+                    ]));
                     let context: ArrayRef =
                         Arc::new(StringArray::from_iter_values([serde_json::to_string(
                             &resp,
@@ -653,20 +654,24 @@ impl Client {
                                 Ok(output) => {
                                     tracing::info!(?req_id, "Query data source ok");
                                     let _ = resp_tx
-                                    .send_async(RespAction::QueryDataSourceOk(QueryDataSourceResp {
-                                        req_id,
-                                        output: Response::Ok(output),
-                                    }))
-                                    .await;
+                                        .send_async(RespAction::QueryDataSourceOk(
+                                            QueryDataSourceResp {
+                                                req_id,
+                                                output: Response::Ok(output),
+                                            },
+                                        ))
+                                        .await;
                                 }
                                 Err(err) => {
                                     tracing::error!(?req_id, "Query data source error: {err:#}");
                                     let _ = resp_tx
-                                    .send_async(RespAction::QueryDataSourceOk(QueryDataSourceResp {
-                                        req_id,
-                                        output: Response::Err(Fail::new(err)),
-                                    }))
-                                    .await;
+                                        .send_async(RespAction::QueryDataSourceOk(
+                                            QueryDataSourceResp {
+                                                req_id,
+                                                output: Response::Err(Fail::new(err)),
+                                            },
+                                        ))
+                                        .await;
                                 }
                             }
                         });

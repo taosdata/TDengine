@@ -8,13 +8,13 @@ pub mod constants;
 pub mod files;
 pub mod interval;
 pub mod license;
+pub mod log_cache;
 pub mod metrics_db;
 pub mod monitor;
 pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod trace;
-pub mod log_cache;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {

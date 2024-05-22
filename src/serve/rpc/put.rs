@@ -1,7 +1,7 @@
 use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context};
-use arrow_flight::{error::FlightError, FlightData, PutResult};
+use arrow_flight::{decode::DecodedFlightData, error::FlightError, FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
@@ -479,8 +479,13 @@ impl PutStream {
         let cur_span = Span::current();
         let notify_sender = self.notify_sender.clone();
         let task_id = self.task_id;
-        let stream = stream
-            .then(move |message| {
+
+        let (put_tx, put_rx) = flume::bounded(0);
+
+        tokio::spawn(async move {
+            let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
+            tokio::pin!(stream);
+            let process_item = |message: Result<DecodedFlightData, FlightError>| {
                 let _ = cur_span.enter();
                 let metrics = metrics_arc.ipc();
                 let message = message
@@ -508,7 +513,7 @@ impl PutStream {
                             );
                         }
                     });
-                async move {
+                async {
                     let (message, app_metadata, trace_id, tx) = message
                         .map_err(|err| Status::cancelled(format!("IPC stream error: {:#}", err)))?;
                     Ok(match message.payload {
@@ -533,17 +538,39 @@ impl PutStream {
                         payload => {
                             tracing::warn!(payload = ?payload, metadata = ?app_metadata, "Invalid IPC message");
                             PutResult { app_metadata }
-                        },
+                        }
                     })
                 }
-            })
-            .map_err(|err: FlightError| {
-                tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
-                Status::data_loss(format!("IPC worker seems stopped: {:#}", err))
-            })
-            .chain(abort_message_rx.into_stream().map_ok(|v| v));
+            };
+            loop {
+                tokio::select! {
+                    _ = heartbeat.tick() => {
+                        put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await?;
+                    }
+                    message = stream.next() => {
+                        if message.is_none() {
+                            break;
+                        }
+                        let message = message.unwrap();
 
-        Ok(stream)
+                        let item = process_item(message).await;
+
+                        put_tx.send_async(item.map_err(|err: FlightError| {
+                            tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
+                            Status::data_loss(format!("IPC worker seems stopped: {:#}", err))
+                        })).await?;
+                    }
+                    abort = abort_message_rx.recv_async() => {
+                        let abort = abort?;
+                        put_tx.send_async(abort).await?;
+                        break;
+                    }
+                }
+            }
+            anyhow::Ok(())
+        });
+
+        return Ok(put_rx.into_stream());
     }
 }
 
