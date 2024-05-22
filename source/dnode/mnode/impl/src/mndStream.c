@@ -1620,10 +1620,10 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
 
   // input queue
-  char        vbuf[40] = {0};
-  char        buf[40] = {0};
+  char        vbuf[37] = {0};
+  char        buf[35] = {0};
   const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
-  sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputRate);
+  snprintf(buf, tListLen(buf), queueInfoStr, pe->inputQUsed, pe->inputRate);
   STR_TO_VARSTR(vbuf, buf);
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1633,9 +1633,9 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   const char* formatTotalMb = "%7.2f MiB";
   const char* formatTotalGb = "%7.2f GiB";
   if (pe->procsTotal < 1024) {
-    sprintf(buf, formatTotalMb, pe->procsTotal);
+    snprintf(buf, tListLen(buf), formatTotalMb, pe->procsTotal);
   } else {
-    sprintf(buf, formatTotalGb, pe->procsTotal / 1024);
+    snprintf(buf, tListLen(buf), formatTotalGb, pe->procsTotal / 1024);
   }
 
   memset(vbuf, 0, tListLen(vbuf));
@@ -1648,9 +1648,9 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   const char* formatKb = "%7.2f KiB/s";
   const char* formatMb = "%7.2f MiB/s";
   if (pe->procsThroughput < 1024) {
-    sprintf(buf, formatKb, pe->procsThroughput);
+    snprintf(buf, tListLen(buf), formatKb, pe->procsThroughput);
   } else {
-    sprintf(buf, formatMb, pe->procsThroughput / 1024);
+    snprintf(buf, tListLen(buf), formatMb, pe->procsThroughput / 1024);
   }
 
   memset(vbuf, 0, tListLen(vbuf));
@@ -1679,9 +1679,9 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
     colDataSetNULL(pColInfo, numOfRows);
   } else {
     if (pe->outputThroughput < 1024) {
-      sprintf(buf, formatKb, pe->outputThroughput);
+      snprintf(buf, tListLen(buf), formatKb, pe->outputThroughput);
     } else {
-      sprintf(buf, formatMb, pe->outputThroughput / 1024);
+      snprintf(buf, tListLen(buf), formatMb, pe->outputThroughput / 1024);
     }
 
     memset(vbuf, 0, tListLen(vbuf));
