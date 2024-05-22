@@ -685,12 +685,22 @@ class StreamComputingTest(TDCase):
             if latency < self.tdCom.stream_timeout:
                 latency += 1
                 time.sleep(1)
+            else:
+                return
         return tbname
 
     def get_group_id_from_stb(self, stbname):
         self.tdSql.query(f'select distinct group_id from {stbname}')
+        cnt = 0
+        while len(self.tdSql.query_data) == 0:
+            self.tdSql.query(f'select distinct group_id from {stbname}')
+            if cnt < self.default_interval:
+                cnt += 1
+                time.sleep(1)
+            else:
+                return False
         return self.tdSql.query_data[0][0]
-
+            
     def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
@@ -5011,7 +5021,13 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # return
+        for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
+            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
+            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
+            for watermark in [None, random.randint(15, 20)]:
+                self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
+        return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
