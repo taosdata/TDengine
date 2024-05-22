@@ -760,7 +760,8 @@ fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Col
             if val.is_empty() {
                 None
             } else {
-                let val_type = Ty::from_str(val)
+                let val_type = IpcDataType::from_str(val)
+                    .map(|val_type| val_type.ty())
                     .map_err(|_err| anyhow::anyhow!("invalid column data type: {}", val));
                 Some(val_type)
             }
