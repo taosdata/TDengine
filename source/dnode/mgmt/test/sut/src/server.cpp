@@ -23,10 +23,11 @@ void* serverLoop(void* param) {
     return NULL;
   }
 
-  server->runnning = true;
   if (dmRun() != 0) {
     return NULL;
   }
+  server->runnning = true;
+  printf("set server as running\n");
 
   dmCleanup();
   return NULL;
@@ -38,7 +39,17 @@ bool TestServer::Start() {
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   taosThreadCreate(&threadId, &thAttr, serverLoop, this);
   taosThreadAttrDestroy(&thAttr);
-  taosMsleep(2100);
+  for(int i = 0; i < 100; i++){
+    if(!runnning) {
+      printf("Server is not running, start to wait 0.21 seconds\n");
+      taosMsleep(210);
+      printf("Server waited 2.1 seconds\n");
+    }
+    else {
+      printf("Server is running\n");
+      break;
+    }
+  }
   return runnning;
 }
 
