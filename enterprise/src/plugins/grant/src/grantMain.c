@@ -944,7 +944,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     }
   } else {
     if (pGrant->upgradeTime == 0) {
-      pGrant->upgradeTime = curTime;
+      pGrant->upgradeTime = curTime != 0 ? curTime : 1;
     }
     grantResetMaster(pMnode, pGrant->upgradeTime);
   }
@@ -998,7 +998,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
           appendState = true;
         }
       } else if (oldState == GRANT_STATE_EXPIRED) {
-        if (false == gStatus.expired) {
+        if (0 == gStatus.expired) {
           state.state = GRANT_STATE_GRANTED;
           state.reason = GRANT_STATE_REASON_ALTER;
           appendState = true;
