@@ -39,14 +39,14 @@ class TDTestCase:
         tdSql.checkRows(4)
         tdSql.checkData(0, 7, '')
         tdSql.checkData(1, 7, '')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
-        tdSql.checkData(3, 7, '0:{"k1":"string","k2":"long"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
+        tdSql.checkData(3, 7, '1:{"k1":"string","k2":"long"}')
 
         alterSql = '''alter table t1 modify column c2 add template '{"k1":"string","k2":"boolean"}' '''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t1')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},1:{"k1":"string","k2":"boolean"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},2:{"k1":"string","k2":"boolean"}')
 
         tdSql.error('''alter table t1 modify column c2 add template '{"k1":"string","k2":"boolean"}' ''')
         tdSql.error('''alter table t1 modify column c2 add template '{"k1":"string","k2":"booean"}' ''')
@@ -55,17 +55,17 @@ class TDTestCase:
 
         tdSql.error('''alter table t1 modify column c2 drop template "1" ''')
 
-        alterSql = '''alter table t1 modify column c2 drop template 1'''
+        alterSql = '''alter table t1 modify column c2 drop template 2'''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t1')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
 
         alterSql = '''alter table t1 modify column c2 add template '{"k1":"string","k2":"boolean"}' '''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t1')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},2:{"k1":"string","k2":"boolean"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},3:{"k1":"string","k2":"boolean"}')
 
     def check_create_super_table_result(self):
         createSql = "create table %s.t2(ts timestamp, c1 int, c2 json template '%s',c3 json template '%s') tags(t int)" % (self.dbname, self.jsonTemplate, self.jsonTemplate1)
@@ -75,15 +75,15 @@ class TDTestCase:
         tdSql.checkRows(5)
         tdSql.checkData(0, 7, '')
         tdSql.checkData(1, 7, '')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
-        tdSql.checkData(3, 7, '0:{"k1":"string","k2":"long"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
+        tdSql.checkData(3, 7, '1:{"k1":"string","k2":"long"}')
         tdSql.checkData(4, 7, '')
 
         alterSql = '''alter table t2 modify column c2 add template '{"k1":"string","k2":"boolean"}' '''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t2')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},1:{"k1":"string","k2":"boolean"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},2:{"k1":"string","k2":"boolean"}')
 
         tdSql.error('''alter table t2 modify column c2 add template '{"k1":"string","k2":"boolean"}' ''')
         tdSql.error('''alter table t2 modify column c2 add template '{"k1":"string","k2":"booean"}' ''')
@@ -92,17 +92,17 @@ class TDTestCase:
 
         tdSql.error('''alter table t2 modify column c2 drop template "1" ''')
 
-        alterSql = '''alter table t2 modify column c2 drop template 1'''
+        alterSql = '''alter table t2 modify column c2 drop template 2'''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t2')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}')
 
         alterSql = '''alter table t2 modify column c2 add template '{"k1":"string","k2":"boolean"}' '''
         tdSql.execute(alterSql)
 
         tdSql.query(f'desc {self.dbname}.t2')
-        tdSql.checkData(2, 7, '0:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},2:{"k1":"string","k2":"boolean"}')
+        tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},3:{"k1":"string","k2":"boolean"}')
 
     def run(self):
         tdSql.execute(f'create database {self.dbname}')

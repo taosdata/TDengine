@@ -1099,7 +1099,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
         goto _err;
       }
 
-      SJsonTemplate tmp = {.templateId=0, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+      SJsonTemplate tmp = {.templateId=1, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
       cJSON_Delete(root);
       SArray* arr = taosArrayInit(1, sizeof(tmp));
       if (arr == NULL){

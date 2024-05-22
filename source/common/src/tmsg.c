@@ -10838,11 +10838,11 @@ int32_t taosHashUpdateJsonTemplate(SHashObj *pHashJsonTemplate, char *src, int8_
     taosArrayPush(templateArray, &tmp);
   } else if (action == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE) {
     int32_t templateId = taosStr2Int32(src, NULL, 10);
-    if (templateId < 0 || templateId >= taosArrayGetSize(templateArray)) {
+    if (templateId <= 0 || templateId > taosArrayGetSize(templateArray)) {
       terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
       return -1;
     }
-    SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId);
+    SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId - 1);
     ASSERT(pTemplateOld != NULL);
     pTemplateOld->isValidate = false;
   }
