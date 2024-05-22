@@ -71,7 +71,7 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
-      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name) && groupId != 0 && stbFullName) {
+      if (newSubTableRule && !isAutoTableName(name) && !alreadyAddGroupId(name, groupId) && groupId != 0 && stbFullName) {
         buildCtbNameAddGroupId(stbFullName, name, groupId);
       }
     } else if (stbFullName) {
@@ -182,7 +182,7 @@ void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDa
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
     if (newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName) &&
-        !alreadyAddGroupId(pDataBlock->info.parTbName) && gid != 0 && stbFullName) {
+        !alreadyAddGroupId(pDataBlock->info.parTbName, gid) && gid != 0 && stbFullName) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
       buildCtbNameAddGroupId(stbFullName, pCreateTableReq->name, gid);
@@ -713,7 +713,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
-          !alreadyAddGroupId(dstTableName) && groupId != 0) {
+          !alreadyAddGroupId(dstTableName, groupId) && groupId != 0) {
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if(pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER){
           buildCtbNameAddGroupId(NULL, dstTableName, groupId);
