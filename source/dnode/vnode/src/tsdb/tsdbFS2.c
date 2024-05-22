@@ -919,30 +919,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
     }
   }
 
-  // clear empty level and fset
-  int32_t i = 0;
-  while (i < TARRAY2_SIZE(fs->fSetArr)) {
-    STFileSet *fset = TARRAY2_GET(fs->fSetArr, i);
-
-    int32_t j = 0;
-    while (j < TARRAY2_SIZE(fset->lvlArr)) {
-      SSttLvl *lvl = TARRAY2_GET(fset->lvlArr, j);
-
-      if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
-        TARRAY2_REMOVE(fset->lvlArr, j, tsdbSttLvlClear);
-      } else {
-        j++;
-      }
-    }
-
-    if (tsdbTFileSetIsEmpty(fset)) {
-      vnodeAChannelDestroy(&fset->channel, false);
-      TARRAY2_REMOVE(fs->fSetArr, i, tsdbTFileSetClear);
-    } else {
-      i++;
-    }
-  }
-
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->tsdb->pVnode), __func__, lino, tstrerror(code));
