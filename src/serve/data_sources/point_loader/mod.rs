@@ -332,8 +332,6 @@ async fn get_all_points(
         categories
     );
     let mut from = from.into_dsn()?;
-    // remove csv_config_file param for opc
-    from.params.remove("csv_config_file");
 
     let pattern;
     match from.driver.as_str() {
