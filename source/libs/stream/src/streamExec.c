@@ -193,7 +193,7 @@ static int32_t handleResultBlocks(SStreamTask* pTask, SArray* pRes, int32_t size
       stDebug("s-task:%s dump fill-history results failed, code:%s", pTask->id.idStr, tstrerror(code));
     }
   } else {
-    taosArrayDestroy(pRes);
+    taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
   }
   return code;
 }
