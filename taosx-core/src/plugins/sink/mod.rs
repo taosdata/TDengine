@@ -3497,22 +3497,23 @@ impl IpcStreamWorker {
                 let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
                 if let Some(lush_model_config) = lush_model_config {
-                    consume_lush_record_with_transform(
-                        &self.pool,
-                        &mut taos,
-                        record,
-                        &columns,
-                        &mut count,
-                        self.license.as_deref(),
-                        self.transferred.as_deref(),
-                        task,
-                        data_trace_id,
-                        trace_id_str,
-                        metrics,
-                        lush_model_config,
-                        lush_parser.unwrap(),
-                    )
-                    .await?;
+                    tracing::info!("Abort");
+                    // consume_lush_record_with_transform(
+                    //     &self.pool,
+                    //     &mut taos,
+                    //     record,
+                    //     &columns,
+                    //     &mut count,
+                    //     self.license.as_deref(),
+                    //     self.transferred.as_deref(),
+                    //     task,
+                    //     data_trace_id,
+                    //     trace_id_str,
+                    //     metrics,
+                    //     lush_model_config,
+                    //     lush_parser.unwrap(),
+                    // )
+                    // .await?;
                 } else {
                     consume_lush_record(
                         &self.pool,
