@@ -118,6 +118,25 @@ void cleanupQueriedTableScanInfo(void* p) {
   tDeleteSchemaWrapper(pSchemaInfo->qsw);
 }
 
+
+SHashObj* getJsonTemplateAvroArrayByUid(SReadHandle* pHandle, int64_t uid, SExecTaskInfo* pTaskInfo) {
+  SMetaReader mr = {0};
+  if (pHandle == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  SHashObj* tableHash = pAPI->metaReaderFn.getJsonTemplateByUid(&mr, uid);
+
+  pAPI->metaReaderFn.clearReader(&mr);
+
+
+  return tableHash;
+}
+
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   if (pHandle == NULL) {

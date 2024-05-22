@@ -43,6 +43,7 @@ void metaReaderClear(SMetaReader *pReader) {
   if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
   }
+  taosHashCleanup(pReader->me.pHashJsonTemplate);
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
 }
@@ -108,6 +109,21 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   return metaGetTableEntryByVersion(pReader, info.version, uid);
+}
+
+void* metaReaderGetJsonTemplateByUid(SMetaReader *pReader, tb_uid_t uid) {
+  SMeta *pMeta = pReader->pMeta;
+
+  SHashObj* tableHash = getAvroHashByUid(pMeta, uid);
+  if(taosHashGetSize(tableHash) == 0){
+    if(metaReaderGetTableEntryByUidCache(pReader, uid) != 0){
+      return NULL;
+    }
+    if(addAvroSchema2TableHash(tableHash, pReader->me.pHashJsonTemplate) != 0){
+      return NULL;
+    }
+  }
+  return tableHash;
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {

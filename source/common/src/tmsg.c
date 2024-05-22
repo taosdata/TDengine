@@ -1915,7 +1915,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   char *tb = taosHashIterate(pRsp->readTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1930,7 +1930,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->writeTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1945,7 +1945,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->alterTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1960,7 +1960,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->readViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1975,7 +1975,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->writeViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1990,7 +1990,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->alterViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -2005,7 +2005,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   int32_t *useDb = taosHashIterate(pRsp->useDbs, NULL);
   while (useDb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(useDb, &keyLen);
+    void * key = taosHashGetKey(useDb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -2952,7 +2952,7 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
-  if (pRsp->pHashJsonTemplate != NULL){
+  if (pRsp->pHashJsonTemplate != NULL) {
     tEncodeHashJsonTemplate(&encoder, pRsp->pHashJsonTemplate);
   }
 
@@ -3046,7 +3046,7 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp, bool freeJsonTemplate) {
   taosMemoryFreeClear(pRsp->pSchemas);
   taosMemoryFreeClear(pRsp->pSchemaExt);
   taosMemoryFreeClear(pRsp->pTags);
-  if (freeJsonTemplate){
+  if (freeJsonTemplate) {
     taosHashCleanup(pRsp->pHashJsonTemplate);
     pRsp->pHashJsonTemplate = NULL;
   }
@@ -4640,7 +4640,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
 
-  if (pRsp->pHashJsonTemplate != NULL){
+  if (pRsp->pHashJsonTemplate != NULL) {
     tEncodeHashJsonTemplate(pEncoder, pRsp->pHashJsonTemplate);
   }
 
@@ -8270,7 +8270,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     int32_t len = taosArrayGetSize(pReq->jsonTemplate);
     if (tEncodeI32(pCoder, len) < 0) return -1;
     for (int32_t i = 0; i < len; i++) {
-      char *jsonTemplate = (char*)taosArrayGetP(pReq->jsonTemplate, i);
+      char *jsonTemplate = (char *)taosArrayGetP(pReq->jsonTemplate, i);
       if (tEncodeCStr(pCoder, jsonTemplate) < 0) return -1;
     }
   }
@@ -8327,17 +8327,17 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       if (!tDecodeIsEnd(pCoder)) {
         if (tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr) < 0) return -1;
       }
-      if (!tDecodeIsEnd(pCoder)){
-        int32_t len = 0;
-        if (tDecodeI32(pCoder, &len) < 0) return -1;
-        pReq->jsonTemplate = taosArrayInit(len, POINTER_BYTES);
-        if (pReq->jsonTemplate == NULL) return -1;
-        for (int32_t i = 0; i < len; i++) {
-          char *tmp = NULL;
-          if (tDecodeCStrAlloc(pCoder, &tmp) < 0) return -1;
-          taosArrayPush(pReq->jsonTemplate, &tmp);
-        }
+    if (!tDecodeIsEnd(pCoder)) {
+      int32_t len = 0;
+      if (tDecodeI32(pCoder, &len) < 0) return -1;
+      pReq->jsonTemplate = taosArrayInit(len, POINTER_BYTES);
+      if (pReq->jsonTemplate == NULL) return -1;
+      for (int32_t i = 0; i < len; i++) {
+        char *tmp = NULL;
+        if (tDecodeCStrAlloc(pCoder, &tmp) < 0) return -1;
+        taosArrayPush(pReq->jsonTemplate, &tmp);
       }
+    }
   }
 
   tEndDecode(pCoder);
@@ -8758,7 +8758,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
       break;
     case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
-    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE: {
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
       if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
       if (pReq->newCommentLen > 0) {
@@ -8822,7 +8822,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
       break;
     case TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE:
-    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE:{
+    case TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE: {
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
       if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
       if (pReq->newCommentLen > 0) {
@@ -9042,8 +9042,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
       if (tDecodeI8(pDecoder, &pOffsetVal->primaryKey.type) < 0) return -1;
       if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)) {
         uint64_t len = 0;
-        if (tDecodeBinaryAlloc(pDecoder, (void **)&pOffsetVal->primaryKey.pData, &len) < 0)
-          return -1;
+        if (tDecodeBinaryAlloc(pDecoder, (void **)&pOffsetVal->primaryKey.pData, &len) < 0) return -1;
         pOffsetVal->primaryKey.nData = len;
       } else {
         if (tDecodeI64(pDecoder, &pOffsetVal->primaryKey.val) < 0) return -1;
@@ -9244,7 +9243,7 @@ int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRspCommon *pRsp)
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
-      void   *data = taosArrayGetP(pRsp->blockData, i);
+      void *  data = taosArrayGetP(pRsp->blockData, i);
       if (tEncodeBinary(pEncoder, (const uint8_t *)data, bLen) < 0) return -1;
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
@@ -9282,7 +9281,7 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRspCommon *pRsp) {
     }
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
-      void    *data;
+      void *   data;
       uint64_t bLen;
       if (tDecodeBinaryAlloc(pDecoder, &data, &bLen) < 0) return -1;
       taosArrayPush(pRsp->blockData, &data);
@@ -9342,7 +9341,7 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const void *rsp) {
   if (tEncodeI32(pEncoder, pRsp->createTableNum) < 0) return -1;
   if (pRsp->createTableNum) {
     for (int32_t i = 0; i < pRsp->createTableNum; i++) {
-      void   *createTableReq = taosArrayGetP(pRsp->createTableReq, i);
+      void *  createTableReq = taosArrayGetP(pRsp->createTableReq, i);
       int32_t createTableLen = *(int32_t *)taosArrayGet(pRsp->createTableLen, i);
       if (tEncodeBinary(pEncoder, createTableReq, createTableLen) < 0) return -1;
     }
@@ -9359,7 +9358,7 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, void *rsp) {
     pRsp->createTableLen = taosArrayInit(pRsp->createTableNum, sizeof(int32_t));
     pRsp->createTableReq = taosArrayInit(pRsp->createTableNum, sizeof(void *));
     for (int32_t i = 0; i < pRsp->createTableNum; i++) {
-      void    *pCreate = NULL;
+      void *   pCreate = NULL;
       uint64_t len = 0;
       if (tDecodeBinaryAlloc(pDecoder, &pCreate, &len) < 0) return -1;
       int32_t l = (int32_t)len;
@@ -9664,7 +9663,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       taosArrayDestroy(pTbData->aCol);
     } else {
       int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
-      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+      SRow ** rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
 
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);
@@ -10613,33 +10612,40 @@ void tFreeFetchTtlExpiredTbsRsp(void *p) {
   taosArrayDestroy(pRsp->pExpiredTbs);
 }
 
-void destroyJsonTemplateArray(void *data){
-  SJsonTemplateHashValue *value = (SJsonTemplateHashValue*)data;
-  SArray* array = value->pJsonTemplateArray;
-  for(int i = 0; i < taosArrayGetSize(array); i++){
-    SJsonTemplate* tmp = (SJsonTemplate*)taosArrayGet(array, i);
-    taosMemoryFreeClear(tmp->templateJsonString);
-  }
+void destroyJsonTemplate(void *data) {
+  SJsonTemplate *value = (SJsonTemplate *)data;
+  taosMemoryFreeClear(value->templateJsonString);
+}
 
-  taosArrayDestroy(array);
+void destroyJsonTemplateArray(void *data) {
+  SJsonTemplateHashValue *value = (SJsonTemplateHashValue *)data;
+  SArray *                array = value->pJsonTemplateArray;
+
+  taosArrayDestroyEx(array, destroyJsonTemplate);
   taosHashCleanup(value->pJsonTemplateAvro);
 }
 
 void destroyJsonTemplateAvro(void *data) {
-  SAvroSchema* tmp = (SAvroSchema*)data;
+  SAvroSchema *tmp = (SAvroSchema *)data;
   avro_schema_decref(tmp->avroSchama);
 }
 
+void destroyTableTemplateHash(void *data) {
+  SHashObj *tmp = *(SHashObj **)data;
+  taosHashCleanup(tmp);
+}
+
 SAvroSchema copyJsonTemplateAvro(void *data) {
-  SAvroSchema tmp = *(SAvroSchema*)data;
+  SAvroSchema tmp = *(SAvroSchema *)data;
   avro_schema_decref(tmp.avroSchama);
   return tmp;
 }
 
-static SHashObj *taosHashCopyJsonTemplateAvro(SHashObj *pHashObj){
-  if(pHashObj == NULL) return NULL;
-  SHashObj *pNewHashObj = taosHashInit(taosHashGetSize(pHashObj), taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
-  if(pNewHashObj == NULL){
+static SHashObj *taosHashCopyJsonTemplateAvro(SHashObj *pHashObj) {
+  if (pHashObj == NULL) return NULL;
+  SHashObj *pNewHashObj = taosHashInit(taosHashGetSize(pHashObj), taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR),
+                                       true, HASH_ENTRY_LOCK);
+  if (pNewHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -10647,8 +10653,8 @@ static SHashObj *taosHashCopyJsonTemplateAvro(SHashObj *pHashObj){
   taosHashSetFreeFp(pNewHashObj, destroyJsonTemplateAvro);
   void *p = taosHashIterate(pHashObj, NULL);
   while (p) {
-    size_t keyLen = 0;
-    void *key = taosHashGetKey(p, &keyLen);
+    size_t      keyLen = 0;
+    void *      key = taosHashGetKey(p, &keyLen);
     SAvroSchema hashValueDup = copyJsonTemplateAvro(p);
     taosHashPut(pNewHashObj, key, keyLen, &hashValueDup, sizeof(hashValueDup));
     p = taosHashIterate(pHashObj, p);
@@ -10656,10 +10662,11 @@ static SHashObj *taosHashCopyJsonTemplateAvro(SHashObj *pHashObj){
   return pNewHashObj;
 }
 
-SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
-  if(pHashObj == NULL) return NULL;
-  SHashObj *pNewHashObj = taosHashInit(taosHashGetSize(pHashObj), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
-  if(pNewHashObj == NULL){
+SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj) {
+  if (pHashObj == NULL) return NULL;
+  SHashObj *pNewHashObj = taosHashInit(taosHashGetSize(pHashObj), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT),
+                                       true, HASH_ENTRY_LOCK);
+  if (pNewHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -10667,13 +10674,13 @@ SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
   taosHashSetFreeFp(pNewHashObj, destroyJsonTemplateArray);
   void *p = taosHashIterate(pHashObj, NULL);
   while (p) {
-    void *key = taosHashGetKey(p, NULL);
-    SJsonTemplateHashValue* hashValue = (SJsonTemplateHashValue*)p;
-    SArray *data = hashValue->pJsonTemplateArray;
-    SArray *dataDup = taosArrayDup(data, NULL);
-    for(int i = 0; i < taosArrayGetSize(dataDup); i++){
-      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(dataDup, i);
-      char* templateJson = taosStrdup(pTemplate->templateJsonString);
+    void *                  key = taosHashGetKey(p, NULL);
+    SJsonTemplateHashValue *hashValue = (SJsonTemplateHashValue *)p;
+    SArray *                data = hashValue->pJsonTemplateArray;
+    SArray *                dataDup = taosArrayDup(data, NULL);
+    for (int i = 0; i < taosArrayGetSize(dataDup); i++) {
+      SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(dataDup, i);
+      char *         templateJson = taosStrdup(pTemplate->templateJsonString);
       pTemplate->templateJsonString = templateJson;
       uDebug("copy json template:%d %s %d", pTemplate->templateId, templateJson, pTemplate->isValidate);
     }
@@ -10682,27 +10689,29 @@ SHashObj *taosHashCopyJsonTemplate(SHashObj *pHashObj){
     hashValueDup.pJsonTemplateArray = dataDup;
     hashValueDup.pJsonTemplateAvro = taosHashCopyJsonTemplateAvro(hashValue->pJsonTemplateAvro);
 
-    taosHashPut(pNewHashObj, key, sizeof(col_id_t), &hashValue, sizeof(SJsonTemplateHashValue));
+    taosHashPut(pNewHashObj, key, sizeof(col_id_t), &hashValueDup, sizeof(SJsonTemplateHashValue));
     p = taosHashIterate(pHashObj, p);
   }
 
   return pNewHashObj;
 }
 
-int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate) {
+int32_t tEncodeHashJsonTemplate(SEncoder *pEncoder, SHashObj *pHashJsonTemplate) {
   if (tEncodeI32(pEncoder, taosHashGetSize(pHashJsonTemplate)) < 0) return -1;
-  void* pIter = taosHashIterate(pHashJsonTemplate, NULL);
+  void *pIter = taosHashIterate(pHashJsonTemplate, NULL);
   while (pIter != NULL) {
-    col_id_t* colId = (col_id_t*)taosHashGetKey(pIter, NULL);
-    SJsonTemplateHashValue* pHashValue = (SJsonTemplateHashValue*)(pIter);
-    SArray* pArray = pHashValue->pJsonTemplateArray;
+    col_id_t *              colId = (col_id_t *)taosHashGetKey(pIter, NULL);
+    SJsonTemplateHashValue *pHashValue = (SJsonTemplateHashValue *)(pIter);
+    SArray *                pArray = pHashValue->pJsonTemplateArray;
     if (tEncodeI16(pEncoder, *colId) < 0) return -1;
     if (tEncodeI32(pEncoder, taosArrayGetSize(pArray)) < 0) return -1;
-    for(int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
-      SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(pArray, i);
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); i++) {
+      SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(pArray, i);
       if (tEncodeI8(pEncoder, pTemplate->isValidate) < 0) return -1;
       if (tEncodeI32(pEncoder, pTemplate->templateId) < 0) return -1;
-      if (tEncodeBinary(pEncoder, (const uint8_t*)pTemplate->templateJsonString, strlen(pTemplate->templateJsonString) + 1) < 0) return -1;
+      if (tEncodeBinary(pEncoder, (const uint8_t *)pTemplate->templateJsonString,
+                        strlen(pTemplate->templateJsonString) + 1) < 0)
+        return -1;
     }
     pIter = taosHashIterate(pHashJsonTemplate, pIter);
   }
@@ -10710,7 +10719,7 @@ int32_t tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate)
   return 0;
 }
 
-int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate, bool buildAvroHash) {
+int32_t tDecodeHashJsonTemplate(SDecoder *pDecoder, SHashObj **pHashJsonTemplate, bool buildAvroHash) {
   int32_t len = 0;
   if (tDecodeI32(pDecoder, &len) < 0) return -1;
   if (len > 0) {
@@ -10726,23 +10735,23 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
       if (tDecodeI32(pDecoder, &arrLen) < 0) return -1;
 
       SHashObj *pNewHashObj = NULL;
-      SArray *arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
+      SArray *  arr = taosArrayInit(arrLen, sizeof(SJsonTemplate));
       if (arr == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
 
-
       for (int32_t j = 0; j < arrLen; ++j) {
         SJsonTemplate pTemplate = {0};
-        if (tDecodeI8(pDecoder, (int8_t*)&pTemplate.isValidate) < 0) return -1;
+        if (tDecodeI8(pDecoder, (int8_t *)&pTemplate.isValidate) < 0) return -1;
         if (tDecodeI32(pDecoder, &pTemplate.templateId) < 0) return -1;
-        if (tDecodeBinaryAlloc(pDecoder, (void**)&pTemplate.templateJsonString, NULL) < 0) return -1;
+        if (tDecodeBinaryAlloc(pDecoder, (void **)&pTemplate.templateJsonString, NULL) < 0) return -1;
         taosArrayPush(arr, &pTemplate);
       }
-      if (buildAvroHash){
-        pNewHashObj = taosHashInit(taosArrayGetSize(arr), taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
-        if(pNewHashObj == NULL){
+      if (buildAvroHash) {
+        pNewHashObj = taosHashInit(taosArrayGetSize(arr), taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true,
+                                   HASH_ENTRY_LOCK);
+        if (pNewHashObj == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           taosArrayDestroy(arr);
           return -1;
@@ -10750,32 +10759,45 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
 
         taosHashSetFreeFp(pNewHashObj, destroyJsonTemplateAvro);
         for (int32_t j = 0; j < arrLen; ++j) {
-          SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(arr, j);
-          cJSON* cTemplate = cJSON_Parse(pTemplate->templateJsonString);
+          SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(arr, j);
+          cJSON *        cTemplate = cJSON_Parse(pTemplate->templateJsonString);
           if (cTemplate == NULL) {
             terrno = TSDB_CODE_INVALID_JSON_FORMAT;
             taosArrayDestroy(arr);
             taosHashCleanup(pNewHashObj);
             return -1;
           }
-          cJSON* avroJson = transformObject2AvroRecord(cTemplate);
+          cJSON *       avroJson = transformJsonTemplate2AvroRecord(cTemplate);
           avro_schema_t avroSchama = getAvroSchema(avroJson);
-          SAvroSchema avro = {.templateId = pTemplate->templateId, .avroSchama = avroSchama};
+          if (avroSchama == NULL){
+            terrno = TSDB_CODE_TEMPLATE_TO_AVRO_ERROR;
+            taosArrayDestroy(arr);
+            taosHashCleanup(pNewHashObj);
+            cJSON_Delete(cTemplate);
+            cJSON_Delete(avroJson);
+            return -1;
+          }
+          SAvroSchema   avro = {.templateId = pTemplate->templateId, .avroSchama = avroSchama};
           avro_schema_incref(avroSchama);
           char md5[64] = {0};
           generateMd5(pTemplate->templateJsonString, strlen(pTemplate->templateJsonString), md5);
-          if(taosHashPut(pNewHashObj, md5, strlen(md5), &avro, sizeof(avro)) != 0){
+          if (taosHashPut(pNewHashObj, md5, strlen(md5), &avro, sizeof(avro)) != 0) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
+            avro_schema_decref(avroSchama);
             taosArrayDestroy(arr);
             taosHashCleanup(pNewHashObj);
+            cJSON_Delete(cTemplate);
+            cJSON_Delete(avroJson);
             return -1;
           }
+          cJSON_Delete(cTemplate);
+          cJSON_Delete(avroJson);
         }
       }
       SJsonTemplateHashValue hashValue = {0};
       hashValue.pJsonTemplateArray = arr;
       hashValue.pJsonTemplateAvro = pNewHashObj;
-      if(taosHashPut(*pHashJsonTemplate, &colId, sizeof(colId), &hashValue, sizeof(hashValue)) != 0){
+      if (taosHashPut(*pHashJsonTemplate, &colId, sizeof(colId), &hashValue, sizeof(hashValue)) != 0) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosArrayDestroy(arr);
         taosHashCleanup(pNewHashObj);
@@ -10786,30 +10808,37 @@ int32_t tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate
   return 0;
 }
 
-int32_t taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId){
-  SJsonTemplateHashValue* hashValue = (SJsonTemplateHashValue*)taosHashGet(pHashJsonTemplate, &colId, sizeof(colId));
+int32_t taosHashUpdateJsonTemplate(SHashObj *pHashJsonTemplate, char *src, int8_t action, col_id_t colId) {
+  SJsonTemplateHashValue *hashValue = (SJsonTemplateHashValue *)taosHashGet(pHashJsonTemplate, &colId, sizeof(colId));
   ASSERT(hashValue != NULL);
-  SArray* templateArray = hashValue->pJsonTemplateArray;
-  if(action == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE){
+  SArray *templateArray = hashValue->pJsonTemplateArray;
+  if (action == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE) {
     cJSON *root = cJSON_Parse(src);
     if (root == NULL) {
       terrno = TSDB_CODE_INVALID_JSON_FORMAT;
       return -1;
     }
-    SJsonTemplate tmp = {.templateId=taosArrayGetSize(templateArray), .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+    if (taosArrayGetSize(templateArray) >= INT32_MAX) {
+      terrno = TSDB_CODE_TEMPLATE_NUM_EXCEED_LIMIT;
+      cJSON_Delete(root);
+      return -1;
+    }
+    SJsonTemplate tmp = {.templateId = taosArrayGetSize(templateArray) + 1,
+                         .templateJsonString = cJSON_PrintUnformatted(root),
+                         .isValidate = true};
     cJSON_Delete(root);
-    for(int i = 0; i < taosArrayGetSize(templateArray); i++){
+    for (int i = 0; i < taosArrayGetSize(templateArray); i++) {
       SJsonTemplate *pTemplate = taosArrayGet(templateArray, i);
-      if(pTemplate->isValidate && strcmp(pTemplate->templateJsonString, tmp.templateJsonString) == 0){
+      if (pTemplate->isValidate && strcmp(pTemplate->templateJsonString, tmp.templateJsonString) == 0) {
         terrno = TSDB_CODE_TEMPLATE_ALREADY_EXIST;
         taosMemoryFree(tmp.templateJsonString);
         return -1;
       }
     }
     taosArrayPush(templateArray, &tmp);
-  }else if(action == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE){
+  } else if (action == TSDB_ALTER_TABLE_DROP_JSON_TEMPLATE) {
     int32_t templateId = taosStr2Int32(src, NULL, 10);
-    if(templateId < 0 || templateId >= taosArrayGetSize(templateArray)){
+    if (templateId < 0 || templateId >= taosArrayGetSize(templateArray)) {
       terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
       return -1;
     }

@@ -1436,8 +1436,70 @@ static int32_t parseSchemaClauseTop(SInsertParseContext* pCxt, SVnodeModifyOpStm
   return code;
 }
 
+static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** pData,
+                          int64_t* len, SHashObj* jsonTemplate, char* jsonString ){
+  int    ret = 0;
+  char * msg = NULL;
+  cJSON* jsonT = NULL;
+  cJSON* avro = NULL;
+  char*  avroJson = NULL;
+  uint8_t* encodeData = NULL;
+  cJSON* root = cJSON_Parse(jsonString);
+  if (root == NULL) {
+    msg = "invalid json data, parse json error";
+    goto END;
+  }
+
+  if (!cJSON_IsObject(root)) {
+    msg = "json value should be an object";
+    goto END;
+  }
+  jsonT = transformJson2JsonTemplate(root);
+  avro = transformJsonTemplate2AvroRecord(jsonT);
+  avroJson = cJSON_PrintUnformatted(avro);
+
+  ASSERT(jsonTemplate != NULL);
+  SJsonTemplateHashValue* data = (SJsonTemplateHashValue*)taosHashGet(jsonTemplate, &colId, sizeof(col_id_t));
+  char md5[64] = {0};
+  generateMd5(avroJson, strlen(avroJson), md5);
+  SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(data->pJsonTemplateAvro, md5, strlen(md5));
+
+  encodeData = (uint8_t*)taosMemoryMalloc(*len + 2*INT_BYTES);
+  if (NULL == encodeData) {
+    ret = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_OUT_OF_MEMORY, "malloc failed");
+    goto END;
+  }
+
+  if(avroSchema == NULL){
+    *encodeData = 0;
+    memcpy(encodeData + 1, jsonString, *len);
+    *len += 1;
+  }else{
+    uint8_t bytes = encodeTemplateId(encodeData, avroSchema->templateId);
+    if(encodeJson2Avro(root, avroSchema->avroSchama, encodeData + bytes, len) != 0) {
+      msg = "encode json to avro error";
+      goto END;
+    }
+    *len += bytes;
+  }
+
+
+  *pData = encodeData;
+
+END:
+  taosMemoryFree(encodeData);
+  taosMemoryFree(avroJson);
+  cJSON_Delete(root);
+  cJSON_Delete(jsonT);
+  cJSON_Delete(avro);
+  if (msg != NULL) {
+    return buildSyntaxErrMsg(&pCxt->msg, msg, jsonString);
+  }
+  return ret;
+}
+
 static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql, SToken* pToken, SSchema* pSchema,
-                                   int16_t timePrec, SColVal* pVal) {
+                                   int16_t timePrec, SColVal* pVal, SHashObj* jsonTemplate) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
@@ -1598,17 +1660,29 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_JSON: {
-//      if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-//        return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
-//      }
-//      pVal->value.pData = taosMemoryMalloc(pToken->n);
-//      if (NULL == pVal->value.pData) {
-//        return TSDB_CODE_OUT_OF_MEMORY;
-//      }
-//      memcpy(pVal->value.pData, pToken->z, pToken->n);
-//      pVal->value.nData = pToken->n;
-//      break;
-      ASSERT(0);
+      if (pToken->type != TK_NK_STRING){
+        return buildSyntaxErrMsg(&pCxt->msg, "invalid json data, should be string", pToken->z);
+      }
+      if (pToken->n > TSDB_MAX_JSON_COL_LEN) {
+        return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 16384", pToken->z);
+      }
+      if (pToken->n <= 0) {
+        pVal->value.pData = NULL;
+        pVal->value.nData = 0;
+        break;
+      }
+
+      char tmp = pToken->z[pToken->n];
+      pToken->z[pToken->n] = 0;
+      int64_t len = strlen(pToken->z);
+      uint8_t* pData = NULL;
+      int32_t code = encodeJson(pCxt, pSchema->colId, &pData, &len, jsonTemplate, pToken->z);
+      if(code != 0){
+        return code;
+      }
+      pToken->z[pToken->n] = tmp;
+      pVal->value.pData = pData;
+      pVal->value.nData = len;
       break;
     }
     case TSDB_DATA_TYPE_GEOMETRY: {
@@ -1655,7 +1729,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
 }
 
 static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, SToken* pToken, SSchema* pSchema,
-                               int16_t timePrec, SColVal* pVal) {
+                               int16_t timePrec, SColVal* pVal, SHashObj* jsonTemplate) {
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pSchema->type);
   if (TSDB_CODE_SUCCESS == code && isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
@@ -1670,7 +1744,7 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
     if (pToken->n == 0 && IS_NUMERIC_TYPE(pSchema->type)) {
       return buildSyntaxErrMsg(&pCxt->msg, "invalid numeric data", pToken->z);
     }
-    code = parseValueTokenImpl(pCxt, pSql, pToken, pSchema, timePrec, pVal);
+    code = parseValueTokenImpl(pCxt, pSql, pToken, pSchema, timePrec, pVal, jsonTemplate);
   }
 
   return code;
@@ -1802,7 +1876,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (pCols->pColIndex[i] < numOfCols) {
       const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
       SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
-      code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, precision, pVal);
+      code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, precision, pVal, pStbRowsCxt->pStbMeta->pHashJsonTemplate);
       if (TK_NK_VARIABLE == pToken->type) {
         code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
       }
@@ -2014,7 +2088,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
       }
 
       if (TSDB_CODE_SUCCESS == code) {
-        code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
+        code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pTableCxt->pMeta).precision, pVal, pTableCxt->pMeta->pHashJsonTemplate);
       }
     }
 

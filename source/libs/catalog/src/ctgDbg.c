@@ -463,7 +463,7 @@ void ctgdShowTableMeta(SCatalog *pCtg, const char *tbName, STableMeta *p) {
   void *iter = taosHashIterate(p->pHashJsonTemplate, NULL);
   while (iter) {
     void *key = taosHashGetKey(iter, NULL);
-    SJsonTemplateHashValue* hashValue = (SJsonTemplateHashValue*)p;
+    SJsonTemplateHashValue* hashValue = (SJsonTemplateHashValue*)iter;
     SArray *data = hashValue->pJsonTemplateArray;
     for(int i = 0; i < taosArrayGetSize(data); i++){
       SJsonTemplate* pTemplate = (SJsonTemplate*)taosArrayGet(data, i);

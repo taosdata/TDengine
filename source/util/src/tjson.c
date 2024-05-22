@@ -380,20 +380,9 @@ void tjsonDeleteItemFromObject(const SJson* pJson, const char* pName) {
   cJSON_DeleteItemFromObject((cJSON*)pJson, pName);
 }
 
-bool isInteger(double value){
+static bool isInteger(double value){
   return value == (int64_t)value;
 }
-
-#define check(rval, call) { rval = call; if(rval) goto END; }
-
-#define ADD_TYPE_2_OBJECT(t,k,v) cJSON* type = cJSON_CreateString(v);\
-                                 cJSON_AddItemToObject(t, k, type)
-
-#define ADD_TYPE_2_ARRAY(t,v) cJSON* type = cJSON_CreateString(v);\
-                              cJSON_AddItemToArray(t, type)
-
-
-cJSON* transformObject2Object(cJSON* objectSrc);
 
 cJSON* transformValue2Array(cJSON* data){
   cJSON* arrayDst = cJSON_CreateArray();
@@ -437,7 +426,7 @@ cJSON* transformValue2Array(cJSON* data){
     }
 
     case cJSON_Object:{
-      cJSON* object = transformObject2Object(data);
+      cJSON* object = transformJson2JsonTemplate(data);
       cJSON_AddItemToArray(arrayDst, object);
       break;
     }
@@ -448,7 +437,7 @@ cJSON* transformValue2Array(cJSON* data){
   return arrayDst;
 }
 
-cJSON* transformObject2Object(cJSON* objectSrc){
+cJSON* transformJson2JsonTemplate(cJSON* objectSrc){
   cJSON* object = cJSON_CreateObject();
   cJSON *data = objectSrc->child;
   while (data){
@@ -491,7 +480,7 @@ cJSON* transformObject2Object(cJSON* objectSrc){
       }
 
       case cJSON_Object:{
-        cJSON* objectDst = transformObject2Object(data);
+        cJSON* objectDst = transformJson2JsonTemplate(data);
         cJSON_AddItemToObject(object, data->string, objectDst);
         break;
       }
@@ -509,7 +498,6 @@ cJSON* transformObject2Object(cJSON* objectSrc){
                            cJSON* n = cJSON_CreateString(name);\
                            cJSON_AddItemToObject(avro, "name", n)
 
-cJSON* transformObject2AvroRecord(cJSON* template);
 cJSON* transformArray2AvroRecord(cJSON* template);
 
 cJSON* objectElement2Avro(cJSON* data){
@@ -533,7 +521,7 @@ cJSON* objectElement2Avro(cJSON* data){
     case cJSON_Object:{
       cJSON* n = cJSON_CreateString(data->string);
       cJSON_AddItemToObject(avroSchema, "name", n);
-      cJSON* record = transformObject2AvroRecord(data);
+      cJSON* record = transformJsonTemplate2AvroRecord(data);
       cJSON_AddItemToObject(avroSchema, "type", record);
       break;
     }
@@ -560,7 +548,7 @@ cJSON* arrayElement2Avro(cJSON* data){
     }
 
     case cJSON_Object:{
-      return transformObject2AvroRecord(data);
+      return transformJsonTemplate2AvroRecord(data);
     }
 
     default:{
@@ -572,7 +560,7 @@ cJSON* arrayElement2Avro(cJSON* data){
   return NULL;
 }
 
-cJSON* transformObject2AvroRecord(cJSON* cTemplate){
+cJSON* transformJsonTemplate2AvroRecord(cJSON* cTemplate){
   cJSON* record = cJSON_CreateObject();
   char name[256] = {0};
   sprintf(name, "schema_%p", cTemplate);
@@ -705,12 +693,12 @@ avro_schema_t getAvroSchema(cJSON* avro) {
   return schema;
 }
 
-int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void* encodeData, int64_t len) {
+int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void* encodeData, int64_t* len) {
   int32_t        ret = 0;
   avro_datum_t   in = NULL;
   avro_writer_t  writer = NULL;
 
-  writer = avro_writer_memory(encodeData, len);
+  writer = avro_writer_memory(encodeData, *len);
   if(writer == NULL){
     uError("%s Failed to create writer", __FUNCTION__);
     goto END;
@@ -725,7 +713,7 @@ int32_t encodeJson2Avro(cJSON* data, avro_schema_t schema, void* encodeData, int
   check(ret,encodeBySchema(schema, data, in))
   avro_writer_reset(writer);
   check(ret, avro_write_data(writer, schema, in))
-
+  *len = avro_writer_tell(writer);
 END:
   avro_datum_decref(in);
   avro_writer_free(writer);
@@ -918,8 +906,8 @@ int32_t testJsonAvro(const char* json) {
   if (!cJSON_IsObject(root)) {
     return -1;
   }
-  cJSON* object = transformObject2Object(root);
-  cJSON* avro = transformObject2AvroRecord(object);
+  cJSON* object = transformJson2JsonTemplate(root);
+  cJSON* avro = transformJsonTemplate2AvroRecord(object);
 //  char* in = cJSON_PrintUnformatted(root);
 //  char* out = cJSON_PrintUnformatted(object);
 
@@ -937,7 +925,7 @@ int32_t testJsonAvro(const char* json) {
 
   int64_t len = strlen(json);
   void* encodeData = taosMemoryMalloc(len);
-  encodeJson2Avro(root, schema, encodeData, len);
+  encodeJson2Avro(root, schema, encodeData, &len);
   char* decodeStr = datum2Json(decodeAvro2Datum(schema, encodeData, len));
   printf("decode str: %s\n", decodeStr);
   taosMemoryFree(decodeStr);
@@ -989,4 +977,31 @@ int32_t checkJsonTemplate(SJson *pJson){
     }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+uint8_t decodeTemplateId(uint8_t* data, int32_t *value){
+  *value = 0;
+  uint8_t b;
+  uint8_t offset = 0;
+  do {
+    if (offset == 10) {
+      return 0;
+    }
+    b = *data;
+    *value |= (int32_t) (b & 0x7F) << (7 * offset);
+    ++offset;
+    ++data;
+  }
+  while (b & 0x80);
+  return offset;
+}
+
+uint8_t encodeTemplateId(uint8_t* buf, int32_t data){
+  uint8_t bytes = 0;
+  while (data & ~0x7F) {
+    buf[bytes++] = (char)((((uint8_t) data) & 0x7F) | 0x80);
+    data >>= 7;
+  }
+  buf[bytes++] = data;
+  return bytes;
 }

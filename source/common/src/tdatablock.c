@@ -18,8 +18,10 @@
 #include "tcompare.h"
 #include "tlog.h"
 #include "tname.h"
+#include "tref.h"
 
 #define MALLOC_ALIGN_BYTES 32
+extern int32_t jsonTemplateRef;
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -100,7 +102,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = 0;
-    if (type == TSDB_DATA_TYPE_JSON) {
+    if (type == TSDB_DATA_TYPE_JSON && pColumnInfoData->info.templateInfo.pJsonTemplateArray == NULL) { //json tag
       dataLen = getJsonValueLen(pData);
     } else {
       dataLen = varDataTLen(pData);
@@ -366,6 +368,71 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   }
 }
 
+static int32_t decodeJsonBlock(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource, int32_t numOfRow2, int32_t* offset, char** dataAlloc){
+  *offset = 0;
+  uint32_t allocLen = pSource->varmeta.length * 4;
+  *dataAlloc = taosMemoryMalloc(allocLen);
+  for(int i = 0; i < numOfRow2; ++i){
+    if(pSource->varmeta.offset[i] == -1){
+      pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
+      continue;
+    }
+    void* data = pSource->pData + pSource->varmeta.offset[i];
+    uint16_t len = varDataLen(data);
+    char* d = varDataVal(data);
+    int32_t templateId = 0;
+    uint8_t idLen = decodeTemplateId(d, &templateId);
+    if (idLen == 0 || templateId < 1 || templateId > taosArrayGetSize(pColumnInfoData->info.templateInfo.pJsonTemplateArray)){
+      uError("idLen:%d invalid or invalid template id: %d", idLen, templateId);
+      taosMemoryFree(*dataAlloc);
+      return TSDB_CODE_FAILED;
+    }
+    SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(pColumnInfoData->info.templateInfo.pJsonTemplateArray, templateId - 1);
+    char md5[64] = {0};
+    generateMd5(pTemplate->templateJsonString, strlen(pTemplate->templateJsonString), md5);
+    SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(pColumnInfoData->info.templateInfo.pJsonTemplateAvro, md5, strlen(md5));
+    ASSERT(avroSchema != NULL);
+    char* decodeStr = datum2Json(decodeAvro2Datum(avroSchema->avroSchama, d + idLen, len - idLen));
+    uDebug("json decode str: %s\n", decodeStr);
+    uint32_t strLen = strlen(decodeStr);
+    if (*offset + strLen + VARSTR_HEADER_SIZE > allocLen){
+      char* tmp = taosMemoryRealloc(*dataAlloc, 2 * (allocLen + strLen + VARSTR_HEADER_SIZE));
+      if(tmp == NULL){
+        taosMemoryFree(*dataAlloc);
+        taosMemoryFree(decodeStr);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      *dataAlloc = tmp;
+      allocLen = 2 * (allocLen + strLen + VARSTR_HEADER_SIZE);
+    }
+    pColumnInfoData->varmeta.offset[i + numOfRow1] = pColumnInfoData->varmeta.length + *offset;
+    char* dataTmp = *dataAlloc + *offset;
+    varDataSetLen(dataTmp, strLen);
+    memcpy(varDataVal(dataTmp), decodeStr, strLen);
+    *offset += (strLen + VARSTR_HEADER_SIZE);
+    taosMemoryFree(decodeStr);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t copyDataInfo(SColumnInfoData* pColumnInfoData, uint32_t oldLen, char* pData, uint32_t len){
+  if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
+    char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->pData = tmp;
+    pColumnInfoData->varmeta.allocLen = len + oldLen;
+  }
+
+  if (pColumnInfoData->pData && pData) {  // TD-20382
+    memcpy(pColumnInfoData->pData + oldLen, pData, len);
+  }
+  pColumnInfoData->varmeta.length = len + oldLen;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2) {
   if (pColumnInfoData->info.type != pSource->info.type) {
@@ -393,31 +460,33 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->varmeta.offset = (int32_t*)p;
     }
 
-    for (int32_t i = 0; i < numOfRow2; ++i) {
-      if (pSource->varmeta.offset[i] == -1) {
-        pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
-      } else {
-        pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.templateInfo.pJsonTemplateArray != NULL){
+      int32_t offset = 0;
+      char* dataAlloc = NULL;
+      int32_t ret = decodeJsonBlock(pColumnInfoData, numOfRow1, pSource, numOfRow2, &offset, &dataAlloc);
+      if(ret != 0){
+        return ret;
       }
-    }
-
-    // copy data
-    uint32_t len = pSource->varmeta.length;
-    uint32_t oldLen = pColumnInfoData->varmeta.length;
-    if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+      // copy data
+      ret = copyDataInfo(pColumnInfoData, pColumnInfoData->varmeta.length, dataAlloc, offset);
+      if(ret != 0){
+        return ret;
       }
 
-      pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = len + oldLen;
+    }else{
+      for (int32_t i = 0; i < numOfRow2; ++i) {
+        if (pSource->varmeta.offset[i] == -1) {
+          pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
+        } else {
+          pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+        }
+      }
+      // copy data
+      int32_t ret = copyDataInfo(pColumnInfoData, pColumnInfoData->varmeta.length, pSource->pData, pSource->varmeta.length);
+      if(ret != 0){
+        return ret;
+      }
     }
-
-    if (pColumnInfoData->pData && pSource->pData) {  // TD-20382
-      memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
-    }
-    pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > (*capacity)) {
       // all data may be null, when the pColumnInfoData->info.type == 0, bytes == 0;
@@ -463,20 +532,25 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     int32_t newLen = pSource->varmeta.length;
-    memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
-    if (pColumnInfoData->varmeta.allocLen < newLen) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.templateInfo.pJsonTemplateArray != NULL) {
+      int32_t offset = 0;
+      char*   dataAlloc = NULL;
+      int32_t ret = decodeJsonBlock(pColumnInfoData, 0, pSource, numOfRows, &offset, &dataAlloc);
+      if (ret != 0) {
+        return ret;
       }
-
-      pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = newLen;
-    }
-
-    pColumnInfoData->varmeta.length = newLen;
-    if (pColumnInfoData->pData != NULL && pSource->pData != NULL) {
-      memcpy(pColumnInfoData->pData, pSource->pData, newLen);
+      // copy data
+      ret = copyDataInfo(pColumnInfoData, 0, dataAlloc, offset);
+      if(ret != 0){
+        return ret;
+      }
+    }else{
+      memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
+      // copy data
+      int32_t ret = copyDataInfo(pColumnInfoData, 0, pSource->pData, pSource->varmeta.length);
+      if(ret != 0){
+        return ret;
+      }
     }
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
@@ -1764,7 +1838,8 @@ int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
 }
 
 SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId) {
-  SColumnInfoData col = {.hasNull = true};
+  SColumnInfoData col = {0};
+  col.hasNull = true;
   col.info.colId = colId;
   col.info.type = type;
   col.info.bytes = bytes;
@@ -2305,6 +2380,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             }
             break;
           case TSDB_DATA_TYPE_NCHAR:
+          case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
             ASSERT(pColInfoData->info.type == pCol->type);
@@ -2322,7 +2398,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
           }
           case TSDB_DATA_TYPE_DECIMAL:
           case TSDB_DATA_TYPE_BLOB:
-          case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
             ASSERT(0);

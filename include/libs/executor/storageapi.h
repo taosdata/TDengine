@@ -296,6 +296,7 @@ typedef struct SStoreMetaReader {
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);
   int32_t (*getTableEntryByName)(SMetaReader* pReader, const char* name);
   int32_t (*getEntryGetUidCache)(SMetaReader* pReader, tb_uid_t uid);
+  void*   (*getJsonTemplateByUid)(SMetaReader* pReader, tb_uid_t uid);
 } SStoreMetaReader;
 
 typedef struct SUpdateInfo {

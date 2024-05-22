@@ -48,6 +48,7 @@ typedef struct SVSnapReader SVSnapReader;
 typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
+extern int32_t jsonTemplateRef;
 
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
@@ -117,6 +118,7 @@ void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, S
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+void*       metaReaderGetJsonTemplateByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);

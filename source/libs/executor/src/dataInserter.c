@@ -212,6 +212,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_NCHAR:
+        case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           ASSERT(pColInfoData->info.type == pCol->type);
@@ -229,7 +230,6 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         }
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_BLOB:
-        case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
           qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
           terrno = TSDB_CODE_APP_ERROR;

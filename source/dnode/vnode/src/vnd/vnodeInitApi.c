@@ -238,6 +238,7 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;
 
   pMetaReader->readerReleaseLock = metaReaderReleaseLock;
+  pMetaReader->getJsonTemplateByUid = metaReaderGetJsonTemplateByUid;
 }
 
 void initMetaFilterAPI(SMetaDataFilterAPI* pFilter) {

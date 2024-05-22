@@ -107,10 +107,26 @@ bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
 void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
+#define check(rval, call) { rval = call; if(rval) goto END; }
+
+#define ADD_TYPE_2_OBJECT(t,k,v) cJSON* type = cJSON_CreateString(v);\
+                                 cJSON_AddItemToObject(t, k, type)
+
+#define ADD_TYPE_2_ARRAY(t,v) cJSON* type = cJSON_CreateString(v);\
+                              cJSON_AddItemToArray(t, type)
+
 int32_t       testJsonAvro(const char* json);
 int32_t       checkJsonTemplate(SJson *pJson);
-cJSON*        transformObject2AvroRecord(cJSON* cTemplate);
+cJSON*        transformJson2JsonTemplate(cJSON* objectSrc);
+cJSON*        transformJsonTemplate2AvroRecord(cJSON* cTemplate);
 avro_schema_t getAvroSchema(cJSON* avro);
+int32_t       encodeJson2Avro(cJSON* data, avro_schema_t schema, void* encodeData, int64_t* len);
+avro_datum_t  decodeAvro2Datum(const avro_schema_t schema, void* data, int64_t len);
+char*         datum2Json(avro_datum_t  out);
+
+uint8_t       decodeTemplateId(uint8_t* data, int32_t *value);
+uint8_t       encodeTemplateId(uint8_t* buf, int32_t data);
+
 #ifdef __cplusplus
 }
 #endif

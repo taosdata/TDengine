@@ -36,6 +36,113 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
+void destroyAvroArray(void *data) {
+  taosReleaseRef(jsonTemplateRef, *(int64_t*)data);
+}
+
+SHashObj* getAvroHashByUid(SMeta *pMeta, int64_t uid){
+  if (pMeta->pTableJsonTemplate == NULL){
+    pMeta->pTableJsonTemplate = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+    if(pMeta->pTableJsonTemplate == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    taosHashSetFreeFp(pMeta->pTableJsonTemplate, destroyTableTemplateHash);
+  }
+  SHashObj *tableHash = NULL;
+  void *value = taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid));
+  if (value == NULL){
+    SHashObj *colHash = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+
+    if (colHash == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    taosHashSetFreeFp(colHash, destroyAvroArray);
+
+    if(taosHashPut(pMeta->pTableJsonTemplate, &uid, sizeof(uid), &colHash, POINTER_BYTES) != 0){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosHashCleanup(colHash);
+      return NULL;
+    }
+    tableHash = colHash;
+  }else{
+    tableHash = *(SHashObj **)value;
+  }
+  return tableHash;
+}
+
+static int32_t addAvroSchema(SArray *colArray, cJSON* root){
+  cJSON *       avroJson = transformJsonTemplate2AvroRecord(root);
+  avro_schema_t avroSchama = getAvroSchema(avroJson);
+  if (avroSchama == NULL){
+    terrno = TSDB_CODE_TEMPLATE_TO_AVRO_ERROR;
+    cJSON_Delete(avroJson);
+    return terrno;
+  }
+  avro_schema_incref(avroSchama);
+  taosArrayPush(colArray, &avroSchama);
+  cJSON_Delete(avroJson);
+  return TDB_CODE_SUCCESS;
+}
+
+static int64_t getAvroArrayRefIdByColId(SHashObj *tableHash, col_id_t colId){
+  int64_t refId = 0;
+  void* value = taosHashGet(tableHash, &colId, sizeof(colId));
+  if (value == NULL){
+    SArray *arrAvro = taosArrayInit(1, POINTER_BYTES);
+    if (arrAvro == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    refId = taosAddRef(jsonTemplateRef, arrAvro);
+    if(taosHashPut(tableHash, &colId, sizeof(colId), &refId, sizeof(refId)) != 0){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }else{
+    refId = *(int64_t*)value;
+  }
+  return refId;
+}
+
+int32_t addAvroSchema2TableHash(SHashObj *tableHash, SHashObj *pHashJsonTemplate){
+  void *data = taosHashIterate(pHashJsonTemplate, NULL);
+  while (data) {
+    void *                  key = taosHashGetKey(data, NULL);
+    SJsonTemplateHashValue *hashValue = (SJsonTemplateHashValue *)data;
+
+    int64_t refId = getAvroArrayRefIdByColId(tableHash, *(col_id_t*)key);
+    SArray* avroArray = (SArray *)taosAcquireRef(jsonTemplateRef, refId);
+    if(avroArray == NULL){
+      goto FAILED;
+    }
+    SArray *                element = hashValue->pJsonTemplateArray;
+    for (int i = 0; i < taosArrayGetSize(element); i++) {
+      SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(element, i);
+      cJSON *root = cJSON_Parse(pTemplate->templateJsonString);
+      if (root == NULL){
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto FAILED;
+      }
+      if(addAvroSchema(avroArray, root) != 0){
+        cJSON_Delete(root);
+        goto FAILED;
+      }
+      cJSON_Delete(root);
+    }
+    data = taosHashIterate(pHashJsonTemplate, data);
+  }
+  return TDB_CODE_SUCCESS;
+
+FAILED:
+  if(data != NULL){
+    taosHashCancelIterate(pHashJsonTemplate, data);
+  }
+  return -1;
+}
+
 int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
   int32_t nCols = pWp->nCols;
   int32_t ver = pWp->version;
@@ -238,6 +345,18 @@ static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
 #endif
 }
 
+static int32_t buildJsonTemplateCache(SMeta *pMeta, SHashObj* pHashJsonTemplate, int64_t uid){
+  if (taosHashGetSize(pHashJsonTemplate) > 0) {
+    SHashObj *tableHash = getAvroHashByUid(pMeta, uid);
+    if(tableHash == NULL) {
+      return -1;
+    }
+    if(addAvroSchema2TableHash(tableHash, pHashJsonTemplate) != 0){
+      return -1;
+    }
+  }
+  return TDB_CODE_SUCCESS;
+}
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
   int         kLen = 0;
@@ -283,6 +402,10 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     me.colCmpr = pReq->colCmpr;
   }
   me.pHashJsonTemplate = pReq->pHashJsonTemplate;
+  if (buildJsonTemplateCache(pMeta, me.pHashJsonTemplate, me.uid) != 0) {
+    return -1;
+  }
+
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
   ++pMeta->pVnode->config.vndStats.numOfSTables;
@@ -996,6 +1119,9 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
       }
       metaInfo("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
                 me.ntbEntry.schemaRow.pSchema[i].colId, tmp.templateJsonString);
+    }
+    if (buildJsonTemplateCache(pMeta, me.pHashJsonTemplate, me.uid) != 0) {
+      return -1;
     }
   }
 

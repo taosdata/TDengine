@@ -773,6 +773,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_TOO_LONG,             "Template value too l
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_MUST_BE_OBJECT,       "Template must be json object")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ALREADY_EXIST,             "Template already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_JSON_COL_TEMPLATE_NEEDED,      "There must be a template for json column")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_NUM_EXCEED_LIMIT,     "Json template num exceed int32_max")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_TO_AVRO_ERROR,        "Json template to avro schema error")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")

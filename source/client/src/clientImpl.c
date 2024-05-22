@@ -1896,6 +1896,8 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
           estimateColLen += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           estimateColLen += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
+        } else if (jsonInnerType == TSDB_DATA_TYPE_BINARY) {  // value -> "value"
+          estimateColLen += varDataTLen(jsonInnerData);
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           estimateColLen += (VARSTR_HEADER_SIZE + 32);
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
@@ -1933,7 +1935,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     return TSDB_CODE_SUCCESS;
   }
 
-  tscDebug("start to convert form json format string");
+  tscDebug("start to convert from json format string");
 
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
@@ -2014,6 +2016,9 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           }
           varDataSetLen(dst, length + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
+        } else if (jsonInnerType == TSDB_DATA_TYPE_BINARY) {
+          ASSERT(varDataLen(jsonInnerData) < TSDB_MAX_JSON_COL_LEN);
+          varDataCopy(dst, jsonInnerData);
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(jsonInnerData);
           sprintf(varDataVal(dst), "%.9lf", jsonVd);

@@ -791,11 +791,19 @@ typedef struct {
   SHashObj* pJsonTemplateAvro;    // key is md5(templateJsonString), value is SAvroSchema
 } SJsonTemplateHashValue;
 
+typedef struct {
+  SArray*   pJsonAvroArray;   // element is avro_schema_t
+  volatile int32_t  refcount;
+} SJSonAvroHashValue;
+
 int32_t   taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId);
 SHashObj* taosHashCopyJsonTemplate(SHashObj *pHashObj);
 int32_t   tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate);
 int32_t   tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate, bool buildAvroHash);
 void      destroyJsonTemplateArray(void *data);
+void      destroyJsonTemplate(void *data);
+//void      destroyAvroArray(void *data);
+void      destroyTableTemplateHash(void *data);
 
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
   if (tEncodeI16v(pEncoder, pSchemaExt->colId) < 0) return -1;
@@ -1157,6 +1165,8 @@ typedef struct {
   int32_t bytes;
   int8_t  type;
   uint8_t pk;
+  SJsonTemplateHashValue templateInfo;
+  int64_t jsonTemplateRefId;
 } SColumnInfo;
 
 typedef struct STimeWindow {

@@ -1153,6 +1153,16 @@ static void destroyTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static void setJsonTemplateArray(SArray* dataBlock, SHashObj *jsonTemplateHash){
+  if(jsonTemplateHash == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(dataBlock); ++i) {
+    SColumnInfoData* idata = (SColumnInfoData*)taosArrayGet(dataBlock, i);
+    int64_t *refId = (int64_t *)taosHashGet(jsonTemplateHash, &idata->info.colId, sizeof(idata->info.colId));
+    ASSERT(refId != NULL);
+    idata->info.jsonTemplateRefId = *refId;
+  }
+}
+
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   int32_t         code = 0;
@@ -1198,6 +1208,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  qDebug("json template table type:%d uid:%lld, suid:%lld", pScanNode->tableType, pScanNode->suid, pScanNode->uid);
+  SHashObj* jsonTemplateHash = getJsonTemplateAvroArrayByUid(readHandle, pScanNode->tableType == TSDB_CHILD_TABLE ? pScanNode->suid: pScanNode->uid, pTaskInfo);
+  setJsonTemplateArray(pInfo->pResBlock->pDataBlock, jsonTemplateHash);
   prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
@@ -4666,6 +4679,9 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  qDebug("json template table type:%d uid:%lld, suid:%lld", pTableScanNode->scan.tableType, pTableScanNode->scan.suid, pTableScanNode->scan.uid);
+  SHashObj* jsonTemplateHash = getJsonTemplateAvroArrayByUid(readHandle, pTableScanNode->scan.tableType == TSDB_CHILD_TABLE ? pTableScanNode->scan.suid: pTableScanNode->scan.uid, pTaskInfo);
+  setJsonTemplateArray(pInfo->pResBlock->pDataBlock, jsonTemplateHash);
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
   if (!hasLimit && blockDataGetRowSize(pInfo->pResBlock) >= 256 && !pTableScanNode->smallDataTsSort) {
     pInfo->bSortRowId = true;

@@ -105,6 +105,7 @@ struct SMeta {
   SMetaIdx* pIdx;
 
   SMetaCache* pCache;
+  SHashObj* pTableJsonTemplate;
 };
 
 typedef struct {
@@ -164,6 +165,9 @@ int32_t metaFilterTableIds(void* pVnode, SMetaFltParam* param, SArray* results);
 int32_t metaFilterCreateTime(void* pVnode, SMetaFltParam* parm, SArray* pUids);
 int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
+
+SHashObj* getAvroHashByUid(SMeta *pMeta, int64_t uid);
+int32_t   addAvroSchema2TableHash(SHashObj *tableHash, SHashObj *pHashJsonTemplate);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
 #ifndef META_REFACT

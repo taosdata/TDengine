@@ -1033,7 +1033,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
         return -1;
       }
 
-      SJsonTemplate tmp = {.templateId=0, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+      SJsonTemplate tmp = {.templateId=1, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
       cJSON_Delete(root);
       SArray* arr = taosArrayInit(1, sizeof(tmp));
       if (arr == NULL){

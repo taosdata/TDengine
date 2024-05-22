@@ -806,6 +806,7 @@ typedef struct SStreamFillOperatorInfo {
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
+SHashObj* getJsonTemplateAvroArrayByUid(SReadHandle* pHandle, int64_t uid, SExecTaskInfo* pTaskInfo);
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName,
                                    SExecTaskInfo* pTaskInfo);
 void    cleanupQueriedTableScanInfo(void* p);

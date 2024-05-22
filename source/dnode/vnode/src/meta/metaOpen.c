@@ -269,6 +269,7 @@ static void metaCleanup(SMeta **ppMeta) {
   if (pMeta) {
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
+    taosHashCleanup(pMeta->pTableJsonTemplate);
 #ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
 #endif
