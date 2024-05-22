@@ -146,7 +146,7 @@
           <el-tooltip
             :content="$t('data.clickColumnTip')"
           >
-          <el-button @click="removeToTag(index)" size="small">
+          <el-button @click="removeToTag(index)" size="small" :disabled="!index">
             <Icon
               :name="'tag'"
               class="console-tree-icon"
@@ -290,27 +290,36 @@ export default {
       default: () => [],
     }
   },
-  mounted() {
-    if (this.columnsArr.length > 0) {
-      let arr = this.columnsArr.reverse().map(item => {
-        let type = item.localType.toUpperCase()
-        type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
-        return {
-          field: item.name,
-          type: type,
-          encode: this.handleEncodeList(type)['defaultEncode'],
-          compress: this.handleEncodeList(type)['defaultCompress'],
-          level: 'medium'
+  watch: {
+    "columnsArr": {
+      handler(columnsArr_new) {
+        if (columnsArr_new.length > 0) {
+          let arr = columnsArr_new;
+          arr = arr.map(item => {
+            let type = item.localType.toUpperCase()
+            type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
+            return {
+              field: item.name,
+              type: type,
+              encode: this.handleEncodeList(type)['defaultEncode'],
+              compress: this.handleEncodeList(type)['defaultCompress'],
+              level: 'medium'
+            }
+          })
+          arr.unshift(deepClone(this.column_item_ts))
+          this.stable_form.columns = arr;
+          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+        } else {
+          this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
+          this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
+          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
         }
-      })
-      arr.unshift(deepClone(this.column_item_ts))
-      this.stable_form.columns = arr;
-      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
-    } else {
-      this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
-      this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
-      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+      },
+      immediate: true,
+      deep: true,
     }
+  },
+  mounted() {
   },
   methods: {
     handleChange(newVal, oldVal, type, index) {
@@ -351,6 +360,13 @@ export default {
         let column = this.stable_form.columns.splice(index, 1)[0];
         this.stable_form.tags.push(deepClone(column));
       }
+      // 是主键列
+      if (index == 1) {
+        this.handPrimarykeyCol(index)
+      }
+    },
+    handPrimarykeyCol(index) {
+      this.$set(this.stable_form.columns[index], "primaryKey", false);
     },
     handleEncodeList(type) {
       if (!type) return this.storageCompression.empty
@@ -378,10 +394,11 @@ export default {
       return this[name];
     },
     handleCheckChange(val, index, type) {
-      if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
+      if (val && this.parmaryKeyType.findIndex((item) => type.startsWith(item.value)) == -1) {
         this.$set(this.stable_form.columns[index], "type", '');
         this.$set(this.stable_form.columns[index], "encode", '');
         this.$set(this.stable_form.columns[index], "compress", '');
+        this.$set(this.stable_form.columns[index], "level", '');
       } 
     }
   },
