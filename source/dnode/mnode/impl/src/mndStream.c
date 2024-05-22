@@ -1620,8 +1620,8 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
 
   // input queue
-  char        vbuf[37] = {0};
-  char        buf[35] = {0};
+  char        vbuf[40] = {0};
+  char        buf[38] = {0};
   const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
   snprintf(buf, tListLen(buf), queueInfoStr, pe->inputQUsed, pe->inputRate);
   STR_TO_VARSTR(vbuf, buf);
