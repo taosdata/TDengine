@@ -156,6 +156,13 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 					}
 				}
 				c.tags = data.newTags
+				for _, tag := range data.newTags {
+					if _, exists := c.tagInfo[tag]; !exists {
+						parts := strings.Split(tag, ".")
+						lastPart := parts[len(parts)-1]
+						c.tagInfo[tag] = &TagInfo{name: lastPart}
+					}
+				}
 			}
 		}
 	}()
@@ -312,8 +319,9 @@ type changeData struct {
 
 func (c *DAClient) ChangeCollectConfig(conf config.CollectConfig) {
 	// compare tags
+	tags := c.tags
 	oldTagsMap := make(map[string]struct{}, len(c.tags))
-	for _, tag := range c.tags {
+	for _, tag := range tags {
 		oldTagsMap[tag] = struct{}{}
 	}
 	addTags := make([]string, 0)
