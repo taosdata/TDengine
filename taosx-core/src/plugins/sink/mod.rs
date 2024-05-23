@@ -303,18 +303,22 @@ async fn ipc_tcp_forward(
                                 tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
                                 tokio::time::sleep(Duration::from_secs(1)).await;
                                 cause_error.replace(anyhow::anyhow!(
-                                    "gRPC put stream disconnected: {err:#}"
+                                    "gRPC put stream disconnected: {err:#}, DTID={stream_trace_id}"
                                 ));
                                 last_retry_tick!();
                                 continue 'start;
                             }
 
                             tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
-                            return Err(err).context("Got server response with error");
+                            return Err(err).context(format!(
+                                "Got server response with error, DTID={stream_trace_id}"
+                            ));
                         }
                         _ => {
                             tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                            return Err(err).context("Got server response with error");
+                            return Err(err).context(format!(
+                                "Got server response with error, DTID={stream_trace_id}"
+                            ));
                         }
                     },
                 }
