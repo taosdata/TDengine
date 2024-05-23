@@ -756,7 +756,7 @@ void* getRowStateBuff(SStreamFileState* pFileState) { return pFileState->rowStat
 void* getStateFileStore(SStreamFileState* pFileState) { return pFileState->pFileStore; }
 
 bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
-  return pFileState->deleteMark > 0 && ts < (pFileState->maxTs - pFileState->deleteMark);
+  return pFileState->deleteMark != INT64_MAX && pFileState->maxTs > 0 && ts < (pFileState->maxTs - pFileState->deleteMark);
 }
 
 bool isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap) { return ts <= (pFileState->flushMark + gap); }
