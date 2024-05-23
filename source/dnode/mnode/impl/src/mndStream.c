@@ -1639,11 +1639,11 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   // info
   if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     const char *sinkStr = "%.2fMiB";
-    sprintf(buf, sinkStr, pe->sinkDataSize);
+    snprintf(buf, tListLen(buf), sinkStr, pe->sinkDataSize);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // offset info
     const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    sprintf(buf, offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
+    snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
   }
 
   STR_TO_VARSTR(vbuf, buf);
