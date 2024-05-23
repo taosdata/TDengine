@@ -38,12 +38,13 @@ typedef struct {
   struct {
     SFileSetCommitInfo *info;
 
-    int32_t   expLevel;
-    SDiskID   did;
-    TSKEY     minKey;
-    TSKEY     maxKey;
-    TABLEID   tbid[1];
-    bool      hasTSData;
+    int32_t expLevel;
+    SDiskID did;
+    TSKEY   minKey;
+    TSKEY   maxKey;
+    TABLEID tbid[1];
+    bool    hasTSData;
+
     bool      skipTsRow;
     SHashObj *pColCmprObj;
   } ctx[1];
@@ -116,7 +117,6 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
 
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
-
   for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
       committer->ctx->tbid->suid = row->suid;
@@ -284,7 +284,7 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
   config.from->version = VERSION_MIN;
   config.from->key = (SRowKey){
       .ts = committer->ctx->minKey,
-      .numOfPKs = 0,  // TODO: support multiple primary keys
+      .numOfPKs = 0,
   };
 
   code = tsdbIterOpen(&config, &iter);
@@ -760,7 +760,9 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
 
   if (tsdb->imem) {
     SMemTable *pMemTable = tsdb->imem;
+
     taosThreadMutexLock(&tsdb->mutex);
+
     if ((code = tsdbFSEditCommit(tsdb->pFS))) {
       taosThreadMutexUnlock(&tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -775,6 +777,8 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     }
 
     taosThreadMutexUnlock(&tsdb->mutex);
+
+    tsdbCommitInfoDestroy(tsdb);
     tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
