@@ -174,8 +174,8 @@ namespace TDPIConnector.Service
             }
             service.Start();
             service.Wait();
-            logger.Info("TD PI Connector quit.");
             service.Stop();
+            logger.Info("Program quit.");
         }
     }
 }

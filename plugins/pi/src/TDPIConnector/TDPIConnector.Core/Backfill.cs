@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine;
@@ -18,12 +19,15 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PIServerManager piServerManager;
         private PISystemManager piSystemManager;
-        ElementsBackfillTaskManager elemmentBackfillManager = new ElementsBackfillTaskManager();
+        ConcurrentDictionary<string, ElementsBackfillTaskManager> templateElementsBackfill = new ConcurrentDictionary<string, ElementsBackfillTaskManager>();
+        ConcurrentDictionary<int, string> templateBackfillGroups = new ConcurrentDictionary<int, string>();
+        private readonly Object groupLock = new Object();
         int backfillWait = 0;  // ms
         List<Task> backFillTasks = new List<Task>();
         bool stopAddNewTask = false;
 
         private string tdDatabaseName;
+        private int nextGroupStart;
 
         private class ElementBackfillTask
         {
@@ -60,7 +64,15 @@ namespace TDPIConnector.Core
             int started = 0;
             int finished = 0;
             int all = 0;
+            public string templateName;
             private readonly Object taskLock = new Object();
+
+            public bool Start { get; internal set; } = false;
+
+            public ElementsBackfillTaskManager(string templateName)
+            {
+                this.templateName = templateName;
+            }
 
             public void AddNewElementsTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime) {
                 lock (taskLock) {
@@ -90,16 +102,21 @@ namespace TDPIConnector.Core
                 }
             }
 
-            public void FinishedOne(AFElementWrapper element) {
+            public void FinishedOne(in AFElementWrapper element, int groupNum) {
                 lock (taskLock)
                 {
                     ++finished;
-                    log.Info($"backfill element {element.Name}:" +
-                        $"{element.ID.ToString()} finshed: {finished}/{all}");
+                    log.Info($"backfill task process: element {element.Name}:" +
+                        $"{element.ID.ToString()} group({groupNum}) finshed: {finished}/{all}");
                 }
             }
+
+            internal bool Finished()
+            {
+                return all == finished;
+            }
         }
-        public Backfill(TDEngineProxy tdEngineProxy, PIServerManager piServerManager, PISystemManager piSystemManager)
+        public Backfill(in TDEngineProxy tdEngineProxy, in PIServerManager piServerManager, in PISystemManager piSystemManager)
         {
             this.tdEngineProxy = tdEngineProxy;
             this.piServerManager = piServerManager;
@@ -115,37 +132,134 @@ namespace TDPIConnector.Core
             Console.WriteLine("Asynchronous task starting...");
         }
 
+        private ElementBackfillTask GetNextTask(int groupNum)
+        {
+            ElementsBackfillTaskManager groupManager = null;
+            lock (groupLock) {
+                if (templateBackfillGroups.ContainsKey(groupNum)) {
+                    groupManager = GetElementBackfillManager(templateBackfillGroups[groupNum]);
+                }
+            }
+
+            if (null != groupManager) {
+                var task = groupManager.GetNextTask();
+                if (task != null) return task;
+                log.Info($"backfill task manager: templalte:{groupManager.templateName} finished, group({groupNum}).");
+            }
+            
+            ElementsBackfillTaskManager newGroupManager = GetNotStartedGroup(groupNum);
+            if (null != newGroupManager) {
+                log.Info($"backfill task manager: start backfill for a new templalte:{newGroupManager.templateName}, group({groupNum}).");
+                return newGroupManager.GetNextTask();
+            }
+
+            if (stopAddNewTask)
+            {
+                while (true) {
+                    ElementsBackfillTaskManager newManagerToadd = GetNotFinishedGroup(groupNum);
+                    if (null == newManagerToadd)
+                    {
+                        return null;
+                    }
+                    else
+                    {
+                        var task = newManagerToadd.GetNextTask();
+                        if (task != null) {
+                            log.Info($"backfill task manager: add a new backfill group for templalte:{newManagerToadd.templateName}, group({groupNum}).");
+                            Task.Delay(500);
+                            return task;
+                        }
+                    }
+                }
+
+            }
+            else {
+                return null;
+            }
+        }
+
+        private ElementsBackfillTaskManager GetNotFinishedGroup(int groupNum)
+        {
+            lock (groupLock) {
+                var templates = templateElementsBackfill.ToList();
+                if (templates.Count == 0) return null;
+                int i = 0;
+                while (true) {
+                    ++i;
+                    if (!templates[nextGroupStart].Value.Finished())
+                    {
+                        int index = nextGroupStart;
+                        templates[index].Value.Start = true;
+                        templateBackfillGroups[groupNum] = templates[index].Value.templateName;
+
+                        nextGroupStart = (index >= templates.Count() - 1) ? 0 : index + 1;
+                        return templates[index].Value;
+                    }
+                    else {
+                        nextGroupStart = (nextGroupStart >= templates.Count() - 1) ? 0 : nextGroupStart + 1;
+                    }
+                    if (i == templateElementsBackfill.Count()) break;
+                }
+                return null;
+            }
+        }
+
+        private ElementsBackfillTaskManager GetNotStartedGroup(int groupNum)
+        {
+            lock (groupLock)
+            {
+                foreach (var templateTask in templateElementsBackfill)
+                {
+                    if (!templateTask.Value.Start)
+                    {
+                        templateTask.Value.Start = true;
+                        templateBackfillGroups[groupNum] = templateTask.Value.templateName;
+                        return templateTask.Value;
+                    }
+                }
+                return null;
+            }
+        }
+
+        private void FinishedOne(in AFElementWrapper elemment, int groupNum)
+        {
+            var elemmentBackfillManager = GetElementBackfillManager(elemment.TemplateName());
+            elemmentBackfillManager.FinishedOne(elemment, groupNum);
+        }
+
         public void StartAsyncBackTask()
         {
             for (int i = 0; i < AppSettings.tomlConfig.BackfillConcurrencyCounts; ++i)
             {
+                int groupNum = i;
                 backFillTasks.Add(Task.Run(async () =>
                 {
                     while (true)
                     {
                         try
                         {
-                            var task = elemmentBackfillManager.GetNextTask();
+                            var task = GetNextTask(groupNum);
                             if (task != null)
                             {
                                 var element = piSystemManager.GetElementsById(AppSettings.tomlConfig.AFDatabaseName, task.elementID);
                                 if (element != null)
                                 {
                                     BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
-                                    elemmentBackfillManager.FinishedOne(element);
+                                    FinishedOne(element, groupNum);
                                 }
                             }
                             else
                             {
                                 if (stopAddNewTask)
                                 {
+                                    log.Error($"backfill task manager: finished, gourp({groupNum}) quit!");
                                     return;
                                 }
                                 Thread.Sleep(1000);
                             }
                         }
                         catch (Exception e) {
-                            log.Error($"Exception in backfill task: {e.Message}");
+                            log.Error($"backfill task manager: Exception in backfill task: {e.Message}");
                         }
                     }
                 }));
@@ -216,7 +330,9 @@ namespace TDPIConnector.Core
         internal void WaitTask()
         {
             stopAddNewTask = true;
+            log.Info("backfill task manager: Init Finished, stop add new element into backfill list.");
             Task.WaitAll(backFillTasks.ToArray());
+            log.Info("backfill task manager: All task Finished.");
         }
         internal void StopAddTask()
         {
@@ -295,7 +411,22 @@ namespace TDPIConnector.Core
 
         internal void BackfillElements(string tdDatabaseName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
+            var elemmentBackfillManager = GetElementBackfillManager("default");
             elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime); 
+        }
+
+        private ElementsBackfillTaskManager GetElementBackfillManager(in string templateName) {
+            if (!templateElementsBackfill.ContainsKey(templateName))
+            {
+                templateElementsBackfill[templateName] = new ElementsBackfillTaskManager(templateName);  
+            }
+            return templateElementsBackfill[templateName];
+        }
+
+        internal void BackfillElementsOfTemplate(in string templateName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
+        {
+            var elemmentBackfillManager = GetElementBackfillManager(templateName);
+            elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime);
         }
 
         internal void BackfillElement(string tdDatabaseName, in AFElementWrapper element, DateTime startTime, DateTime endTime)

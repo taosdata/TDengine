@@ -156,6 +156,7 @@ namespace TDPIConnector.Core
             if (AppSettings.tomlConfig.ForBackfill)
             {
                 backfillManager.GetBackfill().WaitTask();
+                log.Info("PI Connector finished backfill task and will quit.");
             }
             else {
                 backfillManager.GetBackfill().StopAddTask();
@@ -164,7 +165,7 @@ namespace TDPIConnector.Core
                     var str = Console.ReadLine();
                     if (str == "quit")
                     {
-                        log.Info("TD PI Connector quit...");
+                        log.Info("TD PI Connector quit.");
                         break;
                     }
                     else

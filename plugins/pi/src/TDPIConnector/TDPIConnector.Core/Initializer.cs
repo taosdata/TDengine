@@ -48,7 +48,7 @@ namespace TDPIConnector.Core
             if (AppSettings.tomlConfig.ForBackfill)
             {
                 attries.Clear();
-                backfill.BackfillElements(tdDatabaseName, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
                                 AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
             }
             else
@@ -58,7 +58,7 @@ namespace TDPIConnector.Core
                 if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
                 {
                     var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
-                    backfill.BackfillElements(tdDatabaseName, elements, backfillStartLimit, DateTime.UtcNow);
+                    backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, backfillStartLimit, DateTime.UtcNow);
                     log.Info($"Backfill started successfully.");
                 }
             }
