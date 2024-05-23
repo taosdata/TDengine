@@ -1,12 +1,10 @@
 ﻿using log4net;
-using log4net.Config;
 using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
 using TDPIConnector.Core.ScanPiInfo;
 using System.Reflection;
 using System.Linq;
-using System.Diagnostics;
 
 namespace TDPIConnector.Service
 {
@@ -18,17 +16,9 @@ namespace TDPIConnector.Service
             PrintPIInfo,
             CheckConfig
         };
-        private static bool logInit = LogInit();
-        private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
-        private static bool LogInit()
-        {
-            GlobalContext.Properties["applicationName"] = "pi-connector";
-            GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
-            //ILoggerRepository repository = LogManager.GetRepository();
-            //repository.Threshold = log4net.Core.Level.Error;
-            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
-            return true;
-        }
+
+        static private ILog logger;
+
         static void PrintVersion(bool writelog) {
             Assembly assembly = Assembly.GetExecutingAssembly();
             var cus_ttributes = assembly
@@ -67,23 +57,13 @@ namespace TDPIConnector.Service
                     case "pv":
                         Service.PrintPISDKInfo();
                         return;
-                    case "install":
-                    case "i":
-                        if (!ServiceInstallerUtility.InstallService())
-                            logger.Fatal("Failed to install service");
-                        break;
-                    case "uninstall":
-                    case "u":
-                        if (!ServiceInstallerUtility.UninstallService())
-                            logger.Fatal("Failed to uninstall service");
-                        break;
                     default:
-                        logger.Error("Unrecognized parameters (allowed: /install and /uninstall, shorten /i and /u)");
+                        Console.WriteLine("Unrecognized parameters (allowed: /install and /uninstall, shorten /i and /u)");
                         break;
                 }
                 Environment.Exit(0);
             }
-            PrintVersion(true);
+
             WorkMode workMode = WorkMode.Observer;
             ScanMode printMode = ScanMode.ScanNone;
             FilterMode fileterMode = FilterMode.FilterNone;
@@ -99,7 +79,6 @@ namespace TDPIConnector.Service
                         case "file":
                         case "f":
                             tomlConfigFile = args[i + 1].Substring(0);
-                            logger.Info($"toml config Path: {tomlConfigFile}");
                             i += 2;
                             break;
                         case "print":
@@ -146,6 +125,7 @@ namespace TDPIConnector.Service
             try
             {
                 AppSettings.Init(tomlConfigFile);
+                logger = AppSettings.log;
             }
             catch (Exception ex)
             {
@@ -153,6 +133,7 @@ namespace TDPIConnector.Service
                 return;
             }
 
+            PrintVersion(true);
             Service service = new Service();
             var servicesToRun = new ServiceBase[] { service };
 

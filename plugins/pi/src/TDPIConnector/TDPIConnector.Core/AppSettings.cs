@@ -1,16 +1,18 @@
 ﻿using log4net;
+using log4net.Config;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 using Tomlyn;
 
 namespace TDPIConnector.Core
 {
     public static class AppSettings
     {
-        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         public class TomlConfig {
             public string LogLevel { get; set; }
             public int MaxWaitLen { get; set; } = 10000;
@@ -41,6 +43,7 @@ namespace TDPIConnector.Core
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
             public bool ForBackfill { get; set; } = false;
+            public string TaskID { get; set; } = "0";
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
             public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 
@@ -57,6 +60,7 @@ namespace TDPIConnector.Core
                 sb.AppendLine($"AFDataPipesInstances={AFDataPipesInstances}");
                 sb.AppendLine($"IPCStream={IPCStream}");
                 sb.AppendLine($"SQLAPI={SQLAPI}");
+                sb.AppendLine($"ForBackfill={ForBackfill}");
                 sb.AppendLine($"FromTDengineLastTime={FromTDengineLastTime}");
                 sb.AppendLine($"ToTDengineFirstTime={ToTDengineFirstTime}");
                 sb.AppendLine($"BackfillStartTime={BackfillStartTime}");
@@ -120,7 +124,6 @@ namespace TDPIConnector.Core
                     return propertyName;
                 };
                 tomlConfig = Toml.ToModel<TomlConfig>(fileData, null, tomlOption);
-                log.Info($"toml file: {tomlConfig.ConfigString()}");
             }
 
             if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
@@ -146,12 +149,24 @@ namespace TDPIConnector.Core
                 TDEnginePITablesPrefix = string.Empty;
             }
 
+            string logFileNamme = "taosx-pi";
+            if (tomlConfig.ForBackfill)
+            {
+                logFileNamme += ".backfill";
+            }
+            logFileNamme += "." + tomlConfig.TaskID;
+
+            GlobalContext.Properties["applicationName"] = logFileNamme;
+            GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+
+            log.Info($"toml config Path: {tomlConfigFile}");
+            log.Info($"toml file: \n{tomlConfig.ConfigString()}");
             if (!string.IsNullOrEmpty(tomlConfig.LogLevel)) {
                 log4net.Repository.ILoggerRepository repository = log4net.LogManager.GetRepository();
                 log4net.Repository.Hierarchy.Hierarchy hier = (log4net.Repository.Hierarchy.Hierarchy)repository;
                 hier.Root.Level = hier.LevelMap[tomlConfig.LogLevel];
                 ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).RaiseConfigurationChanged(EventArgs.Empty);
-
                 log.Info($"Reset log level to {tomlConfig.LogLevel}.");
             }
         }
