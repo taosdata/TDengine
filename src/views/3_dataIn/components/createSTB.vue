@@ -389,6 +389,7 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
+      this.$set(this.stable_form.columns[index], "level", 'medium');
     },
     handleTypeList(currentType, name) {
       return this[name];
