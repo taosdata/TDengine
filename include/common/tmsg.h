@@ -2358,20 +2358,24 @@ void    tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp* pRsp);
 typedef struct {
   int32_t dnodeId;
   char*   token;
-} SMArbUpdateGroupReqMember;
+} SMArbUpdateGroupMember;
 
 typedef struct {
-  int32_t vgId;
-  int64_t dbUid;
-  SMArbUpdateGroupReqMember members[2];
-  int8_t                    isSync;
-  SMArbUpdateGroupReqMember assignedLeader;
-  int64_t                   version;
-} SMArbUpdateGroupReq;
+  int32_t                vgId;
+  int64_t                dbUid;
+  SMArbUpdateGroupMember members[2];
+  int8_t                 isSync;
+  SMArbUpdateGroupMember assignedLeader;
+  int64_t                version;
+} SMArbUpdateGroup;
 
-int32_t tSerializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-int32_t tDeserializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-void    tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq* pReq);
+typedef struct {
+  SArray* updateArray;  // SMArbUpdateGroup
+} SMArbUpdateGroupBatchReq;
+
+int32_t tSerializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+int32_t tDeserializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+void    tFreeSMArbUpdateGroupBatchReq(SMArbUpdateGroupBatchReq* pReq);
 
 typedef struct {
   char queryStrId[TSDB_QUERY_ID_LEN];
