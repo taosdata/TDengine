@@ -9,7 +9,7 @@ use parquet::data_type::AsBytes;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
-    sink::{handle_lush_message_init, IpcErrorStrategy},
+    sink::{handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy},
     utils::{
         get_main_version_from_server_version, get_server_version,
         trace::{
@@ -77,7 +77,6 @@ impl PutStream {
             .unwrap()
             .unwrap();
         // dbg!(&task);
-
         let builder = TaosBuilder::from_dsn(&task.to)?;
         let pool = builder.pool()?;
 
@@ -126,6 +125,23 @@ impl PutStream {
         let (tx, rx) = match from_dsn.driver.as_str() {
             "pibackfill" => flume::bounded(50),
             _ => flume::bounded(1024),
+        };
+
+        let lush_table_cache = match from_dsn.driver.as_str() {
+            "pi" | "pibackfill" => {
+                let task_lush_table_cache_lock = self.controller.scheduler.lush_table_cache.clone();
+                let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
+                if task_lush_table_cache.contains_key(&self.task_id) {
+                    tracing::info!("Got lush_table_cache from cache");
+                    Some(task_lush_table_cache.get(&self.task_id).unwrap().clone())
+                } else {
+                    tracing::info!("Create new lush_table_cache");
+                    let table_tag_cache = Arc::new(TableTagCache::new());
+                    task_lush_table_cache.insert(self.task_id, table_tag_cache.clone());
+                    Some(table_tag_cache)
+                }
+            }
+            _ => None,
         };
 
         let tx = Arc::new(tx);
@@ -211,6 +227,7 @@ impl PutStream {
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
+            lush_table_cache: Option<Arc<TableTagCache>>,
             span: tracing::Span,
             abort_message_tx: flume::Sender<Result<PutResult, Status>>,
             ipc_error_strategy: IpcErrorStrategy,
@@ -232,6 +249,7 @@ impl PutStream {
                 schema,
                 license,
                 None,
+                lush_table_cache,
                 span,
                 Some(task_id),
             )
@@ -451,6 +469,7 @@ impl PutStream {
                     // rsp_tx,
                     license,
                     transferred,
+                    lush_table_cache,
                     Span::current(),
                     abort_message_tx,
                     ipc_error_strategy,

@@ -892,34 +892,34 @@ pub struct ElementRow {
     pub path: Option<String>,
 }
 
-#[cfg(test)]
-impl ElementRow {
-    fn from_csv(csv: String) -> anyhow::Result<Self> {
-        let parts = csv.split(',').collect::<Vec<&str>>();
-        let obj_type = parts[1].to_lowercase();
-        let obj_type = obj_type.as_str();
-        if obj_type != "element" {
-            return Err(anyhow::anyhow!("Invalid element row"));
-        }
-        if parts.len() < 4 {
-            return Err(anyhow::anyhow!("Invalid element row, expect 4 columns"));
-        }
-        let element_name = parts[0].to_string();
-        let super_table = parts[2].to_string();
-        let element_id = parts[3].to_string();
-        let path = if parts.len() < 5 || parts[4].is_empty() {
-            None
-        } else {
-            Some(parts[4].to_string())
-        };
-        Ok(ElementRow {
-            element_name,
-            super_table,
-            element_id,
-            path,
-        })
-    }
-}
+// #[cfg(test)]
+// impl ElementRow {
+//     fn from_csv(csv: String) -> anyhow::Result<Self> {
+//         let parts = csv.split(',').collect::<Vec<&str>>();
+//         let obj_type = parts[1].to_lowercase();
+//         let obj_type = obj_type.as_str();
+//         if obj_type != "element" {
+//             return Err(anyhow::anyhow!("Invalid element row"));
+//         }
+//         if parts.len() < 4 {
+//             return Err(anyhow::anyhow!("Invalid element row, expect 4 columns"));
+//         }
+//         let element_name = parts[0].to_string();
+//         let super_table = parts[2].to_string();
+//         let element_id = parts[3].to_string();
+//         let path = if parts.len() < 5 || parts[4].is_empty() {
+//             None
+//         } else {
+//             Some(parts[4].to_string())
+//         };
+//         Ok(ElementRow {
+//             element_name,
+//             super_table,
+//             element_id,
+//             path,
+//         })
+//     }
+// }
 
 pub enum PiModelType {
     SingleColumn,
