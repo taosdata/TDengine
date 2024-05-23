@@ -312,8 +312,6 @@ DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName,
 DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
 DLL_EXPORT TAOS       *tmq_get_connect(tmq_t *tmq);
-DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
-DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
@@ -336,17 +334,18 @@ typedef struct tmq_raw_data {
 } tmq_raw_data;
 
 typedef enum tmq_res_t tmq_res_t;
-
-DLL_EXPORT int32_t tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
-DLL_EXPORT int32_t tmq_write_raw(TAOS *taos, tmq_raw_data raw);
-DLL_EXPORT int     taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
-DLL_EXPORT int     taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname,
-                                                   int64_t reqid);
-DLL_EXPORT int     taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname,
-                                                    TAOS_FIELD *fields, int numFields);
-DLL_EXPORT int     taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
-                                                               TAOS_FIELD *fields, int numFields, int64_t reqid);
-DLL_EXPORT void    tmq_free_raw(tmq_raw_data raw);
+DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
+DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
+DLL_EXPORT int32_t     tmq_write_raw(TAOS *taos, tmq_raw_data raw);
+DLL_EXPORT int         taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
+DLL_EXPORT int         taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname,
+                                                       int64_t reqid);
+DLL_EXPORT int         taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname,
+                                                        TAOS_FIELD *fields, int numFields);
+DLL_EXPORT int  taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+                                                            TAOS_FIELD *fields, int numFields, int64_t reqid);
+DLL_EXPORT void tmq_free_raw(tmq_raw_data raw);
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
