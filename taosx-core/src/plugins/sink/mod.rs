@@ -68,7 +68,11 @@ use tracing::{debug, error, info, instrument};
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
-use self::{ipc_metric::IpcMetrics, lush::LushModelConfig, transform::parse::ParserImpl};
+use self::{
+    ipc_metric::IpcMetrics,
+    lush::{LushModelConfig, TableTagCache},
+    transform::parse::ParserImpl,
+};
 use crate::plugins::transform::parse::cast;
 
 pub mod flat;
@@ -768,13 +772,13 @@ async fn consume_lush_record_with_transform(
     trace_id_str: &str,
     metrics: &IpcMetrics,
     lush_model_config: &LushModelConfig,
+    table_cache: Arc<TableTagCache>,
     lush_parser: &ParserImpl,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
             tracing::debug!("Received tables message size {}", tables.len());
-            let table_cache: &lush::TableTagCache = &lush_model_config.table_tags;
             for table in tables {
                 table_cache.insert(table.table_name().to_string(), table);
             }
@@ -800,7 +804,7 @@ async fn consume_lush_record_with_transform(
 
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
-                    lush::create_tags_record(table_name_column, &lush_model_config.table_tags);
+                    lush::create_tags_record(table_name_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
                     continue;
@@ -2718,6 +2722,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
     let lush_model_config = lush_model_config.as_ref();
 
+    // TODO: 使用 scheduler 中的 lush_table_cache
+    let lush_table_cache = Arc::new(TableTagCache::new());
+
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
         metrics.add_received_batches(1);
@@ -2746,6 +2753,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &data_trace_id_str,
                 metrics,
                 lush_model_config,
+                lush_table_cache.clone(),
                 lush_parser.unwrap(),
             )
             .await
@@ -3347,6 +3355,7 @@ pub struct IpcStreamWorker {
     config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<OpcModelConfig>,
     pub lush_model_config: OnceCell<LushModelConfig>,
+    pub lush_table_cache: Option<Arc<TableTagCache>>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
@@ -3368,6 +3377,7 @@ impl Clone for IpcStreamWorker {
             config: self.config.clone(),
             opc_table_config: self.opc_table_config.clone(),
             lush_model_config: self.lush_model_config.clone(),
+            lush_table_cache: self.lush_table_cache.clone(),
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
@@ -3385,6 +3395,7 @@ impl IpcStreamWorker {
         schema: Arc<Schema>,
         license: Option<ConnectorLicense>,
         transferred: Option<Transferred>,
+        lush_table_cache: Option<Arc<TableTagCache>>,
         span: tracing::Span,
         task: Option<i64>,
         // license: Option<>
@@ -3420,6 +3431,7 @@ impl IpcStreamWorker {
             config: None,
             opc_table_config,
             lush_model_config,
+            lush_table_cache,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             taos: Cell::new(Some(taos)),
@@ -3497,6 +3509,7 @@ impl IpcStreamWorker {
                 let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
                 if let Some(lush_model_config) = lush_model_config {
+                    let table_tag_cache = self.lush_table_cache.clone().unwrap();
                     consume_lush_record_with_transform(
                         &self.pool,
                         &mut taos,
@@ -3510,6 +3523,7 @@ impl IpcStreamWorker {
                         trace_id_str,
                         metrics,
                         lush_model_config,
+                        table_tag_cache,
                         lush_parser.unwrap(),
                     )
                     .await?;

@@ -1,11 +1,12 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     sync::{Arc, Weak},
     time::Duration,
 };
 
 use itertools::Itertools;
-use taosx_core::DataSet;
+use taosx_core::{sink::lush::TableTagCache, DataSet};
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -67,6 +68,8 @@ pub struct TaskScheduler {
     pub shutdown_handler: Arc<Mutex<Option<ShutdownHandler>>>,
     pub drop_notifier: Arc<Notify>,
     pub dropped_notifier: Arc<Notify>,
+    // An Task-to-TableTagCache hashmap.
+    pub lush_table_cache: Arc<RwLock<HashMap<i64, Arc<TableTagCache>>>>,
 }
 
 impl Debug for TaskScheduler {
@@ -103,7 +106,7 @@ impl TaskScheduler {
         agent_runtime: AgentIntegrationChannel,
     ) -> Result<TaskScheduler> {
         let tasks = Arc::new(RwLock::new(MultiIndexTaskJobMap::default()));
-
+        let lush_table_cache = Arc::new(RwLock::new(HashMap::new()));
         // let (notify_sender, notify_receiver) = tokio::sync::broadcast::channel(1024);
         // let owned_notify_sender = Arc::new(notify_sender);
         let notify_sender = Arc::downgrade(&owned_notify_sender);
@@ -232,14 +235,23 @@ impl TaskScheduler {
             agent_runtime,
         ));
         let global_state_in_notify_handler = global_state.clone();
+        let lush_table_cache_in_notify_handler = lush_table_cache.clone();
         tokio::spawn(async move {
             let global = global_state_in_notify_handler;
+            let lush_table_cache = lush_table_cache_in_notify_handler;
             tokio::pin!(notify_rx);
             loop {
                 match notify_rx.recv().await {
                     Ok((job_id, state)) => {
                         tracing::info!("job notify: {:?} {:?}", job_id, state);
-                        notify::notify_by_job_id(&tasks_index_map, &global, &job_id, &state).await;
+                        notify::notify_by_job_id(
+                            &tasks_index_map,
+                            &global,
+                            &job_id,
+                            &state,
+                            &lush_table_cache,
+                        )
+                        .await;
                     }
                     Err(err) => {
                         tracing::error!("job create error: {:?}", err);
@@ -297,6 +309,7 @@ impl TaskScheduler {
             shutdown_handler: Arc::new(Mutex::new(None)),
             drop_notifier,
             dropped_notifier,
+            lush_table_cache,
         })
         // TaskScheduler { tasks: Vec::new() }
     }

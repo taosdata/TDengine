@@ -44,9 +44,6 @@ pub struct LushModelConfig {
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
     pub super_table_name_mapping: HashMap<String, String>,
-
-    #[serde(skip)]
-    pub table_tags: Arc<TableTagCache>,
 }
 
 #[derive(Debug)]
@@ -149,7 +146,6 @@ impl From<PIPointModelConfig> for LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_name_mapping: sub_super_mapping,
-            table_tags: Arc::new(TableTagCache::new()),
         }
     }
 }
@@ -186,7 +182,6 @@ impl From<PIElementModelConfig> for LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_name_mapping,
-            table_tags: Arc::new(TableTagCache::new()),
         }
     }
 }
@@ -221,7 +216,7 @@ pub fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch)
 
 pub fn create_tags_record(
     table_name_column: &StringArray,
-    table_cache: &TableTagCache,
+    table_cache: Arc<TableTagCache>,
 ) -> anyhow::Result<RecordBatch> {
     // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
     let mut fields: Vec<Field> = Vec::new();
