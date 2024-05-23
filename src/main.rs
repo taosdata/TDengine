@@ -393,6 +393,7 @@ async fn init_tracing_layers(
                 .add_directive("actix_http=info".parse()?)
                 .add_directive("tokio_tungstenite=warn".parse()?)
                 .add_directive("mio=warn".parse()?)
+                .add_directive("h2=warn".parse()?)
                 .add_directive("sqlx=warn".parse()?)
                 .add_directive("hyper=warn".parse()?)
                 .add_directive("reqwest=warn".parse()?)
