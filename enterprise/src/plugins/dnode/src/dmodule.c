@@ -481,7 +481,6 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     goto _exit;
   } else if (pDnode->data.clusterId !=
              eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
-
     if (eInfo.clusterId == 0) {
       eInfo.dnodeId = pDnode->data.dnodeId;
       eInfo.engineVer = tsVersion;
