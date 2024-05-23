@@ -79,6 +79,14 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "taosdata"
 #endif
 
+#ifndef TD_PRODUCT_NAME
+#ifdef TD_ENTERPRISE
+#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#else
+#define TD_PRODUCT_NAME "TDengine Community Edition"
+#endif
+#endif
+
 #define TSDB_TRUE  1
 #define TSDB_FALSE 0
 #define TSDB_OK    0
