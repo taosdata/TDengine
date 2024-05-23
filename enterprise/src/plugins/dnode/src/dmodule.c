@@ -495,8 +495,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       dInfo("update clusterId from 0 to %" PRId64, pDnode->data.clusterId);
     } else {
       code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-      dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId,
-             pDnode->data.clusterId);
+      dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId, pDnode->data.clusterId);
       goto _exit;
     }
   } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
