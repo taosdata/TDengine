@@ -601,17 +601,21 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
-  ASSERT(iCol > 0);
-
   if (pRow->type == TSDBROW_ROW_FMT) {
     tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
-    if (pColData) {
-      tColDataGetValue(pColData, pRow->iRow, pColVal);
+    if (iCol == 0) {
+      *pColVal =
+          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
+                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
     } else {
-      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
+
+      if (pColData) {
+        tColDataGetValue(pColData, pRow->iRow, pColVal);
+      } else {
+        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      }
     }
   } else {
     ASSERT(0);
