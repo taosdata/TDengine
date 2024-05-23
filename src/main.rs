@@ -486,7 +486,7 @@ async fn init_tracing_layers(
                     .add_directive("actix_http=info".parse()?)
                     .add_directive("tokio_tungstenite=info".parse()?)
                     .add_directive("mio=info".parse()?)
-                    .add_directive("h2=info".parse()?),
+                    .add_directive("h2=warn".parse()?),
             );
         layered.with(telemetry).try_init()?;
     } else {

@@ -144,7 +144,7 @@ async fn ipc_tcp_forward(
             }
         };
     }
-    let batch_number = Arc::new(AtomicU32::new(0));
+    let batch_number = Arc::new(AtomicU32::new(1));
     'start: loop {
         let batch_number = batch_number.clone();
         let stream_trace_id_u64 = stream_trace_id_u64;
