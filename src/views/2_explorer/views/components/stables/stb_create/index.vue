@@ -97,7 +97,7 @@
               ></el-option>
             </el-select>
             <el-input-number
-              v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
+              v-if="VariableTableColumnType.includes(column.type)"
               :value="
                 column.type == 'VARCHAR'
                   ? column.varcharLength
@@ -509,6 +509,7 @@ export default {
       loading: false,
       customeLength: 8,
       tagLength: 8,
+      VariableTableColumnType: VariableTableColumnType
     };
   },
   computed: {
