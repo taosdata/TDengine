@@ -258,12 +258,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
-  printf("%s: %s compatible_version: %s\n", TD_EDITION_NAME, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
+  printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
+  printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
-  printf("gitinfoOfInternal: %s\n", gitinfoOfInternal);
+  printf("git: %s\n", gitinfoOfInternal);
 #endif
-  printf("buildInfo: %s\n", buildinfo);
+  printf("build: %s\n", buildinfo);
 }
 
 static void dmPrintHelp() {

@@ -1242,14 +1242,9 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-#ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
-#endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
-  printf("buildInfo: %s\n", buildinfo);
+  printf("udfd version: %s compatible_version: %s\n", version, compatible_version);
+  printf("git: %s\n", gitinfo);
+  printf("build: %s\n", buildinfo);
 }
 
 static int32_t udfdInitLog() {
