@@ -468,7 +468,10 @@ async fn alter_table(
                     }
                 }
                 _ => {
-                    tracing::error!(req_id = req_id.get(), "Describe table error: {err:#}");
+                    tracing::error!(
+                        req_id = req_id.trace_id_str(),
+                        "Describe table error: {err:#}"
+                    );
                     return Err(err.into());
                 }
             }
@@ -507,7 +510,7 @@ async fn alter_table(
                     match errno {
                         0x264B | 0x036F => {
                             tracing::warn!(
-                                req_id = req_id.get(),
+                                req_id = req_id.trace_id_str(),
                                 sql,
                                 "Ignore alter table error: {err:#}"
                             );
@@ -526,7 +529,7 @@ async fn alter_table(
                         }
                         _ => {
                             tracing::error!(
-                                req_id = req_id.get(),
+                                req_id = req_id.trace_id_str(),
                                 sql,
                                 "Alter table error: {err:#}"
                             );
@@ -561,7 +564,7 @@ async fn alter_table(
                     match errno {
                         0x264B | 0x036F => {
                             tracing::warn!(
-                                req_id = req_id.get(),
+                                req_id = req_id.trace_id_str(),
                                 sql,
                                 "Ignore alter table error: {err:#}"
                             );
@@ -576,7 +579,7 @@ async fn alter_table(
                         }
                         _ => {
                             tracing::error!(
-                                req_id = req_id.get(),
+                                req_id = req_id.trace_id_str(),
                                 sql,
                                 "Alter table error: {err:#}"
                             );
@@ -679,7 +682,7 @@ async fn assert_create_table(
             let code = err.code();
             let errno: i32 = code.into();
             write_retries += 1;
-            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+            if write_retries > 5 {
                 break Err(err)
                     .context("Exec SQL error: Retries exceeded")
                     .map_err(Into::into);
@@ -701,12 +704,18 @@ async fn assert_create_table(
                     }
                     break Err(err)?;
                 }
+                // [0x2603] Internal error: `Table does not exist`
+                0x2603 => {
+                    // retry
+                    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                    tracing::warn!(retry = write_retries, "{:#}", err);
+                }
                 _ => {
                     tracing::error!(
-                        sql = sql,
-                        req_id = req_id.get(),
-                        "Create {} error: {err:#}",
-                        if is_stable { "stable" } else { "table" }
+                        req_id = req_id.trace_id_str(),
+                        "Create {} error: {err:#}, sql={}",
+                        if is_stable { "stable" } else { "table" },
+                        sql
                     );
                     break Err(err)
                         .context(format!(
@@ -790,7 +799,7 @@ async fn write_lush_stable_with_sql(
                     _ => {
                         tracing::error!(
                             sql = truncate_sql_in_log_message(sql),
-                            req_id = req_id.get(),
+                            req_id = req_id.trace_id_str(),
                             "Write SQL error: {err:#}"
                         );
                         break Err(err).context("Write sql error").map_err(Into::into);
