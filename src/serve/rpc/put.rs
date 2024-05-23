@@ -520,21 +520,23 @@ impl PutStream {
                         (message, app_metadata, trace_id, tx.clone())
                     })
                     .inspect_err(|err| {
-                        tracing::warn!(
-                            error.source = format!("{err:#}"),
-                            "Put stream message error"
-                        );
-                        if let Err(err) = notify_sender.send(
-                            crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                agent_id,
-                                TaskActivity::warn(task_id, format!("{err:#}")),
-                            ),
-                        ) {
+                        cur_span.in_scope(|| {
                             tracing::warn!(
                                 error.source = format!("{err:#}"),
                                 "Put stream message error"
                             );
-                        }
+                            if let Err(err) = notify_sender.send(
+                                crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                    agent_id,
+                                    TaskActivity::warn(task_id, format!("{err:#}")),
+                                ),
+                            ) {
+                                tracing::warn!(
+                                    error.source = format!("{err:#}"),
+                                    "Put stream message error"
+                                );
+                            }
+                        });
                     });
                 async {
                     let (message, app_metadata, trace_id, tx) = message
@@ -563,14 +565,16 @@ impl PutStream {
                             PutResult { app_metadata }
                         }
                     })
-                }
+                }.instrument(cur_span.clone())
             };
             loop {
                 tokio::select! {
                     _ = heartbeat.tick() => {
                         tracing::trace!("Send heartbeat");
                         if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await {
-                            tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                            cur_span.in_scope(|| {
+                                tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                            });
                             break;
                         };
                     }
