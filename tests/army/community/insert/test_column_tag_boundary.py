@@ -22,6 +22,7 @@ class TDTestCase(TBase):
         self.child_table_num = 1
         self.insert_round_num = 700
         self.row_num_per_round = 15
+        self.start_ts = 1704082431000
 
     def prepare_data(self):
         # database
@@ -39,7 +40,7 @@ class TDTestCase(TBase):
             for j in range(self.insert_round_num):
                 sql = "insert into ct_binary%s values" % (i+1)
                 for k in range(self.row_num_per_round):
-                    sql += "(now+%ss, '%s')," % (str(j * 10 + k + 1), 'a' * self.max_column_length)
+                    sql += "(%s, '%s')," % (str(self.start_ts + (j * self.insert_round_num + k * self.row_num_per_round + 1)), 'a' * self.max_column_length)
                 tdSql.execute(sql)
                 tdLog.info(f"Insert {self.row_num_per_round} rows data into ct_binary{i+1} {j+1} times successfully")
         tdSql.execute("flush database db;")
@@ -63,7 +64,7 @@ class TDTestCase(TBase):
             for j in range(self.insert_round_num):
                 sql = "insert into ct_varchar%s values" % (i+1)
                 for k in range(self.row_num_per_round):
-                    sql += "(now+%ss, '%s')," % (str(j * 10 + k + 1), 'b' * self.max_column_length)
+                    sql += "(%s, '%s')," % (str(self.start_ts + (j * self.insert_round_num + k * self.row_num_per_round + 1)), 'b' * self.max_column_length)
                 tdSql.execute(sql)
                 tdLog.info(f"Insert {self.row_num_per_round} rows data into ct_varchar{i+1} {j+1} times successfully")
         tdSql.execute("flush database db;")
@@ -98,7 +99,7 @@ class TDTestCase(TBase):
             for j in range(self.insert_round_num):
                 sql = "insert into ct_nchar%s values" % (i+1)
                 for k in range(self.row_num_per_round):
-                    sql += "(now+%ss, '%s')," % (str(j * 10 + k + 1), column)
+                    sql += "(%s, '%s')," % (str(self.start_ts + (j * self.insert_round_num + k * self.row_num_per_round + 1)), column)
                 tdSql.execute(sql)
                 tdLog.info(f"Insert {self.row_num_per_round} rows data into ct_nchar{i+1} {j+1} times successfully")
         tdSql.execute("flush database db;")
@@ -124,7 +125,7 @@ class TDTestCase(TBase):
             for j in range(self.insert_round_num):
                 sql = "insert into ct_varbinary%s values" % (i+1)
                 for k in range(row_num_per_round):
-                    sql += "(now+%ss, '%s')," % (str(j * 10 + k + 1), '\\x' + column)
+                    sql += "(%s, '%s')," % (str(self.start_ts + (j * self.insert_round_num + k * self.row_num_per_round + 1)), '\\x' + column)
                 tdSql.execute(sql)
                 tdLog.info(f"Insert {row_num_per_round} rows data into ct_varbinary{i+1} {j+1} times successfully")
         tdSql.execute("flush database db;")
@@ -153,7 +154,7 @@ class TDTestCase(TBase):
             for j in range(self.insert_round_num):
                 sql = "insert into ct_json_tag%s values" % (i+1)
                 for k in range(row_num_per_round):
-                    sql += "(now+%ss, '%s')," % (str(j * 10 + k + 1), '\\x' + column)
+                    sql += "(%s, '%s')," % (str(self.start_ts + (j * self.insert_round_num + k * self.row_num_per_round + 1)), '\\x' + column)
                 tdSql.execute(sql)
                 tdLog.info(f"Insert {row_num_per_round} rows data into ct_json_tag{i+1} {j+1} times successfully")
         tdSql.execute("flush database db;")
