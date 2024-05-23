@@ -252,7 +252,7 @@ namespace TDPIConnector.Core
                             {
                                 if (stopAddNewTask)
                                 {
-                                    log.Error($"backfill task manager: finished, gourp({groupNum}) quit!");
+                                    log.Info($"backfill task manager: finished, gourp({groupNum}) quit!");
                                     return;
                                 }
                                 Thread.Sleep(1000);
