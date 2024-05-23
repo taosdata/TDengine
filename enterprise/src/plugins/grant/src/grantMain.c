@@ -2241,7 +2241,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = GRANT_VERSION;
-    snprintf(tmp1, GRANTS_COL_MAX_LEN, "%s %s", TD_EDITION_NAME, src);
+    snprintf(tmp1, GRANTS_COL_MAX_LEN, "%s %s", TD_PRODUCT_NAME, src);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
