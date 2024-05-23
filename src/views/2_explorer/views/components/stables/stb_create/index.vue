@@ -91,7 +91,7 @@
               @change="() => handleTypeChange(column, index)"
             >
               <el-option
-                v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+                v-for="item in handleTypeList(column.type, 'dataType')"
                 :key="item.value"
                 v-bind="item"
               ></el-option>
@@ -122,7 +122,10 @@
             >
             </el-input>
             <el-tag effect="plain" type="info" v-if="index==1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+              <el-checkbox 
+                :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
+                v-model="column.primaryKey" 
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -185,7 +188,7 @@
               size="small"
               icon="el-icon-minus"
               @click="minusColumn(index)"
-              :disabled="!index || column.primaryKey"
+              :disabled="!index || (isEdit && column.primaryKey)"
             ></el-button>
             <el-button
               v-if="!isEdit"
@@ -483,6 +486,7 @@ import { mapState } from "vuex";
 import { dataType, tagType, parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive } from "../../utils";
 import { changeStableStruct, changeStableStructOther } from "@/api/gateway/data/stables";
 import { VariableTableColumnType } from "@/const";
+import { Message } from "element-ui";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -612,12 +616,21 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
+      this.$set(this.stable_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1) 
+      {
+        this.$set(this.stable_form.columns[index], "primaryKey", false);
+      }
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
+      this.$set(this.currentData, "level", 'medium');
     },
     // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
     handleTypeList(currentType, name) {
@@ -710,6 +723,7 @@ export default {
       await this.$store
         .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
+      await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       this.loading = false;
     },
     async updateDataOther(params) {
@@ -729,6 +743,7 @@ export default {
       await this.$store
         .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
         .catch(() => false);
+      await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       this.loading = false;
     },
     foldColumns() {
@@ -759,7 +774,13 @@ export default {
       };
     },
     minusColumn(index) {
-      if (!this.isEdit) return this.stable_form.columns.remove(index);
+      if (!this.isEdit) {
+        this.stable_form.columns.remove(index, 'column');
+        if (index == 1) {
+          this.$set(this.stable_form.columns[index], "primaryKey", false);
+        }
+        return 
+      }
       this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
@@ -829,6 +850,22 @@ export default {
     handleCreateStable() {
       this.$refs.stable_form.validate((valid) => {
         if (valid) {
+          for (let i = 0; i < this.stable_form.columns.length; i++) {
+            const element = this.stable_form.columns[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
+            }
+          }
+          for (let i = 0; i < this.stable_form.tags.length; i++) {
+            const element = this.stable_form.tags[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.tagNameTip")
+              );
+            }
+          }
           this.handleData();
           this.$store
             .dispatch("stables/submitStableForm", this.selected_db)
@@ -869,15 +906,6 @@ export default {
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
     },
-    handleCheckChange(val, index, type) {
-      if (!this.isEdit) {
-        if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
-          this.$set(this.stable_form.columns[index], "type", '');
-          this.$set(this.stable_form.columns[index], "encode", '');
-          this.$set(this.stable_form.columns[index], "compress", '');
-        } 
-      }
-    }
   },
 };
 </script>

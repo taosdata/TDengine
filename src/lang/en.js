@@ -44,7 +44,7 @@ export default {
   ok: "OK",
   changepwdtip: "Password is successfully changed, please log in again",
   systemTitle: "TDengine Management System",
-  copyright: "Copyright (c) 2023 by TDengine, All Rights Reserved.",
+  copyright: "Copyright (c) 2024 by TDengine, All Rights Reserved.",
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
@@ -989,7 +989,7 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='/docs-en/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='${IS_COMMUNITY ? "https://docs.tdengine.com": "/docs-en"}/taos-sql/select/'>query data using SQL</a>`,
     toolsTip:
       "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
     subscriptionTitle: `Subscribe to data updates using`,
@@ -1024,6 +1024,7 @@ export default {
     demoDataText: "a database with 1 million data points is created",
     title: 'TDengine Management System',
     titleTip: 'Please register first to use TDengine explorer for better experience and technical support',
+    name: 'Name',
     phone: 'Mobile phone number',
     email: 'Email',
     verificationCode: 'Verification code',
@@ -1031,6 +1032,7 @@ export default {
     regetVerificationCode: 'Resend verification code',
     signin: 'Submit',
     imageVerificationCode: 'Image Verification code',
+    nameTips: "Please enter your name, maximum of 80 characters",
     phoneTips: "Please enter email",
     emailTips: "Please enter email",
     verificationCodeTips: "Please enter the verification code",

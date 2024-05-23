@@ -60,7 +60,7 @@
                 @change="() => handleTypeChange(column, index)"
               >
                 <el-option
-                  v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+                  v-for="item in handleTypeList(column.type, 'dataType')"
                   :key="item.value"
                   v-bind="item"
                 ></el-option>
@@ -89,7 +89,10 @@
               >
               </el-input>
               <el-tag effect="plain" type="info" v-if="index == 1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+              <el-checkbox 
+                :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
+                v-model="column.primaryKey" 
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -149,7 +152,7 @@
               <el-button
                 icon="el-icon-minus"
                 size="small"
-                :disabled="!index || column.primaryKey"
+                :disabled="!index || (isEdit && column.primaryKey)"
                 @click="minusColumn(index, column)"
               ></el-button>
               <el-button
@@ -358,6 +361,7 @@ import { dataType, tagType, parmaryKeyType, storageCompression, levelList, group
 import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/gateway/data/tables";
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
+import { Message } from "element-ui";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -519,7 +523,13 @@ export default {
       this.updateTypeField(params, rename_params, other_params);  
     },
     minusColumn(index, data) {
-      if (!this.isEdit) return this.table_form.columns.remove(index);
+      if (!this.isEdit) {
+        this.table_form.columns.remove(index)
+        if (index == 1) {
+          this.$set(this.table_form.columns[index], "primaryKey", false);
+        }
+        return 
+      }
       this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
@@ -563,6 +573,7 @@ export default {
             stableName: this.table_form.stbTmpl,
           })
           .catch(() => false);
+        this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       }
     },
     async updateTypeField(params, rename_params, other_params) {
@@ -614,6 +625,14 @@ export default {
     handleCreateTable() {
       this.$refs.table_form.validate((valid) => {
         if (valid) {
+          for (let i = 0; i < this.table_form.columns.length; i++) {
+            const element = this.table_form.columns[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
+            }
+          }
           this.handleData();
           this.$store.dispatch("tables/submitTableForm").then(() => {
             this.$message.success(this.$t("createSucc"));
@@ -697,21 +716,21 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.table_form.columns[index], "encode", defaultEncode);
       this.$set(this.table_form.columns[index], "compress", defaultCompress);
+      this.$set(this.table_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1) 
+      {
+        this.$set(this.table_form.columns[index], "primaryKey", false);
+      }
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
-    },
-    handleCheckChange(val, index, type) {
-      if (!this.isEdit) {
-        if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
-          this.$set(this.table_form.columns[index], "type", '');
-          this.$set(this.table_form.columns[index], "encode", '');
-          this.$set(this.table_form.columns[index], "compress", '');
-        } 
-      }
+      this.$set(this.currentData, "level", 'medium');
     },
     handleTypeList(currentType, name) {
       if (!this.isEdit) return this[name];
@@ -787,6 +806,8 @@ export default {
   font-size: 14px;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;

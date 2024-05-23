@@ -1123,6 +1123,7 @@ function getDatasetsQuery(datasets, allData, query) {
       }
       query.push(tabValue + '=' + true);
     } else {
+      if (!checkValue(datasets[tabValue])) return; 
       query.push(tabValue + '=' + getQueryParamValue(datasets[tabValue]));
     }
   } else {

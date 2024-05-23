@@ -42,7 +42,7 @@ export default {
   agent: "代理",
   changepwdtip: "密码修改成功，请重新登录",
   systemTitle: "TDengine 管理系统",
-  copyright: " Copyright 2023 北京涛思数据科技有限公司",
+  copyright: "Copyright 2024 北京涛思数据科技有限公司",
   sqlPreview: "SQL 预览",
   download: "下载",
   uploadcsv: "CSV 文件上传",
@@ -900,6 +900,7 @@ export default {
     demoDataText: "预先创建了一个包含一亿个数据点的数据库",
     titleTip: '为了提供更好的技术支持，请您在使用 TDeninge 图形化管理系统前先行注册',
     title: 'TDengine 管理系统',
+    name: '姓名',
     phone: '手机号',
     email: '邮箱',
     verificationCode: '验证码',
@@ -907,6 +908,7 @@ export default {
     regetVerificationCode: '重新获取验证码',
     imageVerificationCode: '图形验证码',
     signin: '提交',
+    nameTips: "请输入姓名，最多 80 个字符",
     phoneTips: "请输入手机号，只支持中国大陆手机号码",
     emailTips: "请输入邮箱",
     verificationCodeTips: "请输入验证码",
@@ -1405,7 +1407,7 @@ export default {
   },
   dataOut: {
     connectorTip:
-      "使用您选择的编程语言<a target='_blank' href='/docs/taos-sql/select/'>使用SQL</a>查询数据。",
+      `使用您选择的编程语言<a target='_blank' href='${IS_COMMUNITY ? "https://docs.taosdata.com": "/docs"}/taos-sql/select/'>使用SQL</a>查询数据。`,
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
     subscriptions: "数据订阅",
