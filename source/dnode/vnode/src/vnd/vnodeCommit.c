@@ -289,7 +289,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int64_t lastCommitted = pInfo->info.state.committed;
 
   // wait last commit task
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
 
   if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
@@ -361,15 +361,14 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
 
   taosThreadMutexUnlock(&pVnode->mutex);
 }
-static int32_t vnodeCommitTask(void *arg) {
+static int32_t vnodeCommit(void *arg) {
   int32_t code = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)arg;
   SVnode      *pVnode = pInfo->pVnode;
 
   // commit
-  code = vnodeCommitImpl(pInfo);
-  if (code) {
+  if ((code = vnodeCommitImpl(pInfo))) {
     vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
     taosMsleep(100);
     exit(EXIT_FAILURE);
@@ -379,37 +378,34 @@ static int32_t vnodeCommitTask(void *arg) {
   vnodeReturnBufPool(pVnode);
 
 _exit:
+  taosMemoryFree(arg);
   return code;
 }
 
-static void vnodeCompleteCommit(void *arg) { taosMemoryFree(arg); }
+static void vnodeCommitCancel(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
   if (NULL == pInfo) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
   // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _exit;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule the task
-  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
-                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
+  code =
+      vnodeAsync(&pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo, &pVnode->commitTask);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    if (NULL != pInfo) {
-      taosMemoryFree(pInfo);
-    }
-    vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
-           pVnode->state.commitID);
+    taosMemoryFree(pInfo);
+    vError("vgId:%d %s failed at line %d since %s" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
           pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
@@ -419,7 +415,7 @@ _exit:
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  vnodeAWait(&pVnode->commitTask);
   return 0;
 }
 
