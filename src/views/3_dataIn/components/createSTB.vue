@@ -46,7 +46,7 @@
             @change="() => handleTypeChange(column, index)"
           >
             <el-option
-              v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+              v-for="item in handleTypeList(column.type, 'dataType')"
               :key="item.value"
               v-bind="item"
             ></el-option>
@@ -74,10 +74,14 @@
               v-model="column.field"
               :maxlength="64"
               :placeholder="$t('data.columnNameTip')"
+              style="min-width: 60px"
             >
           </el-input>
           <el-tag effect="plain" type="info" v-if="index==1">
-              <el-checkbox v-model="column.primaryKey"  @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+              <el-checkbox 
+                v-model="column.primaryKey"  
+                :disabled="parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1"
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -139,7 +143,7 @@
           <el-button
             icon="el-icon-minus"
             size="small"
-            :disabled="!index || column.primaryKey"
+            :disabled="!index"
             @click="minusColumn(index)"
           ></el-button>
           <el-button @click="addColumn" icon="el-icon-plus" size="small"></el-button>
@@ -342,6 +346,10 @@ export default {
       if (this.stable_form.columns.length > 1) {
         this.stable_form.columns.splice(index, 1);
       }
+      // 是主键列
+      if (index == 1) {
+        this.handPrimarykeyCol(index)
+      }
     },
     minusTags(index) {
       if (this.stable_form.tags.length > 1) {
@@ -390,18 +398,17 @@ export default {
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
       this.$set(this.stable_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1) 
+      {
+        this.$set(this.stable_form.columns[index], "primaryKey", false);
+      }
     },
     handleTypeList(currentType, name) {
       return this[name];
     },
-    handleCheckChange(val, index, type) {
-      if (val && this.parmaryKeyType.findIndex((item) => type.startsWith(item.value)) == -1) {
-        this.$set(this.stable_form.columns[index], "type", '');
-        this.$set(this.stable_form.columns[index], "encode", '');
-        this.$set(this.stable_form.columns[index], "compress", '');
-        this.$set(this.stable_form.columns[index], "level", '');
-      } 
-    }
   },
 };
 </script>
