@@ -569,7 +569,7 @@ impl PutStream {
             loop {
                 tokio::select! {
                     _ = heartbeat.tick() => {
-                        tracing::debug!("Send heartbeat");
+                        tracing::trace!("Send heartbeat");
                         if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await {
                             tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
                             break;
