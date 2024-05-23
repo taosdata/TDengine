@@ -1806,10 +1806,11 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
 
-    if (pMsg->type == Normal) {
-      cliBuildBatch(pMsg, h, pThrd);
-      count++;
-    }
+    // if (pMsg->type == Normal) {
+    //   cliBuildBatch(pMsg, h, pThrd);
+    //   continue;
+    //   // count++;
+    // }
     if (pMsg->type == Normal && REQUEST_NO_RESP(&pMsg->msg)) {
       cliBuildBatch(pMsg, h, pThrd);
       continue;
