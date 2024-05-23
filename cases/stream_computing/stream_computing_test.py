@@ -2618,7 +2618,6 @@ class StreamComputingTest(TDCase):
         return f'event_window start with {start_trigger_condition} end with {end_trigger_condition}'
 
     def at_once_event_window(self, partition="tbname", delete=False, fill_value=None, fill_history_value=None, case_when=None, use_except=None):
-        use_except = False if not self.pk_test else True
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(fill_history_value=fill_history_value)
@@ -2663,11 +2662,15 @@ class StreamComputingTest(TDCase):
         if fill_value:
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
-        if use_except or not self.pk_test:
-            use_except = True
+        if use_except:
             stream_sql = self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, use_except=use_except)
             self.tdSql.error(stream_sql)
             return
+        if self.pk_test:
+            stream_sql = self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, use_except=True)
+            self.tdSql.error(stream_sql)
+            return
+
         if partition == "tbname":
             self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
@@ -5021,13 +5024,7 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
-            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
-            for watermark in [None, random.randint(15, 20)]:
-                self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
-        return
+        # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
             self.create_none_db_stream()
