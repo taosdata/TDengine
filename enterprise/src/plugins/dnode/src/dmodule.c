@@ -481,9 +481,25 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     goto _exit;
   } else if (pDnode->data.clusterId !=
              eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
-    code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-    dError("failed to init since inconsistent cluster");
-    goto _exit;
+
+    if (eInfo.clusterId == 0) {
+      eInfo.dnodeId = pDnode->data.dnodeId;
+      eInfo.engineVer = tsVersion;
+      eInfo.clusterId = pDnode->data.clusterId;
+      eInfo.updateMs = taosGetTimestampMs();
+      taosThreadRwlockWrlock(&pDnode->data.lock);
+      if ((code = dmWriteVars(&eInfo)) != 0) {
+        taosThreadRwlockUnlock(&pDnode->data.lock);
+        goto _exit;
+      }
+      taosThreadRwlockUnlock(&pDnode->data.lock);
+      dInfo("update clusterId from 0 to %" PRId64, pDnode->data.clusterId);
+    } else {
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+      dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId,
+             pDnode->data.clusterId);
+      goto _exit;
+    }
   } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
     dmSyncEps(&pDnode->data);
   }
