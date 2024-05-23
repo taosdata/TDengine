@@ -60,7 +60,7 @@
                 @change="() => handleTypeChange(column, index)"
               >
                 <el-option
-                  v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+                  v-for="item in handleTypeList(column.type, 'dataType')"
                   :key="item.value"
                   v-bind="item"
                 ></el-option>
@@ -89,7 +89,10 @@
               >
               </el-input>
               <el-tag effect="plain" type="info" v-if="index == 1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+              <el-checkbox 
+                :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
+                v-model="column.primaryKey" 
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
@@ -708,6 +711,13 @@ export default {
       this.$set(this.table_form.columns[index], "encode", defaultEncode);
       this.$set(this.table_form.columns[index], "compress", defaultCompress);
       this.$set(this.table_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1) 
+      {
+        this.$set(this.table_form.columns[index], "primaryKey", false);
+      }
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
@@ -715,16 +725,6 @@ export default {
       this.$set(this.currentData, "encode", defaultEncode);
       this.$set(this.currentData, "compress", defaultCompress);
       this.$set(this.currentData, "level", 'medium');
-    },
-    handleCheckChange(val, index, type) {
-      if (!this.isEdit) {
-        if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
-          this.$set(this.table_form.columns[index], "type", '');
-          this.$set(this.table_form.columns[index], "encode", '');
-          this.$set(this.table_form.columns[index], "compress", '');
-          this.$set(this.table_form.columns[index], "level", '');
-        } 
-      }
     },
     handleTypeList(currentType, name) {
       if (!this.isEdit) return this[name];
@@ -800,6 +800,8 @@ export default {
   font-size: 14px;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;
