@@ -152,7 +152,7 @@
               <el-button
                 icon="el-icon-minus"
                 size="small"
-                :disabled="!index || column.primaryKey"
+                :disabled="!index || (isEdit && column.primaryKey)"
                 @click="minusColumn(index, column)"
               ></el-button>
               <el-button
@@ -523,7 +523,13 @@ export default {
       this.updateTypeField(params, rename_params, other_params);  
     },
     minusColumn(index, data) {
-      if (!this.isEdit) return this.table_form.columns.remove(index);
+      if (!this.isEdit) {
+        this.table_form.columns.remove(index)
+        if (index == 1) {
+          this.$set(this.table_form.columns[index], "primaryKey", false);
+        }
+        return 
+      }
       this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
