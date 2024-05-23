@@ -357,10 +357,6 @@ impl RequestID {
     pub fn next(&self) -> u64 {
         self.inner.fetch_add(1, Ordering::Acquire) + 1
     }
-
-    pub fn get(&self) -> u64 {
-        self.inner.load(Ordering::SeqCst)
-    }
 }
 
 /// Stream Trace ID is 16 bits random number in hex format.
