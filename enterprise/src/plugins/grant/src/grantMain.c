@@ -187,7 +187,9 @@
 #define GRANT_VERSION (gStatus.officialVersion ? "official" : "trial")
 #endif
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
-#define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS)
+#define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_SUCCESS)
+#define GRANT_EXPIRED_OPT(expbasic, expopt, erropt) \
+  ((expbasic) ? TSDB_CODE_GRANT_BASIC_EXPIRED : ((expopt) ? (erropt) : TSDB_CODE_SUCCESS))
 #define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0))
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
@@ -1097,7 +1099,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     }
   } else {
     if (pGrant->upgradeTime == 0) {
-      pGrant->upgradeTime = curTime;
+      pGrant->upgradeTime = curTime != 0 ? curTime : 1;
     }
     grantResetMaster(pMnode, pGrant->upgradeTime);
   }
@@ -1151,7 +1153,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
           appendState = true;
         }
       } else if (oldState == GRANT_STATE_EXPIRED) {
-        if (false == gStatus.expired) {
+        if (0 == gStatus.expired) {
           state.state = GRANT_STATE_GRANTED;
           state.reason = GRANT_STATE_REASON_ALTER;
           appendState = true;
@@ -1751,7 +1753,7 @@ static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckStreams(bool checkNum) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.streamExpired) {
-    code = TSDB_CODE_GRANT_EXPIRED;
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_STREAM_EXPIRED;
   } else if (checkNum && gStatus.limitStreams != GRANT_UNIQ_UNLIMITED) {
     if (grantHandle.pMnode) gStatus.curStreams = grantGetClusterCurStreams(grantHandle.pMnode);
     if (gStatus.curStreams >= gStatus.limitStreams) code = TSDB_CODE_GRANT_STREAM_LIMITED;
@@ -1768,7 +1770,7 @@ static int32_t grantCheckStreams(bool checkNum) {
 static int32_t grantCheckSubscriptions(bool checkNum) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.subscriptionExpired) {
-    code = TSDB_CODE_GRANT_EXPIRED;
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_SUBSCRIPTION_EXPIRED;
   } else if (checkNum && gStatus.limitSubscriptions != GRANT_UNIQ_UNLIMITED) {
     if (grantHandle.pMnode) gStatus.curSubscriptions = grantGetClusterCurTopics(grantHandle.pMnode);
     if (gStatus.curSubscriptions >= gStatus.limitSubscriptions) code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
@@ -1785,7 +1787,7 @@ static int32_t grantCheckSubscriptions(bool checkNum) {
 static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
   int32_t code = 0;
   if (gStatus.expired || gStatus.viewExpired) {
-    code = TSDB_CODE_GRANT_EXPIRED;
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_VIEW_EXPIRED;
   } else if (checkNum && gStatus.limitViews != GRANT_UNIQ_UNLIMITED) {
     if (grantHandle.pMnode) gStatus.curViews = grantGetClusterCurViews(grantHandle.pMnode);
     if (gStatus.curViews >= gStatus.limitViews) code = TSDB_CODE_GRANT_VIEW_LIMITED;
@@ -1874,17 +1876,17 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_VIEW:
       return grantCheckViews(true, DEBUG_ERROR);
     case TSDB_GRANT_AUDIT:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.auditExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.auditExpired, TSDB_CODE_GRANT_AUDIT_EXPIRED);
     case TSDB_GRANT_CSV:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.csvExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.csvExpired, TSDB_CODE_GRANT_CSV_EXPIRED);
     case TSDB_GRANT_MULTI_TIER:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.multiTierExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.multiTierExpired, TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED);
     case TSDB_GRANT_OBJECT_STORAGE:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.objectStorageExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.objectStorageExpired, TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED);
     case TSDB_GRANT_DUAL_REPLICA_HA:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.dualReplicaHAExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dualReplicaHAExpired, TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED);
     case TSDB_GRANT_DB_ENCRYPTION:
-      return GRANT_EXPIRED(gStatus.expired || gStatus.dbEncryptionExpired);
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dbEncryptionExpired, TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED);
     default:
       break;
   }
@@ -2106,7 +2108,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     if (basicExpire != GRANT_UNIQ_UNDEFINED && basicExpire != GRANT_UNIQ_UNLIMITED) {
       int64_t grantCurTime = grantGetCurTime(curTime, newObj.flags & GRANT_ACTIVE_FLG_CHECK_UPTIME);
       if (basicExpire * 86400 <= grantCurTime) {
-        code = TSDB_CODE_GRANT_EXPIRED;
+        code = TSDB_CODE_GRANT_BASIC_EXPIRED;
         goto _exit;
       }
     }
