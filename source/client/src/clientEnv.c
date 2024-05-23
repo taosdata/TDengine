@@ -725,7 +725,7 @@ void taos_init_imp(void) {
     return;
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1, true) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
