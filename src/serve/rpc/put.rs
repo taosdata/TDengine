@@ -515,7 +515,6 @@ impl PutStream {
                         let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
                         metrics.add_received_batches(1);
                         cur_span.in_scope(|| {
-                            metrics.add_received_batches(1);
                             tracing::info!("Receive batch {}", get_data_trace_id_str(trace_id));
                         });
                         (message, app_metadata, trace_id, tx.clone())
