@@ -1138,6 +1138,7 @@ void testConsumeExcluded(int topic_type) {
     taos_close(pConn);
     return;
   }
+  taos_close(pConn);
   taos_free_result(pRes);
 }
 

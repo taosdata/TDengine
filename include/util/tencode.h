@@ -77,6 +77,7 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
+#define TD_CODER_REMAIN_CAPACITY(CODER)                ((CODER)->size - (CODER)->pos)
 
 #define tEncodeSize(E, S, SIZE, RET) \
   do {                               \
