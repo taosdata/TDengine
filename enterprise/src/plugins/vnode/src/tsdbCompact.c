@@ -28,8 +28,8 @@ extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, 
 
 // tsdbCompactMonitor.c
 extern bool    tsdbCompMonHasTask(STsdb *tsdb);
-extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, int64_t taskId);
-extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, int64_t taskId);
+extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId);
+extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 
 // new code ====================================================================================
 typedef struct {
@@ -41,14 +41,11 @@ typedef struct {
   int64_t cid;
   int64_t compactVersion;
 
-  int32_t        minFid;
-  int32_t        maxFid;
-  TFileSetArray *fsetArr;
-  TFileOpArray   fopArr[1];
+  STFileSet   *fset;
+  TFileOpArray fopArr[1];
 
   struct {
-    STFileSet *fset;
-    SDiskID    did;
+    SDiskID did;
 
     // reader
     SDataFileReader    *dataReader;
@@ -74,57 +71,10 @@ typedef struct {
 } SCompactor2;
 
 typedef struct {
-  STsdb      *tsdb;
-  STimeWindow tw;
-  int32_t     fid;
-  int64_t     taskid;
+  STsdb    *tsdb;
+  int32_t   fid;
+  SVATaskID taskid;
 } SCompactArg;
-
-static int32_t tsdbCompactBegin(SCompactArg *arg, SCompactor2 *compactor) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STsdb *tsdb = arg->tsdb;
-
-  compactor->tsdb = tsdb;
-  compactor->szPage = tsdb->pVnode->config.tsdbPageSize;
-  compactor->minRow = tsdb->pVnode->config.tsdbCfg.minRows;
-  compactor->maxRow = tsdb->pVnode->config.tsdbCfg.maxRows;
-  compactor->cmprAlg = tsdb->pVnode->config.tsdbCfg.compression;
-  compactor->cid = tsdbFSAllocEid(tsdb->pFS);
-  compactor->compactVersion = INT64_MAX;
-  compactor->minFid = tsdbKeyFid(arg->tw.skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-  compactor->maxFid = tsdbKeyFid(arg->tw.ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-
-  code = tsdbFSCreateCopySnapshot(tsdb->pFS, &compactor->fsetArr);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
-static int32_t tsdbCompactEnd(SCompactor2 *compactor) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  taosArrayDestroy(compactor->ctx->aSkyLine);
-
-  TARRAY2_DESTROY(compactor->ctx->tombIterArr, NULL);
-  TARRAY2_DESTROY(compactor->ctx->dataIterArr, NULL);
-  TARRAY2_DESTROY(compactor->ctx->sttReaderArr, NULL);
-  TARRAY2_DESTROY(compactor->fopArr, NULL);
-
-  tsdbFSDestroyCopySnapshot(&compactor->fsetArr);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
 
 static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
   int32_t    code = 0;
@@ -139,14 +89,14 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
       .tsdb = compactor->tsdb,
       .szPage = compactor->szPage,
   };
-  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = compactor->ctx->fset->farr[ftype], 1); ftype++) {
+  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = compactor->fset->farr[ftype], 1); ftype++) {
     if (fobj == NULL) continue;
     dataFileReaderConfig.files[ftype].exist = true;
     dataFileReaderConfig.files[ftype].file = fobj->f[0];
 
     STFileOp op = {
         .optype = TSDB_FOP_REMOVE,
-        .fid = compactor->ctx->fset->fid,
+        .fid = compactor->fset->fid,
         .of = fobj->f[0],
     };
 
@@ -158,7 +108,7 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
 
   // stt
   SSttLvl *lvl;
-  TARRAY2_FOREACH(compactor->ctx->fset->lvlArr, lvl) {
+  TARRAY2_FOREACH(compactor->fset->lvlArr, lvl) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       SSttFileReader      *sttReader;
       SSttFileReaderConfig sttFileReaderConfig = {
@@ -175,7 +125,7 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
 
       STFileOp op = {
           .optype = TSDB_FOP_REMOVE,
-          .fid = compactor->ctx->fset->fid,
+          .fid = compactor->fset->fid,
           .of = fobj->f[0],
       };
 
@@ -186,7 +136,8 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -265,7 +216,8 @@ static int32_t tsdbCompactFSetOpenIter(SCompactor2 *compactor) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -281,15 +233,8 @@ static int32_t tsdbCompactFSetCloseIter(SCompactor2 *compactor) {
 static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t lcn = 0;
 
   ASSERT(compactor->ctx->writer == NULL);
-
-  STFileObj *fobj = compactor->ctx->fset->farr[TSDB_FTYPE_DATA];
-  if (fobj) {
-    lcn = fobj->f->lcn;
-  }
-
   SFSetWriterConfig config = {
       .tsdb = compactor->tsdb,
       .toSttOnly = false,
@@ -298,11 +243,10 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
       .maxRow = compactor->maxRow,
       .szPage = compactor->szPage,
       .cmprAlg = compactor->cmprAlg,
-      .fid = compactor->ctx->fset->fid,
+      .fid = compactor->fset->fid,
       .cid = compactor->cid,
       .did = compactor->ctx->did,
       .level = 0,
-      .lcn = lcn,
   };
 
   code = tsdbFSetWriterOpen(&config, &compactor->ctx->writer);
@@ -310,7 +254,8 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -339,9 +284,8 @@ static int32_t tsdbCompactFSetBegin(SCompactor2 *compactor) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
-
-    (void)tsdbCompactFSetCloseReader(compactor);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -353,26 +297,22 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
   code = tsdbCompactFSetCloseWriter(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCompactFSetCloseIter(compactor);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbCompactFSetCloseReader(compactor);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadMutexLock(&compactor->tsdb->mutex);
-  code = tsdbFSEditCommit(compactor->tsdb->pFS);
-  if (code) {
-    taosThreadMutexUnlock(&compactor->tsdb->mutex);
+  if (TARRAY2_SIZE(compactor->fopArr) > 0) {
+    code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_COMPACT);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    taosThreadMutexLock(&compactor->tsdb->mutex);
+    if ((code = tsdbFSEditCommit(compactor->tsdb->pFS))) {
+      taosThreadMutexUnlock(&compactor->tsdb->mutex);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    taosThreadMutexUnlock(&compactor->tsdb->mutex);
   }
-  taosThreadMutexUnlock(&compactor->tsdb->mutex);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -440,7 +380,8 @@ static int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLE
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -518,125 +459,166 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactor->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(compactor->tsdb->pVnode), __func__, lino,
+              tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d fid:%d compact %" PRId64 " rows", TD_VID(compactor->tsdb->pVnode), compactor->ctx->fset->fid,
+    tsdbInfo("vgId:%d fid:%d compact %" PRId64 " rows", TD_VID(compactor->tsdb->pVnode), compactor->fset->fid,
              numOfRow);
   }
   return code;
 }
 
-static bool tsdbCheckCompactNecessary(SCompactor2 *compactor) {
+static bool tsdbShouldCompact(SCompactor2 *compactor) {
   // TODO
   return true;
 }
 
-static int32_t tsdbDoCompactAsync(void *arg) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SCompactArg *compactArg = (SCompactArg *)arg;
+static void tsdbCompactEnd(SCompactor2 *compactor) {
+  tsdbCompactFSetCloseWriter(compactor);
+  tsdbCompactFSetCloseIter(compactor);
+  tsdbCompactFSetCloseReader(compactor);
+  taosArrayDestroy(compactor->ctx->aSkyLine);
+  TARRAY2_DESTROY(compactor->ctx->tombIterArr, NULL);
+  TARRAY2_DESTROY(compactor->ctx->dataIterArr, NULL);
+  TARRAY2_DESTROY(compactor->ctx->sttReaderArr, NULL);
+  TARRAY2_DESTROY(compactor->fopArr, NULL);
+}
 
-  SCompactor2 compactor[1] = {0};
+static int32_t tsdbDoCompact(SCompactor2 *compactor) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  code = tsdbCompactBegin(arg, compactor);
+  STsdb  *tsdb = compactor->tsdb;
+  int32_t expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
+  if (expLevel < 0) return 0;
+
+  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  TARRAY2_FOREACH(compactor->fsetArr, compactor->ctx->fset) {
-    if (compactor->ctx->fset->fid != compactArg->fid) {
-      continue;
-    }
+  tsdbInfo("vgId:%d compact fileset:%d start", TD_VID(tsdb->pVnode), compactor->fset->fid);
 
-    // check if the file set should be compacted
-    if (!tsdbCheckCompactNecessary(compactor)) {
-      continue;
-    }
+  code = tsdbCompactFSetBegin(compactor);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-    // allocate disk
-    int32_t expLevel = tsdbFidLevel(compactor->ctx->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-    if (expLevel < 0) {
-      continue;
-    }
-    code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-    if (code) {
-      code = TAOS_SYSTEM_ERROR(code);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+  code = tsdbCompactFSet(compactor);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbCompactFSetBegin(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbCompactFSet(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbCompactFSetEnd(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tsdbCompactEnd(compactor);
+  code = tsdbCompactFSetEnd(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  tsdbCompactEnd(compactor);
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
-
-    (void)tsdbCompactEnd(compactor);
+    tsdbError("vgId:%d compact fileset %d failed at line %d since %s", TD_VID(tsdb->pVnode), compactor->fset->fid, lino,
+              tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d compact fileset %d done", TD_VID(tsdb->pVnode), compactor->fset->fid);
   }
-  tsdbRemoveCompMonitorTask(compactArg->tsdb, compactArg->taskid);
   return code;
 }
 
-static void tsdbFreeCompactArg(void *arg) { taosMemoryFree(arg); }
-
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
+static int32_t tsdbCompact(void *arg) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-  int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+  SCompactArg *compactArg = (SCompactArg *)arg;
+  STsdb       *tsdb = compactArg->tsdb;
+  STFileSet   *fset = NULL;
+  SCompactor2  compactor = {
+       .tsdb = tsdb,
+       .szPage = tsdb->pVnode->config.tsdbPageSize,
+       .minRow = tsdb->pVnode->config.tsdbCfg.minRows,
+       .maxRow = tsdb->pVnode->config.tsdbCfg.maxRows,
+       .cmprAlg = tsdb->pVnode->config.tsdbCfg.compression,
+       .cid = tsdbFSAllocEid(tsdb->pFS),
+       .compactVersion = INT64_MAX,
+  };
 
+  // begin task
   taosThreadMutexLock(&tsdb->mutex);
-
-  if (tsdb->bgTaskDisabled) {
+  tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset);
+  if (fset && (code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset))) {
     taosThreadMutexUnlock(&tsdb->mutex);
-    return 0;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    if (fset->fid < minFid || fset->fid > maxFid) continue;
-
-    code = tsdbTFileSetOpenChannel(fset);
-    if (code) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
-    }
-
-    SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
-    if (arg == NULL) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    arg->tsdb = tsdb;
-    arg->tw = *tw;
-    arg->fid = fset->fid;
-
-    if (sync) {
-      code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, &arg->taskid);
-    } else {
-      code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, &arg->taskid);
-    }
-    if (code) {
-      tsdbFreeCompactArg(arg);
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
-    } else {
-      tsdbAddCompMonitorTask(tsdb, fset->fid, arg->taskid);
-    }
-  }
-
   taosThreadMutexUnlock(&tsdb->mutex);
 
+  // do compact
+  if (compactor.fset && tsdbShouldCompact(&compactor)) {
+    code = tsdbDoCompact(&compactor);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  // finish task
+  if (compactor.fset) {
+    taosThreadMutexLock(&tsdb->mutex);
+    tsdbFinishTaskOnFileSet(tsdb, compactArg->fid);
+    taosThreadMutexUnlock(&tsdb->mutex);
+  }
+
+  // clear resources
+  tsdbTFileSetClear(&compactor.fset);
+  TARRAY2_DESTROY(compactor.fopArr, NULL);
+  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  taosMemoryFree(arg);
+
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static void tsdbCompactCancel(void *arg) {
+  SCompactArg *compactArg = (SCompactArg *)arg;
+  tsdbRemoveCompMonitorTask(compactArg->tsdb, &compactArg->taskid);
+  taosMemoryFree(arg);
+}
+
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (!tsdb->bgTaskDisabled) {
+    int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+    int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+
+    STFileSet *fset;
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      if (fset->fid < minFid || fset->fid > maxFid) continue;
+
+      code = tsdbTFileSetOpenChannel(fset);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
+      if (arg == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
+
+      arg->tsdb = tsdb;
+      arg->fid = fset->fid;
+
+      code = vnodeAsync(&fset->channel, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &arg->taskid);
+      if (code) {
+        taosMemoryFree(arg);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid);
+      }
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
+  int32_t code = 0;
+  taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbAsyncCompactImpl(tsdb, tw);
+  taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
