@@ -297,11 +297,6 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
     // dispatch the generated results
     /*int32_t code = */handleSanhistoryResultBlocks(pTask, pRes, size);
 
-    // downstream task input queue is full, try in 5sec
-    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED && (pTask->info.fillHistory == 1)) {
-      return buildScanhistoryExecRet(TASK_SCANHISTORY_REXEC, FILL_HISTORY_TASK_EXEC_INTERVAL);
-    }
-
     if (finished) {
       return buildScanhistoryExecRet(TASK_SCANHISTORY_CONT, 0);
     }
