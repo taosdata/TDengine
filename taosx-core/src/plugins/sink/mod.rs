@@ -877,11 +877,21 @@ async fn consume_lush_record_with_transform(
         }
         LushMessage::Insert(record) => {
             use rayon::prelude::*;
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
-            let set = Arc::new(Mutex::new(tokio::task::JoinSet::new()));
-
+            let handle = tokio::spawn(async move {
+                let mut count = 0;
+                let mut set = tokio::task::JoinSet::new();
+                while let Some(future) = rx.recv().await {
+                    set.spawn(future);
+                }
+                while let Some(res) = set.join_next().await {
+                    count += res.context("Transform lush record join error")??;
+                }
+                anyhow::Ok(count)
+            });
             // @huolinhe: Use rayon to speed up the process
-            record.into_par_iter().try_for_each_with(set.clone(), |set, record| {
+            record.into_par_iter().try_for_each_with(tx, |tx, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
@@ -962,7 +972,7 @@ async fn consume_lush_record_with_transform(
                             let super_table = super_table.clone();
                             let req_id = req_id.clone();
                             let metrics_ref = metrics_arc.clone();
-                            set.blocking_lock().spawn(async move {
+                            if let Err(err) = tx.send(async move {
                                 let metrics = metrics_ref.ipc();
                                  lush::write_transformed_records_with_sql(
                                 &pool,
@@ -981,7 +991,10 @@ async fn consume_lush_record_with_transform(
                                 }
                                 metrics.add_written_rows(num_rows as u64);
                                 num_rows
-                            }) }.in_current_span());
+                            }) }.in_current_span()) {
+                                tracing::error!("send to tx error: {err:#}");
+                                bail!("Send future error: {err:#}");
+                            }
                         }
                         _ => unreachable!(
                             "parse_message_from_records always return Message::Records"
@@ -991,11 +1004,7 @@ async fn consume_lush_record_with_transform(
                 anyhow::Ok(())
             })?;
 
-            let mut guard = set.lock().await;
-
-            while let Some(res) = guard.join_next().await {
-                *count += res??;
-            }
+            *count += handle.await??;
         }
     }
     Ok(())
