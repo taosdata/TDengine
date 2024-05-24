@@ -59,11 +59,12 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-",
+        " (core-",
         build::PKG_VERSION,
-        if build::IS_DEBUG { " debug " } else { " " },
+        if build::IS_DEBUG { " debug" } else { "" },
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -72,11 +73,12 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-dirty-",
+        " (core-dirty-",
         build::PKG_VERSION,
-        if build::IS_DEBUG { " debug " } else { " " },
+        if build::IS_DEBUG { " debug" } else { "" },
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
