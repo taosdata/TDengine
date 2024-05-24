@@ -792,7 +792,7 @@ impl DataSourceDefinition {
                     if let Some(value) = dsn.remove(&param.name) {
                         if !value.is_empty() {
                             param.value.replace(value);
-                            datasets.value.replace(param.name.clone());
+                            // datasets.value.replace(param.name.clone());
                         }
                     }
                 }

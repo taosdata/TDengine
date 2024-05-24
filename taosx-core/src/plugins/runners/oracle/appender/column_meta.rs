@@ -32,7 +32,7 @@ impl ColumnMeta {
             OracleType::Float(_) => Ok(IpcDataType::NChar(50)),
             // 日期时间
             OracleType::Date => Ok(IpcDataType::NChar(50)),
-            OracleType::Timestamp(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
+            OracleType::Timestamp(_) => Ok(IpcDataType::NChar(50)),
             OracleType::TimestampTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::TimestampLTZ(_) => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
             OracleType::IntervalDS(_, _) => Ok(IpcDataType::NChar(50)),
@@ -48,9 +48,9 @@ impl ColumnMeta {
             OracleType::Long => Ok(IpcDataType::NChar(50)),
             OracleType::LongRaw => Ok(IpcDataType::NChar(50)),
             OracleType::Json => Ok(IpcDataType::NChar(50)),
-            // 整型数
-            OracleType::Int64 => Ok(IpcDataType::Int64),
-            OracleType::UInt64 => Ok(IpcDataType::UInt64),
+            // 整型数，meta 信息不准确，它可能是 Number 类型变化而来
+            OracleType::Int64 => Ok(IpcDataType::NChar(50)),
+            OracleType::UInt64 => Ok(IpcDataType::NChar(50)),
             // 其他
             // _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
         }
@@ -73,7 +73,7 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Float(_) => Ok(DataType::Utf8),
         // 日期时间
         OracleType::Date => Ok(DataType::Utf8),
-        OracleType::Timestamp(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
+        OracleType::Timestamp(_) => Ok(DataType::Utf8),
         OracleType::TimestampTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::TimestampLTZ(_) => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
         OracleType::IntervalDS(_, _) => Ok(DataType::Utf8),
@@ -90,8 +90,8 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::LongRaw => Ok(DataType::Utf8),
         OracleType::Json => Ok(DataType::Utf8),
         // 整型数
-        OracleType::Int64 => Ok(DataType::Int64),
-        OracleType::UInt64 => Ok(DataType::UInt64),
+        OracleType::Int64 => Ok(DataType::Utf8),
+        OracleType::UInt64 => Ok(DataType::Utf8),
         // 其他
         // _ => anyhow::bail!("unsupported data type: {:?}", column_type),
     }
@@ -157,7 +157,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Timestamp(10)).unwrap(),
-            DataType::Timestamp(TimeUnit::Nanosecond, None)
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::TimestampTZ(10)).unwrap(),
@@ -214,11 +214,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Int64).unwrap(),
-            DataType::Int64
+            DataType::Utf8
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::UInt64).unwrap(),
-            DataType::UInt64
+            DataType::Utf8
         );
         // assert_eq!(to_arrow_data_type("UNKNOWN".to_string()).is_err(), true);
     }

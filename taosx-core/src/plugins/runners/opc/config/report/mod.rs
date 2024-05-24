@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportConfig {
     pub remote: String,
     pub concurrent: Option<i64>,

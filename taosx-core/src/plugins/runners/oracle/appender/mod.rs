@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
@@ -27,14 +28,16 @@ pub fn to_schema(col_map: LinkedHashMap<String, OracleType>) -> anyhow::Result<S
 pub fn to_record_batch(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
+    time_zone: String,
 ) -> anyhow::Result<RecordBatch> {
-    to_record_batches(col_map, rows, usize::MAX).map(|batches| batches[0].clone())
+    to_record_batches(col_map, rows, usize::MAX, time_zone).map(|batches| batches[0].clone())
 }
 
 pub fn to_record_batches(
     col_map: LinkedHashMap<String, OracleType>,
     rows: Vec<oracle::Row>,
     batch_size: usize,
+    time_zone: String,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let mut fields = Vec::new();
     let mut builders = Vec::new();
@@ -156,10 +159,27 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::Timestamp(_)
-                | OracleType::TimestampTZ(_)
-                | OracleType::TimestampLTZ(_) => {
+                OracleType::Timestamp(_) => {
                     let val = col.get::<NaiveDateTime>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_value(format!("{:?}", val));
+                        }
+                    }
+                }
+                OracleType::TimestampTZ(_) => {
+                    let val = col.get::<DateTime<FixedOffset>>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
@@ -173,7 +193,28 @@ pub fn to_record_batches(
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
-                                .append_value(val.and_utc().timestamp_nanos_opt().unwrap() as i64);
+                                .append_value(val.timestamp_nanos_opt().unwrap() as i64);
+                        }
+                    }
+                }
+                OracleType::TimestampLTZ(_) => {
+                    let val = col.get::<NaiveDateTime>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                            let val_with_tz = val.and_local_timezone(time_zone).unwrap();
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_value(val_with_tz.timestamp_nanos_opt().unwrap() as i64);
                         }
                     }
                 }
@@ -278,38 +319,38 @@ pub fn to_record_batches(
                 }
                 // 整型数
                 OracleType::Int64 => {
-                    let val = col.get::<i64>();
+                    let val = col.get::<String>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Int64Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::Int64Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }
                     }
                 }
                 OracleType::UInt64 => {
-                    let val = col.get::<u64>();
+                    let val = col.get::<String>();
                     match val {
                         Err(_) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::UInt64Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_null();
                         }
                         Ok(val) => {
                             builders[col_cidx]
                                 .as_any_mut()
-                                .downcast_mut::<array::UInt64Builder>()
+                                .downcast_mut::<array::StringBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }
@@ -373,42 +414,167 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::oracle::{config::connect::ConnectConfig, query::OracleQuery};
-    use std::str::FromStr;
     use taos::Dsn;
+
+    fn test_create_table() {
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql_create_table = "create table t_metric (id NUMBER(10, 0) PRIMARY KEY, name VARCHAR2(255), value NUMBER(10, 2), ts timestamp)";
+                let x = conn.execute(sql_create_table, &[]);
+                println!("create table: {:?}", x);
+                let y = conn.commit();
+                println!("commit: {:?}", y);
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_insert_data(len: usize) {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
+                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                }
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_clear_data() {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = conn.execute(sql, &[]);
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_to_schema() {
+        // prepare data
+        let _ = test_clear_data();
+        let _ = test_insert_data(1);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let col_map = query.select_for_schema("select * from TEST").unwrap();
-        let schema = to_schema(col_map).unwrap();
-        dbg!(schema);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_for_schema("select * from t_metric");
+                match query_result {
+                    Ok(col_map) => {
+                        let schema = to_schema(col_map).unwrap();
+                        dbg!(&schema);
+                        assert_eq!(schema.fields().len(), 4);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[tokio::test]
     async fn test_to_record_batch() {
+        // prepare data
+        let _ = test_clear_data();
+        let _ = test_insert_data(3);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let (col_map, rows) = query.select_all("select * from TEST").unwrap();
-
-        let batch = to_record_batch(col_map, rows).unwrap();
-        dbg!(batch);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from t_metric");
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(&col_map);
+                        let batch = to_record_batch(col_map, rows, String::from("+08:00")).unwrap();
+                        dbg!(&batch);
+                        assert_eq!(batch.num_columns(), 4);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[tokio::test]
     async fn test_to_record_batches() {
+        // prepare data
+        let _ = test_clear_data();
+        let _ = test_insert_data(7);
+
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let (col_map, rows) = query.select_all("select * from TEST").unwrap();
-
-        let batches = to_record_batches(col_map, rows, 3).unwrap();
-        dbg!(batches);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from t_metric");
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(&col_map);
+                        let batches =
+                            to_record_batches(col_map, rows, 3, String::from("+08:00")).unwrap();
+                        dbg!(&batches);
+                        assert_eq!(batches.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]

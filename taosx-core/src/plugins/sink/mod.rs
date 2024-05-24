@@ -1,3 +1,4 @@
+use std::cmp;
 use std::{
     any::Any,
     cell::Cell,
@@ -43,14 +44,13 @@ use taosx_ipc::{
 
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
-
+use crate::runners::opc::config::points::UpdateMode;
 use crate::utils::breakpoints::breakpoints_set;
 use crate::utils::trace::create_data_trace_id;
 use crate::utils::trace::create_stream_trace_id;
 use crate::utils::trace::get_data_trace_id_str;
 use crate::utils::trace::set_data_trace_id_for_current_span;
 use crate::utils::trace::RequestID;
-
 use crate::ConnectorLicense;
 use crate::{
     core_metrics::get_metrics_arc_from_i64,
@@ -872,7 +872,7 @@ fn transform_by_name(
     let col_index = schema.index_of(col_name).unwrap();
     let col_type = schema.field(col_index).data_type();
 
-    let mut values = Vec::with_capacity(rows);
+    let mut values: Vec<Dynamic> = Vec::with_capacity(rows);
     for row_index in 0..rows {
         let point_id = columns[id_col_index]
             .as_any()
@@ -881,165 +881,168 @@ fn transform_by_name(
             .value(row_index);
 
         let expression = get_transform_exprssion_by_id(point_id, &transform_map);
-        if expression.is_none() {
-            values.push(Dynamic::UNIT);
-            continue;
-        }
-        let (name, expr) = expression.unwrap();
-        let mut scope = Scope::new();
-        match col_type {
-            DataType::Boolean => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BooleanArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Int8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_f64());
-            }
-            DataType::Float32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Binary => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
-            }
-            DataType::Utf8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_string());
-            }
-            DataType::Timestamp(TimeUnit::Millisecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMillisecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMicrosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampNanosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            dt => {
-                tracing::warn!(
-                    "unsupported data type: {}, expression scope not set",
-                    dt.clone()
-                )
-            }
-        }
 
-        let engine = Engine::new();
-        let engine = Arc::new(engine);
-        let ast = engine.compile_expression(&expr)?;
-        let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
-            Ok(v) => v,
-            Err(_) => rhai::Dynamic::UNIT,
-        };
-        values.push(new_value);
+        match expression {
+            Some((name, expr)) => {
+                let mut scope = Scope::new();
+                match col_type {
+                    DataType::Boolean => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Int8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_f64());
+                    }
+                    DataType::Float32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Binary => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BinaryArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
+                    }
+                    DataType::Utf8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_string());
+                    }
+                    DataType::Timestamp(TimeUnit::Millisecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    dt => {
+                        tracing::warn!(
+                            "unsupported data type: {}, expression scope not set",
+                            dt.clone()
+                        )
+                    }
+                }
+                let engine = Arc::new(Engine::new());
+                let ast = engine.compile_expression(&expr)?;
+                let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
+                    Ok(v) => v,
+                    Err(_) => rhai::Dynamic::UNIT,
+                };
+                values.push(new_value);
+            }
+            None => {
+                // no transform expression for this point_id, use raw value
+                let value = to_dynamic_value(record, col_type, col_index, row_index)?;
+                values.push(value);
+            }
+        }
     }
 
     let mut is_none = true;
@@ -1063,6 +1066,7 @@ fn transform_by_name(
     let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
         "failed to transform Vec<Dynamic> to ArrayRef"
     ))?;
+
     arrow::compute::cast(&array, col_type).map_err(|err| {
         anyhow::anyhow!(
             "failed to cast transformed array to dataType: {}, cause: {:?}",
@@ -1070,6 +1074,157 @@ fn transform_by_name(
             err
         )
     })
+}
+fn to_dynamic_value(
+    record_batch: &RecordBatch,
+    col_type: &DataType,
+    col_index: usize,
+    row_index: usize,
+) -> anyhow::Result<Dynamic> {
+    let columns = record_batch.columns();
+    let value: Dynamic = match col_type {
+        DataType::Boolean => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Int8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_f64())
+        }
+        DataType::Float32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Binary => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BinaryArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(String::from_utf8_lossy(value).to_string())
+        }
+        DataType::Utf8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_string())
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .unwrap()
+                .value(row_index);
+            rhai::Dynamic::from(value)
+        }
+        dt => {
+            unimplemented!("unsupported data type: {}", dt.clone())
+        }
+    };
+
+    Ok(value)
 }
 
 fn get_transform_exprssion_by_id(
@@ -1327,6 +1482,10 @@ async fn consume_point_record(
 ) -> anyhow::Result<usize> {
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
+    let point_model_config = config.get_point_model_config();
+    let mut point_config_map = config.point_config_map.clone();
+    let mut table_config_map = config.table_config_map.clone();
+
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
@@ -1358,9 +1517,6 @@ async fn consume_point_record(
         let status_index = schema.index_of("status")?;
         let status_column_view = cv_vec.get(status_index).unwrap();
 
-        let point_config_map = &config.point_config_map;
-        let table_config_map = &config.table_config_map;
-
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
         let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();
         // child_table_name: create_sql
@@ -1378,18 +1534,58 @@ async fn consume_point_record(
             // point_config
             let point_config = point_config_map.get(&point_id);
             if point_config.is_none() {
-                tracing::warn!("cannot get point_config with point_id: {}", point_id);
-                continue;
+                let point_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            let index = point_config_map.len();
+
+                            let point_config = config.build_point_config(
+                                index,
+                                point_id.clone(),
+                                Some(value_raw_type.clone()),
+                            )?;
+                            Some(point_config)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+
+                match point_config {
+                    None => {
+                        tracing::trace!("cannot get point_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(point_config) => {
+                        point_config_map.insert(point_id.clone(), point_config);
+                    }
+                }
             }
-            let point_config = point_config.unwrap();
+            let point_config = point_config_map.get(&point_id).unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);
             if table_config.is_none() {
-                tracing::trace!("cannot get table_config with point_id: {}", point_id);
-                continue;
+                let table_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+                match table_config {
+                    None => {
+                        tracing::trace!("cannot get table_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(table_config) => {
+                        table_config_map.insert(point_id.clone(), table_config);
+                    }
+                }
             }
-            let table_config = table_config.unwrap();
+            let table_config = table_config_map.get(&point_id).unwrap();
 
             // stable_name
             let stable_name = stable_name(
@@ -1411,7 +1607,7 @@ async fn consume_point_record(
             let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
 
             let mut value_column_name = "value";
-            let mut value_column_length = 128;
+            let mut value_column_length = 0;
             let mut values = String::new();
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &point_insertion.columns {
@@ -1454,7 +1650,7 @@ async fn consume_point_record(
                         .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
                     value_column_name = temp_alias;
-                    value_column_length = value_column.len();
+                    value_column_length = cmp::max(value_column.len(), value_column_length);
                 } else if temp_name == "quality" {
                     values.push_str(
                         format!(
@@ -1578,6 +1774,7 @@ async fn consume_point_record(
                 });
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
+                // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
                 let sql_vec = sql_vec.unwrap();
 
                 for index in 0..sql_vec.len() {
@@ -1594,6 +1791,21 @@ async fn consume_point_record(
                             sql_insertion.overflow = true;
                             continue;
                         } else {
+                            // 不同点位入同一张表的情况，需要合并column_configs
+                            let exist_column_configs =
+                                &mut sql_insertion.point_insertion.column_configs;
+                            let column_configs = &table_config.column_configs;
+                            for column_config in column_configs {
+                                if !exist_column_configs.contains(column_config) {
+                                    exist_column_configs.push(column_config.clone());
+                                }
+                            }
+                            // 需要更新 modify.value_column_length
+                            let exist_value_column_length =
+                                sql_insertion.modify.value_column_length;
+                            sql_insertion.modify.value_column_length =
+                                cmp::max(exist_value_column_length, value_column_length);
+
                             sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
                         }
@@ -1644,7 +1856,7 @@ async fn consume_point_record(
                         if break_err.is_err() {
                             break_err.context("Point message sql error")?;
                         }
-                        break;
+                        break 'outer;
                     }
                     let sql_res = taos
                         .as_ref()
@@ -1663,7 +1875,7 @@ async fn consume_point_record(
                             // TODO: points is wrong
                             metrics.add_written_points(n as u64);
                             points += n;
-                            break;
+                            break 'outer;
                         }
                         Err(err) => {
                             let errstr = format!("{err:#}");
@@ -1674,8 +1886,7 @@ async fn consume_point_record(
                             );
 
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                                // stable not exists
-                                // should be some
+                                // 超级表或子表不存在, 创建超级表
                                 let value_column_config = sql_insertion
                                     .point_insertion
                                     .value_column_config
@@ -1722,16 +1933,17 @@ async fn consume_point_record(
                                             let err_str = err.to_string();
                                             if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
-                                                retry += 1;
                                                 break_err = Err(err);
-                                                continue;
                                             } else {
                                                 tracing::error!("create stable sql error: {err:#}");
                                             }
+                                            retry += 1;
+                                            continue 'outer;
                                         }
                                     }
                                 }
-                                // batch create child table
+
+                                // 创建子表
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut child_table_counts_vec = Vec::<u32>::new();
                                 let mut sql_prefix = "CREATE TABLE".to_string();
@@ -1790,11 +2002,10 @@ async fn consume_point_record(
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
                                 // Illegal number of columns or tags, alter to add columns or tag
                                 for column_config in &sql_insertion.point_insertion.column_configs {
-                                    let mut need_add = true;
-                                    let column_name = get_real_column_name(column_config);
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
                                     let desc = match desc {
+                                        Ok(desc) => desc,
                                         Err(err) => {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
@@ -1814,20 +2025,15 @@ async fn consume_point_record(
                                                 }
                                             }
                                         }
-                                        Ok(desc) => desc,
                                     };
-
-                                    desc.into_iter().for_each(|column_meta| {
-                                        if column_name == column_meta.field() {
-                                            need_add = false;
-                                        }
-                                    });
-
+                                    // 增加 column
+                                    let column_real_name = get_real_column_name(column_config);
+                                    let need_add = desc
+                                        .into_iter()
+                                        .all(|column_meta| column_real_name != column_meta.field());
                                     if need_add {
-                                        let column_real_name = get_real_column_name(column_config);
                                         if column_config.r#type.is_none() {
-                                            // shouldn't happen if normal
-                                            // encounter when rename value column
+                                            // shouldn't happen if normal, encounter when rename value column
                                             tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                             break 'outer;
                                         }
@@ -1868,7 +2074,7 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
-
+                                // 增加 tag
                                 if let Some(tag_configs) =
                                     &sql_insertion.point_insertion.tag_configs
                                 {
@@ -1917,6 +2123,8 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0x2653]") {
                                 // column or tag length not enough
                                 let desc = taos
@@ -1985,9 +2193,6 @@ async fn consume_point_record(
                                             sql_insertion.modify.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
-                                        // taos.as_ref().unwrap().exec(sql).await.context(
-                                        //     "Modify column length error while writing point stream",
-                                        // )?;
                                         taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
                                             .await
                                             .context(
@@ -1995,13 +2200,16 @@ async fn consume_point_record(
                                             )?;
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
                                 retry += 1;
+                                continue 'outer;
                             } else {
                                 metrics.add_failed_sqls(1);
                                 Err(err)?;
-                                break;
+                                break 'outer;
                             }
                             break_err = Err(err);
                         }

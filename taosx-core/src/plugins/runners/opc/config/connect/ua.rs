@@ -2,7 +2,7 @@ use crate::runners::opc::config::AuthMethod;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UaConnectConfig {
     pub endpoint: String,
     pub connect_timeout: i64,

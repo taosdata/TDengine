@@ -98,25 +98,41 @@ datasets:
             Match the data point TagName.
           hint:
             type: str
+        - name: super_table_expression
+          display: Super Table Name
+          value: opc_{type}
+          description: |
+            Support <super table prefix>_{type} pattern, {type} is the data type of the OPC point.
+          required: true
+          hint:
+            type: str
+        - name: child_table_expression
+          display: Table Name
+          value: t_{tag_name}
+          description: |
+            Support <child table prefix>_{tag_name} pattern, {tag_name} is the name of the OPC point.
+          required: true
+          hint:
+            type: str
         - name: table_primary_key
           display: Primary Key
           description: |
             The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.
-          required: true
+          required: false
           value: original_ts
           hint:
             type: str
             choices:
-              - received_ts
               - original_ts
-        - name: child_table_expression
-          display: Table Name
-          value: t_{TagName}
+              - received_ts
+        - name: table_primary_key_alias
+          display: Primary Key Name
           description: |
-            Support <child table prefix>_{TagName} pattern
+            The primary key column name in the target table.
+          required: false
+          value: ts
           hint:
             type: str
-          required: true
 
 groups:
   - name: Connection
@@ -157,6 +173,26 @@ groups:
           min: 1
           max: 60
         value: 1
+      - name: update_mode
+        display: Point Update Mode
+        description: |
+          Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.
+        value: none
+        hint:
+          type: str
+          choices:
+            - none
+            - append
+            - update
+      - name: update_interval
+        display: Point Update Interval
+        description: |
+          Update the OPC data points interval in seconds.
+        value: 600
+        hint:
+          type: integer
+          min: 60
+          max: 2147483647
 
 advanced:
   name: Advanced Options

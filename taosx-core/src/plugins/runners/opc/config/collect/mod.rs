@@ -8,11 +8,11 @@ use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
 use crate::runners::opc::config::OpcType;
 
-mod da;
+pub mod da;
 pub mod dump;
-mod ua;
+pub mod ua;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
     OBSERVE,
@@ -30,7 +30,7 @@ impl FromStr for CollectMode {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectConfig {
     pub interval: Option<i64>,
     pub limit: Option<i64>,
@@ -40,7 +40,7 @@ pub struct CollectConfig {
 }
 
 impl CollectConfig {
-    pub async fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Self> {
+    pub async fn from_dsn(dsn: &Dsn, task_id: Option<i64>) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let collect_config = match opc_type {
             OpcType::OPCUA => Self {
@@ -48,14 +48,14 @@ impl CollectConfig {
                 limit: Self::parse_limit(dsn)?,
                 ua: Some(UaCollectConfig::from_dsn(dsn).await?),
                 da: None,
-                dump: DumpConfig::from_dsn(dsn, id)?,
+                dump: DumpConfig::from_dsn(dsn, task_id)?,
             },
             OpcType::OPCDA => Self {
                 interval: Self::parse_interval(dsn)?,
                 limit: Self::parse_limit(dsn)?,
                 ua: None,
                 da: Some(DaCollectConfig::from_dsn(dsn).await?),
-                dump: DumpConfig::from_dsn(dsn, id)?,
+                dump: DumpConfig::from_dsn(dsn, task_id)?,
             },
             OpcType::FAKE => Self {
                 interval: None,

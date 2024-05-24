@@ -3,26 +3,26 @@ use std::io::BufRead;
 use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
-use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, Dsn, Taos};
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{OpcModelConfig, PointConfig, TableConfig};
-use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
+use crate::runners::opc::config::points::{PointsConfig, UpdateMode};
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::OpcType;
+use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
+use crate::utils::validate_table_column_name;
 
-mod collect;
+pub mod collect;
 mod connect;
 pub mod csv;
 pub mod model;
 pub mod points;
 mod report;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
@@ -36,30 +36,11 @@ pub struct OPCConfig {
 }
 
 impl OPCConfig {
-    /// 从 dsn 中解析参数 select_all_points 参数
-    /// 1. dsn 没有参数，返回 None
-    /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
-    /// 3. dsn 有参数，不合法，Error, return Error()
-    pub fn parse_select_all_points(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
-        dsn.params
-            .get("select_all_points")
-            .map(|v| {
-                v.parse::<bool>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse select_all_points: {}, cause: {}",
-                        v,
-                        err.to_string()
-                    )
-                })
-            })
-            .transpose()
-    }
-
     pub async fn from_dsn_collect_mode(
         dsn: &Dsn,
         ipc_port: u16,
         taos: &Taos,
-        id: Option<i64>,
+        task_id: Option<i64>,
     ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
             bail!("invalid opc driver");
@@ -71,7 +52,6 @@ impl OPCConfig {
         let report = ReportConfig::from_dsn(dsn, ipc_port)?;
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
-
         let model_config = if csv_config_file.is_some() {
             let parser = CsvParser::from_dsn(dsn).await?;
 
@@ -95,41 +75,39 @@ impl OPCConfig {
                 }
             }
 
-            Some(model_config)
+            model_config
         } else {
-            // 如果没有 csv_config_file 参数，那么, 从 dsn 中解析 point_config_map 和 table_config_map
-            let point_config_map = Self::build_point_config_map(dsn)?;
-
-            // 前端传递了 opc_table_config 参数
-            let table_config = dsn
-                .params
-                .get("opc_table_config")
-                .ok_or(anyhow::anyhow!("opc_table_config is required"))?;
-            let table_config: TableConfig =
-                serde_json::from_str(table_config.as_str()).map_err(|v| {
-                    anyhow::anyhow!("failed to parse opc_table_config, cause: {}", v.to_string())
-                })?;
-
-            // all point_id share the same table_config
-            let mut table_config_map = LinkedHashMap::new();
-            for point_id in point_config_map.keys() {
-                table_config_map.insert(point_id.clone(), table_config.clone());
-            }
-
-            Some(OpcModelConfig {
-                point_config_map,
-                table_config_map,
-            })
+            let points = opc_datasets_impl(dsn.clone()).await?;
+            let mut opc_model_config = OpcModelConfig::new();
+            let point_model_config = OpcPointModelConfig::from_dsn(dsn)?;
+            opc_model_config.set_point_model_config(point_model_config);
+            opc_model_config.add_points(points)?;
+            opc_model_config
         };
+
+        let points_config = PointsConfig::from_dsn(dsn)?;
+
+        // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
+        // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
+        let mut dsn_clone = dsn.clone();
+        let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
+            |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
+        ));
+        if dsn.driver.as_str() == "opcua" {
+            dsn_clone.set("ua.nodes", points);
+        } else {
+            dsn_clone.set("da.tags", points);
+        }
+        let collect = CollectConfig::from_dsn(&dsn_clone, task_id).await?;
 
         Ok(Self {
             opc_type,
             debug,
             connect,
             report,
-            points: None,
-            collect: Some(CollectConfig::from_dsn(dsn, id).await?),
-            model_config,
+            points: Some(points_config),
+            collect: Some(collect),
+            model_config: Some(model_config),
         })
     }
 
@@ -158,12 +136,8 @@ impl OPCConfig {
         })
     }
 
-    pub fn get_model_config(&self) -> Option<&OpcModelConfig> {
-        self.model_config.as_ref()
-    }
-
-    pub async fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
-        Ok(OPCConfig {
+    pub async fn from_dsn_check_mode(dsn: &Dsn) -> anyhow::Result<Self> {
+        Ok(Self {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
@@ -172,6 +146,10 @@ impl OPCConfig {
             report: ReportConfig::from_dsn(dsn, 0)?,
             model_config: None,
         })
+    }
+
+    pub fn get_model_config(&self) -> Option<&OpcModelConfig> {
+        self.model_config.as_ref()
     }
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
@@ -192,10 +170,120 @@ impl OPCConfig {
             .unwrap_or(false))
     }
 
-    fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("csv_config_file").map(|v| v.to_string())
+    pub fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+                Some(v.to_string())
+            })
+            .flatten()
     }
 
+    /// 从 dsn 中解析参数 select_all_points 参数
+    /// 1. dsn 没有参数，返回 None
+    /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)
+    /// 3. dsn 有参数，不合法，Error, return Error()
+    pub fn parse_select_all_points(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
+        dsn.params.get("select_all_points").map_or(Ok(None), |v| {
+            if v.is_empty() {
+                return Ok(None);
+            }
+            match v.as_str() {
+                "true" => Ok(Some(true)),
+                "false" => Ok(Some(false)),
+                _ => {
+                    bail!(
+                        "invalid select_all_points: {}, must be true or false",
+                        v.to_string()
+                    );
+                }
+            }
+        })
+    }
+
+    /// 从 dsn 中解析参数 stable_expression 参数：超级表名的表达式
+    /// “选择数据点位”时，super_table_expression 参数是必须的
+    pub fn parse_stable_expression(dsn: &Dsn) -> anyhow::Result<String> {
+        // TODO: 使用 opc_{type} 作为默认值，是为了兼容之前的任务
+        let stable_expression = dsn
+            .params
+            .get("super_table_expression")
+            .map(|v| {
+                if v.is_empty() {
+                    "opc_{type}".to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or("opc_{type}".to_string());
+
+        // let expr = dsn
+        //     .params
+        //     .get("super_table_expression")
+        //     .ok_or(anyhow::anyhow!("super_table_expression is required"))?;
+        // if expr.is_empty() {
+        //     bail!("super_table_expression cannot be empty");
+        // }
+        // let stable_expression = expr.to_string();
+
+        Ok(stable_expression)
+    }
+
+    /// 从 dsn 中解析 child_table_expression 参数：子表名的表达式
+    /// "选择数据点位"时，child_table_expression 参数是必须的
+    pub fn parse_tbname_expression(dsn: &Dsn) -> anyhow::Result<String> {
+        let expr = dsn
+            .params
+            .get("child_table_expression")
+            .ok_or(anyhow::anyhow!("child_table_expression is required"))?;
+
+        if expr.is_empty() {
+            bail!("child_table_expression cannot be empty");
+        }
+
+        let tbname_expression = expr.to_string();
+        // TODO: validate tbname_expression
+        Ok(tbname_expression)
+    }
+
+    /// 从 dsn 中解析 table_primary_key 参数：主键列
+    /// "选择数据点位"时，table_primary_key 参数是可选的
+    pub fn parse_primary_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        dsn.params.get("table_primary_key").map_or(Ok(None), |v| {
+            if v.is_empty() {
+                return Ok(None);
+            }
+            match v.as_str() {
+                ColumnConfig::ORIGINAL_TS | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
+                _ => {
+                    bail!(
+                        "invalid table_primary_key: {}, must be {} or {}",
+                        v.to_string(),
+                        ColumnConfig::ORIGINAL_TS,
+                        ColumnConfig::RECEIVED_TS
+                    );
+                }
+            }
+        })
+    }
+
+    /// 从 dsn 中解析 table_primary_key_alias 参数：主键列名
+    /// "选择数据点位"时，table_primary_key_alias 参数是可选的
+    pub fn parse_primary_key_alias(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        Ok(dsn.params.get("table_primary_key_alias").and_then(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            let primary_key_alias = v.to_string();
+            validate_table_column_name("primary_key", &primary_key_alias).ok()?;
+            Some(primary_key_alias)
+        }))
+    }
+
+    /*
     /// parse point config map from dsn
     fn build_point_config_map(dsn: &Dsn) -> anyhow::Result<LinkedHashMap<String, PointConfig>> {
         let opc_type = OpcType::from_dsn(dsn)?;
@@ -215,13 +303,13 @@ impl OPCConfig {
                             pair
                         );
                     }
-                    let tag = String::from(pair[0]);
-                    let code = String::from(pair[1]);
+                    let point_id = String::from(pair[0]);
+                    let tbname = String::from(pair[1]);
                     point_config_map.insert(
-                        tag,
+                        point_id,
                         PointConfig {
                             row_index: i + 1,
-                            code,
+                            code: tbname,
                             stable: None,
                             tag_values: None,
                             value_type: None,
@@ -264,9 +352,42 @@ impl OPCConfig {
         };
         Ok(point_config_map)
     }
+    */
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpcPointModelConfig {
+    pub opc_type: OpcType,
+    pub update_mode: UpdateMode,
+    pub stable_expression: String,
+    pub tbname_expression: String,
+    pub primary_key: String,
+    pub primary_key_alias: String,
+}
+
+impl OpcPointModelConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let update_mode = PointsConfig::parse_update_mode(dsn)?.unwrap_or(UpdateMode::None);
+        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        Ok(Self {
+            opc_type,
+            update_mode,
+            stable_expression,
+            tbname_expression,
+            primary_key,
+            primary_key_alias,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub enum AuthMethod {
     Anonymous,
     UserName,
@@ -345,5 +466,132 @@ mod tests {
 
         let config = get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes").unwrap();
         assert_eq!(config[0], "ns=3;s=Special_\"!§$%");
+    }
+
+    #[test]
+    fn test_parse_select_all_points() {
+        let dsn = "opcua://?select_all_points=true"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let select_all_points = OPCConfig::parse_select_all_points(&dsn).unwrap();
+        assert_eq!(select_all_points, Some(true));
+
+        let dsn = "opcua://?select_all_points=false"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let select_all_points = OPCConfig::parse_select_all_points(&dsn).unwrap();
+        assert_eq!(select_all_points, Some(false));
+
+        let dsn = "opcua://?select_all_points="
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let select_all_points = OPCConfig::parse_select_all_points(&dsn).unwrap();
+        assert_eq!(select_all_points, None);
+
+        let dsn = "opcua://".to_string().into_dsn().unwrap();
+        let select_all_points = OPCConfig::parse_select_all_points(&dsn).unwrap();
+        assert_eq!(select_all_points, None);
+    }
+
+    #[test]
+    fn test_parse_stable_expression() {
+        let dsn = "opcua://?super_table_expression=abc_{type}"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
+        assert_eq!(stable_expression, "abc_{type}");
+
+        let dsn = "opcua://".to_string().into_dsn().unwrap();
+        let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
+        assert_eq!(stable_expression, "opc_{type}");
+
+        // let result = OPCConfig::parse_stable_expression(&dsn);
+        // assert!(result.is_err());
+        // assert_eq!(
+        //     "super_table_expression is required",
+        //     result.err().unwrap().to_string()
+        // );
+    }
+
+    #[test]
+    fn test_parse_tbname_expression() {
+        let dsn = "opcua://?child_table_expression=t_{ns}_{id}"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let tbname_expression = OPCConfig::parse_tbname_expression(&dsn).unwrap();
+        assert_eq!(tbname_expression, "t_{ns}_{id}");
+
+        let dsn = "opcua://".to_string().into_dsn().unwrap();
+        let result = OPCConfig::parse_tbname_expression(&dsn);
+        assert!(result.is_err());
+        assert_eq!(
+            "child_table_expression is required",
+            result.err().unwrap().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_primary_key() {
+        let dsn = "opcua://?table_primary_key=original_ts"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let primary_key = OPCConfig::parse_primary_key(&dsn).unwrap();
+        assert_eq!(primary_key, Some("original_ts".to_string()));
+
+        let dsn = "opcua://?table_primary_key=received_ts"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let primary_key = OPCConfig::parse_primary_key(&dsn).unwrap();
+        assert_eq!(primary_key, Some("received_ts".to_string()));
+
+        let dsn = "opcua://".to_string().into_dsn().unwrap();
+        let primary_key = OPCConfig::parse_primary_key(&dsn).unwrap();
+        assert_eq!(primary_key, None);
+
+        let dsn = "opcua://?table_primary_key="
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let primary_key = OPCConfig::parse_primary_key(&dsn).unwrap();
+        assert_eq!(primary_key, None);
+
+        let dsn = "opcua://?table_primary_key=invalid"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let result = OPCConfig::parse_primary_key(&dsn);
+        assert!(result.is_err());
+        assert_eq!(
+            "invalid table_primary_key: invalid, must be original_ts or received_ts",
+            result.err().unwrap().to_string()
+        );
+    }
+
+    #[test]
+    fn parse_primary_key_alias() {
+        let dsn = "opcua://?table_primary_key_alias=ts"
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let primary_key_alias = OPCConfig::parse_primary_key_alias(&dsn).unwrap();
+        assert_eq!(primary_key_alias, Some("ts".to_string()));
+
+        let dsn = "opcua://".to_string().into_dsn().unwrap();
+        let primary_key_alias = OPCConfig::parse_primary_key_alias(&dsn).unwrap();
+        assert_eq!(primary_key_alias, None);
+
+        let dsn = "opcua://?table_primary_key_alias="
+            .to_string()
+            .into_dsn()
+            .unwrap();
+        let primary_key_alias = OPCConfig::parse_primary_key_alias(&dsn).unwrap();
+        assert_eq!(primary_key_alias, None);
     }
 }

@@ -9,7 +9,7 @@ use sqlx::{Error, Executor, MySql, MySqlPool, Pool, Row};
 use crate::runners::mysql::config::connect::ConnectConfig;
 
 pub struct MySqlQuery {
-    pool: Pool<MySql>,
+    pub pool: Pool<MySql>,
 }
 
 impl MySqlQuery {
@@ -164,7 +164,7 @@ impl MySqlQuery {
                     rows.push(row);
                 }
                 Err(e) => {
-                    println!("error: {:?}", e);
+                    anyhow::bail!("error: {:?}", e);
                 }
             }
         }
@@ -178,9 +178,86 @@ mod tests {
     use std::str::FromStr;
     use taos::Dsn;
 
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/information_schema").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data =
+                    "insert into t_metric (name, value, ts) values ('cpu', 0.8, now())";
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_connect() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector");
+        // prepare data
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx");
         let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
         dbg!(&config);
 
@@ -192,114 +269,151 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_tables() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let tables = query.show_tables().await.unwrap();
-        dbg!(tables);
+        assert!(tables.contains(&"t_metric".to_string()));
     }
 
     #[tokio::test]
     async fn test_show_columns() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let columns = query.show_columns("t_full_columns").await.unwrap();
-        dbg!(columns);
+        let columns = query.show_columns("t_metric").await.unwrap();
+        assert_eq!(
+            columns,
+            [
+                ("id".to_string(), "int".to_string()),
+                ("name".to_string(), "varchar(255)".to_string()),
+                ("value".to_string(), "double".to_string()),
+                ("ts".to_string(), "timestamp".to_string())
+            ]
+            .iter()
+            .cloned()
+            .collect()
+        );
     }
 
     #[tokio::test]
     async fn test_select_one_for_schema() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(1).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select * from t_full_columns")
+            .select_one_for_schema("select * from t_metric")
             .await
             .unwrap();
-        match row {
-            Some(row) => {
-                dbg!(row);
-            }
-            None => {
-                println!("no data");
-            }
-        }
+        assert!(row.is_some());
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     async fn test_select_all() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let rows = query
-            .select_all("select * from t_full_columns")
-            .await
-            .unwrap();
-        dbg!(rows);
+        let rows = query.select_all("select * from t_metric").await.unwrap();
+        assert_eq!(rows.len(), 7);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     async fn test_select_by_stream() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let mut stream = query.select_by_stream("select * from t_full_columns");
+        let mut stream = query.select_by_stream("select * from t_metric");
+
+        let mut rows = Vec::new();
         while let Some(result) = stream.next().await {
             match result {
                 Ok(row) => {
-                    println!("row: {:?}", row);
+                    rows.push(row);
                 }
                 Err(e) => {
                     println!("error: {:?}", e);
                 }
             }
         }
+        assert_eq!(rows.len(), 7);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     async fn test_top_n() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let rows = query
-            .top_n("select * from t_full_columns", 1)
-            .await
-            .unwrap();
+        let rows = query.top_n("select * from t_metric", 5).await.unwrap();
         dbg!(&rows);
-        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.len(), 3);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     async fn test_charset() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
         // gbk, not match the charset in mysql
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?charset=gbk")
-            .unwrap();
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?charset=gbk").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select description from t_metric")
+            .select_one_for_schema("select name from t_metric")
             .await
             .unwrap();
         match row {
@@ -315,35 +429,37 @@ mod tests {
 
         // utf8, match the charset in mysql
         let dsn =
-            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?charset=utf8")
-                .unwrap();
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?charset=utf8").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
         let row = query
-            .select_one_for_schema("select description from t_metric")
+            .select_one_for_schema("select name from t_metric")
             .await
             .unwrap();
         match row {
             Some(row) => {
                 let val = row.try_get::<String, _>(0);
                 assert!(val.is_ok());
-                println!("description: {}", val.unwrap());
+                println!("name: {}", val.unwrap());
             }
             None => {
                 println!("no data");
             }
         }
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     /// mysql> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_off() {
         // test: ssl_mode=DISABLED
         let dsn =
-            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=DISABLED")
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED")
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
@@ -353,10 +469,9 @@ mod tests {
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=PREFERRED
-        let dsn = Dsn::from_str(
-            "mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=PREFERRED",
-        )
-        .unwrap();
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=PREFERRED")
+                .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
         let query = MySqlQuery::try_new(config, String::from("+08:00"))
@@ -366,7 +481,7 @@ mod tests {
 
         // test: ssl_mode=REQUIRED
         let dsn =
-            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=REQUIRED")
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=REQUIRED")
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
@@ -377,7 +492,7 @@ mod tests {
 
         // test: ssl_mode=VERIFY_CA
         let dsn =
-            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_CA&ssl_ca=/tmp/mysql/ca.pem")
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=VERIFY_CA&ssl_ca=/tmp/mysql/ca.pem")
                 .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
@@ -387,7 +502,7 @@ mod tests {
         assert!(!query.pool.is_closed());
 
         // test: ssl_mode=VERIFY_IDENTITY
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_IDENTITY&ssl_ca=/tmp/mysql/ca.pem&ssl_client_cert=/tmp/mysql/client-cert.pem&ssl_client_key=/tmp/mysql/client-key.pem")
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=VERIFY_IDENTITY&ssl_ca=/tmp/mysql/ca.pem&ssl_client_cert=/tmp/mysql/client-cert.pem&ssl_client_key=/tmp/mysql/client-key.pem")
             .unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // dbg!(&config);
@@ -399,10 +514,11 @@ mod tests {
 
     /// mysql> show variables like 'require_secure_transport'; ---OFF
     #[tokio::test]
+    #[ignore]
     async fn test_ssl_require_secure_on() {
         // // test: ssl_mode=DISABLED
         // let dsn =
-        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=DISABLED")
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=DISABLED")
         //         .unwrap();
         // let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // // dbg!(&config);
@@ -411,7 +527,7 @@ mod tests {
 
         // // test: ssl_mode=PREFERRED
         // let dsn = Dsn::from_str(
-        //     "mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=PREFERRED",
+        //     "mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=PREFERRED",
         // )
         // .unwrap();
         // let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -421,7 +537,7 @@ mod tests {
 
         // // test: ssl_mode=REQUIRED
         // let dsn =
-        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=REQUIRED")
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=REQUIRED")
         //         .unwrap();
         // let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // // dbg!(&config);
@@ -430,7 +546,7 @@ mod tests {
 
         // // test: ssl_mode=VERIFY_CA
         // let dsn =
-        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_CA")
+        //     Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=VERIFY_CA")
         //         .unwrap();
         // let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // // dbg!(&config);
@@ -438,7 +554,7 @@ mod tests {
         // assert!(!query.pool.is_closed());
 
         // // test: ssl_mode=VERIFY_IDENTITY
-        // let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?ssl_mode=VERIFY_IDENTITY")
+        // let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?ssl_mode=VERIFY_IDENTITY")
         //     .unwrap();
         // let config = ConnectConfig::from_dsn(&dsn).unwrap();
         // // dbg!(&config);

@@ -986,55 +986,55 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
-        let mut new_value = String::new();
-        if k == "csv_config_file" {
-            // TODO use mime instead
-            let (files, strs): (Vec<String>, Vec<String>) = v
-                .split(",")
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
-                .partition(|v| v.starts_with("@"));
-            let file_len = files.len();
-            for file in files {
-                // let mut reader = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
-                // let header = reader.headers().await?;
-                tracing::info!(
-                    "current log: {}",
-                    std::env::current_dir().unwrap().to_str().unwrap()
-                );
-                // let f = std::fs::File::open(&file[1..])?;
-                let file_data = std::fs::read(&file[1..])
-                    .with_context(|| anyhow::format_err!("Failed to read file: {}", &file[1..]))?;
-                // let buf = std::io::BufReader::new(f);
-                // let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
-                new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
-                new_value.push_str(",");
-            }
-            if file_len > 0 {
-                new_value.pop();
-            }
-            let str_len = strs.len();
-            for content in strs {
-                new_value.push_str(content.as_str());
-                new_value.push_str(",");
-            }
-            if str_len > 0 {
-                new_value.pop();
-            }
+        let new_value = if k == "csv_config_file" {
+            encode_csv_config_file(v.clone())?
         } else if v.contains("@") {
-            new_value.push_str(
-                get_string_content_from_param_value(&v, false, false)?
-                    .unwrap_or(String::new())
-                    .as_str(),
-            );
-        }
+            get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
+        } else {
+            String::new()
+        };
         let new_value = if new_value.is_empty() { v } else { new_value };
         map.insert(k, new_value);
     }
     dsn.params = map;
     task.from = dsn.to_string();
     Ok(())
+}
+
+pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
+    let mut new_value = String::new();
+
+    // TODO use mime instead
+    let (files, strs): (Vec<String>, Vec<String>) = v
+        .split(",")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .partition(|v| v.starts_with("@"));
+    let file_len = files.len();
+    for file in files {
+        info!(
+            "current log: {}",
+            std::env::current_dir().unwrap().to_str().unwrap()
+        );
+        let file_data = std::fs::read(&file[1..])
+            .with_context(|| anyhow::format_err!("Failed to read file: {}", &file[1..]))?;
+        new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
+        new_value.push_str(",");
+    }
+    if file_len > 0 {
+        new_value.pop();
+    }
+    let str_len = strs.len();
+    for content in strs {
+        new_value.push_str(content.as_str());
+        new_value.push_str(",");
+    }
+    if str_len > 0 {
+        new_value.pop();
+    }
+
+    Ok(new_value)
 }
 
 #[derive(Debug, Deserialize)]

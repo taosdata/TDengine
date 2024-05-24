@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
+use chrono::{FixedOffset, NaiveDateTime};
 use itertools::Itertools;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo};
@@ -24,8 +26,11 @@ pub async fn to_schema(row: MySqlRow) -> anyhow::Result<Schema> {
     Ok(schema)
 }
 
-pub async fn to_record_batch(rows: Vec<MySqlRow>) -> anyhow::Result<RecordBatch> {
-    to_record_batches(rows, usize::MAX)
+pub async fn to_record_batch(
+    rows: Vec<MySqlRow>,
+    time_zone: String,
+) -> anyhow::Result<RecordBatch> {
+    to_record_batches(rows, usize::MAX, time_zone)
         .await
         .map(|batches| batches[0].clone())
 }
@@ -33,6 +38,7 @@ pub async fn to_record_batch(rows: Vec<MySqlRow>) -> anyhow::Result<RecordBatch>
 pub async fn to_record_batches(
     rows: Vec<MySqlRow>,
     batch_size: usize,
+    time_zone: String,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let mut fields = Vec::new();
     let mut builders = Vec::new();
@@ -506,7 +512,38 @@ pub async fn to_record_batches(
                         }
                     }
                 }
-                "DATETIME" | "TIMESTAMP" => {
+                "DATETIME" => {
+                    let val = row.try_get::<Option<NaiveDateTime>, _>(col_cidx);
+                    match val {
+                        Ok(val) => match val {
+                            None => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_null();
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::StringBuilder>()
+                                    .unwrap()
+                                    .append_value(format!("{:?}", val));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!(
+                                "migrate mysql, decoding 'DATETIME' result error: {e:?}"
+                            );
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::TimestampNanosecondBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                    }
+                }
+                "TIMESTAMP" => {
                     let val = row.try_get::<Option<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>, _>(col_cidx);
                     match val {
                         Ok(val) => match val {
@@ -518,16 +555,22 @@ pub async fn to_record_batches(
                                     .append_null();
                             }
                             Some(val) => {
+                                // mysql 的 timestamp 是基于 session 时区的假 UTC 时间，需要转换为真正的 UTC 时间
+                                let time_zone = FixedOffset::from_str(time_zone.as_str()).unwrap();
+                                let real_timestamp_utc =
+                                    val.naive_utc().and_local_timezone(time_zone).unwrap();
                                 builders[col_cidx]
                                     .as_any_mut()
                                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                                     .unwrap()
-                                    .append_value(val.timestamp_nanos_opt().unwrap());
+                                    .append_value(
+                                        real_timestamp_utc.timestamp_nanos_opt().unwrap(),
+                                    );
                             }
                         },
                         Err(e) => {
                             tracing::warn!(
-                                "migrate mysql, decoding 'DATETIME/TIMESTAMP' result error: {e:?}"
+                                "migrate mysql, decoding 'TIMESTAMP' result error: {e:?}"
                             );
                             builders[col_cidx]
                                 .as_any_mut()
@@ -683,36 +726,126 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::mysql::{config::connect::ConnectConfig, query::MySqlQuery};
+    use sqlx::Executor;
     use std::str::FromStr;
     use taos::Dsn;
 
-    #[tokio::test]
-    async fn test_to_schema() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+    async fn test_create_database() {
+        let dsn =
+            Dsn::from_str("mysql://root:123456@192.168.1.40:3306/information_schema").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
 
-        let row = query
-            .select_one_for_schema("select * from t_metric where 1 = 0")
-            .await
-            .unwrap();
-
-        match row {
-            Some(row) => {
-                let schema = to_schema(row).await.unwrap();
-                dbg!(schema);
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_database = "create database if not exists test_taosx";
+                let _ = query.pool.execute(sql_create_database).await;
             }
-            None => {
-                println!("no row");
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_create_table = "create table if not exists t_metric (id int primary key auto_increment, name varchar(255), value double, ts timestamp)";
+                let _ = query.pool.execute(sql_create_table).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql_insert_data =
+                    "insert into t_metric (name, value, ts) values ('cpu', 0.8, now())";
+                for _ in 0..len {
+                    let _ = query.pool.execute(sql_insert_data).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.pool.execute(sql).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
     }
 
     #[tokio::test]
+    async fn test_to_schema() {
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(1).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let row = query
+                    .select_one_for_schema("select * from t_metric")
+                    .await
+                    .unwrap();
+                match row {
+                    Some(row) => {
+                        let schema = to_schema(row).await.unwrap();
+                        dbg!(&schema);
+                        assert_eq!(schema.fields().len(), 4);
+                    }
+                    None => {
+                        println!("no row");
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
     async fn test_to_record_batch() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
@@ -720,25 +853,33 @@ mod tests {
 
         let rows = query.select_all("select * from t_metric").await.unwrap();
 
-        let batch = to_record_batch(rows).await.unwrap();
-        dbg!(batch);
+        let batch = to_record_batch(rows, String::from("+08:00")).await.unwrap();
+        assert_eq!(batch.num_columns(), 4);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[tokio::test]
     async fn test_to_record_batches() {
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector").unwrap();
+        // prepare data
+        let _ = test_clear_data().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
         let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
             .await
             .unwrap();
 
-        let rows = query
-            .select_all("select * from t_full_columns")
+        let rows = query.select_all("select * from t_metric").await.unwrap();
+
+        let batches = to_record_batches(rows, 3, String::from("+08:00"))
             .await
             .unwrap();
-
-        let batches = to_record_batches(rows, 3).await.unwrap();
-        dbg!(batches);
+        dbg!(&batches);
+        assert_eq!(batches.len(), 3);
+        // clear data
+        let _ = test_clear_data().await;
     }
 
     #[test]

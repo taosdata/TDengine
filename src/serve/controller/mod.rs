@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -31,6 +30,7 @@ use uuid::Uuid;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
 
@@ -565,18 +565,26 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn set_file_content(dsn: &mut Dsn, key: &str) {
-    let content = dsn.get(key).map(|v| {
-        if v.starts_with('@') {
-            // let v = v.trim_start_matches('@');
-            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
-        } else {
-            v.to_string()
+use crate::serve::rpc::encode_csv_config_file;
+use taosx_core::utils::get_string_content_from_param_value;
+
+async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone();
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        let mut new_value = String::new();
+        if v.contains("@") {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
         }
-    });
-    if content.is_some() {
-        dsn.set(key, content.unwrap());
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
     }
+    dsn.params = map;
+    Ok(())
 }
 
 impl TaskController {
@@ -1513,10 +1521,11 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        set_file_content(dsn, "certificate");
-        set_file_content(dsn, "private_key");
-        set_file_content(dsn, "auth_certificate");
-        set_file_content(dsn, "auth_private_key");
+        if let Some(csv_config_file) = OPCConfig::parse_csv_config_file(dsn) {
+            let new_value = encode_csv_config_file(csv_config_file)?;
+            dsn.params.insert("csv_config_file".to_string(), new_value);
+        }
+        set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
             from: dsn.to_string(),
@@ -1564,10 +1573,10 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
-        set_file_content(&mut dsn_agent, "certificate");
-        set_file_content(&mut dsn_agent, "private_key");
-        set_file_content(&mut dsn_agent, "auth_certificate");
-        set_file_content(&mut dsn_agent, "auth_private_key");
+        let result = set_file_contents(&mut dsn_agent).await;
+        if let Err(err) = result {
+            return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
+        }
 
         let result = tokio::time::timeout(
             Duration::from_secs(600),
@@ -2268,7 +2277,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("historian");
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
-        // include_ds_yaml!("oracle");
+        include_ds_yaml!("oracle");
         for ds in &mut def {
             ds.compute();
         }
@@ -2305,7 +2314,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("historian");
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
-        // include_ds_yaml!("oracle");
+        include_ds_yaml!("oracle");
         for ds in &mut def {
             ds.compute();
         }
