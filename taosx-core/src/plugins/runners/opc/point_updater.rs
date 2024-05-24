@@ -76,6 +76,24 @@ impl PointsUpdater {
             //  2. 对比 to_list 和当前点位列表cur_list，找出新增的点位：add_list，删除的点位：del_list；
             let add_list = diff(&to_list, &self.cur_list);
             let del_list = diff(&self.cur_list, &to_list);
+            tracing::info!(
+                "update points mode: {:?}, add: {}, del: {}",
+                self.mode,
+                format!(
+                    "{:?}",
+                    add_list
+                        .iter()
+                        .map(|ds| ds.id.clone())
+                        .collect::<Vec<String>>()
+                ),
+                format!(
+                    "{:?}",
+                    del_list
+                        .iter()
+                        .map(|ds| ds.id.clone())
+                        .collect::<Vec<String>>()
+                ),
+            );
 
             let update_result = match self.mode {
                 //  3. append 模式下，如果 add_list 为空，则等待进入下次点位检查；如果add_list不为空，将add_list写入配置文件的点位列表；
@@ -120,11 +138,6 @@ impl PointsUpdater {
             .iter()
             .map(|ds| ds.id.clone())
             .collect::<Vec<String>>();
-        tracing::debug!(
-            "update points, current: {}, to: {}",
-            self.cur_list.len(),
-            points.len()
-        );
 
         let (ua, da) = match self.opc_config.opc_type {
             OpcType::OPCUA => {
@@ -165,7 +178,6 @@ impl PointsUpdater {
                 e.to_string()
             )
         })?;
-        tracing::debug!("update points, opc config: \n{}", toml);
         let mut opc_config_file = File::create(&self.opc_config_file).map_err(|e| {
             anyhow::anyhow!(
                 "failed to create opc config file during points updating, cause: {}",
@@ -173,6 +185,7 @@ impl PointsUpdater {
             )
         })?;
         write!(opc_config_file, "{}", toml)?;
+        tracing::debug!("update points, write opc config file\n{toml}");
 
         Ok(())
     }
