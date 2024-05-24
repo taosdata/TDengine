@@ -1,4 +1,4 @@
-char version[64] = "${TD_VER_NUMBER}";
+__attribute__((visibility("hidden"))) char version[64] = "${TD_VER_NUMBER}";
 char compatible_version[12] = "${TD_VER_COMPATIBLE}";
 char gitinfo[48] = "${TD_VER_GIT}";
 char gitinfoOfInternal[48] = "${TD_VER_GIT_INTERNAL}";
