@@ -238,7 +238,7 @@ pub async fn pi_to_taos(
         .take()
         .expect("Failed to capture stderr");
     let log_task_id = task_id.unwrap_or_default();
-    let pi_log_cache = LogCache::new(100);
+    let pi_log_cache = LogCache::new(10);
     let pi_log_cache_clone = pi_log_cache.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);

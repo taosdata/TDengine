@@ -124,6 +124,10 @@ impl IpcMetrics {
         self.total_received_batches.fetch_add(n, SeqCst);
         self.received_batches.fetch_add(n, SeqCst);
     }
+    #[inline]
+    pub fn total_received_batches(&self) -> u64 {
+        self.total_received_batches.load(SeqCst)
+    }
 
     #[inline]
     pub fn add_processed_batches(&self, n: u64) {

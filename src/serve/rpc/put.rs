@@ -1,29 +1,31 @@
 use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context};
-use arrow_flight::{decode::DecodedFlightData, error::FlightError, FlightData, PutResult};
+use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
+use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
-use parquet::data_type::AsBytes;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
-    sink::{handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy},
+    sink::{
+        handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy, MessageMetadata,
+        RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+    },
     utils::{
         get_main_version_from_server_version, get_server_version,
-        trace::{
-            get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
-        },
+        trace::{set_data_trace_id_for_current_span, RequestID, TraceDataId, TraceStreamId},
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
+use zerocopy::{AsBytes as _, FromBytes};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
-    scheduler::agent::AgentNotifySender,
+    scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
 
@@ -63,11 +65,12 @@ impl PutStream {
     #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
     pub async fn into_flight_put_result(
         self,
-        stream_trace_id: String,
+        stream_trace_id: TraceStreamId,
+        spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
-        set_data_trace_id_for_current_span(stream_trace_id.as_str());
+        set_data_trace_id_for_current_span(&stream_trace_id);
         tracing::info!("Put stream by task id {}", self.task_id,);
         let task = self
             .controller
@@ -99,7 +102,13 @@ impl PutStream {
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
-        let mut stream = arrow_flight::decode::FlightDataDecoder::new(self.req.map_err(Into::into));
+        let mut stream = arrow_flight::decode::FlightDataDecoder::new(self.req.map_err(|err| {
+            tracing::error!(
+                error.source = format!("{err:#}"),
+                "Invalid IPC stream error"
+            );
+            Into::into(err)
+        }));
         // let schema = stream.schema();
         // dbg!(schema);
 
@@ -219,11 +228,11 @@ impl PutStream {
             notify_sender: AgentNotifySender,
             agent_id: i64,
             task: TaskDetail,
-            pool: &taos::TaosPool,
+            pool: taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, u64)>>,
-            rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
+            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, TraceDataId)>>,
+            rx: flume::Receiver<(arrow::record_batch::RecordBatch, TraceDataId)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
@@ -231,7 +240,7 @@ impl PutStream {
             span: tracing::Span,
             abort_message_tx: flume::Sender<Result<PutResult, Status>>,
             ipc_error_strategy: IpcErrorStrategy,
-            stream_trace_id_u64: u64,
+            stream_trace_id: TraceStreamId,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
             notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
@@ -263,7 +272,7 @@ impl PutStream {
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
             let metrics = metrics_arc.ipc();
-            let lush_parser: Option<ParserImpl> = metadata.init().map(|init| {
+            let lush_parser = metadata.init().map(|init| {
                 let columns = init.columns();
                 let fields: LinkedHashMap<String, FieldParser> = columns
                     .iter()
@@ -274,18 +283,17 @@ impl PutStream {
                         )
                     })
                     .collect();
-                ParserImpl::new(fields)
+                Arc::new(ParserImpl::new(fields))
             });
-            let lush_parser = lush_parser.as_ref();
             if worker.lush_model_config.get().is_none() {
                 if let Some(sql) = metadata.init_sql_string() {
                     let init = metadata.init().unwrap();
-                    let req_id = RequestID::new(stream_trace_id_u64);
+                    let req_id = RequestID::new(stream_trace_id.as_u64());
                     handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
                 }
             }
 
-            if let Some(parser) = lush_parser {
+            if let Some(parser) = lush_parser.as_deref() {
                 tracing::info!(
                     "Start IPC stream writer with lush parser: {}",
                     serde_json::to_string(parser).unwrap()
@@ -312,17 +320,17 @@ impl PutStream {
             let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
-                    let trace_id_str = get_data_trace_id_str(trace_id);
                     anyhow::Ok((
                         record,
                         trace_id,
-                        trace_id_str,
-                        worker.clone(),
-                        parser.clone(),
-                        notify_sender.clone(),
-                        tx.clone(),
-                        abort_message_tx.clone(),
-                        contiguous_errors.clone(),
+                        &worker,
+                        &parser,
+                        &notify_sender,
+                        &tx,
+                        &abort_message_tx,
+                        &contiguous_errors,
+                        &metrics_arc,
+                        &lush_parser,
                     ))
                 })
                 .try_for_each_concurrent(
@@ -330,23 +338,24 @@ impl PutStream {
                     |(
                         record,
                         trace_id,
-                        trace_id_str,
                         worker,
                         parser,
                         notify_sender,
                         tx,
                         abort_message_tx,
                         contiguous_errors,
+                        metrics_arc,
+                        lush_parser,
                     )| {
                         async move {
-                            tracing::info!("Writing batch {trace_id_str}");
+                            tracing::info!("Writing batch {trace_id}");
                             if let Err(err) = worker
                                 .process_record(
                                     record.clone(),
                                     parser.as_deref(),
                                     trace_id,
-                                    &trace_id_str,
                                     metrics,
+                                    metrics_arc,
                                     lush_parser,
                                 )
                                 .in_current_span()
@@ -360,7 +369,7 @@ impl PutStream {
                                     error = format!("{:#}", err),
                                     backtrace = %err.backtrace(),
                                     "Writing batch {} error",
-                                    trace_id_str,
+                                    trace_id,
                                 );
                                 let period = match last_errors {
                                     errors if errors < 8 => 8,
@@ -369,17 +378,17 @@ impl PutStream {
                                     errors if errors < 64 => 64,
                                     _ => 128,
                                 };
-                                tokio::time::sleep(std::time::Duration::from_millis(period * 8))
+                                tokio::time::sleep(std::time::Duration::from_millis(period * 80))
                                     .await;
                                 let message =
-                                    format!("IPC processing record {trace_id_str} error: {err:#}");
+                                    format!("IPC processing record {trace_id} error: {err:#}");
                                 let _ = notify_sender.send(
                                     crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                         agent_id,
                                         TaskActivity::warn(task_id, message),
                                     ),
                                 );
-                                if ipc_error_strategy.will_stop() {
+                                if ipc_error_strategy.will_stop() || last_errors > 10 {
                                     let _ = abort_message_tx.send(Err(Status::cancelled(format!(
                                         "IPC worker will be stopped since{err:#}"
                                     ))));
@@ -394,7 +403,7 @@ impl PutStream {
                                 }
                                 if let Some(tx) = tx.upgrade() {
                                     tracing::warn!(
-                                        trace_id = trace_id_str,
+                                        trace_id = %trace_id,
                                         "Re-queue with {} rows record",
                                         record.num_rows()
                                     );
@@ -403,7 +412,7 @@ impl PutStream {
                                         .context("Re-queue error")?;
                                 } else {
                                     tracing::warn!(
-                                        trace_id = trace_id_str,
+                                        trace_id = %trace_id,
                                         "IPC channel is closed, cannot re-queue record {trace_id}"
                                     );
                                 }
@@ -432,7 +441,7 @@ impl PutStream {
                                     );
                                     contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
                                 } else {
-                                    tracing::debug!("Writing batch {} success", trace_id_str);
+                                    tracing::debug!("Writing batch {} success", trace_id);
                                 }
                             }
                             Ok(())
@@ -455,30 +464,61 @@ impl PutStream {
         let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
         tokio::spawn(
             async move {
-                let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
                 let task_id = task.id;
-                if let Err(err) = ipc_stream_writer(
-                    notify_sender.clone(),
-                    agent_id,
-                    task,
-                    &pool,
-                    lock,
-                    schema,
-                    tx_cloned,
-                    rx.clone(),
-                    // rsp_tx,
-                    license,
-                    transferred,
-                    lush_table_cache,
-                    Span::current(),
-                    abort_message_tx,
-                    ipc_error_strategy,
-                    stream_trace_id_u64,
+                let (sender, receiver) = tokio::sync::oneshot::channel();
+                let timeout = std::time::Duration::from_secs(60);
+                if let Err(err) = tokio::time::timeout(
+                    timeout,
+                    spawn_sender.send_async((
+                        Box::pin(
+                            ipc_stream_writer(
+                                notify_sender.clone(),
+                                agent_id,
+                                task,
+                                pool,
+                                lock,
+                                schema,
+                                tx_cloned,
+                                rx.clone(),
+                                // rsp_tx,
+                                license,
+                                transferred,
+                                lush_table_cache,
+                                Span::current(),
+                                abort_message_tx,
+                                ipc_error_strategy,
+                                stream_trace_id,
+                            )
+                            .in_current_span(),
+                        ),
+                        sender,
+                    )),
                 )
-                .in_current_span()
                 .await
                 {
-                    tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    tracing::error!(
+                        error.source = format!("{err:#}"),
+                        "IPC stream writer spawn error"
+                    );
+                    let _ = notify_sender.send(
+                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                            agent_id,
+                            TaskActivity::warn(task_id, format!("{err:#}")),
+                        ),
+                    );
+                    drop(rx);
+                    return;
+                }
+                match receiver.await {
+                    Ok(Ok(_)) => {
+                        tracing::info!("IPC stream writer spawned successfully");
+                    }
+                    Ok(Err(err)) => {
+                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    }
+                    Err(err) => {
+                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    }
                 }
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
@@ -507,44 +547,22 @@ impl PutStream {
         tokio::spawn(async move {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
             tokio::pin!(stream);
-            let process_item = |message: Result<DecodedFlightData, FlightError>| {
+
+            let process_item = |message: DecodedFlightData, trace_id: TraceDataId| {
                 let metrics = metrics_arc.ipc();
-                let message = message
-                    .map(|message| {
-                        let app_metadata = message.app_metadata();
-                        let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
-                        metrics.add_received_batches(1);
-                        cur_span.in_scope(|| {
-                            metrics.add_received_batches(1);
-                            tracing::info!("Receive batch {}", get_data_trace_id_str(trace_id));
-                        });
-                        (message, app_metadata, trace_id, tx.clone())
-                    })
-                    .inspect_err(|err| {
-                        tracing::warn!(
-                            error.source = format!("{err:#}"),
-                            "Put stream message error"
-                        );
-                        if let Err(err) = notify_sender.send(
-                            crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                agent_id,
-                                TaskActivity::warn(task_id, format!("{err:#}")),
-                            ),
-                        ) {
-                            tracing::warn!(
-                                error.source = format!("{err:#}"),
-                                "Put stream message error"
-                            );
-                        }
-                    });
-                async {
-                    let (message, app_metadata, trace_id, tx) = message
-                        .map_err(|err| Status::cancelled(format!("IPC stream error: {:#}", err)))?;
-                    Ok(match message.payload {
+                let tx = tx.clone();
+                let metadata = MessageMetadata::new_ack(
+                    RPC_ACK_PROCESSED,
+                    trace_id.as_u64(),
+                    metrics.total_received_batches(),
+                );
+                let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                async move {
+                    match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
                                 tracing::warn!(
-                                    trace_id = get_data_trace_id_str(trace_id),
+                                    trace_id = %trace_id,
                                     ipc.channel.capacity = tx.capacity(),
                                     ipc.channel.len = tx.len(),
                                     ipc.channel.receiver_count = tx.receiver_count(),
@@ -554,41 +572,129 @@ impl PutStream {
                                     err
                                 );
 
-                                return Err(FlightError::ExternalError(Box::new(err)));
+                                return None;
                             } else {
-                                PutResult { app_metadata }
+                                return Some(PutResult { app_metadata })
                             }
                         }
                         payload => {
                             tracing::warn!(payload = ?payload, metadata = ?app_metadata, "Invalid IPC message");
-                            PutResult { app_metadata }
+                            return Some(PutResult { app_metadata })
                         }
-                    })
-                }
+                    }
+                }.instrument(cur_span.clone())
             };
+
+            // Limit message decode errors as 10 per 60s (cps) to avoid infinite loop
+            const MAX_MESSAGE_ERRORS: usize = 10;
+            let mut error_check_interval =
+                tokio::time::interval(std::time::Duration::from_secs(60));
+            let mut message_error_count = 0;
             loop {
                 tokio::select! {
                     _ = heartbeat.tick() => {
-                        tracing::debug!("Send heartbeat");
+                        tracing::trace!("Send heartbeat");
                         if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await {
-                            tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                            cur_span.in_scope(|| {
+                                tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                            });
                             break;
                         };
+                    }
+                    _ = error_check_interval.tick() => {
+                        message_error_count = 0;
                     }
                     message = stream.next() => {
                         if message.is_none() {
                             break;
                         }
                         let message = message.unwrap();
+                        match message {
+                            Err(err) => {
+                                // To deal with decode error
+                                message_error_count += 1;
+                                if message_error_count > MAX_MESSAGE_ERRORS {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!(
+                                            error.source = format!("{err:#}"),
+                                            "Too many IPC stream errors"
+                                        );
+                                    });
+                                    if let Err(err) = put_tx.send_async(Err(Status::aborted(format!("Too many put stream errors: {:#}", err)))).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::warn!(
+                                                error.source = format!("{err:#}"),
+                                                "IPC stream finished"
+                                            );
+                                        });
+                                        break;
+                                    };
+                                } else {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!(
+                                            error.source = format!("{err:#}"),
+                                            error.backtrace = ?err,
+                                            "IPC stream message error"
+                                        );
+                                    });
+                                }
 
-                        let item = process_item(message).in_current_span().await;
+                                if let Err(err) = notify_sender.send(
+                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                        agent_id,
+                                        TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                    ),
+                                ) {
+                                    tracing::warn!(
+                                        error.source = format!("{err:#}"),
+                                        "Put stream message error"
+                                    );
+                                }
+                            }
+                            Ok(message) => {
+                                let app_metadata = message.app_metadata();
+                                let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
+                                let trace_id = TraceDataId(trace_id);
+                                metrics_arc.ipc().add_received_batches(1);
+                                let count = metrics_arc.ipc().total_received_batches();
+                                cur_span.in_scope(|| {
+                                    tracing::debug!("Receive batch {}", trace_id);
+                                });
+                                let mut metadata = MessageMetadata::new_ack(RPC_ACK_RECEIVED, trace_id.as_u64(), count);
+                                let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                                // 1. send ack for received message
+                                if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata})).await {
+                                    cur_span.in_scope(|| {
+                                        tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                    });
+                                    break;
+                                }
+                                let item = process_item(message, trace_id).in_current_span().await;
 
-                        if let Err(err) = put_tx.send_async(item.map_err(|err: FlightError| {
-                            tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
-                            Status::data_loss(format!("IPC worker seems stopped: {:#}", err))
-                        })).await {
-                            tracing::info!(error.source = format!("{err:#}"), "Put stream receiver closed");
-                            break;
+                                // 2. send processed message
+                                if let Some(item) = item {
+                                    if let Err(err) = put_tx.send_async(Ok(item)).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                        });
+                                        break;
+                                    }
+                                } else {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!("Put stream worker dropped");
+                                    });
+                                    metadata.set_ack(RPC_ACK_STREAM_END);
+                                    let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                                    if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata })).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                        });
+                                        break;
+                                    }
+                                    drop(put_tx);
+                                    break;
+                                }
+                            }
                         }
                     }
                     abort = abort_message_rx.recv_async() => {
@@ -598,6 +704,7 @@ impl PutStream {
                                 tracing::info!(error.source = format!("{err:#}"), "IPC stream aborted");
                             }
                         }
+                        drop(put_tx);
                         break;
                     }
                 }
@@ -613,6 +720,11 @@ unsafe impl Sync for PutStream {}
 unsafe impl Send for PutStream {}
 
 fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
+    if app_metadata[0] == 0 {
+        return MessageMetadata::ref_from(&app_metadata)
+            .map(|m| m.trace_id())
+            .unwrap_or_default();
+    }
     let meta_bytes = app_metadata.as_bytes();
     match serde_json::from_slice::<AppMetadata>(meta_bytes) {
         Ok(app_meta) => app_meta.data_trace_id,

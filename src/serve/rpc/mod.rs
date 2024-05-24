@@ -23,7 +23,8 @@ use std::{
 };
 use taos::IntoDsn;
 use taosx_core::{
-    get_data_dir, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
+    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
+    PutFileResp, QueryDataSourceResp,
 };
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -55,7 +56,7 @@ use uuid::Uuid;
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
     monitor::Monitor,
-    scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
+    scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender, AgentSpawnSender},
 };
 
 mod put;
@@ -79,7 +80,6 @@ impl AgentRpcChannel {
 
 type ConnectionId = u64;
 
-#[derive(Clone)]
 pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
     notify_sender: AgentNotifySender,
@@ -89,6 +89,7 @@ pub(super) struct FlightServiceImpl {
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
     string_senders: Arc<RwLock<LinkedHashMap<u64, StringSender>>>,
+    spawn_sender: AgentSpawnSender,
     monitor: Monitor,
 }
 
@@ -599,7 +600,10 @@ impl FlightService for FlightServiceImpl {
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result(String::from(stream_trace_id))
+                .into_flight_put_result(
+                    TraceStreamId::from_hex(stream_trace_id),
+                    self.spawn_sender.clone(),
+                )
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
         )))
@@ -1154,6 +1158,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        spawn_sender: AgentSpawnSender,
         monitor: Monitor,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
@@ -1168,6 +1173,7 @@ impl RpcConfig {
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
             monitor,
+            spawn_sender,
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service

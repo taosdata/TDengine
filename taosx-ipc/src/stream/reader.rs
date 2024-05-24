@@ -19,6 +19,7 @@ use arrow::{
     ipc::reader::StreamReader,
     record_batch::RecordBatch,
 };
+use faststr::FastStr;
 use futures::Stream;
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
@@ -255,15 +256,15 @@ impl IpcParser {
                             DataType::RunEndEncoded(_, _) => todo!(),
                             _ => todo!("Unsupported data type for tag"),
                         };
-                        (name.to_string(), value)
+                        (FastStr::new(name), value)
                     })
                     .collect_vec();
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
                 let s = LushInsertAttrs {
-                    name: name.1.strict_as_str().to_string(),
-                    using: Some(using.to_string()),
+                    name: FastStr::new(name.1.strict_as_str()),
+                    using: Some(using.clone()),
                     tags: Some(values),
                 };
                 s
@@ -389,15 +390,15 @@ impl IpcParser {
                             DataType::RunEndEncoded(_, _) => todo!(),
                             _ => todo!("Unsupported data type for tag"),
                         };
-                        (name.to_string(), value)
+                        (FastStr::new(*name), value)
                     })
                     .collect_vec();
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
                 let s = LushInsertAttrs {
-                    name: name.1.strict_as_str().to_string(),
-                    using: Some(using.to_string()),
+                    name: FastStr::new(name.1.strict_as_str()),
+                    using: Some(using.clone()),
                     tags: Some(values),
                 };
                 // dbg!(s)
@@ -473,7 +474,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1024);
+        let (tx, rx) = flume::bounded(64);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
@@ -491,7 +492,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(256);
+        let (tx, rx) = flume::bounded(64);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
@@ -506,15 +507,15 @@ impl<R: Read> IpcReader<R> {
 
 #[derive(Debug, Clone)]
 pub struct LushInsertAttrs {
-    name: String,
-    using: Option<String>,
-    tags: Option<Vec<(String, Value)>>,
+    name: FastStr,
+    using: Option<FastStr>,
+    tags: Option<Vec<(FastStr, Value)>>,
 }
 
 impl Default for LushInsertAttrs {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: FastStr::empty(),
             using: None,
             tags: None,
         }
@@ -522,25 +523,25 @@ impl Default for LushInsertAttrs {
 }
 
 impl LushInsertAttrs {
-    pub fn stable_name(&self) -> &Option<String> {
-        &self.using
+    pub fn stable_name(&self) -> Option<&FastStr> {
+        self.using.as_ref()
     }
 
-    pub fn table_name(&self) -> &String {
+    pub fn table_name(&self) -> &str {
         &self.name
     }
 
-    pub fn tags(&self) -> &Option<Vec<(String, Value)>> {
+    pub fn tags(&self) -> &Option<Vec<(FastStr, Value)>> {
         &self.tags
     }
 
-    pub fn to_sql(&self, table_name: Option<String>) -> Option<String> {
+    pub fn to_sql(&self, table_name: Option<&str>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
             let tags = self.tags.as_ref().unwrap();
             let table = if table_name.is_none() {
                 &self.name
             } else {
-                table_name.as_ref().unwrap()
+                table_name.unwrap()
             };
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
             let values = tags.iter().map(|(_, value)| value.to_sql_value()).join(",");
@@ -852,7 +853,7 @@ impl LushMessageInsert {
         self.records.record.num_rows()
     }
 
-    pub fn meta_sql(&self, table_name: Option<String>) -> Option<String> {
+    pub fn meta_sql(&self, table_name: Option<&str>) -> Option<String> {
         self.attrs.as_ref().and_then(|attr| attr.to_sql(table_name))
     }
 

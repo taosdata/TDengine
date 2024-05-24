@@ -14,6 +14,7 @@ use arrow::{
 };
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
+use faststr::FastStr;
 use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
@@ -47,7 +48,7 @@ pub struct LushModelConfig {
 }
 
 #[derive(Debug)]
-pub struct TableTagCache(scc::HashMap<String, LushInsertAttrs>);
+pub struct TableTagCache(scc::HashMap<FastStr, LushInsertAttrs>);
 
 impl TableTagCache {
     pub fn new() -> Self {
@@ -63,8 +64,12 @@ impl TableTagCache {
         }
     }
 
-    pub fn insert(&self, table_name: String, value: LushInsertAttrs) {
-        let _ = self.0.insert(table_name, value);
+    pub fn insert(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
+        let _ = self.0.insert(table_name.into(), value);
+    }
+
+    pub async fn insert_async(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
+        let _ = self.0.insert_async(table_name.into(), value).await;
     }
 }
 
@@ -319,7 +324,7 @@ pub fn group_by_super_table_name(
 }
 
 /// 多列模型，按 _using 列（值是默认超级表名）分组
-pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<String, RecordBatch> {
+pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, RecordBatch> {
     let stable_name_column: &Arc<dyn Array> =
         records.column_by_name("_using").expect("_using not found");
     let table_name_column: &StringArray = stable_name_column
@@ -352,7 +357,7 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<String
                 record_batches.push(record);
             }
             let record_batch = concat_batches(&schema, record_batches.iter()).unwrap();
-            (super_table.to_string(), record_batch)
+            (super_table, record_batch)
         })
         .collect()
 }
@@ -362,13 +367,13 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<String
 #[async_backtrace::framed]
 pub async fn write_transformed_records_with_sql(
     pool: &TaosPool,
-    taos: &mut Option<TaosConnection>,
     super_table_name: &str,
     target_precision: taos::Precision,
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
+    let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
         .stable_name()
@@ -377,6 +382,7 @@ pub async fn write_transformed_records_with_sql(
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
     for records in sqls {
         let mut retry = 0;
+        let taos = &mut taos;
         loop {
             retry += 1;
             match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics).await {

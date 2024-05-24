@@ -71,7 +71,7 @@ pub async fn notify_by_job_id(
             let lush_table_cache = lush_table_cache.clone();
             tokio::task::spawn(async move {
                 let mut lush_table_cache = lush_table_cache.write().await;
-                if let Some(cache) = lush_table_cache.remove(&task_id){
+                if let Some(cache) = lush_table_cache.remove(&task_id) {
                     info!("Removed lush_table_cache task.id={:?}", task_id);
                 }
             });
