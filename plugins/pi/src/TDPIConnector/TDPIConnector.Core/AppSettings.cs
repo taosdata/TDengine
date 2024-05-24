@@ -156,9 +156,10 @@ namespace TDPIConnector.Core
             }
             logFileNamme += "." + tomlConfig.TaskID;
 
+            var path = AppDomain.CurrentDomain.BaseDirectory;
             GlobalContext.Properties["applicationName"] = logFileNamme;
             GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
-            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+            XmlConfigurator.Configure(new System.IO.FileInfo($"{path}log4net.config"));
 
             log.Info($"toml config Path: {tomlConfigFile}");
             log.Info($"toml file: \n{tomlConfig.ConfigString()}");
