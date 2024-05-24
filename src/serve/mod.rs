@@ -2,9 +2,10 @@ use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
+    get,
     middleware::Compat,
     web::{resource, Data, PayloadConfig, ServiceConfig},
-    App, HttpServer,
+    App, HttpResponse, HttpServer, Responder,
 };
 use anyhow::Result;
 use clap::Parser;
@@ -158,8 +159,14 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(download_files)
             .service(upload_files)
             .service(metrics::profile)
-            .service(filemeta);
+            .service(filemeta)
+            .service(health);
     }
+}
+
+#[get("/health")]
+async fn health() -> impl Responder {
+    HttpResponse::Ok().json("ok")
 }
 
 impl Cli {
