@@ -176,7 +176,6 @@
               size="mini"
               style="font-size: 12px; color: #4d6992"
               :disabled="
-                scope.row.status.toLowerCase() == 'failed' ||
                 scope.row.status.toLowerCase() == 'cancelled' ||
                 $COMMUNITY
               "
