@@ -565,7 +565,9 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   code = tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn);
   if (code != TSDB_CODE_SUCCESS) {
-    stError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
+    stError("s-task:%s task meta save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
+  } else {
+    stDebug("s-task:%s task meta save to disk", pTask->id.idStr);
   }
 
   taosMemoryFree(buf);
