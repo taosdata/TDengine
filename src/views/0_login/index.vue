@@ -37,7 +37,7 @@
               <span>{{ $t("login.password") }}</span>
             </p>
             <el-form-item label prop="password">
-              <el-input v-model="dynamicValidateForm.password" type="password" @keyup.enter.native="submitForm('dynamicValidateForm')" ></el-input>
+              <el-input v-model="dynamicValidateForm.password" type="password" show-password @keyup.enter.native="submitForm('dynamicValidateForm')" ></el-input>
             </el-form-item>
           </div>
 

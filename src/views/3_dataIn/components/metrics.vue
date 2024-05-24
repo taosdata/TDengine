@@ -259,9 +259,9 @@ export default {
     },
     convertTsToMilliseconds(timestamp) {
       // 判断时间戳位数
-      if (timestamp.toString().length >= 19) {
+      if (timestamp && timestamp.toString().length >= 19) {
         return Number(String((timestamp / 1000000)).split('.')[0]); 
-      } else if (timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
+      } else if (timestamp && timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
         return Number(String((timestamp / 1000)).split('.')[0]);
       } else {
         return timestamp; 
@@ -311,6 +311,7 @@ export default {
       let formattedDuration = this.formatDurationMs(diff_time)
       
       if (from_last_ts && from_last_ts.toString().length > 13 && from_last_ts.toString().length <= 16) {
+        if (!to_last_ts) return ''
         let diffMicroseconds = Number(BigInt(String(from_last_ts)) - BigInt(String(to_last_ts))); // eslint-disable-line
 
         diffMicroseconds = diffMicroseconds % 1000;
@@ -320,6 +321,7 @@ export default {
       }
 
       if (from_last_ts && from_last_ts.toString().length >=19) {
+        if (!to_last_ts) return ''
         let diffNanoseconds = Number(BigInt(String(from_last_ts)) - BigInt(String(to_last_ts)));// eslint-disable-line
         let diffMicroseconds = Number(String((diffNanoseconds / 1000)).split('.')[0]) % 1000;
 

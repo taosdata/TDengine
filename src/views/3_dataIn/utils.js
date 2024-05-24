@@ -32,6 +32,7 @@ const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
+const opcGroupShowValue = 'csv_config_file'
 const authenticationField = uuid();
 export const datasetsField = uuid();
 let currentType = '';
@@ -730,10 +731,13 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         description: description ?? short_description,
         field: handleField(name),
         // if: collapsible ? data => data[valueField] : true,
-        if: currentData => {
+        if: (currentData, originalData) => {
+          const datasetsData = originalData[datasetsField];
           if (collapsible) return currentData[valueField];
-          if (!currentData.table) return true;
-          if (currentData.mode == historianSynchronizeMode) {
+          // if (!currentData.table) return true;
+          if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
+            return !['update_interval', 'update_mode'].includes(name)
+          } else if (currentData.mode == historianSynchronizeMode) {
             if (currentData.table == historianLiveTable) {
               return ['mode','table','tags','retrieveInterval'].includes(name)
             } else {
@@ -1119,6 +1123,7 @@ function getDatasetsQuery(datasets, allData, query) {
       }
       query.push(tabValue + '=' + true);
     } else {
+      if (!checkValue(datasets[tabValue])) return; 
       query.push(tabValue + '=' + getQueryParamValue(datasets[tabValue]));
     }
   } else {

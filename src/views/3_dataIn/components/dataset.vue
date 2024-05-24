@@ -350,7 +350,8 @@ export default {
     async submit() {
       let type = this.sourceParent.sourceForm.type
       let via = this.sourceParent.sourceForm.agent
-      const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
+      let url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
+      url = url.replace(/&csv_config_file=[^&]*/i, '')
       if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       try {
