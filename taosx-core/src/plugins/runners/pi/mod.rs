@@ -15,6 +15,7 @@ use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
 use crate::utils::log_cache::LogCache;
 use crate::utils::monitor::send_sub_process_info;
+use crate::TaskNotify;
 use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
     Action, Transferred,
@@ -183,7 +184,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
         task_id.clone(),
-        notify,
+        notify.clone(),
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -284,16 +285,23 @@ pub async fn pi_to_taos(
                 });
             };
             (wait) => {
+                let _notifier = notify.clone();
                 tokio::spawn(async move {
-                    let _ = child_command
+                    let mut exit = None;
+                    if let Ok(Some(status)) = child_command
                         .terminate_timeout(Duration::from_secs(2))
-                        .await;
+                        .await {
+                        tracing::info!("PI connector exit with {}", status);
+                        _notifier.send_async(TaskNotify::Info(format!("PI connector exit with {}", status)));
+                        exit.replace(status);
+                    }
                     tokio::spawn(async move {
                         tracing::info!("Wait for IPC handlers finished");
                         let _ = ipc.close().await;
                         tracing::info!("All IPC handlers have been finished");
                     });
-                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port).await;
+                    let _ = temp_path.close();
                     tokio::spawn(async move {
                         tracing::info!("Wait for rest api server finished");
                         port_pool.put(ipc_port).await;
@@ -302,7 +310,8 @@ pub async fn pi_to_taos(
                         tracing::info!("REST api server has been finished");
                         port_pool.put(sql_port).await;
                     });
-                });
+                    exit
+                })
             };
         }
         tokio::select! {
@@ -317,7 +326,11 @@ pub async fn pi_to_taos(
             err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
-                    safe_exit!(wait);
+                    if let Ok(Some(status)) = safe_exit!(wait).await {
+                        if status.success() {
+                            return Ok(());
+                        }
+                    }
                     anyhow::bail!("PI writer error: {err}. PI Logs:\n{}", pi_log_cache.get());
                 }
             },
