@@ -1461,9 +1461,11 @@ int sml_td23881_Test() {
   TAOS_RES *pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_23881 PRECISION 'ns'");
   taos_free_result(pRes);
 
-  char tmp[26375] = {0};
-  memset(tmp, 'a', 26374);
-  char sql[102400] = {0};
+  // char tmp[26375] = {0};
+  // memset(tmp, 'a', 26374);
+  char tmp[262128 / 3] = {0};
+  memset(tmp, 'a', 262128 / 3 - 1);
+  char sql[512000] = {0};
   sprintf(sql, "lujixfvqor,t0=t c0=f,c1=\"%s\",c2=\"%s\",c3=\"%s\",c4=\"wthvqxcsrlps\" 1626006833639000000", tmp, tmp,
           tmp);
 
@@ -2063,8 +2065,8 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_td24070_Test();
   ASSERT(!ret);
-  // ret = sml_td23881_Test();
-  // ASSERT(ret);
+  ret = sml_td23881_Test();
+  ASSERT(ret);
   ret = sml_escape_Test();
   ASSERT(!ret);
   ret = sml_escape1_Test();
