@@ -272,7 +272,7 @@ impl PutStream {
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
             let metrics = metrics_arc.ipc();
-            let lush_parser: Option<ParserImpl> = metadata.init().map(|init| {
+            let lush_parser = metadata.init().map(|init| {
                 let columns = init.columns();
                 let fields: LinkedHashMap<String, FieldParser> = columns
                     .iter()
@@ -283,9 +283,8 @@ impl PutStream {
                         )
                     })
                     .collect();
-                ParserImpl::new(fields)
+                Arc::new(ParserImpl::new(fields))
             });
-            let lush_parser = lush_parser.as_ref();
             if worker.lush_model_config.get().is_none() {
                 if let Some(sql) = metadata.init_sql_string() {
                     let init = metadata.init().unwrap();
@@ -294,7 +293,7 @@ impl PutStream {
                 }
             }
 
-            if let Some(parser) = lush_parser {
+            if let Some(parser) = lush_parser.as_deref() {
                 tracing::info!(
                     "Start IPC stream writer with lush parser: {}",
                     serde_json::to_string(parser).unwrap()
@@ -324,13 +323,14 @@ impl PutStream {
                     anyhow::Ok((
                         record,
                         trace_id,
-                        worker.clone(),
-                        parser.clone(),
-                        notify_sender.clone(),
-                        tx.clone(),
-                        abort_message_tx.clone(),
-                        contiguous_errors.clone(),
+                        &worker,
+                        &parser,
+                        &notify_sender,
+                        &tx,
+                        &abort_message_tx,
+                        &contiguous_errors,
                         &metrics_arc,
+                        &lush_parser,
                     ))
                 })
                 .try_for_each_concurrent(
@@ -345,6 +345,7 @@ impl PutStream {
                         abort_message_tx,
                         contiguous_errors,
                         metrics_arc,
+                        lush_parser,
                     )| {
                         async move {
                             tracing::info!("Writing batch {trace_id}");

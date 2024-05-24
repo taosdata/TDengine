@@ -861,9 +861,9 @@ async fn consume_lush_record_with_transform(
     data_trace_id: TraceDataId,
     _metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
-    lush_model_config: &LushModelConfig,
+    lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
-    lush_parser: &ParserImpl,
+    lush_parser: Arc<ParserImpl>,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
@@ -890,8 +890,11 @@ async fn consume_lush_record_with_transform(
                 }
                 anyhow::Ok(count)
             });
+
+            let pool = pool.clone();
+            let metrics_arc = metrics_arc.clone();
             // @huolinhe: Use rayon to speed up the process
-            record.into_par_iter().try_for_each_with(tx, |tx, record| {
+            tokio::task::spawn_blocking(move || record.into_par_iter().try_for_each_with(tx, |tx, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
@@ -1002,7 +1005,7 @@ async fn consume_lush_record_with_transform(
                     }
                 }
                 anyhow::Ok(())
-            })?;
+            })).await.context("Spawn blocking transform lush records inserts")??;
 
             *count += handle.await??;
         }
@@ -2827,26 +2830,29 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
 
     let mut count = 0;
-    let lush_parser: Option<ParserImpl> = ipc_reader.metadata().init().map(|init| {
-        let columns = init.columns();
-        let fields: LinkedHashMap<String, FieldParser> = columns
-            .iter()
-            .map(|(col_name, ipc_type)| {
-                (
-                    col_name.clone(),
-                    FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
-                )
-            })
-            .collect();
-        ParserImpl::new(fields)
-    });
-    let lush_parser = lush_parser.as_ref();
+    let lush_parser = ipc_reader
+        .metadata()
+        .init()
+        .map(|init| {
+            let columns = init.columns();
+            let fields: LinkedHashMap<String, FieldParser> = columns
+                .iter()
+                .map(|(col_name, ipc_type)| {
+                    (
+                        col_name.clone(),
+                        FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
+                    )
+                })
+                .collect();
+            ParserImpl::new(fields)
+        })
+        .map(Arc::new);
 
     let mut stream = ipc_reader.into_stream();
 
     let mut batches: u32 = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
-    let lush_model_config = lush_model_config.as_ref();
+    let lush_model_config = lush_model_config.map(Arc::new);
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
@@ -2864,7 +2870,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         })
         .unwrap();
         let last = count;
-        let result = if let Some(lush_model_config) = lush_model_config {
+        let result = if let Some(lush_model_config) = lush_model_config.clone() {
             consume_lush_record_with_transform(
                 pool,
                 &mut taos,
@@ -2879,7 +2885,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
-                lush_parser.unwrap(),
+                lush_parser.as_ref().unwrap().clone(),
             )
             .await
         } else {
@@ -3473,7 +3479,7 @@ pub struct IpcStreamWorker {
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<OpcModelConfig>,
-    pub lush_model_config: OnceCell<LushModelConfig>,
+    pub lush_model_config: OnceCell<Arc<LushModelConfig>>,
     pub lush_table_cache: Option<Arc<TableTagCache>>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
@@ -3530,12 +3536,12 @@ impl IpcStreamWorker {
         let taos = pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
 
-        let lush_model_config: OnceCell<LushModelConfig> = OnceCell::const_new();
+        let lush_model_config = OnceCell::const_new();
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
-                let v: LushModelConfig = LushModelConfig::try_from(from.clone()).unwrap();
-                // tracing::info!("LushModelConfig: {}", serde_json::to_string(&v).unwrap());
-                lush_model_config.set(v).unwrap();
+                lush_model_config
+                    .set(Arc::new(LushModelConfig::try_from(from.clone()).unwrap()))
+                    .unwrap();
             }
             _ => {}
         };
@@ -3574,7 +3580,7 @@ impl IpcStreamWorker {
         data_trace_id: TraceDataId,
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
-        lush_parser: Option<&ParserImpl>,
+        lush_parser: &Option<Arc<ParserImpl>>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3640,9 +3646,9 @@ impl IpcStreamWorker {
                         data_trace_id,
                         metrics,
                         metrics_arc,
-                        lush_model_config,
+                        lush_model_config.clone(),
                         table_tag_cache,
-                        lush_parser.unwrap(),
+                        lush_parser.clone().unwrap(),
                     )
                     .await?;
                 } else {
