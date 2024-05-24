@@ -333,6 +333,8 @@ namespace TDPIConnector.Core
             log.Info("backfill task manager: Init Finished, stop add new element into backfill list.");
             Task.WaitAll(backFillTasks.ToArray());
             log.Info("backfill task manager: All task Finished.");
+            tdEngineProxy.StopAll();
+            log.Info("backfill task manager: Close connection with agent.");
         }
         internal void StopAddTask()
         {
