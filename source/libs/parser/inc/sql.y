@@ -1312,24 +1312,36 @@ common_expression(A) ::= boolean_value_expression(B).                           
 /************************************************ from_clause_opt *********************************************************/
 from_clause_opt(A) ::= .                                                          { A = NULL; }
 from_clause_opt(A) ::= FROM table_reference_list(B).                              { A = B; }
-from_clause_opt    ::= FROM table_primary join_type join_subtype JOIN table_primary
-  join_on_clause_opt window_offset_clause_opt jlimit_clause_opt.                  { /* freemine: do NOT forget to fill action code */ }
 
 table_reference_list(A) ::= table_reference(B).                                   { A = B; }
 table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, JOIN_STYPE_NONE, B, C, NULL); }
 
 /************************************************ table_reference *****************************************************/
 table_reference(A) ::= table_primary(B).                                          { A = B; }
+table_reference(A) ::= joined_table(B).                                           { A = B; }
 
 table_primary(A) ::= table_name(B) alias_opt(C).                                  { A = createRealTableNode(pCxt, NULL, &B, &C); }
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }
 alias_opt(A) ::= .                                                                { A = nil_token;  }
 alias_opt(A) ::= table_alias(B).                                                  { A = B; }
 alias_opt(A) ::= AS table_alias(B).                                               { A = B; }
+
+parenthesized_joined_table(A) ::= NK_LP joined_table(B) NK_RP.                    { A = B; }
+parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.      { A = B; }
+
+/************************************************ joined_table ********************************************************/
+joined_table(A) ::=
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_primary(E) join_on_clause_opt(F) 
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { 
+                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F); 
+                                                                                    A = addWindowOffsetClause(pCxt, A, G);
+                                                                                    A = addJLimitClause(pCxt, A, H);
+                                                                                  }
 
 %type join_type                                                                   { EJoinType }
 %destructor join_type                                                             { }
