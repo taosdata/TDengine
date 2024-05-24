@@ -324,6 +324,7 @@ impl PutStream {
                         tx.clone(),
                         abort_message_tx.clone(),
                         contiguous_errors.clone(),
+                        &metrics_arc,
                     ))
                 })
                 .try_for_each_concurrent(
@@ -338,6 +339,7 @@ impl PutStream {
                         tx,
                         abort_message_tx,
                         contiguous_errors,
+                        metrics_arc,
                     )| {
                         async move {
                             tracing::info!("Writing batch {trace_id_str}");
@@ -348,6 +350,7 @@ impl PutStream {
                                     trace_id,
                                     &trace_id_str,
                                     metrics,
+                                    metrics_arc,
                                     lush_parser,
                                 )
                                 .in_current_span()
@@ -621,7 +624,7 @@ impl PutStream {
 
                         if let Err(err) = put_tx.send_async(item.map_err(|err: FlightError| {
                             tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
-                            Status::data_loss(format!("IPC worker seems stopped: {:#}", err))
+                            Status::cancelled(format!("IPC worker seems stopped: {:#}", err))
                         })).await {
                             tracing::info!(error.source = format!("{err:#}"), "Put stream receiver closed");
                             break;

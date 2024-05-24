@@ -47,6 +47,7 @@ use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
+use faststr::FastStr;
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
@@ -431,7 +432,7 @@ async fn ipc_tcp_read(
 struct LushMessageTagModify {
     // (create table sql, overflow, table count in sql)
     sqls: Vec<(String, bool, u16)>,
-    tags: Vec<(String, Value)>,
+    tags: Vec<(FastStr, Value)>,
 }
 
 // #[instrument(skip(taos, record, names, marks))]
@@ -455,7 +456,7 @@ async fn consume_lush_record(
             let taos = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
-            let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
+            let mut create_sql_map: HashMap<FastStr, LushMessageTagModify> = HashMap::new();
             // map: <stable_name, table_count>
             let mut table_set = HashSet::new();
             for table in tables {
@@ -512,7 +513,7 @@ async fn consume_lush_record(
                             if table_sql.is_some() {
                                 let stable_name = table.stable_name().clone().unwrap();
                                 let table_sql = table_sql.unwrap();
-                                let sql_vec = create_sql_map.get_mut(&stable_name);
+                                let sql_vec = create_sql_map.get_mut(stable_name);
                                 let mut insert_done = false;
                                 if sql_vec.is_some() {
                                     let tag_modify = sql_vec.unwrap();
@@ -766,7 +767,7 @@ async fn consume_lush_record(
 #[instrument(skip_all, fields(trace.id = trace_id_str))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
-    taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
+    _taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: LushMessage,
     _columns: &Vec<String>,
     count: &mut usize,
@@ -775,7 +776,8 @@ async fn consume_lush_record_with_transform(
     _task: Option<i64>,
     data_trace_id: u64,
     trace_id_str: &str,
-    metrics: &IpcMetrics,
+    _metrics: &IpcMetrics,
+    metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: &LushModelConfig,
     table_cache: Arc<TableTagCache>,
     lush_parser: &ParserImpl,
@@ -784,16 +786,23 @@ async fn consume_lush_record_with_transform(
     match record {
         LushMessage::Tables(tables) => {
             tracing::debug!("Received tables message size {}", tables.len());
+            let mut futures = futures::stream::FuturesUnordered::new();
             for table in tables {
-                table_cache.insert(table.table_name().to_string(), table);
+                futures.push(table_cache.insert_async(table.table_name().to_string(), table));
             }
+            while let Some(_) = futures.next().await {}
         }
         LushMessage::Insert(record) => {
-            for record in record {
+            use rayon::prelude::*;
+
+            let set = Arc::new(Mutex::new(tokio::task::JoinSet::new()));
+
+            // @huolinhe: Use rayon to speed up the process
+            record.into_par_iter().try_for_each_with(set.clone(), |set, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
-                    continue;
+                    return anyhow::Ok(());
                 }
                 let name_of_table_name_column = lush_model_config.table_name_column.as_str();
                 // 只包含普通列的值
@@ -812,7 +821,7 @@ async fn consume_lush_record_with_transform(
                     lush::create_tags_record(table_name_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
-                    continue;
+                    return Ok(());
                 }
                 let tags_records: RecordBatch = tags_records.unwrap();
                 // 左右合并 RecordBatch
@@ -830,12 +839,13 @@ async fn consume_lush_record_with_transform(
                 //         name_of_table_name_column,
                 //         &lush_model_config.super_table_name_mapping,
                 //     );
-                let grouped_batches: LinkedHashMap<String, RecordBatch> =
-                    lush::group_by_super_table_name2(&parsed_records);
+
+                let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
+
                 for (default_super_table, record_batch) in grouped_batches {
                     let super_table = lush_model_config
                         .super_table_name_mapping
-                        .get(default_super_table.as_str());
+                        .get(default_super_table);
                     if super_table.is_none() {
                         tracing::error!(
                             "default_super_table {} not found in super_table_name_mapping",
@@ -865,23 +875,43 @@ async fn consume_lush_record_with_transform(
                             if message.is_empty() {
                                 continue;
                             }
-                            *count += lush::write_transformed_records_with_sql(
-                                pool,
-                                taos,
+                            let pool = pool.clone();
+                            let super_table = super_table.clone();
+                            let req_id = req_id.clone();
+                            let metrics_ref = metrics_arc.clone();
+                            set.blocking_lock().spawn(async move {
+                                let metrics = metrics_ref.ipc();
+                                 lush::write_transformed_records_with_sql(
+                                &pool,
                                 super_table.as_str(),
                                 taos::Precision::Millisecond,
                                 &req_id,
                                 message,
                                 metrics,
-                            )
-                            .await?;
-                            metrics.add_processed_rows(num_rows as u64);
+                            ).await.map(|written| {
+                                if written != num_rows {
+                                    tracing::debug!(
+                                        "written rows not equal to num_rows, written: {}, num_rows: {}",
+                                        written,
+                                        num_rows
+                                    );
+                                }
+                                metrics.add_written_rows(num_rows as u64);
+                                num_rows
+                            }) }.in_current_span());
                         }
                         _ => unreachable!(
                             "parse_message_from_records always return Message::Records"
                         ),
                     }
                 }
+                anyhow::Ok(())
+            })?;
+
+            let mut guard = set.lock().await;
+
+            while let Some(res) = guard.join_next().await {
+                *count += res??;
             }
         }
     }
@@ -2697,6 +2727,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
     metrics: &IpcMetrics,
+    metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2757,6 +2788,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 data_trace_id,
                 &data_trace_id_str,
                 metrics,
+                &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
                 lush_parser.unwrap(),
@@ -3266,6 +3298,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 ipc_error_strategy,
                 stream_trace_id_u64,
                 metrics,
+                &metrics_arc,
             )
             .await?
         }
@@ -3460,6 +3493,7 @@ impl IpcStreamWorker {
         data_trace_id: u64,
         trace_id_str: &str,
         metrics: &IpcMetrics,
+        metrics_arc: &Arc<CoreMetrics>,
         lush_parser: Option<&ParserImpl>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
@@ -3527,6 +3561,7 @@ impl IpcStreamWorker {
                         data_trace_id,
                         trace_id_str,
                         metrics,
+                        metrics_arc,
                         lush_model_config,
                         table_tag_cache,
                         lush_parser.unwrap(),
