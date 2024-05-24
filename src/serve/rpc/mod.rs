@@ -23,7 +23,8 @@ use std::{
 };
 use taos::IntoDsn;
 use taosx_core::{
-    get_data_dir, CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
+    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
+    PutFileResp, QueryDataSourceResp,
 };
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -599,7 +600,10 @@ impl FlightService for FlightServiceImpl {
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result(String::from(stream_trace_id), self.spawn_sender.clone())
+                .into_flight_put_result(
+                    TraceStreamId::from_hex(stream_trace_id),
+                    self.spawn_sender.clone(),
+                )
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
         )))

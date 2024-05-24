@@ -10,26 +10,23 @@ use std::{
     time::Duration,
 };
 
-use crate::core_metrics::get_metrics_arc_from_i64;
-use crate::plugins::transform::TransformExt;
+use crate::plugins::runners::opc::config::model::ColumnConfig;
 use crate::runners::opc::config::model::TagConfig;
+use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
     utils::{get_main_version_from_server_version, get_server_version},
 };
-use crate::{plugins::runners::opc::config::model::ColumnConfig, utils::trace::get_stream_id_u64};
 use crate::{
     plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
 };
+use crate::{plugins::transform::TransformExt, utils::trace::TraceDataId};
 use crate::{runners::opc::config::model::TableConfig, sink::transform::parse::FieldParser};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
-        trace::{
-            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str,
-            set_data_trace_id_for_current_span, RequestID,
-        },
+        trace::{set_data_trace_id_for_current_span, RequestID},
     },
     ConnectorLicense, Parser, Transferred,
 };
@@ -164,9 +161,8 @@ async fn ipc_tcp_forward(
     config: Option<OpcModelConfig>,
 ) -> anyhow::Result<()> {
     use md5;
-    let stream_trace_id = create_stream_trace_id();
-    let stream_trace_id = stream_trace_id.as_str();
-    set_data_trace_id_for_current_span(stream_trace_id);
+    let stream_trace_id = TraceStreamId::random();
+    set_data_trace_id_for_current_span(&stream_trace_id);
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
     let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
@@ -195,7 +191,6 @@ async fn ipc_tcp_forward(
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "Reading batches");
-    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id);
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
     let mut cause_error = None;
@@ -221,7 +216,6 @@ async fn ipc_tcp_forward(
     let batch_number = Arc::new(AtomicU32::new(1));
     'start: loop {
         let batch_number = batch_number.clone();
-        let stream_trace_id_u64 = stream_trace_id_u64;
         let cur_span = Span::current();
         let data_stream = ipc_stream.clone();
         if last_retries > MAX_LAST_RETRIES {
@@ -255,14 +249,13 @@ async fn ipc_tcp_forward(
             }))
             .map(move |v| {
                 let cur_batch_number = batch_number.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id_u64, cur_batch_number);
-                let data_trace_id_str = get_data_trace_id_str(data_trace_id);
+                let data_trace_id = stream_trace_id.with_data_id(cur_batch_number);
                 cur_span.in_scope(|| {
-                    info!("Send batch {}", data_trace_id_str);
+                    debug!("Send batch {}", data_trace_id);
                 });
                 v.map(|message| {
                     message.with_app_metadata(Bytes::copy_from_slice(
-                        MessageMetadata::new(data_trace_id).as_bytes(),
+                        MessageMetadata::new(data_trace_id.as_u64()).as_bytes(),
                     ))
                 })
             });
@@ -297,7 +290,7 @@ async fn ipc_tcp_forward(
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
-        client.add_header("x-trace-id", stream_trace_id)?;
+        client.add_header("x-trace-id", &stream_trace_id.to_string())?;
         if let Err(err) = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
@@ -451,8 +444,8 @@ async fn ipc_tcp_read(
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
-    let stream_trace_id = create_stream_trace_id();
-    set_data_trace_id_for_current_span(stream_trace_id.as_str());
+    let stream_trace_id = TraceStreamId::random();
+    set_data_trace_id_for_current_span(&stream_trace_id);
     info!(client, "Prepare IPC stream reader");
     let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
@@ -528,7 +521,7 @@ struct LushMessageTagModify {
 }
 
 // #[instrument(skip(taos, record, names, marks))]
-#[instrument(skip_all, fields(trace.id = trace_id_str))]
+#[instrument(skip_all, fields(trace.id = %data_trace_id))]
 async fn consume_lush_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -538,11 +531,10 @@ async fn consume_lush_record(
     _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task: Option<i64>,
-    data_trace_id: u64,
-    trace_id_str: &str,
+    data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    let req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
             let taos = taos.as_ref().unwrap();
@@ -856,7 +848,7 @@ async fn consume_lush_record(
 }
 
 // #[instrument(skip(taos, record, names, marks))]
-#[instrument(skip_all, fields(trace.id = trace_id_str))]
+#[instrument(skip_all, fields(trace.id = %data_trace_id))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
     _taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -866,15 +858,14 @@ async fn consume_lush_record_with_transform(
     _license: Option<&ConnectorLicense>,
     _transferred: Option<&Transferred>,
     _task: Option<i64>,
-    data_trace_id: u64,
-    trace_id_str: &str,
+    data_trace_id: TraceDataId,
     _metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: &LushModelConfig,
     table_cache: Arc<TableTagCache>,
     lush_parser: &ParserImpl,
 ) -> anyhow::Result<()> {
-    let req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
             tracing::debug!("Received tables message size {}", tables.len());
@@ -1577,7 +1568,7 @@ struct SqlInsertion {
     modify: ModifyStructForPointMessage,
 }
 
-#[instrument(skip_all, fields(target_precision = ? target_precision, trace.id = trace_id_str))]
+#[instrument(skip_all, fields(target_precision = ? target_precision, trace.id = %data_trace_id))]
 async fn consume_point_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -1585,14 +1576,13 @@ async fn consume_point_record(
     count: &mut usize,
     config: &OpcModelConfig,
     target_precision: taos::Precision,
-    data_trace_id: u64,
-    trace_id_str: &str,
+    data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
     let mut points = 0;
-    let req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id.as_u64());
     for message in record.records() {
         // handle value_transform, ts_transform, rts_transform
         let message = handle_transform(message, config)?;
@@ -2289,7 +2279,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
 #[framed]
-#[instrument(skip_all, fields(writer.count = count, trace.id = trace_id_str))]
+#[instrument(skip_all, fields(writer.count = count, trace.id = %data_trace_id))]
 async fn consume_flat_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -2299,14 +2289,13 @@ async fn consume_flat_record(
     _: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
-    data_trace_id: u64,
-    trace_id_str: &str,
+    data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
-    let req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id.as_u64());
     for message in record.records() {
         let batch = message.record();
         let num_rows = batch.num_rows();
@@ -2817,7 +2806,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
@@ -2859,9 +2848,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         let taos = pool.get().await?;
         let mut taos = Some(taos);
         batches += 1;
-        let data_trace_id = create_data_trace_id(stream_trace_id, batches);
-        let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!("Writing batch {}", data_trace_id_str);
+        let data_trace_id = stream_trace_id.with_data_id(batches);
+        info!("Writing batch {}", data_trace_id);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -2878,7 +2866,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 transferred,
                 task_id,
                 data_trace_id,
-                &data_trace_id_str,
                 metrics,
                 &metrics_arc,
                 lush_model_config,
@@ -2897,14 +2884,13 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 transferred,
                 task_id,
                 data_trace_id,
-                &data_trace_id_str,
                 metrics,
             )
             .await
         };
         if let Err(err) = result {
             metrics.add_failed_batches(1);
-            tracing::error!("Writing batch {data_trace_id_str} error: {err:#}");
+            tracing::error!("Writing batch {data_trace_id} error: {err:#}");
             let written = count - last;
             if ipc_error_strategy.will_stop() {
                 bail!("write batch error: {err:#}");
@@ -2922,7 +2908,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
-                bail!("write batch {data_trace_id_str} error: {err:#}");
+                bail!("write batch {data_trace_id} error: {err:#}");
             }
         } else {
             tracing::info!("ack");
@@ -2960,7 +2946,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     _ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
@@ -2975,8 +2961,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     async fn parse(
         context: WriterContext,
         record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
-        data_trace_id: u64,
-        trace_id_str: &str,
+        data_trace_id: TraceDataId,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
         let record = record?;
@@ -2996,7 +2981,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             context.config.as_ref().unwrap(),
             context.target_precision,
             data_trace_id,
-            trace_id_str,
             metrics,
         )
         .await?;
@@ -3018,14 +3002,13 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let count = count.clone();
             let notifier = notifier.clone();
             let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-            let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-            let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-            info!("Writing batch {}", data_trace_id_str);
+            let data_trace_id = stream_trace_id.with_data_id(batch_number);
+            debug!("Writing batch {}", data_trace_id);
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 let metrics = metrics_arc_clone.ipc();
                 metrics.add_received_batches(1);
-                let n = parse(context, record, data_trace_id, &data_trace_id_str, metrics).await;
+                let n = parse(context, record, data_trace_id, metrics).await;
                 match n {
                     Ok(n) => {
                         metrics.add_processed_batches(1);
@@ -3034,7 +3017,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     }
                     Err(err) => {
                         metrics.add_failed_batches(1);
-                        tracing::warn!("Writing batch {} error: {:#}", &data_trace_id_str, err);
+                        tracing::warn!("Writing batch {} error: {:#}", &data_trace_id, err);
                         let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
@@ -3065,7 +3048,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     let mut count = 0;
@@ -3077,15 +3060,14 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
         metrics.add_received_batches(1);
-        let data_trace_id = create_data_trace_id(stream_trace_id, batches);
-        let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+        let data_trace_id = stream_trace_id.with_data_id(batches);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
         debug!(
             num.rows = record.num_rows(),
-            "Writing batch {data_trace_id_str}"
+            "Writing batch {data_trace_id}"
         );
         let last = count;
         if let Err(err) = consume_flat_record(
@@ -3098,7 +3080,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             transferred,
             target_precision,
             data_trace_id,
-            &data_trace_id_str,
             metrics,
         )
         .await
@@ -3139,7 +3120,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                 .context("write ack error");
         }
         tracing::debug!(
-            trace.id = data_trace_id_str,
+            trace.id = %data_trace_id,
             batch_id = batches,
             "IPC write batch finished"
         );
@@ -3284,7 +3265,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
-    stream_trace_id: String,
+    stream_trace_id: TraceStreamId,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
     const MAX_RETRIES: usize = 10;
@@ -3347,13 +3328,12 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
     let metrics = metrics_arc.ipc();
     if lush_model_config.is_none() {
         if let Some(sql) = metadata.init_sql_string() {
             let init = metadata.init().unwrap();
-            let req_id = RequestID::new(stream_trace_id_u64);
+            let req_id = stream_trace_id.to_request_id();
             handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
         }
     }
@@ -3372,7 +3352,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 target_precision,
                 notifier,
                 ipc_error_strategy,
-                stream_trace_id_u64,
+                stream_trace_id,
                 metrics,
             )
             .await?
@@ -3388,7 +3368,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 task_id,
                 notifier,
                 ipc_error_strategy,
-                stream_trace_id_u64,
+                stream_trace_id,
                 metrics,
                 &metrics_arc,
             )
@@ -3405,7 +3385,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 target_precision,
                 notifier,
                 ipc_error_strategy,
-                stream_trace_id_u64,
+                stream_trace_id,
                 metrics_arc.clone(),
             )
             .await?
@@ -3582,8 +3562,7 @@ impl IpcStreamWorker {
         &self,
         record: RecordBatch,
         parser: Option<&Parser>,
-        data_trace_id: u64,
-        trace_id_str: &str,
+        data_trace_id: TraceDataId,
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         lush_parser: Option<&ParserImpl>,
@@ -3614,7 +3593,6 @@ impl IpcStreamWorker {
                     self.transferred.as_deref(),
                     self.target_precision,
                     data_trace_id,
-                    trace_id_str,
                     metrics,
                 )
                 .await?;
@@ -3634,7 +3612,7 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| {
-                    anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str)
+                    anyhow::format_err!("Unable to read lush message, trace.id={}", data_trace_id)
                 })?;
                 let mut taos = Some(self.pool.get().await?);
                 let task = self.task;
@@ -3651,7 +3629,6 @@ impl IpcStreamWorker {
                         self.transferred.as_deref(),
                         task,
                         data_trace_id,
-                        trace_id_str,
                         metrics,
                         metrics_arc,
                         lush_model_config,
@@ -3670,7 +3647,6 @@ impl IpcStreamWorker {
                         self.transferred.as_deref(),
                         task,
                         data_trace_id,
-                        trace_id_str,
                         metrics,
                     )
                     .await?;
@@ -3691,11 +3667,13 @@ impl IpcStreamWorker {
                     &record,
                     &mut count,
                     self.opc_table_config.get().ok_or_else(|| {
-                        anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str)
+                        anyhow::format_err!(
+                            "OPC table config not found, trace.id={}",
+                            data_trace_id
+                        )
                     })?,
                     self.target_precision,
                     data_trace_id,
-                    trace_id_str,
                     metrics,
                 )
                 .await?;

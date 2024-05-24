@@ -15,9 +15,7 @@ use taosx_core::{
     },
     utils::{
         get_main_version_from_server_version, get_server_version,
-        trace::{
-            get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
-        },
+        trace::{set_data_trace_id_for_current_span, RequestID, TraceDataId, TraceStreamId},
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
@@ -67,12 +65,12 @@ impl PutStream {
     #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
     pub async fn into_flight_put_result(
         self,
-        stream_trace_id: String,
+        stream_trace_id: TraceStreamId,
         spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
-        set_data_trace_id_for_current_span(stream_trace_id.as_str());
+        set_data_trace_id_for_current_span(&stream_trace_id);
         tracing::info!("Put stream by task id {}", self.task_id,);
         let task = self
             .controller
@@ -233,8 +231,8 @@ impl PutStream {
             pool: taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, u64)>>,
-            rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
+            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, TraceDataId)>>,
+            rx: flume::Receiver<(arrow::record_batch::RecordBatch, TraceDataId)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
@@ -242,7 +240,7 @@ impl PutStream {
             span: tracing::Span,
             abort_message_tx: flume::Sender<Result<PutResult, Status>>,
             ipc_error_strategy: IpcErrorStrategy,
-            stream_trace_id_u64: u64,
+            stream_trace_id: TraceStreamId,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
             notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
@@ -291,7 +289,7 @@ impl PutStream {
             if worker.lush_model_config.get().is_none() {
                 if let Some(sql) = metadata.init_sql_string() {
                     let init = metadata.init().unwrap();
-                    let req_id = RequestID::new(stream_trace_id_u64);
+                    let req_id = RequestID::new(stream_trace_id.as_u64());
                     handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
                 }
             }
@@ -323,11 +321,9 @@ impl PutStream {
             let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
-                    let trace_id_str = get_data_trace_id_str(trace_id);
                     anyhow::Ok((
                         record,
                         trace_id,
-                        trace_id_str,
                         worker.clone(),
                         parser.clone(),
                         notify_sender.clone(),
@@ -342,7 +338,6 @@ impl PutStream {
                     |(
                         record,
                         trace_id,
-                        trace_id_str,
                         worker,
                         parser,
                         notify_sender,
@@ -352,13 +347,12 @@ impl PutStream {
                         metrics_arc,
                     )| {
                         async move {
-                            tracing::info!("Writing batch {trace_id_str}");
+                            tracing::info!("Writing batch {trace_id}");
                             if let Err(err) = worker
                                 .process_record(
                                     record.clone(),
                                     parser.as_deref(),
                                     trace_id,
-                                    &trace_id_str,
                                     metrics,
                                     metrics_arc,
                                     lush_parser,
@@ -374,7 +368,7 @@ impl PutStream {
                                     error = format!("{:#}", err),
                                     backtrace = %err.backtrace(),
                                     "Writing batch {} error",
-                                    trace_id_str,
+                                    trace_id,
                                 );
                                 let period = match last_errors {
                                     errors if errors < 8 => 8,
@@ -386,7 +380,7 @@ impl PutStream {
                                 tokio::time::sleep(std::time::Duration::from_millis(period * 80))
                                     .await;
                                 let message =
-                                    format!("IPC processing record {trace_id_str} error: {err:#}");
+                                    format!("IPC processing record {trace_id} error: {err:#}");
                                 let _ = notify_sender.send(
                                     crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                         agent_id,
@@ -408,7 +402,7 @@ impl PutStream {
                                 }
                                 if let Some(tx) = tx.upgrade() {
                                     tracing::warn!(
-                                        trace_id = trace_id_str,
+                                        trace_id = %trace_id,
                                         "Re-queue with {} rows record",
                                         record.num_rows()
                                     );
@@ -417,7 +411,7 @@ impl PutStream {
                                         .context("Re-queue error")?;
                                 } else {
                                     tracing::warn!(
-                                        trace_id = trace_id_str,
+                                        trace_id = %trace_id,
                                         "IPC channel is closed, cannot re-queue record {trace_id}"
                                     );
                                 }
@@ -446,7 +440,7 @@ impl PutStream {
                                     );
                                     contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
                                 } else {
-                                    tracing::debug!("Writing batch {} success", trace_id_str);
+                                    tracing::debug!("Writing batch {} success", trace_id);
                                 }
                             }
                             Ok(())
@@ -469,7 +463,6 @@ impl PutStream {
         let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
         tokio::spawn(
             async move {
-                let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
                 let task_id = task.id;
                 let (sender, receiver) = tokio::sync::oneshot::channel();
                 let timeout = std::time::Duration::from_secs(60);
@@ -493,7 +486,7 @@ impl PutStream {
                                 Span::current(),
                                 abort_message_tx,
                                 ipc_error_strategy,
-                                stream_trace_id_u64,
+                                stream_trace_id,
                             )
                             .in_current_span(),
                         ),
@@ -554,22 +547,21 @@ impl PutStream {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
             tokio::pin!(stream);
 
-            let process_item = |message: DecodedFlightData, trace_id: u64| {
+            let process_item = |message: DecodedFlightData, trace_id: TraceDataId| {
                 let metrics = metrics_arc.ipc();
                 let tx = tx.clone();
                 let metadata = MessageMetadata::new_ack(
                     RPC_ACK_PROCESSED,
-                    trace_id,
+                    trace_id.as_u64(),
                     metrics.total_received_batches(),
                 );
                 let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
                 async move {
-                    let trace_id = trace_id;
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
                                 tracing::warn!(
-                                    trace_id = get_data_trace_id_str(trace_id),
+                                    trace_id = %trace_id,
                                     ipc.channel.capacity = tx.capacity(),
                                     ipc.channel.len = tx.len(),
                                     ipc.channel.receiver_count = tx.receiver_count(),
@@ -661,12 +653,13 @@ impl PutStream {
                             Ok(message) => {
                                 let app_metadata = message.app_metadata();
                                 let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
+                                let trace_id = TraceDataId(trace_id);
                                 metrics_arc.ipc().add_received_batches(1);
                                 let count = metrics_arc.ipc().total_received_batches();
                                 cur_span.in_scope(|| {
-                                    tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                                    tracing::debug!("Receive batch {}", trace_id);
                                 });
-                                let mut metadata = MessageMetadata::new_ack(RPC_ACK_RECEIVED, trace_id, count);
+                                let mut metadata = MessageMetadata::new_ack(RPC_ACK_RECEIVED, trace_id.as_u64(), count);
                                 let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
                                 // 1. send ack for received message
                                 if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata})).await {
