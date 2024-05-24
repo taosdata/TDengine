@@ -23,7 +23,7 @@ use tracing::{instrument, Instrument, Span};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
-    scheduler::agent::AgentNotifySender,
+    scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
 
@@ -64,6 +64,7 @@ impl PutStream {
     pub async fn into_flight_put_result(
         self,
         stream_trace_id: String,
+        spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
@@ -219,7 +220,7 @@ impl PutStream {
             notify_sender: AgentNotifySender,
             agent_id: i64,
             task: TaskDetail,
-            pool: &taos::TaosPool,
+            pool: taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
             tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, u64)>>,
@@ -457,28 +458,60 @@ impl PutStream {
             async move {
                 let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
                 let task_id = task.id;
-                if let Err(err) = ipc_stream_writer(
-                    notify_sender.clone(),
-                    agent_id,
-                    task,
-                    &pool,
-                    lock,
-                    schema,
-                    tx_cloned,
-                    rx.clone(),
-                    // rsp_tx,
-                    license,
-                    transferred,
-                    lush_table_cache,
-                    Span::current(),
-                    abort_message_tx,
-                    ipc_error_strategy,
-                    stream_trace_id_u64,
+                let (sender, receiver) = tokio::sync::oneshot::channel();
+                let timeout = std::time::Duration::from_secs(60);
+                if let Err(err) = tokio::time::timeout(
+                    timeout,
+                    spawn_sender.send_async((
+                        Box::pin(
+                            ipc_stream_writer(
+                                notify_sender.clone(),
+                                agent_id,
+                                task,
+                                pool,
+                                lock,
+                                schema,
+                                tx_cloned,
+                                rx.clone(),
+                                // rsp_tx,
+                                license,
+                                transferred,
+                                lush_table_cache,
+                                Span::current(),
+                                abort_message_tx,
+                                ipc_error_strategy,
+                                stream_trace_id_u64,
+                            )
+                            .in_current_span(),
+                        ),
+                        sender,
+                    )),
                 )
-                .in_current_span()
                 .await
                 {
-                    tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    tracing::error!(
+                        error.source = format!("{err:#}"),
+                        "IPC stream writer spawn error"
+                    );
+                    let _ = notify_sender.send(
+                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                            agent_id,
+                            TaskActivity::warn(task_id, format!("{err:#}")),
+                        ),
+                    );
+                    drop(rx);
+                    return;
+                }
+                match receiver.await {
+                    Ok(Ok(_)) => {
+                        tracing::info!("IPC stream writer spawned successfully");
+                    }
+                    Ok(Err(err)) => {
+                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    }
+                    Err(err) => {
+                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                    }
                 }
                 let _ =
                     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(

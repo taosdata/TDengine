@@ -617,8 +617,12 @@ fn main() -> Result<()> {
             let addr = serve.get_listen_address();
             let port = addr.split(':').last().unwrap();
             let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
-            let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
-                scheduler_rt.block_on(serve.channels());
+            let (
+                agent_integration_channel,
+                agent_rpc_channel,
+                agent_spawn_sender,
+                scheduler_notifier,
+            ) = scheduler_rt.block_on(serve.channels());
 
             let scheduler = scheduler_rt
                 .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
@@ -632,8 +636,12 @@ fn main() -> Result<()> {
             let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-            let grpc_handle =
-                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
+            let grpc_handle = grpc_rt.spawn(serve_api.grpc(
+                ctl.clone(),
+                agent_rpc_channel,
+                agent_spawn_sender,
+                monitor.clone(),
+            ));
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle, monitor).await
