@@ -33,6 +33,7 @@ pub enum CoreMetrics {
 
 impl CoreMetrics {
     /// Unwrap this enum to get the LegacyToTaosMetrics.
+    #[inline]
     pub fn legacy(&self) -> &LegacyToTaosMetrics {
         match self {
             CoreMetrics::Legacy(legacy) => legacy,
@@ -41,6 +42,7 @@ impl CoreMetrics {
     }
 
     /// Unwrap this enum to get the TMQMetrics.
+    #[inline]
     pub fn tmq(&self) -> &TmqMetrics {
         match self {
             CoreMetrics::TMQ(tmq) => tmq,
@@ -49,6 +51,7 @@ impl CoreMetrics {
     }
 
     /// Unwrap this enum to get the IpcMetrics.
+    #[inline]
     pub fn ipc(&self) -> &IpcMetrics {
         match self {
             CoreMetrics::IPC(ipc) => ipc,

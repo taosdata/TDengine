@@ -18,6 +18,7 @@ parquet = "50.0.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
 metrics-tracing-context = "0.15.0"
 tonic = "0.10"
+zerocopy = { version = "0.7.34", features = ["derive"] }
 
 taos = { version = "0.11.23", default-features = false, features = [
     "ws",
@@ -52,6 +53,7 @@ anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
 faststr = { workspace = true }
+zerocopy = { workspace = true }
 
 shadow-rs = { workspace = true }
 strum = { version = "0.25", features = ["derive"] }

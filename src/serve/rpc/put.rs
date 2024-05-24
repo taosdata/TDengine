@@ -1,15 +1,18 @@
 use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context};
-use arrow_flight::{decode::DecodedFlightData, error::FlightError, FlightData, PutResult};
+use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
+use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
-use parquet::data_type::AsBytes;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
-    sink::{handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy},
+    sink::{
+        handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy, MessageMetadata,
+        RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+    },
     utils::{
         get_main_version_from_server_version, get_server_version,
         trace::{
@@ -20,6 +23,7 @@ use taosx_core::{
 };
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
+use zerocopy::{AsBytes as _, FromBytes};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
@@ -100,7 +104,13 @@ impl PutStream {
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
-        let mut stream = arrow_flight::decode::FlightDataDecoder::new(self.req.map_err(Into::into));
+        let mut stream = arrow_flight::decode::FlightDataDecoder::new(self.req.map_err(|err| {
+            tracing::error!(
+                error.source = format!("{err:#}"),
+                "Invalid IPC stream error"
+            );
+            Into::into(err)
+        }));
         // let schema = stream.schema();
         // dbg!(schema);
 
@@ -373,7 +383,7 @@ impl PutStream {
                                     errors if errors < 64 => 64,
                                     _ => 128,
                                 };
-                                tokio::time::sleep(std::time::Duration::from_millis(period * 8))
+                                tokio::time::sleep(std::time::Duration::from_millis(period * 80))
                                     .await;
                                 let message =
                                     format!("IPC processing record {trace_id_str} error: {err:#}");
@@ -383,7 +393,7 @@ impl PutStream {
                                         TaskActivity::warn(task_id, message),
                                     ),
                                 );
-                                if ipc_error_strategy.will_stop() {
+                                if ipc_error_strategy.will_stop() || last_errors > 10 {
                                     let _ = abort_message_tx.send(Err(Status::cancelled(format!(
                                         "IPC worker will be stopped since{err:#}"
                                     ))));
@@ -543,41 +553,19 @@ impl PutStream {
         tokio::spawn(async move {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
             tokio::pin!(stream);
-            let process_item = |message: Result<DecodedFlightData, FlightError>| {
+
+            let process_item = |message: DecodedFlightData, trace_id: u64| {
                 let metrics = metrics_arc.ipc();
-                let message = message
-                    .map(|message| {
-                        let app_metadata = message.app_metadata();
-                        let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
-                        metrics.add_received_batches(1);
-                        cur_span.in_scope(|| {
-                            tracing::info!("Receive batch {}", get_data_trace_id_str(trace_id));
-                        });
-                        (message, app_metadata, trace_id, tx.clone())
-                    })
-                    .inspect_err(|err| {
-                        cur_span.in_scope(|| {
-                            tracing::warn!(
-                                error.source = format!("{err:#}"),
-                                "Put stream message error"
-                            );
-                            if let Err(err) = notify_sender.send(
-                                crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                    agent_id,
-                                    TaskActivity::warn(task_id, format!("{err:#}")),
-                                ),
-                            ) {
-                                tracing::warn!(
-                                    error.source = format!("{err:#}"),
-                                    "Put stream message error"
-                                );
-                            }
-                        });
-                    });
-                async {
-                    let (message, app_metadata, trace_id, tx) = message
-                        .map_err(|err| Status::cancelled(format!("IPC stream error: {:#}", err)))?;
-                    Ok(match message.payload {
+                let tx = tx.clone();
+                let metadata = MessageMetadata::new_ack(
+                    RPC_ACK_PROCESSED,
+                    trace_id,
+                    metrics.total_received_batches(),
+                );
+                let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                async move {
+                    let trace_id = trace_id;
+                    match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
                                 tracing::warn!(
@@ -591,18 +579,24 @@ impl PutStream {
                                     err
                                 );
 
-                                return Err(FlightError::ExternalError(Box::new(err)));
+                                return None;
                             } else {
-                                PutResult { app_metadata }
+                                return Some(PutResult { app_metadata })
                             }
                         }
                         payload => {
                             tracing::warn!(payload = ?payload, metadata = ?app_metadata, "Invalid IPC message");
-                            PutResult { app_metadata }
+                            return Some(PutResult { app_metadata })
                         }
-                    })
+                    }
                 }.instrument(cur_span.clone())
             };
+
+            // Limit message decode errors as 10 per 60s (cps) to avoid infinite loop
+            const MAX_MESSAGE_ERRORS: usize = 10;
+            let mut error_check_interval =
+                tokio::time::interval(std::time::Duration::from_secs(60));
+            let mut message_error_count = 0;
             loop {
                 tokio::select! {
                     _ = heartbeat.tick() => {
@@ -614,20 +608,99 @@ impl PutStream {
                             break;
                         };
                     }
+                    _ = error_check_interval.tick() => {
+                        message_error_count = 0;
+                    }
                     message = stream.next() => {
                         if message.is_none() {
                             break;
                         }
                         let message = message.unwrap();
+                        match message {
+                            Err(err) => {
+                                // To deal with decode error
+                                message_error_count += 1;
+                                if message_error_count > MAX_MESSAGE_ERRORS {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!(
+                                            error.source = format!("{err:#}"),
+                                            "Too many IPC stream errors"
+                                        );
+                                    });
+                                    if let Err(err) = put_tx.send_async(Err(Status::aborted(format!("Too many put stream errors: {:#}", err)))).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::warn!(
+                                                error.source = format!("{err:#}"),
+                                                "IPC stream finished"
+                                            );
+                                        });
+                                        break;
+                                    };
+                                } else {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!(
+                                            error.source = format!("{err:#}"),
+                                            error.backtrace = ?err,
+                                            "IPC stream message error"
+                                        );
+                                    });
+                                }
 
-                        let item = process_item(message).in_current_span().await;
+                                if let Err(err) = notify_sender.send(
+                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                        agent_id,
+                                        TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                    ),
+                                ) {
+                                    tracing::warn!(
+                                        error.source = format!("{err:#}"),
+                                        "Put stream message error"
+                                    );
+                                }
+                            }
+                            Ok(message) => {
+                                let app_metadata = message.app_metadata();
+                                let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
+                                metrics_arc.ipc().add_received_batches(1);
+                                let count = metrics_arc.ipc().total_received_batches();
+                                cur_span.in_scope(|| {
+                                    tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                                });
+                                let mut metadata = MessageMetadata::new_ack(RPC_ACK_RECEIVED, trace_id, count);
+                                let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                                // 1. send ack for received message
+                                if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata})).await {
+                                    cur_span.in_scope(|| {
+                                        tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                    });
+                                    break;
+                                }
+                                let item = process_item(message, trace_id).in_current_span().await;
 
-                        if let Err(err) = put_tx.send_async(item.map_err(|err: FlightError| {
-                            tracing::warn!(error.source = format!("{err:#}"), "IPC stream error");
-                            Status::cancelled(format!("IPC worker seems stopped: {:#}", err))
-                        })).await {
-                            tracing::info!(error.source = format!("{err:#}"), "Put stream receiver closed");
-                            break;
+                                // 2. send processed message
+                                if let Some(item) = item {
+                                    if let Err(err) = put_tx.send_async(Ok(item)).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                        });
+                                        break;
+                                    }
+                                } else {
+                                    cur_span.in_scope(|| {
+                                        tracing::warn!("Put stream worker dropped");
+                                    });
+                                    metadata.set_ack(RPC_ACK_STREAM_END);
+                                    let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
+                                    if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata })).await {
+                                        cur_span.in_scope(|| {
+                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                        });
+                                        break;
+                                    }
+                                    drop(put_tx);
+                                    break;
+                                }
+                            }
                         }
                     }
                     abort = abort_message_rx.recv_async() => {
@@ -637,6 +710,7 @@ impl PutStream {
                                 tracing::info!(error.source = format!("{err:#}"), "IPC stream aborted");
                             }
                         }
+                        drop(put_tx);
                         break;
                     }
                 }
@@ -652,6 +726,11 @@ unsafe impl Sync for PutStream {}
 unsafe impl Send for PutStream {}
 
 fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
+    if app_metadata[0] == 0 {
+        return MessageMetadata::ref_from(&app_metadata)
+            .map(|m| m.trace_id())
+            .unwrap_or_default();
+    }
     let meta_bytes = app_metadata.as_bytes();
     match serde_json::from_slice::<AppMetadata>(meta_bytes) {
         Ok(app_meta) => app_meta.data_trace_id,

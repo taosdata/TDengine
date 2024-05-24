@@ -2153,7 +2153,7 @@ impl TaskActivity {
         Self {
             id,
             at: Utc::now(),
-            level: LevelFilter::Error,
+            level: LevelFilter::Warn,
             activity: message,
             status: "running".to_string(),
             context: None,
