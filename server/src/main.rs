@@ -614,16 +614,42 @@ async fn rest_proxy(
     payload: web::Payload,
 ) -> impl Responder {
     let x = args.profile.cluster.as_deref().unwrap();
-    let query = req.query_string();
-    let url = if query.is_empty() {
-        format!("{x}/rest/{path}")
-    } else {
-        format!("{x}/rest/{path}?{query}")
-    };
+    // use proxy if cluster is a url, otherwise use native query.
+    if x.starts_with("http://") || x.starts_with("https://") {
+        let query = req.query_string();
+        let url = if query.is_empty() {
+            format!("{x}/rest/{path}")
+        } else {
+            format!("{x}/rest/{path}?{query}")
+        };
 
-    proxy(req, payload, client, &url)
-        .await
-        .map_err(RestErrResponse::new)
+        proxy(req, payload, client, &url)
+            .await
+            .map_err(RestErrResponse::new)
+    } else {
+        let header = req
+            .headers()
+            .get(AUTHORIZATION)
+            .and_then(|header| header.to_str().ok())
+            .unwrap_or_default();
+        let sql = get_body_from_payload(payload).await?;
+
+        Ok(match args.query(header, &sql).await {
+            Ok(ok) => HttpResponse::Ok().json(ok),
+            Err(err) => HttpResponse::InternalServerError().json(err),
+        })
+    }
+}
+
+async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, RestErrResponse> {
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = payload.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+    String::from_utf8(bytes.to_vec()).map_err(|e| {
+        eprintln!("Error converting body bytes to string: {:?}", e);
+        RestErrResponse::new("Error converting body bytes to string")
+    })
 }
 
 #[derive(Debug, thiserror::Error)]
