@@ -96,9 +96,9 @@ typedef struct TAOS_FIELD_E {
 } TAOS_FIELD_E;
 
 #ifdef WINDOWS
-#define DLL_EXPORT __declspec(dllexport)
+  #define DLL_EXPORT __attribute__((visibility("default")))    __declspec(dllexport)
 #else
-#define DLL_EXPORT
+  #define DLL_EXPORT __attribute__((visibility("default"))) 
 #endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
