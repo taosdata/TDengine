@@ -624,7 +624,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
-  tsNumOfSupportVnodes = tsNumOfCores * 2;
+  tsNumOfSupportVnodes = tsNumOfCores * 2 + 5;
   tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
   if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
@@ -878,7 +878,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "supportVnodes");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfSupportVnodes = numOfCores * 2;
+    tsNumOfSupportVnodes = numOfCores * 2 + 5;
     tsNumOfSupportVnodes = TMAX(tsNumOfSupportVnodes, 2);
     pItem->i32 = tsNumOfSupportVnodes;
     pItem->stype = stype;
@@ -1377,6 +1377,35 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   return 0;
 }
 
+int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs) {
+  if (tsCfg == NULL) osDefaultInit();
+
+  SConfig *pCfg = cfgInit();
+  if (pCfg == NULL) return -1;
+
+  if (cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+
+  if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
+    printf("failed to load cfg since %s", terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  if (cfgLoadFromArray(pCfg, pArgs) != 0) {
+    printf("failed to load cfg from array since %s", terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
+
+  cfgCleanup(pCfg);
+  return 0;
+}
+
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = taosGetIpv4FromFqdn(tsLocalFqdn);
   if (ipv4 == 0xffffffff) {
@@ -1394,7 +1423,7 @@ static int32_t taosCheckGlobalCfg() {
 }
 
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc, bool isDumpCfg) {
+                    bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -1441,7 +1470,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
-  if(isDumpCfg) cfgDumpCfg(tsCfg, tsc, false);
+  cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
     return -1;

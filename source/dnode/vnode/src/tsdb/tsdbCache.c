@@ -1238,6 +1238,18 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   ctxArray = taosArrayInit(pBlockData->nColData, sizeof(SLastUpdateCtx));
 
   // 1. prepare last
+  STsdbRowKey tsdbRowKey = {0};
+  tsdbRowGetKey(&lRow, &tsdbRowKey);
+
+  {
+    SLastUpdateCtx updateCtx = {
+        .lflag = LFLAG_LAST,
+        .tsdbRowKey = tsdbRowKey,
+        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP,
+                                                                       .val = lRow.pBlockData->aTSKEY[lRow.iRow]}))};
+    taosArrayPush(ctxArray, &updateCtx);
+  }
+
   TSDBROW tRow = tsdbRowFromBlockData(pBlockData, 0);
 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; ++iColData) {
@@ -1263,9 +1275,6 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   }
 
   // 2. prepare last row
-  STsdbRowKey tsdbRowKey = {0};
-  tsdbRowGetKey(&lRow, &tsdbRowKey);
-
   STSDBRowIter iter = {0};
   tsdbRowIterOpen(&iter, &lRow, pTSchema);
   for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {
