@@ -81,8 +81,9 @@ mod tests {
     use taos::Dsn;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_produce() {
-        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let config = OracleConfig::from_dsn(&dsn).unwrap();
 

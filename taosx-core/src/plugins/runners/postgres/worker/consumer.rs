@@ -163,9 +163,10 @@ mod tests {
     use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_consumer() {
         // config
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres?sql=select * from information_schema.tables&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);
@@ -178,7 +179,7 @@ mod tests {
                 .await
                 .unwrap();
         let row = query
-            .select_one_for_schema("select * from information_schema.tables")
+            .select_one_for_schema("select * from public.t_metric")
             .await
             .unwrap();
         let schema = match row {

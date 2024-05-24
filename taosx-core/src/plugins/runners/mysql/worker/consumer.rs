@@ -113,7 +113,9 @@ impl Consumer {
                     // copy rows
                     let rows_cloned = rows.splice(.., Vec::new()).collect::<Vec<_>>();
                     // transform to record batch
-                    let batch = appender::to_record_batch(rows_cloned).await?;
+                    let batch =
+                        appender::to_record_batch(rows_cloned, self.config.task.time_zone.clone())
+                            .await?;
                     // send to IPC
                     tx.send_async(batch.clone()).await?;
                     // clear rows
@@ -124,7 +126,8 @@ impl Consumer {
             }
             if !rows.is_empty() {
                 // transform to record batch
-                let batch = appender::to_record_batch(rows).await?;
+                let batch =
+                    appender::to_record_batch(rows, self.config.task.time_zone.clone()).await?;
                 // send to IPC
                 tx.send_async(batch.clone()).await?;
                 // stastics
@@ -160,9 +163,10 @@ mod tests {
     use tests::appender::to_schema;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
     async fn test_consumer() {
         // config
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_connector?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
+        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.40:3306/test_taosx?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
         config.task_id = Some(1);

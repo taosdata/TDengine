@@ -230,6 +230,9 @@ impl TaskConfig {
 
         let mut sql = self.sql.clone();
 
+        // whether the sql contains time range
+        let mut time_range_exist = false;
+
         if sql.contains("${start}") && sql.contains("${end}") {
             let query_start = format!(
                 "TO_DATE('{}','YYYY-MM-DD HH24:MI:SS')",
@@ -242,7 +245,9 @@ impl TaskConfig {
             sql = sql
                 .replace("${start}", &query_start)
                 .replace("${end}", &query_end);
-        } else if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
             let query_start = format!(
                 "TO_DATE('{}','YYYY-MM-DD HH24:MI:SS')",
                 start_tz.format("%Y-%m-%d %H:%M:%S")
@@ -254,13 +259,17 @@ impl TaskConfig {
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);
-        } else if sql.contains("${start_date}") && sql.contains("${end_date}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_date}") && sql.contains("${end_date}") {
             let query_start = format!("TO_DATE('{}','YYYY-MM-DD')", start_tz.format("%Y-%m-%d"));
             let query_end = format!("TO_DATE('{}','YYYY-MM-DD')", end_tz.format("%Y-%m-%d"));
             sql = sql
                 .replace("${start_date}", &query_start)
                 .replace("${end_date}", &query_end);
-        } else if sql.contains("${start_time}") && sql.contains("${end_time}") {
+            time_range_exist = true;
+        }
+        if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("TO_DATE('{}','HH24:MI:SS')", start_tz.format("%H:%M:%S"));
             let mut query_end = format!("TO_DATE('{}','HH24:MI:SS')", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
@@ -272,7 +281,9 @@ impl TaskConfig {
             sql = sql
                 .replace("${start_time}", &query_start)
                 .replace("${end_time}", &query_end);
-        } else {
+            time_range_exist = true;
+        }
+        if !time_range_exist {
             anyhow::bail!("invalid sql template, missing start and end");
         }
 
@@ -301,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_parse_config_invalid_driver() {
-        let dsn = Dsn::from_str("oraclex://root:password@localhost:1521/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("oraclex://root:password@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = OracleConfig::from_dsn(&dsn);
         dbg!(&config);
@@ -310,16 +321,16 @@ mod tests {
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("oracle://root:password@localhost:1521/dbname?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("oracle://root:password@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
         let config = OracleConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
-        assert_eq!(config.connect.host, "localhost");
+        assert_eq!(config.connect.host, "192.168.1.40");
         assert_eq!(config.connect.port, 1521);
         assert_eq!(config.connect.username, "root");
         assert_eq!(config.connect.password, "password");
-        assert_eq!(config.connect.subject, "dbname");
-        assert_eq!(config.task.sql, "select * from table");
+        assert_eq!(config.connect.subject, "ORCLPDB1");
+        assert_eq!(config.task.sql, "select * from t_metric");
         assert_eq!(
             config.task.start,
             "2021-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
@@ -334,7 +345,7 @@ mod tests {
 
     #[test]
     fn test_generate_sql() {
-        let dsn = Dsn::from_str("oracle://root:password@localhost:1521/dbname?sql=select * from table where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("oracle://root:password@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
         let config = OracleConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
