@@ -270,8 +270,8 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
 
     // output queue is full, idle for 5 sec.
     if (streamQueueIsFull(pTask->outputq.queue)) {
-      stWarn("s-task:%s outputQ is full, idle for 5sec and retry", id);
-      return buildScanhistoryExecRet(TASK_SCANHISTORY_REXEC, FILL_HISTORY_TASK_EXEC_INTERVAL);
+      stWarn("s-task:%s outputQ is full, idle for 1sec and retry", id);
+      return buildScanhistoryExecRet(TASK_SCANHISTORY_REXEC, STREAM_SCAN_HISTORY_TIMESLICE);
     }
 
     if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
