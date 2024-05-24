@@ -363,10 +363,6 @@ async fn validate_connector_license(
         .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
         .unwrap();
 
-    if from.driver == "tmq" && from.get("replica").is_some() {
-        // already checked in validate_enterprise_license
-        return Ok(LicenseKind::Good);
-    }
     // let license = taos.query_one(sql)
     let connector = match from.driver.as_str() {
         "opcua" => "opc_ua",

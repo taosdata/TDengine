@@ -27,9 +27,11 @@ pub fn is_cloud(to: &taos::Dsn) -> bool {
         && to.get("token").is_some()
 }
 
+#[derive(Debug)]
 pub enum LicenseKind {
     Good,
     Edition(anyhow::Error),
+    Feature(anyhow::Error),
     Connector(anyhow::Error),
 }
 
@@ -38,6 +40,7 @@ impl LicenseKind {
         match self {
             LicenseKind::Good => Ok(()),
             LicenseKind::Edition(err) => Err(err),
+            LicenseKind::Feature(err) => Err(err),
             LicenseKind::Connector(err) => Err(err),
         }
     }
@@ -46,12 +49,19 @@ impl LicenseKind {
         match self {
             LicenseKind::Good => false,
             LicenseKind::Edition(_) => true,
+            LicenseKind::Feature(_) => true,
             LicenseKind::Connector(_) => true,
         }
     }
 }
 
-async fn check_grant_of(builder: &TaosBuilder, version: &Version, grant: &str) -> Result<()> {
+static mut INFORMATION_GRANTS_FULL: &'static str = "information_schema.ins_grants_full";
+
+async fn check_grant_of(
+    builder: &TaosBuilder,
+    version: &Version,
+    grant: &str,
+) -> Result<LicenseKind> {
     // Check enterprise license
     let edition = builder
         .get_edition()
@@ -60,27 +70,32 @@ async fn check_grant_of(builder: &TaosBuilder, version: &Version, grant: &str) -
         .assert_enterprise_edition();
     if let Err(err) = edition {
         tracing::warn!(err = %err, "{grant} feature requires enterprise edition");
-        bail!("{grant} feature requires enterprise edition, cause: {err:#}, please contact the TDengine customer success team for further assistance.");
+        return Ok(LicenseKind::Edition(anyhow!("{grant} feature requires enterprise edition, cause: {err:#}, please contact the TDengine customer success team for further assistance.")));
     }
 
     let conn = builder.build().await?;
     if *version < VERSION_3_3_0 {
-        return Ok(());
+        // Not check advanced feature grants in old version.
+        return Ok(LicenseKind::Good);
     }
-    // Check active-active license
+    // Check features license
     let (ok, expire) = conn
-                        .query_one::<_, (bool, String)>("select `expire` > now as `ok`, `expire` from information_schema.ins_grants_full where grant_name='{}'")
-                        .await
-                        .with_context(|| format!("Failed to check {grant} license"))?
-                        .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
+        .query_one::<_, (bool, String)>(format!(
+            "select `expire` > now as `ok`, `expire` from {} where grant_name='{grant}'",
+            unsafe { INFORMATION_GRANTS_FULL }
+        ))
+        .await
+        .with_context(|| format!("Failed to check {grant} license"))?
+        .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
     tracing::debug!(ok, expire, "active-active license check");
     if !ok {
-        bail!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.");
+        Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")))
+    } else {
+        Ok(LicenseKind::Good)
     }
-    Ok(())
 }
 
-async fn connector_grant(
+async fn check_connector_grant_of(
     builder: &TaosBuilder,
     version: &semver::Version,
     connector: &str,
@@ -93,7 +108,10 @@ async fn connector_grant(
         return Ok(LicenseKind::Good);
     }
     let grants_sql = if version >= &VERSION_3_2_3 {
-        format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+        format!(
+            "select `limits` from {} where grant_name='{connector}'",
+            unsafe { INFORMATION_GRANTS_FULL }
+        )
     } else {
         format!("select `{connector}` from information_schema.ins_grants")
     };
@@ -175,6 +193,7 @@ async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
         edition,
     })
 }
+
 #[framed]
 #[instrument(skip_all, fields(source = %mask_dsn(from), sink = %mask_dsn(to)))]
 pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind> {
@@ -221,15 +240,27 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 }
                 // active-active grant validation
                 if !is_cloud(&from) {
-                    check_grant_of(&source_builder, &source_version, "active_active")
+                    let kind = check_grant_of(&source_builder, &source_version, "active_active")
+                        .in_current_span()
                         .await
                         .with_context(source_dsn_context)?;
+                    if kind.is_err() {
+                        return Ok(kind);
+                    }
                 }
                 if !is_cloud(&to) {
-                    check_grant_of(&sink_builder, &sink_version, "active_active")
+                    let kind = check_grant_of(&sink_builder, &sink_version, "active_active")
+                        .in_current_span()
                         .await
                         .with_context(sink_dsn_context)?;
+                    if kind.is_err() {
+                        return Ok(kind);
+                    }
                 }
+                return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
+                    .in_current_span()
+                    .await
+                    .with_context(sink_dsn_context);
             } else {
                 // plain tmq to taos task.
 
@@ -269,10 +300,10 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                         .take(3)
                         .join("."),
                 )?;
-                connector_grant(&sink_builder, &sink_version, "td3.0")
+                return check_connector_grant_of(&sink_builder, &sink_version, "td3.0")
                     .in_current_span()
                     .await
-                    .with_context(sink_dsn_context)?;
+                    .with_context(sink_dsn_context);
             }
         }
         ("taos", "tmq" | "taos") => {
@@ -316,9 +347,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .take(3)
                     .join("."),
             )?;
-            connector_grant(&sink_builder, &sink_version, "td2.0")
+            return check_connector_grant_of(&sink_builder, &sink_version, "td2.0")
                 .await
-                .with_context(sink_dsn_context)?;
+                .with_context(sink_dsn_context);
         }
         ("tmq" | "taos", _) => {
             let mut from = from.clone();
@@ -419,11 +450,170 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     bail!("The current connector {connector} is not supported by license.")
                 }
             };
-            connector_grant(&sink_builder, &sink_version, connector)
-                .await
-                .with_context(sink_dsn_context)?;
+            return Ok(
+                check_connector_grant_of(&sink_builder, &sink_version, connector)
+                    .in_current_span()
+                    .await
+                    .with_context(sink_dsn_context)?,
+            );
         }
         _ => (),
     };
     Ok(LicenseKind::Good)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_validate_enterprise_license() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+        let now = chrono::Local::now();
+        let expired = chrono::Local::now() - (chrono::Duration::days(10));
+        let future = chrono::Local::now() + (chrono::Duration::days(100));
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        let taos = TaosBuilder::from_dsn(&dsn).unwrap();
+        let conn = taos.build().await.unwrap();
+        conn.exec("create database if not exists test")
+            .await
+            .unwrap();
+
+        conn.exec_many([
+            "create table if not exists test.test_grants_full (\
+            ts timestamp, grant_name varchar(100), display_name varchar(100),\
+            expire varchar(100), limits varchar(100))",
+            "delete from test.test_grants_full",
+        ])
+        .await
+        .unwrap();
+        unsafe { INFORMATION_GRANTS_FULL = "test.test_grants_full" };
+
+        // 1. tmq + active-active
+        let from = Dsn::from_str("tmq:///test?replica").unwrap();
+        let to = Dsn::from_str("taos:///test").unwrap();
+        let res = validate_enterprise_license(&from, &to).await;
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("You enterprise edition has no active_active license"));
+
+        conn.exec("insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
+            .await
+            .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+
+        conn.exec_many([
+            "delete from test.test_grants_full".to_string(),
+            format!(
+                "insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '{}', NULL)",
+                future.format("%Y-%m-%d %H:%M:%S")
+            ),
+        ])
+        .await
+        .unwrap();
+        let err = validate_enterprise_license(&from, &to).await.unwrap_err();
+        assert!(dbg!(format!("{:#}", err))
+            .contains("The current connector td3.0 is not supported by license."));
+
+        let (grant, display) = ("td3.0", "TDengine 3.0");
+        conn.exec(format!(
+            r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            time = expired.format("%Y-%m-%d %H:%M:%S"),
+            seconds = expired.timestamp()
+        ))
+        .await
+        .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("The current connector td3.0 has been expired for"));
+        conn.exec_many([
+            "delete from test.test_grants_full".to_string(),
+            format!(
+                "insert into test.test_grants_full values({}, 'active_active', 'Active-Active', '{}', NULL)",
+                now.timestamp_millis(),
+                future.format("%Y-%m-%d %H:%M:%S")
+            ),
+            format!(
+            r#"insert into test.test_grants_full values({}, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            now.timestamp_millis() + 1000,
+            time = future.format("%Y-%m-%d %H:%M:%S"),
+            seconds =future.timestamp()
+        )])
+        .await
+        .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_ok(), "{:#?}", res);
+
+        let connectors = &[
+            // id, grant, display
+            ("tmq", "td3.0", "TDengine 3.0"),
+            ("taos", "td2.0", "TDengine 2.0"),
+            ("opcua", "opc_ua", "OPCUA"),
+            ("opcda", "opc_da", "OPCDA"),
+            ("pi", "pi", "PI"),
+            ("pibackfill", "pi", "PI"),
+            ("kafka", "kafka", "Kafka"),
+            ("influxdb", "influxdb", "InfluxDB"),
+            ("opentsdb", "opentsdb", "OpenTSDB"),
+            ("avevaHistorian", "avevahistorian", "Aveva Historian"),
+            ("mysql", "mysql", "MySQL"),
+            ("postgres", "postgres", "PostgreSQL"),
+            ("oracle", "oracle", "Oracle"),
+            ("mqtt", "mqtt", "MQTT"),
+        ];
+
+        for (id, grant, display) in connectors {
+            let from = Dsn::from_str(&format!("{}:///test", id)).unwrap();
+            let to = Dsn::from_str("taos:///test").unwrap();
+
+            // c.1 no license item
+            conn.exec("delete from test.test_grants_full")
+                .await
+                .unwrap();
+            let res = validate_enterprise_license(&from, &to).await;
+            assert!(res.is_err(), "{:#?}", res);
+            assert!(dbg!(format!("{:#}", res.unwrap_err())).contains(&format!(
+                "The current connector {grant} is not supported by license."
+            )));
+
+            // c.2 expired
+            conn.exec_many([format!(
+                r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
+                    '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+                time = expired.format("%Y-%m-%d %H:%M:%S"),
+                seconds = expired.timestamp()
+            )])
+            .await
+            .unwrap();
+            let err = validate_enterprise_license(&from, &to).await.unwrap().ok();
+            dbg!(&err);
+            assert!(err.is_err());
+            assert!(dbg!(format!("{:#}", err.unwrap_err())).contains(&format!(
+                "The current connector {grant} has been expired for"
+            )));
+
+            // c.3 good
+            conn.exec_many([
+                format!("delete from test.test_grants_full"),
+                format!(
+                    r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}',
+                    '{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+                    time = future.format("%Y-%m-%d %H:%M:%S"),
+                    seconds = future.timestamp()
+                ),
+            ])
+            .await
+            .unwrap();
+            validate_enterprise_license(&from, &to).await.unwrap();
+        }
+        conn.exec("drop table test.test_grants_full").await.unwrap();
+    }
 }
