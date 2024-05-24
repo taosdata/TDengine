@@ -2320,7 +2320,7 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
   } else if (TD_RES_TMQ_METADATA(res)) {
     return TMQ_RES_METADATA;
   } else if (TD_RES_TMQ_BATCH_META(res)) {
-    return TMQ_RES_BATCH_TABLE_META;
+    return TMQ_RES_TABLE_META;
   } else {
     return TMQ_RES_INVALID;
   }
