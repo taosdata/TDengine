@@ -337,6 +337,7 @@ async fn ipc_tcp_forward(
         };
         info!("Get putting stream response");
 
+        let mut msg_processed = 0;
         loop {
             let put_result = tokio::select! {
                 _ = cancel.cancelled() => {
@@ -361,6 +362,7 @@ async fn ipc_tcp_forward(
                             match ack {
                                 RPC_ACK_PROCESSED => {
                                     trace!(alive = ?alive.elapsed(), trace_id, "Processed received: {count}");
+                                    msg_processed += count;
                                 }
                                 RPC_ACK_DROPPED => {
                                     trace!(alive = ?alive.elapsed(), trace_id, "Dropped received: {count}");
@@ -374,6 +376,8 @@ async fn ipc_tcp_forward(
                                 }
                                 _ => {}
                             }
+                        } else {
+                            msg_processed += 1;
                         }
                     }
                     Err(err) => match &err {
@@ -398,6 +402,18 @@ async fn ipc_tcp_forward(
                             tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
                             return Err(err).context(format!(
                                 "Got server response with error, DTID={stream_trace_id}"
+                            ));
+                        }
+                        FlightError::Arrow(arrow) => {
+                            tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
+                            if msg_processed == 0 && format!("{err:#}").contains("os error 10054") {
+                                warn!(
+                                    "Connection closed but messages are empty, consider as success"
+                                );
+                                return Ok(());
+                            }
+                            return Err(err).context(format!(
+                                "Got server response with arrow error, DTID={stream_trace_id}"
                             ));
                         }
                         _ => {

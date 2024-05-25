@@ -285,14 +285,13 @@ pub async fn pi_to_taos(
                 });
             };
             (wait) => {
-                let _notifier = notify.clone();
                 tokio::spawn(async move {
                     let mut exit = None;
                     if let Ok(Some(status)) = child_command
                         .terminate_timeout(Duration::from_secs(2))
                         .await {
                         tracing::info!("PI connector exit with {}", status);
-                        _notifier.send_async(TaskNotify::Info(format!("PI connector exit with {}", status)));
+                        notify.send_async(TaskNotify::Info(format!("PI connector exit with {}", status)));
                         exit.replace(status);
                     }
                     tokio::spawn(async move {

@@ -800,6 +800,14 @@ async fn write_lush_stable_with_sql(
                         break Err(err).map_err(Into::into);
                     }
                     0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        let period = match write_retries {
+                            errors if errors < 8 => 8,
+                            errors if errors < 16 => 16,
+                            errors if errors < 32 => 32,
+                            errors if errors < 64 => 64,
+                            _ => 128,
+                        };
+                        tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
                         taos.replace(pool.get().await?);
                     }
                     _ => {
