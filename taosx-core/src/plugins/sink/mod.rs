@@ -975,7 +975,6 @@ async fn consume_lush_record_with_transform(
                         let req_id = req_id.clone();
                         let metrics_ref = metrics_arc.clone();
                         let metrics = metrics_ref.ipc();
-                        let total_tables = message.len();
                         lush::write(
                             &pool,
                             super_table.as_str(),
@@ -998,13 +997,12 @@ async fn consume_lush_record_with_transform(
                             metrics.add_processed_rows(num_rows as u64);
                             *count += num_rows;
                             tracing::info!(
-                                transform.elapsed = ?transform_elapsed,
-                                gensql.elapsed = ?gen_sql_time,
-                                write.elapsed = ?write_time,
-                                "stable={}, total_tables={}, written_rows={}",
+                                "stable={},written_rows={},transform_elapsed={:?},gensql_elapsed={:?},write_elapsed={:?}",
                                 super_table,
-                                total_tables,
-                                written_rows
+                                written_rows,
+                                transform_elapsed,
+                                gen_sql_time,
+                                write_time
                             );
                         })
                         .context("Write transformed records with sql error")?;
@@ -3638,7 +3636,8 @@ impl IpcStreamWorker {
                         loop {
                             let tables = tables_messages_in_progress.load(Ordering::SeqCst);
                             if tables == 0 {
-                                tracing::debug!("parallel insert records");
+                                // @dingbo 这行日志意义不大暂时注释掉
+                                // tracing::debug!("parallel insert records");
                                 break;
                             } else {
                                 tracing::debug!(tables, "waiting for tables caches to be ready");
