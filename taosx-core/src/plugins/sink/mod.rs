@@ -877,12 +877,21 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
-            tracing::debug!("Received tables message size {}", tables.len());
+            let mut all_talbes = String::new();
+            let len = tables.len();
             for table in tables {
+                all_talbes.push_str(&table.table_name());
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
+                all_talbes.push_str(",");
             }
+            // @dingbo Debug table_name not found error
+            tracing::debug!(
+                "Received tables message, size: {}, names={}",
+                len,
+                all_talbes
+            );
         }
         LushMessage::Insert(record) => {
             let pool = pool.clone();
