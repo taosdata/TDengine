@@ -318,6 +318,9 @@ impl PutStream {
                 .unwrap_or(4);
             tracing::info!("Start IPC stream writer with concurrency limit: {}", limit);
             let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+            // only for lush stream supported transform.
+            let tables_messages_in_progress = Arc::new(std::sync::atomic::AtomicUsize::new(0));
             if let Err(err) = stream
                 .map(|(record, trace_id)| {
                     anyhow::Ok((
@@ -331,6 +334,7 @@ impl PutStream {
                         &contiguous_errors,
                         &metrics_arc,
                         &lush_parser,
+                        &tables_messages_in_progress,
                     ))
                 })
                 .try_for_each_concurrent(
@@ -346,6 +350,7 @@ impl PutStream {
                         contiguous_errors,
                         metrics_arc,
                         lush_parser,
+                        tables_messages_in_progress,
                     )| {
                         async move {
                             tracing::info!("Writing batch {trace_id}");
@@ -357,6 +362,7 @@ impl PutStream {
                                     metrics,
                                     metrics_arc,
                                     lush_parser,
+                                    tables_messages_in_progress,
                                 )
                                 .in_current_span()
                                 .await

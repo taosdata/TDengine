@@ -867,15 +867,9 @@ async fn consume_lush_record(
 #[instrument(skip_all, fields(trace.id = %data_trace_id))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
-    _taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: LushMessage,
-    _columns: &Vec<String>,
     count: &mut usize,
-    _license: Option<&ConnectorLicense>,
-    _transferred: Option<&Transferred>,
-    _task: Option<i64>,
     data_trace_id: TraceDataId,
-    _metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
@@ -885,37 +879,22 @@ async fn consume_lush_record_with_transform(
     match record {
         LushMessage::Tables(tables) => {
             tracing::debug!("Received tables message size {}", tables.len());
-            let mut futures = futures::stream::FuturesUnordered::new();
             for table in tables {
-                futures.push(table_cache.insert_async(table.table_name().to_string(), table));
+                table_cache
+                    .insert_async(table.table_name().to_owned(), table)
+                    .await;
             }
-            while let Some(_) = futures.next().await {}
         }
         LushMessage::Insert(record) => {
-            use rayon::prelude::*;
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
-            let handle = tokio::spawn(async move {
-                let mut count = 0;
-                let mut set = tokio::task::JoinSet::new();
-                while let Some(future) = rx.recv().await {
-                    set.spawn(future);
-                }
-                while let Some(res) = set.join_next().await {
-                    count += res.context("Transform lush record join error")??;
-                }
-                anyhow::Ok(count)
-            });
-
             let pool = pool.clone();
             let metrics_arc = metrics_arc.clone();
-            // @huolinhe: Use rayon to speed up the process
-            tokio::task::spawn_blocking(move || record.into_par_iter().try_for_each_with(tx, |tx, record| {
+            for record in record {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
-                    return anyhow::Ok(());
+                    continue;
                 }
+                let timer = std::time::Instant::now();
                 let name_of_table_name_column = lush_model_config.table_name_column.as_str();
                 // 只包含普通列的值
                 let values_records: &RecordBatch = record.record();
@@ -928,12 +907,14 @@ async fn consume_lush_record_with_transform(
                     .downcast_ref::<StringArray>()
                     .unwrap();
 
+                tracing::info_span!("lush::create_tags_record");
+
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
                     lush::create_tags_record(table_name_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
-                    return Ok(());
+                    continue;
                 }
                 let tags_records: RecordBatch = tags_records.unwrap();
                 // 左右合并 RecordBatch
@@ -954,6 +935,8 @@ async fn consume_lush_record_with_transform(
 
                 let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
 
+                tracing::debug!(blocking.elapsed = ?timer.elapsed(), "ready to insert");
+                let timer = std::time::Instant::now();
                 for (default_super_table, record_batch) in grouped_batches {
                     let super_table = lush_model_config
                         .super_table_name_mapping
@@ -982,48 +965,42 @@ async fn consume_lush_record_with_transform(
                                 super_table, serde_json::to_string(&lush_parser).unwrap()
                             )
                         })?;
-                    match message {
-                        crate::plugins::transform::Message::Records(message) => {
-                            if message.is_empty() {
-                                continue;
-                            }
-                            let pool = pool.clone();
-                            let super_table = super_table.clone();
-                            let req_id = req_id.clone();
-                            let metrics_ref = metrics_arc.clone();
-                            if let Err(err) = tx.send(async move {
-                                let metrics = metrics_ref.ipc();
-                                 lush::write_transformed_records_with_sql(
-                                &pool,
-                                super_table.as_str(),
-                                taos::Precision::Millisecond,
-                                &req_id,
-                                message,
-                                metrics,
-                            ).await.map(|written| {
-                                if written != num_rows {
-                                    tracing::debug!(
-                                        "written rows not equal to num_rows, written: {}, num_rows: {}",
-                                        written,
-                                        num_rows
-                                    );
-                                }
-                                metrics.add_written_rows(num_rows as u64);
-                                num_rows
-                            }) }.in_current_span()) {
-                                tracing::error!("send to tx error: {err:#}");
-                                bail!("Send future error: {err:#}");
-                            }
+
+                    if let crate::plugins::transform::Message::Records(message) = message {
+                        if message.is_empty() {
+                            continue;
                         }
-                        _ => unreachable!(
-                            "parse_message_from_records always return Message::Records"
-                        ),
+                        let pool = pool.clone();
+                        let super_table = super_table.clone();
+                        let req_id = req_id.clone();
+                        let metrics_ref = metrics_arc.clone();
+                        let metrics = metrics_ref.ipc();
+                        lush::write_transformed_records_with_sql(
+                            &pool,
+                            super_table.as_str(),
+                            taos::Precision::Millisecond,
+                            &req_id,
+                            message,
+                            metrics,
+                        )
+                        .in_current_span()
+                        .await
+                        .map(|written| {
+                            if written != num_rows {
+                                tracing::debug!(
+                                    "written rows not equal to num_rows, written: {}, num_rows: {}",
+                                    written,
+                                    num_rows
+                                );
+                            }
+                            metrics.add_written_rows(num_rows as u64);
+                            *count += num_rows
+                        })
+                        .context("Write transformed records with sql error")?;
                     }
                 }
-                anyhow::Ok(())
-            })).await.context("Spawn blocking transform lush records inserts")??;
-
-            *count += handle.await??;
+                tracing::debug!(insert.elapsed = ?timer.elapsed(), "insert done");
+            }
         }
     }
     Ok(())
@@ -2889,15 +2866,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         let result = if let Some(lush_model_config) = lush_model_config.clone() {
             consume_lush_record_with_transform(
                 pool,
-                &mut taos,
                 record,
-                &columns,
                 &mut count,
-                license,
-                transferred,
-                task_id,
                 data_trace_id,
-                metrics,
                 &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
@@ -3597,6 +3568,7 @@ impl IpcStreamWorker {
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         lush_parser: &Option<Arc<ParserImpl>>,
+        tables_messages_in_progress: &Arc<AtomicUsize>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3645,32 +3617,46 @@ impl IpcStreamWorker {
                 .map_err(|_| {
                     anyhow::format_err!("Unable to read lush message, trace.id={}", data_trace_id)
                 })?;
-                let mut taos = Some(self.pool.get().await?);
                 let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
+
                 if let Some(lush_model_config) = lush_model_config {
+                    let is_tables = record.is_tables();
+                    if is_tables {
+                        tables_messages_in_progress.fetch_add(1, Ordering::SeqCst);
+                    } else {
+                        loop {
+                            let tables = tables_messages_in_progress.load(Ordering::SeqCst);
+                            if tables == 0 {
+                                tracing::debug!("parallel insert records");
+                                break;
+                            } else {
+                                tracing::debug!(tables, "waiting for tables caches to be ready");
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                            }
+                        }
+                    }
                     let table_tag_cache = self.lush_table_cache.clone().unwrap();
-                    consume_lush_record_with_transform(
+                    let res = consume_lush_record_with_transform(
                         &self.pool,
-                        &mut taos,
                         record,
-                        &columns,
                         &mut count,
-                        self.license.as_deref(),
-                        self.transferred.as_deref(),
-                        task,
                         data_trace_id,
-                        metrics,
                         metrics_arc,
                         lush_model_config.clone(),
                         table_tag_cache,
                         lush_parser.clone().unwrap(),
                     )
-                    .await?;
+                    .await;
+                    if is_tables {
+                        tables_messages_in_progress.fetch_sub(1, Ordering::SeqCst);
+                    }
+                    res?;
                 } else {
+                    // let mut taos = Some(self.pool.get().await?);
                     consume_lush_record(
                         &self.pool,
-                        &mut taos,
+                        taos,
                         record,
                         &columns,
                         &mut count,
