@@ -200,12 +200,17 @@ pub async fn insert_metrics(mut task_id: i64, mut metrics: Arc<CoreMetrics>) {
         match GLOBAL_METRICS.insert_async(task_id, metrics).await {
             Ok(_) => {
                 if retries > 0 {
-                    tracing::info!("insert metrics success with {retries} retries");
+                    tracing::info!("Insert metrics success with {retries} retries");
                 }
                 break;
             }
             Err(entry) => {
                 (task_id, metrics) = entry;
+                retries += 1;
+                if retries > 3 {
+                    tracing::error!("Insert metrics failed after 3 retries");
+                    break;
+                }
             }
         }
     }

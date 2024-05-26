@@ -379,7 +379,7 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
-pub async fn write_transformed_records_with_sql(
+pub async fn write(
     pool: &TaosPool,
     super_table_name: &str,
     target_precision: taos::Precision,
@@ -387,13 +387,17 @@ pub async fn write_transformed_records_with_sql(
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
+    let timer = std::time::Instant::now();
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
         .stable_name()
         .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
-    tracing::debug!("Writing stable");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
+    tracing::debug!(gensql.elapsed = ?timer.elapsed(), "Generate SQLs");
+    let timer = std::time::Instant::now();
+    // 写入成功返回的总行数
+    let mut written_rows = 0;
     for records in sqls {
         let mut retry = 0;
         let taos = &mut taos;
@@ -402,6 +406,7 @@ pub async fn write_transformed_records_with_sql(
             match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
                     metrics.add_written_points((n * cols) as u64);
+                    written_rows += n;
                     break;
                 }
                 Err(err) => match err {
@@ -451,14 +456,9 @@ pub async fn write_transformed_records_with_sql(
             }
         }
     }
-    let mut total_rows = 0;
-    let mut total_tables = 0;
-    for m in &messages {
-        total_rows += m.records.num_rows();
-        total_tables += 1;
-    }
-    tracing::debug!("Wrote tables {total_tables} rows {total_rows}");
-    Ok(total_rows)
+    let total_tables = messages.len();
+    tracing::debug!(write.elapsed = ?timer.elapsed(), "Wrote total {total_tables} talbes total {written_rows} rows");
+    Ok(written_rows)
 }
 
 async fn alter_table(
