@@ -194,6 +194,23 @@ lazy_static! {
         HashMap::new();
 }
 
+pub async fn insert_metrics(mut task_id: i64, mut metrics: Arc<CoreMetrics>) {
+    let mut retries = 0;
+    loop {
+        match GLOBAL_METRICS.insert_async(task_id, metrics).await {
+            Ok(_) => {
+                if retries > 0 {
+                    tracing::info!("insert metrics success with {retries} retries");
+                }
+                break;
+            }
+            Err(entry) => {
+                (task_id, metrics) = entry;
+            }
+        }
+    }
+}
+
 /// Try to get metrics from global metrics map.
 pub async fn get_metrics(task_id: i64) -> Option<Arc<CoreMetrics>> {
     GLOBAL_METRICS.read_async(&task_id, |_, v| v.clone()).await
@@ -310,7 +327,7 @@ pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMet
         tracing::info!("load metrics for task {}", task_id);
         if let Some(metrics) = load_metrics::<T>(task_id.to_string().as_str()) {
             let metrics = Arc::new(metrics.into());
-            let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
+            insert_metrics(task_id, metrics.clone()).await;
             Some(metrics)
         } else {
             tracing::warn!("no metrics found for task {}", task_id);
@@ -352,7 +369,7 @@ pub async fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
                     stable, task_id, task_name,
                 )));
-                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
+                insert_metrics(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }
@@ -368,7 +385,7 @@ pub async fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
                     stable, task_id, task_name,
                 )));
-                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
+                insert_metrics(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }
@@ -400,7 +417,7 @@ pub async fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(
                     stable, task_id, task_name,
                 )));
-                let _ = GLOBAL_METRICS.insert_async(task_id, metrics.clone()).await;
+                insert_metrics(task_id, metrics.clone()).await;
                 Some(metrics)
             }
         }

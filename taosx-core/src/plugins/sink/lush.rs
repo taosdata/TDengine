@@ -69,7 +69,21 @@ impl TableTagCache {
     }
 
     pub async fn insert_async(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
-        let _ = self.0.insert_async(table_name.into(), value).await;
+        let (mut k, mut v) = (table_name.into(), value);
+        let mut retry = 5;
+        loop {
+            match self.0.insert_async(k, v).await {
+                Ok(_) => break,
+                Err(entry) => {
+                    if retry == 0 {
+                        error!("Insert table tag cache failed: {:?}", entry);
+                        break;
+                    }
+                    (k, v) = entry;
+                    retry -= 1;
+                }
+            }
+        }
     }
 }
 
