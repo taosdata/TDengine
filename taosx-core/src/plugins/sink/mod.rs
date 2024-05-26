@@ -934,7 +934,7 @@ async fn consume_lush_record_with_transform(
 
                 let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
 
-                tracing::debug!(prepare.elapsed = ?timer.elapsed(), "ready to insert");
+                tracing::debug!(prepare.elapsed = ?timer.elapsed());
                 for (default_super_table, record_batch) in grouped_batches {
                     let timer = std::time::Instant::now();
                     let super_table = lush_model_config
@@ -964,8 +964,8 @@ async fn consume_lush_record_with_transform(
                                 super_table, serde_json::to_string(&lush_parser).unwrap()
                             )
                         })?;
-                    tracing::debug!(transform.elapsed = ?timer.elapsed(), "Transform {}", super_table);
 
+                    let transform_elapsed = timer.elapsed();
                     if let crate::plugins::transform::Message::Records(message) = message {
                         if message.is_empty() {
                             continue;
@@ -975,6 +975,7 @@ async fn consume_lush_record_with_transform(
                         let req_id = req_id.clone();
                         let metrics_ref = metrics_arc.clone();
                         let metrics = metrics_ref.ipc();
+                        let total_tables = message.len();
                         lush::write(
                             &pool,
                             super_table.as_str(),
@@ -985,17 +986,26 @@ async fn consume_lush_record_with_transform(
                         )
                         .in_current_span()
                         .await
-                        .map(|written| {
-                            if written != num_rows {
+                        .map(|(written_rows, gen_sql_time, write_time)| {
+                            if written_rows != num_rows {
                                 tracing::debug!(
                                     "written rows not equal to num_rows, written: {}, num_rows: {}",
-                                    written,
+                                    written_rows,
                                     num_rows
                                 );
                             }
                             //process_rows 是 RecordBatch 里的行数。 与 written_rows 不同，后者是实际写入的行数。written_rows 在执行 sql 成功时已经做了统计
                             metrics.add_processed_rows(num_rows as u64);
-                            *count += num_rows
+                            *count += num_rows;
+                            tracing::info!(
+                                transform.elapsed = ?transform_elapsed,
+                                gensql.elapsed = ?gen_sql_time,
+                                write.elapsed = ?write_time,
+                                "stable={}, total_tables={}, written_rows={}",
+                                super_table,
+                                total_tables,
+                                written_rows
+                            );
                         })
                         .context("Write transformed records with sql error")?;
                     }

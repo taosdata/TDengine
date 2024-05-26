@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range};
+use std::{collections::HashMap, ops::Range, time::Duration};
 
 use super::transform::Parser;
 use crate::{
@@ -386,7 +386,7 @@ pub async fn write(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<(usize, Duration, Duration)> {
     let timer = std::time::Instant::now();
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
@@ -394,7 +394,7 @@ pub async fn write(
         .stable_name()
         .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
-    tracing::debug!(gensql.elapsed = ?timer.elapsed(), "Generate SQLs");
+    let gen_sql_time = timer.elapsed();
     let timer = std::time::Instant::now();
     // 写入成功返回的总行数
     let mut written_rows = 0;
@@ -412,13 +412,13 @@ pub async fn write(
                 Err(err) => match err {
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::info!("Create stable sql={stable_sql}");
+                            tracing::info!("{stable_sql}");
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
                                 .await?;
                         }
                         for m in &messages {
                             let sql = m.table_sql();
-                            tracing::info!("Create table sql={sql}");
+                            tracing::info!("{sql}");
                             for _ in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
@@ -456,9 +456,8 @@ pub async fn write(
             }
         }
     }
-    let total_tables = messages.len();
-    tracing::debug!(write.elapsed = ?timer.elapsed(), "Wrote total {total_tables} talbes total {written_rows} rows");
-    Ok(written_rows)
+    let write_time = timer.elapsed();
+    Ok((written_rows, gen_sql_time, write_time))
 }
 
 async fn alter_table(
