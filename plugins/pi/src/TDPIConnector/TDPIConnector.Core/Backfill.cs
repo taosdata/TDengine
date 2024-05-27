@@ -462,6 +462,9 @@ namespace TDPIConnector.Core
                 bool found = false;
                 DateTime smallLastAttributeTime = endTime;
                 int count = 0;
+
+                var columnNames = new List<string>();
+                var elementValues = new Dictionary<string, List<TDValue>>();
                 foreach (AFValuesWrapper values in valuesList)
                 {
                     if (values.Count > 0)
@@ -474,12 +477,7 @@ namespace TDPIConnector.Core
                             log.Debug($"element tag {element.Name}: {attribute.Name}:{valuestring}");
                             continue;
                         }
-
-                        ConvertAFAttibutesAndValuesToTDTables(attribute, values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames);
-                        var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
-                        stables.Add(superTableName, tables);
-                        this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-
+                        ConvertAFAttibutesAndValuesToTDTables(attribute, values, in elementValues, in columnNames);
                         if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime
                             && values[values.Count - 1].AFSDKObject.IsGood == true)
                         {
@@ -488,26 +486,27 @@ namespace TDPIConnector.Core
                         count += values.Count;
                     }
                 }
+                if (!found) break;
+                var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
+                Dictionary<string, Dictionary<string, List<TDValue>>> tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
+                var elementTableKey = element.ID.ToString();
+                tables.Add(elementTableKey, elementValues);
+                stables.Add(superTableName, tables);
+                this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
                 log.Info($"Backfill TDEngine {element.Name}:{element.ID} from {currentStart} count:{count} , written in {stopwatch.ElapsedMilliseconds} ms");
 
-                if (count < 100) {
+                if (count < AppSettings.tomlConfig.BackfillBatchSize) {
                     break;
                 }
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
                 currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
-                currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
                 stopwatch.Reset();
-                if (!found) break;
             } while (currentStart < endTime);
             log.Info($"Backfill TDEngine element {element.Name}:{element.ID} values written finished.");
         }
 
-        private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values, out Dictionary<string, Dictionary<string, List<TDValue>>> tables, out List<string> columnNames)
+        private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values,  in Dictionary<string, List<TDValue>> tableValues, in List<string> columnNames)
         {
-            tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
-            columnNames = new List<string>();
-
-            var elementTableKey = attribute.Element.ID.ToString();
             if (!columnNames.Contains(attribute.Name))
             {
                 columnNames.Add(attribute.Name);
@@ -518,24 +517,20 @@ namespace TDPIConnector.Core
                 var tdValue = value.ToTDValue();
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
-                tdValue.Name = attribute.Name;
 
+                if (attribute.IsChild()) {
+                    tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(attribute.Parent, attribute);
+                } else {
+                    tdValue.Name = attribute.Name;
+                }
 
-                if (tables.ContainsKey(elementTableKey))
+                if (tableValues.ContainsKey(timestamp))
                 {
-                    var table = tables[elementTableKey];
-                    if (table.ContainsKey(timestamp))
-                    {
-                        table[timestamp].Add(tdValue);
-                    }
-                    else
-                    {
-                        table.Add(timestamp, new List<TDValue>() { tdValue });
-                    }
+                    tableValues[timestamp].Add(tdValue);
                 }
                 else
                 {
-                    tables.Add(elementTableKey, new Dictionary<string, List<TDValue>>() { { timestamp, new List<TDValue>() { tdValue } } });
+                    tableValues.Add(timestamp, new List<TDValue>() { tdValue });
                 }
             }
         }
