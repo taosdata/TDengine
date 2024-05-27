@@ -141,7 +141,7 @@ impl PutStream {
                 let task_lush_table_cache_lock = self.controller.scheduler.lush_table_cache.clone();
                 let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
                 if task_lush_table_cache.contains_key(&self.task_id) {
-                    tracing::info!("Got lush_table_cache from cache");
+                    tracing::info!("Got existing lush_table_cache");
                     Some(task_lush_table_cache.get(&self.task_id).unwrap().clone())
                 } else {
                     tracing::info!("Create new lush_table_cache");

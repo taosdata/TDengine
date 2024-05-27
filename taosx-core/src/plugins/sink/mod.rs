@@ -927,6 +927,7 @@ async fn consume_lush_record_with_transform(
                 // 性能优化，多列模型无需按超级表分组
                 // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
                 let prepare_elapsed = timer.elapsed();
+                let skip_null = lush_model_config.skip_null;
                 // for (default_super_table, record_batch) in grouped_batches {
                 let timer = std::time::Instant::now();
                 let record_batch = parsed_records;
@@ -983,7 +984,7 @@ async fn consume_lush_record_with_transform(
                             &req_id,
                             message,
                             metrics,
-                            parser.global().null_values().skip()
+                            skip_null,
                         )
                         .in_current_span()
                         .await
@@ -3500,10 +3501,6 @@ impl IpcStreamWorker {
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
                 let config = LushModelConfig::try_from(from.clone()).unwrap();
-                tracing::debug!(
-                    "lush model config: {:#}",
-                    serde_json::to_string(&config).unwrap()
-                );
                 lush_model_config.set(Arc::new(config)).unwrap();
             }
             _ => {}

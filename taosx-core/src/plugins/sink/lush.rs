@@ -46,6 +46,9 @@ pub struct LushModelConfig {
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
     pub super_table_name_mapping: HashMap<String, String>,
+    // 写入的时候是否跳过 null 值
+    // 目前实现：PI backfill 不跳过 null 值，PI 实时数据跳过 null 值
+    pub skip_null: bool,
 }
 
 #[derive(Debug)]
@@ -105,7 +108,7 @@ impl TryFrom<Dsn> for LushModelConfig {
 
     fn try_from(dsn: Dsn) -> Result<Self, Self::Error> {
         let driver = dsn.driver.as_str();
-        match driver {
+        let mut config: LushModelConfig = match driver {
             "pi" | "pibackfill" => {
                 let transform_config_file = dsn
                     .params
@@ -146,7 +149,13 @@ impl TryFrom<Dsn> for LushModelConfig {
                 }
             }
             _ => Err(anyhow!("Unsupported data source")),
+        }?;
+        match driver {
+            "pi" => config.skip_null = true,
+            "pibackfill" => config.skip_null = false,
+            _ => {}
         }
+        Ok(config)
     }
 }
 
@@ -166,6 +175,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_name_mapping: sub_super_mapping,
+            skip_null: false,
         }
     }
 }
@@ -202,6 +212,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_name_mapping,
+            skip_null: true,
         }
     }
 }
@@ -757,8 +768,6 @@ async fn write_lush_stable_with_sql(
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
-    let debug_sql = if sql.len() > 200 { &sql[0..200] } else { sql };
-    tracing::debug!(req_id = req_id.trace_id_str(), "{}", debug_sql); //@dingbo debug
     loop {
         match taos
             .as_ref()
