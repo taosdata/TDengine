@@ -25,6 +25,7 @@
       <el-alert
         v-if="$COMMUNITY && (activeName == 'backup' || activeName == 'replication' || activeName == 'audit')"
         style="margin-top: 8px"
+        class="my-alert"
         type="warning"
         :description="$t('communityDemoDataTip')"
         :closable="true"
@@ -55,3 +56,8 @@ export default {
   }
 };
 </script>
+<style scoped lang="scss">
+  .my-alert ::v-deep.el-alert .el-alert__description  {
+    font-size: 14px;
+  }
+</style>
