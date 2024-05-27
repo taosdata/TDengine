@@ -1007,7 +1007,7 @@ async fn consume_lush_record_with_transform(
                             *count += num_rows;
                             // 性能统计
                             tracing::info!(
-                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed={},write_elapsed,{}",
+                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
                                 super_table,
                                 table_count,
                                 written_rows,
