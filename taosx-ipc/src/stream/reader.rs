@@ -527,7 +527,7 @@ impl LushInsertAttrs {
         self.using.as_ref()
     }
 
-    pub fn table_name(&self) -> &str {
+    pub fn table_name(&self) -> &FastStr {
         &self.name
     }
 
@@ -1607,6 +1607,12 @@ pub struct LushMessageTable {}
 pub enum LushMessage {
     Tables(Vec<LushInsertAttrs>),
     Insert(Vec<LushMessageInsert>),
+}
+
+impl LushMessage {
+    pub fn is_tables(&self) -> bool {
+        matches!(self, LushMessage::Tables(_))
+    }
 }
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
 pub trait IpcMessage: Any + Send + Sync {

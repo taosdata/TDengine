@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range};
+use std::{collections::HashMap, ops::Range, time::Duration};
 
 use super::transform::Parser;
 use crate::{
@@ -69,7 +69,21 @@ impl TableTagCache {
     }
 
     pub async fn insert_async(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
-        let _ = self.0.insert_async(table_name.into(), value).await;
+        let (mut k, mut v) = (table_name.into(), value);
+        let mut retry = 5;
+        loop {
+            match self.0.insert_async(k, v).await {
+                Ok(_) => break,
+                Err(entry) => {
+                    if retry == 0 {
+                        error!("Insert table tag cache failed: {:?}", entry);
+                        break;
+                    }
+                    (k, v) = entry;
+                    retry -= 1;
+                }
+            }
+        }
     }
 }
 
@@ -365,21 +379,25 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
 /// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
-pub async fn write_transformed_records_with_sql(
+pub async fn write(
     pool: &TaosPool,
     super_table_name: &str,
     target_precision: taos::Precision,
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<(usize, Duration, Duration)> {
+    let timer = std::time::Instant::now();
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
         .stable_name()
         .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
-    tracing::debug!("Writing stable");
     let sqls = message_to_sql(super_table_name, &messages, target_precision);
+    let gen_sql_time = timer.elapsed();
+    let timer = std::time::Instant::now();
+    // 写入成功返回的总行数
+    let mut written_rows = 0;
     for records in sqls {
         let mut retry = 0;
         let taos = &mut taos;
@@ -388,18 +406,19 @@ pub async fn write_transformed_records_with_sql(
             match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics).await {
                 Ok(n) => {
                     metrics.add_written_points((n * cols) as u64);
+                    written_rows += n;
                     break;
                 }
                 Err(err) => match err {
                     WriteError::TableNotExits(_) => {
                         if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::info!("Create stable sql={stable_sql}");
+                            tracing::info!("{stable_sql}");
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
                                 .await?;
                         }
                         for m in &messages {
                             let sql = m.table_sql();
-                            tracing::info!("Create table sql={sql}");
+                            tracing::info!("{sql}");
                             for _ in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
@@ -437,14 +456,8 @@ pub async fn write_transformed_records_with_sql(
             }
         }
     }
-    let mut total_rows = 0;
-    let mut total_tables = 0;
-    for m in &messages {
-        total_rows += m.records.num_rows();
-        total_tables += 1;
-    }
-    tracing::debug!("Wrote tables {total_tables} rows {total_rows}");
-    Ok(total_rows)
+    let write_time = timer.elapsed();
+    Ok((written_rows, gen_sql_time, write_time))
 }
 
 async fn alter_table(
@@ -800,6 +813,14 @@ async fn write_lush_stable_with_sql(
                         break Err(err).map_err(Into::into);
                     }
                     0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        let period = match write_retries {
+                            errors if errors < 8 => 8,
+                            errors if errors < 16 => 16,
+                            errors if errors < 32 => 32,
+                            errors if errors < 64 => 64,
+                            _ => 128,
+                        };
+                        tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
                         taos.replace(pool.get().await?);
                     }
                     _ => {
