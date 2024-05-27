@@ -942,8 +942,7 @@ async fn consume_lush_record_with_transform(
                 //     );
 
                 let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
-
-                tracing::debug!(prepare.elapsed = ?timer.elapsed());
+                let prepare_elapsed = timer.elapsed();
                 for (default_super_table, record_batch) in grouped_batches {
                     let timer = std::time::Instant::now();
                     let super_table = lush_model_config
@@ -979,6 +978,7 @@ async fn consume_lush_record_with_transform(
                         if message.is_empty() {
                             continue;
                         }
+                        let table_count = message.len();
                         let pool = pool.clone();
                         let super_table = super_table.clone();
                         let req_id = req_id.clone();
@@ -1005,13 +1005,16 @@ async fn consume_lush_record_with_transform(
                             //process_rows 是 RecordBatch 里的行数。 与 written_rows 不同，后者是实际写入的行数。written_rows 在执行 sql 成功时已经做了统计
                             metrics.add_processed_rows(num_rows as u64);
                             *count += num_rows;
+                            // 性能统计
                             tracing::info!(
-                                "stable={},written_rows={},transform_elapsed={:?},gensql_elapsed={:?},write_elapsed={:?}",
+                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed={},write_elapsed,{}",
                                 super_table,
+                                table_count,
                                 written_rows,
-                                transform_elapsed,
-                                gen_sql_time,
-                                write_time
+                                prepare_elapsed.as_millis(),
+                                transform_elapsed.as_millis(),
+                                gen_sql_time.as_millis(),
+                                write_time.as_millis(),
                             );
                         })
                         .context("Write transformed records with sql error")?;
