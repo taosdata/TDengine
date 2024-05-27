@@ -293,11 +293,8 @@ impl PutStream {
                 }
             }
 
-            if let Some(parser) = lush_parser.as_deref() {
-                tracing::info!(
-                    "Start IPC stream writer with lush parser: {}",
-                    serde_json::to_string(parser).unwrap()
-                );
+            if let Some(init) = metadata.init() {
+                tracing::info!("Start IPC stream writer for stable: {}", init.name());
             } else {
                 tracing::info!("Start IPC stream writer");
             }

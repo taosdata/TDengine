@@ -877,21 +877,13 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
-            let mut all_talbes = String::new();
             let len = tables.len();
             for table in tables {
-                all_talbes.push_str(&table.table_name());
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
-                all_talbes.push_str(",");
             }
-            // @dingbo Debug table_name not found error
-            tracing::debug!(
-                "Received tables message, size: {}, names={}",
-                len,
-                all_talbes
-            );
+            tracing::debug!("Cached tables message, size: {}", len);
         }
         LushMessage::Insert(record) => {
             let pool = pool.clone();
@@ -914,9 +906,6 @@ async fn consume_lush_record_with_transform(
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap();
-
-                tracing::info_span!("lush::create_tags_record");
-
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
                     lush::create_tags_record(table_name_column, table_cache.clone());
@@ -941,31 +930,40 @@ async fn consume_lush_record_with_transform(
                 //         &lush_model_config.super_table_name_mapping,
                 //     );
 
-                let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
+                // 性能优化，多列模型无需按超级表分组
+                // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
                 let prepare_elapsed = timer.elapsed();
-                for (default_super_table, record_batch) in grouped_batches {
-                    let timer = std::time::Instant::now();
-                    let super_table = lush_model_config
-                        .super_table_name_mapping
-                        .get(default_super_table);
-                    if super_table.is_none() {
-                        tracing::error!(
-                            "default_super_table {} not found in super_table_name_mapping",
-                            default_super_table
-                        );
-                        continue;
-                    }
-                    let super_table = super_table.unwrap();
-                    let parser: &transform::Parser = lush_model_config
-                        .super_table_parsers
-                        .get(super_table.as_str())
-                        .ok_or_else(|| {
-                            anyhow!(
-                                "super_table {} not found in model_config.super_table_parsers",
-                                super_table.to_string()
-                            )
-                        })?;
-                    let message: transform::Message =
+                // for (default_super_table, record_batch) in grouped_batches {
+                let timer = std::time::Instant::now();
+                let record_batch = parsed_records;
+                let default_super_table = record_batch
+                    .column_by_name("_using")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .unwrap()
+                    .value(0);
+                let super_table = lush_model_config
+                    .super_table_name_mapping
+                    .get(default_super_table);
+                if super_table.is_none() {
+                    tracing::error!(
+                        "default_super_table {} not found in super_table_name_mapping",
+                        default_super_table
+                    );
+                    continue;
+                }
+                let super_table = super_table.unwrap();
+                let parser: &transform::Parser = lush_model_config
+                    .super_table_parsers
+                    .get(super_table.as_str())
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "super_table {} not found in model_config.super_table_parsers",
+                            super_table.to_string()
+                        )
+                    })?;
+                let message: transform::Message =
                         parser.parse_message_from_records(&record_batch).with_context(|| {
                             format!(
                                 "lush_parser parse message from records failed, super_table: {}, parser: {}",
@@ -973,18 +971,18 @@ async fn consume_lush_record_with_transform(
                             )
                         })?;
 
-                    let transform_elapsed = timer.elapsed();
-                    if let crate::plugins::transform::Message::Records(message) = message {
-                        if message.is_empty() {
-                            continue;
-                        }
-                        let table_count = message.len();
-                        let pool = pool.clone();
-                        let super_table = super_table.clone();
-                        let req_id = req_id.clone();
-                        let metrics_ref = metrics_arc.clone();
-                        let metrics = metrics_ref.ipc();
-                        lush::write(
+                let transform_elapsed = timer.elapsed();
+                if let crate::plugins::transform::Message::Records(message) = message {
+                    if message.is_empty() {
+                        continue;
+                    }
+                    let table_count = message.len();
+                    let pool = pool.clone();
+                    let super_table = super_table.clone();
+                    let req_id = req_id.clone();
+                    let metrics_ref = metrics_arc.clone();
+                    let metrics = metrics_ref.ipc();
+                    lush::write(
                             &pool,
                             super_table.as_str(),
                             taos::Precision::Millisecond,
@@ -1018,8 +1016,8 @@ async fn consume_lush_record_with_transform(
                             );
                         })
                         .context("Write transformed records with sql error")?;
-                    }
                 }
+                // } / end for each super table
             }
         }
     }

@@ -341,14 +341,14 @@ pub fn group_by_super_table_name(
 pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, RecordBatch> {
     let stable_name_column: &Arc<dyn Array> =
         records.column_by_name("_using").expect("_using not found");
-    let table_name_column: &StringArray = stable_name_column
+    let stable_name_column: &StringArray = stable_name_column
         .as_any()
         .downcast_ref::<StringArray>()
         .unwrap();
 
     let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
-    for i in 0..table_name_column.len() {
-        let super_table = table_name_column.value(i);
+    for i in 0..stable_name_column.len() {
+        let super_table = stable_name_column.value(i);
         if super_table_ranges.contains_key(super_table) {
             let ranges = super_table_ranges.get_mut(super_table).unwrap();
             let last_range = ranges.last_mut().unwrap();
@@ -390,8 +390,8 @@ pub async fn write(
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
-    .stable_name()
-    .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
+        .stable_name()
+        .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
     let timer = std::time::Instant::now();
     let sqls: Vec<Records> = message_to_sql(super_table_name, &messages, target_precision);
     let gen_sql_time = timer.elapsed();
