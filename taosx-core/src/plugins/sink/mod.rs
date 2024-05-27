@@ -3543,9 +3543,12 @@ impl IpcStreamWorker {
         let lush_model_config = OnceCell::const_new();
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
-                lush_model_config
-                    .set(Arc::new(LushModelConfig::try_from(from.clone()).unwrap()))
-                    .unwrap();
+                let config = LushModelConfig::try_from(from.clone()).unwrap();
+                tracing::debug!(
+                    "lush model config: {:#}",
+                    serde_json::to_string(&config).unwrap()
+                );
+                lush_model_config.set(Arc::new(config)).unwrap();
             }
             _ => {}
         };

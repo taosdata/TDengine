@@ -158,7 +158,6 @@ impl PIPointModelConfig {
                     template_name: None,
                     filter: None,
                     schema,
-                    template_schema: None,
                 }
             })
             .collect();
@@ -368,7 +367,6 @@ impl PIElementModelConfig {
                     template_name: Some(template_name.to_string()),
                     filter: None,
                     schema,
-                    template_schema: None,
                 }
             })
             .collect();
@@ -468,7 +466,6 @@ impl PIElementModelConfig {
     //             template_name: None,
     //             filter: None,
     //             schema,
-    //             template_schema: None,
     //         });
     //     }
     // }
@@ -622,6 +619,9 @@ impl SchemaRow {
         }
         let column_expr = self.column_map.as_str();
         let column_expr = column_expr.replace('$', "");
+        if column_expr == column_name {
+            return None;
+        }
         let expr = Expr::try_new(column_expr, true).ok()?;
         let expr_builder = ExprValueBuilder::new(expr);
         let field_value_builder = FieldValueBuilder::Expr(expr_builder);
@@ -664,9 +664,6 @@ pub struct SuperTableConfig {
     pub filter: Option<String>,
     // schema 部分
     pub schema: Vec<SchemaRow>,
-    // 关联的模板的 Schema，用于生成 Parser 的 parse 对象
-    // 可以把它看做 transform 之前的数据的 schema
-    pub template_schema: Option<Vec<SchemaRow>>,
 }
 
 /// split line by ','
@@ -766,7 +763,6 @@ impl SuperTableConfig {
             template_name,
             filter,
             schema,
-            template_schema: None,
         })
     }
 
