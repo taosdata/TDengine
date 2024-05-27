@@ -387,13 +387,13 @@ pub async fn write(
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
-    let timer = std::time::Instant::now();
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
-        .stable_name()
-        .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
-    let sqls = message_to_sql(super_table_name, &messages, target_precision);
+    .stable_name()
+    .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
+    let timer = std::time::Instant::now();
+    let sqls: Vec<Records> = message_to_sql(super_table_name, &messages, target_precision);
     let gen_sql_time = timer.elapsed();
     let timer = std::time::Instant::now();
     // 写入成功返回的总行数
