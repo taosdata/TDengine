@@ -377,7 +377,7 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
         .collect()
 }
 
-/// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会忽略值为 null 的列。
+/// 与 flat_write_with_sql 不同，这里的 messages 已经都属于一个超级表， 并且在写入的时候，会根据参数决定是否忽略值为 null 的列。
 #[instrument(skip_all, fields(stable=super_table_name))]
 #[async_backtrace::framed]
 pub async fn write(
@@ -757,8 +757,8 @@ async fn write_lush_stable_with_sql(
 ) -> Result<usize, WriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
-    // let debug_sql = if sql.len() > 300 { &sql[0..300] } else { sql };
-    // tracing::trace!(req_id = req_id.get(), sql = debug_sql, "Write with SQL");
+    let debug_sql = if sql.len() > 200 { &sql[0..200] } else { sql };
+    tracing::debug!(req_id = req_id.trace_id_str(), "{}", debug_sql); //@dingbo debug
     loop {
         match taos
             .as_ref()
