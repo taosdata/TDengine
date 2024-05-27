@@ -53,11 +53,8 @@
           </el-select>
           <el-input-number
             size="small"
-            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-            :value="
-              column.type == 'VARCHAR'
-                ? column.varcharLength
-                : column.ncharLength
+            v-if="VariableTableColumnType.includes(column.type)"
+            :value="column.length
             "
             @change="
               (newVal, oldVal) =>
@@ -182,12 +179,8 @@
           </el-select>
           <el-input-number
             size="small"
-            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-            :value="
-              column.type == 'VARCHAR'
-                ? column.varcharLength
-                : column.ncharLength
-            "
+            v-if="VariableTableColumnType.includes(column.type)"
+            :value="column.length"
             @change="
               (newVal, oldVal) =>
                 tagLengthChange(newVal, oldVal, column.type, index)
@@ -225,6 +218,7 @@ import {
   tagType,
   parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive
 } from "../../2_explorer/views/components/utils/index";
+import { VariableTableColumnType } from "@/const"
 export default {
   name: "CreateSTB",
   data() {
@@ -238,8 +232,7 @@ export default {
         type: "INT",
         field: "",
         value: "",
-        varcharLength: 8,
-        ncharLength: 8,
+        length: 8,
         encode: "simple8b", 
         compress: "lz4", 
         level: "medium",
@@ -248,8 +241,7 @@ export default {
         type: "TIMESTAMP", 
         field: "", 
         value: "",
-        varcharLength:8,
-        ncharLength:8, 
+        length:8, 
         encode: "delta-i", 
         compress: "lz4", 
         level: "medium", 
@@ -286,6 +278,7 @@ export default {
         ],
       },
       activeNames: ["1", "2"],
+      VariableTableColumnType
     };
   },
   props: {
@@ -327,20 +320,10 @@ export default {
   },
   methods: {
     handleChange(newVal, oldVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.stable_form.columns[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.stable_form.columns[index], "ncharLength", newVal);
-      }
+      this.$set(this.stable_form.columns[index], "length", newVal);
     },
     tagLengthChange(newVal, oldVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.stable_form.tags[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.stable_form.tags[index], "ncharLength", newVal);
-      }
+      this.$set(this.stable_form.tags[index], "length", newVal);
     },
     minusColumn(index) {
       if (this.stable_form.columns.length > 1) {
