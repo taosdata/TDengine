@@ -569,11 +569,7 @@ _exit:
   return code;
 }
 
-static void tsdbCompactCancel(void *arg) {
-  SCompactArg *compactArg = (SCompactArg *)arg;
-  tsdbRemoveCompMonitorTask(compactArg->tsdb, &compactArg->taskid);
-  taosMemoryFree(arg);
-}
+static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
 static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
   int32_t code = 0;
