@@ -88,7 +88,7 @@ impl PutStream {
         }
     }
 
-    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, stream.id = %stream_trace_id, remote=self.remote.as_ref().map(ToString::to_string)))]
+    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
     pub async fn into_flight_put_result(
         self,
         stream_trace_id: TraceStreamId,
