@@ -153,3 +153,102 @@ impl DsSampleIn {
         Some(arrow::datatypes::Schema::new(fields))
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_tranform() {
+//         let udf = r#"let blacks = ["xxx-21", "yyy-2"];let whites = ["ddd", "ccc", "xxx-1"];
+//     if (blacks.len > 0 && blacks.contains(data["DEV_ID"]) || whites.len > 0 && !whites.contains(data["DEV_ID"])) {
+//         return [];
+//     }
+
+//     let result = [];
+//     let share_data = #{};
+
+//     for (k, i) in data.keys() {
+//         if (k.len == 5 && (k.starts_with("U0") || k.starts_with("U1") || k.starts_with("U2"))) {
+//             let item = #{"_ts": `${data["DATA_DATE"]} ${k.sub_string(1,2)}:${k.sub_string(3,2)}`, "_value": data[k]};
+//             result.push(item);
+//         } else if (k != "DATA_DATE") {
+//             share_data.set(k, data[k]);
+//         }
+//     }
+
+//     for (item, i) in result {
+//         result[i] += share_data;
+//     }
+
+//     result
+// "#;
+
+//         let raw_data1 = r#"{
+// "DATA_ITEM_ID": "aaa-0123456",
+// "MONITOR_OBJ_TYPE": "b",
+// "MONITOR_OBJ_CODE": 'c',
+// "PRO_MGT_ORG_CODE": "hebei",
+// "MGT_ORG_CODE": "ddd",
+// "PUSH_DATE": "2024-3-20 12:23:30",
+// "U2358": 18.38,
+// "U2359": 219382.82827,
+// "PHASE_FLAG": true,
+// "DATA_POINT_FLAG": "3",
+// "DATA_DATE": "2024-3-20",
+// "PRODUCT_CODE": 1,
+// "DEV_ID":"xxx-1",
+// "TERMINAL_ID":"zzz"
+// }"#;
+
+//         let raw_data2 = r#"{
+// "DATA_ITEM_ID": "aaa-0123456",
+// "MONITOR_OBJ_TYPE": "b",
+// "MONITOR_OBJ_CODE": 'c',
+// "PRO_MGT_ORG_CODE": "hebei",
+// "PUSH_DATE": "2024-3-20 12:23:30",
+// "U2358": 18.38,
+// "U2357": 219.382,
+// "PHASE_FLAG": true,
+// "DATA_POINT_FLAG": "3",
+// "DATA_DATE": "2024-3-21",
+// "CMD_TYPE": "eee",
+// "PRODUCT_CODE": 1,
+// "DEV_ID":"xxx-1",
+// "TERMINAL_ID":"zzz"
+// }"#;
+
+//         let input = format!(
+//             r#"{{
+//     "parser":{{
+//         "parse":{{
+//             "payload":{{"udt": "{}"}}
+//         }}
+//     }},
+//     "input":[{{
+//         "topic":"topic",
+//         "qos":"qos",
+//         "payload":"{}"
+//     }}, {{
+//         "topic":"topic",
+//         "qos":"qos",
+//         "payload":"{}"
+//     }}]
+// }}"#,
+//             udf.replace("\n", "").replace("\"", "\\\""),
+//             raw_data1.replace("\n", "").replace("\"", "\\\""),
+//             raw_data2.replace("\n", "").replace("\"", "\\\"")
+//         );
+
+//         let ds: DsSampleIn = serde_json::from_str(&input).unwrap();
+//         let result = ds.transform(Some("Asia/Pyongyang"));
+//         match result {
+//             Ok(r) => {
+//                 println!("result");
+//             }
+//             Err(e) => {
+//                 println!("error: {:?}", e);
+//             }
+//         }
+//     }
+// }
