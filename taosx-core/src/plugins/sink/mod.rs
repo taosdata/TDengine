@@ -989,13 +989,14 @@ async fn consume_lush_record_with_transform(
                         .in_current_span()
                         .await
                         .map(|(written_rows, gen_sql_time, write_time)| {
-                            if written_rows != num_rows {
-                                tracing::debug!(
-                                    "written rows not equal to num_rows, written: {}, num_rows: {}",
-                                    written_rows,
-                                    num_rows
-                                );
-                            }
+                            // 对于实时数据，基本每批都会打印这个日志，意义不大
+                            // if written_rows != num_rows {
+                            //     tracing::debug!(
+                            //         "written rows not equal to num_rows, written: {}, num_rows: {}",
+                            //         written_rows,
+                            //         num_rows
+                            //     );
+                            // }
                             //process_rows 是 RecordBatch 里的行数。 与 written_rows 不同，后者是实际写入的行数。written_rows 在执行 sql 成功时已经做了统计
                             metrics.add_processed_rows(num_rows as u64);
                             *count += num_rows;
