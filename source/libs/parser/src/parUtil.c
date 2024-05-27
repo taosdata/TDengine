@@ -1234,6 +1234,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   pNew->pSchemas = pSchema;
   pNew->pSchemaExt = pSchemaExt;
+  pNew->pHashJsonTemplate = taosHashCopyJsonTemplate(pCfg->pHashJsonTemplate);
 
   return pNew;
 }

@@ -620,6 +620,12 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
       sprintf(type + strlen(type), " LEVEL \'%s\'",
               columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
+
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+      SJsonTemplateHashValue * pJsonTemplate = (SJsonTemplateHashValue *)taosHashGet(pCfg->pHashJsonTemplate, &pSchema->colId, sizeof(pSchema->colId));
+      SJsonTemplate *pTemplate = taosArrayGet(pJsonTemplate->pJsonTemplateArray, 0);
+      sprintf(type + strlen(type), " TEMPLATE \'%s\'", pTemplate->templateJsonString);
+    }
     if (!(pSchema->flags & COL_IS_KEY)) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
     } else {

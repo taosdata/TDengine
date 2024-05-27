@@ -48,7 +48,6 @@ typedef struct SVSnapReader SVSnapReader;
 typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
-extern int32_t jsonTemplateRef;
 
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();

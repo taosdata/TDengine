@@ -107,6 +107,7 @@ bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
 void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
+// thle following is for json column
 #define check(rval, call) { rval = call; if(rval) goto END; }
 
 #define ADD_TYPE_2_OBJECT(t,k,v) cJSON* type = cJSON_CreateString(v);\
@@ -114,6 +115,7 @@ void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 
 #define ADD_TYPE_2_ARRAY(t,v) cJSON* type = cJSON_CreateString(v);\
                               cJSON_AddItemToArray(t, type)
+extern int32_t jsonTemplateRef;
 
 int32_t       testJsonAvro(const char* json);
 int32_t       checkJsonTemplate(SJson *pJson);
@@ -126,6 +128,7 @@ char*         datum2Json(avro_datum_t  out);
 
 uint8_t       decodeTemplateId(uint8_t* data, int32_t *value);
 uint8_t       encodeTemplateId(uint8_t* buf, int32_t data);
+void          initJsonTemplateMeta();
 
 #ifdef __cplusplus
 }

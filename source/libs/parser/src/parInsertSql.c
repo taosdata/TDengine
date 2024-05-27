@@ -1442,7 +1442,7 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
   char * msg = NULL;
   cJSON* jsonT = NULL;
   cJSON* avro = NULL;
-  char*  avroJson = NULL;
+  char*  tempalteStr = NULL;
   uint8_t* encodeData = NULL;
   cJSON* root = cJSON_Parse(jsonString);
   if (root == NULL) {
@@ -1455,14 +1455,17 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
     goto END;
   }
   jsonT = transformJson2JsonTemplate(root);
-  avro = transformJsonTemplate2AvroRecord(jsonT);
-  avroJson = cJSON_PrintUnformatted(avro);
+  tempalteStr = cJSON_PrintUnformatted(jsonT);
+
+//  avro = transformJsonTemplate2AvroRecord(jsonT);
+//  char * avroJson = cJSON_PrintUnformatted(avro);
 
   ASSERT(jsonTemplate != NULL);
   SJsonTemplateHashValue* data = (SJsonTemplateHashValue*)taosHashGet(jsonTemplate, &colId, sizeof(col_id_t));
   char md5[64] = {0};
-  generateMd5(avroJson, strlen(avroJson), md5);
+  generateMd5(tempalteStr, strlen(tempalteStr), md5);
   SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(data->pJsonTemplateAvro, md5, strlen(md5));
+//  uDebug("encodejson jsonTemplate key:%s, str:%s, %s", md5, tempalteStr, avroJson);
 
   encodeData = (uint8_t*)taosMemoryMalloc(*len + 2*INT_BYTES);
   if (NULL == encodeData) {
@@ -1474,6 +1477,8 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
     *encodeData = 0;
     memcpy(encodeData + 1, jsonString, *len);
     *len += 1;
+    uDebug("encodejson json no template, %s", jsonString);
+
   }else{
     uint8_t bytes = encodeTemplateId(encodeData, avroSchema->templateId);
     if(encodeJson2Avro(root, avroSchema->avroSchama, encodeData + bytes, len) != 0) {
@@ -1481,14 +1486,16 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
       goto END;
     }
     *len += bytes;
+    uDebug("encodejson json template id:%d, %s", avroSchema->templateId, jsonString);
   }
 
 
   *pData = encodeData;
+  encodeData = NULL;
 
 END:
   taosMemoryFree(encodeData);
-  taosMemoryFree(avroJson);
+  taosMemoryFree(tempalteStr);
   cJSON_Delete(root);
   cJSON_Delete(jsonT);
   cJSON_Delete(avro);

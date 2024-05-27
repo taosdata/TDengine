@@ -766,6 +766,8 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosMemoryFree(pCfg->pSchemas);
   taosMemoryFree(pCfg->pSchemaExt);
   taosMemoryFree(pCfg->pTags);
+  taosHashCleanup(pCfg->pHashJsonTemplate);
+  pCfg->pHashJsonTemplate = NULL;
   taosMemoryFree(pCfg);
 }
 

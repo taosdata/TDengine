@@ -1165,7 +1165,6 @@ typedef struct {
   int32_t bytes;
   int8_t  type;
   uint8_t pk;
-  SJsonTemplateHashValue templateInfo;
   int64_t jsonTemplateRefId;
 } SColumnInfo;
 

@@ -10637,7 +10637,7 @@ void destroyTableTemplateHash(void *data) {
 
 SAvroSchema copyJsonTemplateAvro(void *data) {
   SAvroSchema tmp = *(SAvroSchema *)data;
-  avro_schema_decref(tmp.avroSchama);
+  avro_schema_incref(tmp.avroSchama);
   return tmp;
 }
 
@@ -10656,6 +10656,10 @@ static SHashObj *taosHashCopyJsonTemplateAvro(SHashObj *pHashObj) {
     size_t      keyLen = 0;
     void *      key = taosHashGetKey(p, &keyLen);
     SAvroSchema hashValueDup = copyJsonTemplateAvro(p);
+    char* tmp = taosMemoryCalloc(1, keyLen + 1);
+    memcpy(tmp, key, keyLen);
+    uDebug("copy jsonTemplate key:%s, tid:%d", tmp, hashValueDup.templateId);
+    taosMemoryFree(tmp);
     taosHashPut(pNewHashObj, key, keyLen, &hashValueDup, sizeof(hashValueDup));
     p = taosHashIterate(pHashObj, p);
   }
@@ -10760,6 +10764,9 @@ int32_t tDecodeHashJsonTemplate(SDecoder *pDecoder, SHashObj **pHashJsonTemplate
         taosHashSetFreeFp(pNewHashObj, destroyJsonTemplateAvro);
         for (int32_t j = 0; j < arrLen; ++j) {
           SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(arr, j);
+          if(!pTemplate->isValidate){
+            continue;
+          }
           cJSON *        cTemplate = cJSON_Parse(pTemplate->templateJsonString);
           if (cTemplate == NULL) {
             terrno = TSDB_CODE_INVALID_JSON_FORMAT;
@@ -10790,6 +10797,7 @@ int32_t tDecodeHashJsonTemplate(SDecoder *pDecoder, SHashObj **pHashJsonTemplate
             cJSON_Delete(avroJson);
             return -1;
           }
+          uDebug("decode jsonTemplate key:%s templateId:%d str:%s", md5, pTemplate->templateId, pTemplate->templateJsonString);
           cJSON_Delete(cTemplate);
           cJSON_Delete(avroJson);
         }

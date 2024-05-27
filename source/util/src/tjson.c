@@ -17,6 +17,7 @@
 
 #include "tjson.h"
 #include "taoserror.h"
+#include "tref.h"
 
 SJson* tjsonCreateObject() {
   SJson* pJson = cJSON_CreateObject();
@@ -540,7 +541,7 @@ cJSON* arrayElement2Avro(cJSON* data){
   {
     case cJSON_String:
     {
-      return cJSON_CreateString("string");
+      return cJSON_CreateString(data->valuestring);
     }
 
     case cJSON_Array:{
@@ -640,7 +641,10 @@ int encodeBySchema(const avro_schema_t schema, cJSON *json, avro_datum_t current
 
     case AVRO_BOOLEAN:
       ASSERT(cJSON_IsBool(json));
-      avro_boolean_set(current_val, cJSON_GetNumberValue(json));
+      if (cJSON_IsTrue(json))
+        avro_boolean_set(current_val, 1);
+      else
+        avro_boolean_set(current_val, 0);
       break;
 
     case AVRO_NULL:
@@ -908,10 +912,10 @@ int32_t testJsonAvro(const char* json) {
   }
   cJSON* object = transformJson2JsonTemplate(root);
   cJSON* avro = transformJsonTemplate2AvroRecord(object);
-//  char* in = cJSON_PrintUnformatted(root);
+  char* in = cJSON_PrintUnformatted(root);
 //  char* out = cJSON_PrintUnformatted(object);
 
-  char* in = cJSON_Print(root);
+//  char* in = cJSON_Print(root);
   char* out = cJSON_Print(object);
   char* avroout = cJSON_Print(avro);
 
@@ -1004,4 +1008,23 @@ uint8_t encodeTemplateId(uint8_t* buf, int32_t data){
   }
   buf[bytes++] = data;
   return bytes;
+}
+
+int32_t               jsonTemplateRef = 0;
+static TdThreadOnce   jsonTemplateInit = PTHREAD_ONCE_INIT;  // initialize only once
+
+static void jsonTemplateFree(void* handle) {
+  SArray *tmp = (SArray *)handle;
+  for(int i = 0; i < taosArrayGetSize(tmp); i++){
+    avro_schema_decref(taosArrayGetP(tmp, i));
+  }
+  taosArrayDestroy(tmp);
+}
+
+static void jsonTemplateMgmtInit(void) {
+  jsonTemplateRef = taosOpenRef(10000, jsonTemplateFree);
+}
+
+void initJsonTemplateMeta(){
+  taosThreadOnce(&jsonTemplateInit, jsonTemplateMgmtInit);
 }

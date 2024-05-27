@@ -124,15 +124,18 @@ int32_t addAvroSchema2TableHash(SHashObj *tableHash, SHashObj *pHashJsonTemplate
       cJSON *root = cJSON_Parse(pTemplate->templateJsonString);
       if (root == NULL){
         terrno = TSDB_CODE_OUT_OF_MEMORY;
+        taosReleaseRef(jsonTemplateRef, refId);
         goto FAILED;
       }
       if(addAvroSchema(avroArray, root) != 0){
         cJSON_Delete(root);
+        taosReleaseRef(jsonTemplateRef, refId);
         goto FAILED;
       }
       cJSON_Delete(root);
     }
     data = taosHashIterate(pHashJsonTemplate, data);
+    taosReleaseRef(jsonTemplateRef, refId);
   }
   return TDB_CODE_SUCCESS;
 

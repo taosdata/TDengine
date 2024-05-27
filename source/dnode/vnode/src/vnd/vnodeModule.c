@@ -17,21 +17,7 @@
 #include "vnd.h"
 
 static volatile int32_t VINIT = 0;
-static TdThreadOnce   jsonTemplateInit = PTHREAD_ONCE_INIT;  // initialize only once
 SVAsync* vnodeAsyncHandle[2];
-int32_t jsonTemplateRef = 0;
-
-static void jsonTemplateFree(void* handle) {
-  SArray *tmp = (SArray *)handle;
-  for(int i = 0; i < taosArrayGetSize(tmp); i++){
-    avro_schema_decref(taosArrayGet(tmp, i));
-  }
-  taosArrayDestroy(tmp);
-}
-
-static void jsonTemplateMgmtInit(void) {
-  jsonTemplateRef = taosOpenRef(10000, jsonTemplateFree);
-}
 
 int vnodeInit(int nthreads) {
   int32_t init;
@@ -52,8 +38,6 @@ int vnodeInit(int nthreads) {
   if (walInit() < 0) {
     return -1;
   }
-
-  taosThreadOnce(&jsonTemplateInit, jsonTemplateMgmtInit);
 
   return 0;
 }

@@ -86,6 +86,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
 
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
+  initJsonTemplateMeta();
 
   dmInitStatusClient(pDnode);
   dmInitSyncClient(pDnode);  

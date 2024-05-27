@@ -21,7 +21,6 @@
 #include "tref.h"
 
 #define MALLOC_ALIGN_BYTES 32
-extern int32_t jsonTemplateRef;
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -72,7 +71,7 @@ int32_t getJsonValueLen(const char* data) {
   int32_t dataLen = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
     dataLen = CHAR_BYTES;
-  } else if (*data == TSDB_DATA_TYPE_NCHAR) {
+  } else if (*data == TSDB_DATA_TYPE_NCHAR || *data == TSDB_DATA_TYPE_BINARY) {
     dataLen = varDataTLen(data + CHAR_BYTES) + CHAR_BYTES;
   } else if (*data == TSDB_DATA_TYPE_DOUBLE) {
     dataLen = DOUBLE_BYTES + CHAR_BYTES;
@@ -102,7 +101,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = 0;
-    if (type == TSDB_DATA_TYPE_JSON && pColumnInfoData->info.templateInfo.pJsonTemplateArray == NULL) { //json tag
+    if (type == TSDB_DATA_TYPE_JSON && pColumnInfoData->info.jsonTemplateRefId == 0) { //json tag
       dataLen = getJsonValueLen(pData);
     } else {
       dataLen = varDataTLen(pData);
@@ -382,19 +381,35 @@ static int32_t decodeJsonBlock(SColumnInfoData* pColumnInfoData, int32_t numOfRo
     char* d = varDataVal(data);
     int32_t templateId = 0;
     uint8_t idLen = decodeTemplateId(d, &templateId);
-    if (idLen == 0 || templateId < 1 || templateId > taosArrayGetSize(pColumnInfoData->info.templateInfo.pJsonTemplateArray)){
-      uError("idLen:%d invalid or invalid template id: %d", idLen, templateId);
+    SArray* avroArray = (SArray *)taosAcquireRef(jsonTemplateRef, pColumnInfoData->info.jsonTemplateRefId);
+    if(avroArray == NULL){
+      uError("jsonTemplateRefId:%"PRId64" not found", pColumnInfoData->info.jsonTemplateRefId);
       taosMemoryFree(*dataAlloc);
+      taosReleaseRef(jsonTemplateRef, pColumnInfoData->info.jsonTemplateRefId);
       return TSDB_CODE_FAILED;
     }
-    SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(pColumnInfoData->info.templateInfo.pJsonTemplateArray, templateId - 1);
-    char md5[64] = {0};
-    generateMd5(pTemplate->templateJsonString, strlen(pTemplate->templateJsonString), md5);
-    SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(pColumnInfoData->info.templateInfo.pJsonTemplateAvro, md5, strlen(md5));
-    ASSERT(avroSchema != NULL);
-    char* decodeStr = datum2Json(decodeAvro2Datum(avroSchema->avroSchama, d + idLen, len - idLen));
+    if (idLen == 0 || templateId < 0 || templateId > taosArrayGetSize(avroArray)){
+      uError("idLen:%d invalid or invalid template id: %d", idLen, templateId);
+      taosMemoryFree(*dataAlloc);
+      taosReleaseRef(jsonTemplateRef, pColumnInfoData->info.jsonTemplateRefId);
+      return TSDB_CODE_FAILED;
+    }
+//    SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(pColumnInfoData->info.templateInfo.pJsonTemplateArray, templateId - 1);
+//    char md5[64] = {0};
+//    generateMd5(pTemplate->templateJsonString, strlen(pTemplate->templateJsonString), md5);
+//    SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(pColumnInfoData->info.templateInfo.pJsonTemplateAvro, md5, strlen(md5));
+//    ASSERT(avroSchema != NULL);
+    char* decodeStr = NULL;
+    if(templateId == 0){
+      decodeStr = taosMemoryCalloc(1, len + 1);
+      memcpy(decodeStr, d + idLen, len - idLen);
+    }else{
+      avro_schema_t avroSchema = (avro_schema_t)taosArrayGetP(avroArray, templateId - 1);
+      decodeStr = datum2Json(decodeAvro2Datum(avroSchema, d + idLen, len - idLen));
+    }
     uDebug("json decode str: %s\n", decodeStr);
-    uint32_t strLen = strlen(decodeStr);
+    taosReleaseRef(jsonTemplateRef, pColumnInfoData->info.jsonTemplateRefId);
+    uint32_t strLen = strlen(decodeStr) + 1;
     if (*offset + strLen + VARSTR_HEADER_SIZE > allocLen){
       char* tmp = taosMemoryRealloc(*dataAlloc, 2 * (allocLen + strLen + VARSTR_HEADER_SIZE));
       if(tmp == NULL){
@@ -407,8 +422,9 @@ static int32_t decodeJsonBlock(SColumnInfoData* pColumnInfoData, int32_t numOfRo
     }
     pColumnInfoData->varmeta.offset[i + numOfRow1] = pColumnInfoData->varmeta.length + *offset;
     char* dataTmp = *dataAlloc + *offset;
-    varDataSetLen(dataTmp, strLen);
-    memcpy(varDataVal(dataTmp), decodeStr, strLen);
+    *dataTmp = TSDB_DATA_TYPE_BINARY;
+    varDataSetLen(dataTmp + 1, strLen);
+    memcpy(varDataVal(dataTmp + 1), decodeStr, strLen - 1);
     *offset += (strLen + VARSTR_HEADER_SIZE);
     taosMemoryFree(decodeStr);
   }
@@ -460,7 +476,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->varmeta.offset = (int32_t*)p;
     }
 
-    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.templateInfo.pJsonTemplateArray != NULL){
+    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.jsonTemplateRefId != 0){
       int32_t offset = 0;
       char* dataAlloc = NULL;
       int32_t ret = decodeJsonBlock(pColumnInfoData, numOfRow1, pSource, numOfRow2, &offset, &dataAlloc);
@@ -532,7 +548,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     int32_t newLen = pSource->varmeta.length;
-    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.templateInfo.pJsonTemplateArray != NULL) {
+    if (pSource->info.type == TSDB_DATA_TYPE_JSON && pSource->info.jsonTemplateRefId != 0) {
       int32_t offset = 0;
       char*   dataAlloc = NULL;
       int32_t ret = decodeJsonBlock(pColumnInfoData, 0, pSource, numOfRows, &offset, &dataAlloc);

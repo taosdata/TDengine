@@ -162,7 +162,8 @@ int main(int argc, char* argv[]) {
       "        }\n"
       "    }\n"
       "}";
-  testJsonAvro(json);
+  char json2[4096] = "{\"k1\":\"stringk1\",\"k2\":123,\"k3\":[1.1,2.2],\"k4\":123,\"k5\":{\"k6\":true,\"k7\":1.1},\"k8\":\"stringk8\"}";
+  testJsonAvro(json2);
 //  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
 //  testing::InitGoogleTest(&argc, argv);
 //  ParserTest::parseArg(argc, argv);
