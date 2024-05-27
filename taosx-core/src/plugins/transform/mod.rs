@@ -954,6 +954,16 @@ pub struct Parser {
     model: Modeler,
 }
 
+impl Parser {
+    pub fn global(&self) -> &TableOptions {
+        &self.global
+    }
+
+    pub fn modeler(&self) -> &Modeler {
+        &self.model
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("Read parser from path {input} error: {error}")]
@@ -1327,6 +1337,67 @@ pub struct MessageArrowRecords {
     pub opts: Arc<TableOptions>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum WrittenProtocol {
+    #[default]
+    Auto,
+    Sql,
+    Stmt,
+    Sml,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum WrittenMethod {
+    #[default]
+    Concurrent,
+    VgroupConcurrent,
+    VgroupSequential,
+    Sequential,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum NullValues {
+    #[default]
+    Null,
+    Skip,
+}
+
+impl NullValues {
+    pub fn skip(&self) -> bool {
+        matches!(self, Self::Skip)
+    }
+}
+
+impl FromStr for WrittenMethod {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "concurrent" => Ok(Self::Concurrent),
+            "vgroup" => Ok(Self::VgroupConcurrent),
+            "vgroup_concurrent" => Ok(Self::VgroupConcurrent),
+            "vgroup_sequential" => Ok(Self::VgroupSequential),
+            "sequential" => Ok(Self::Sequential),
+            _ => Err(Error::InvalidWrittenMethod(s.to_string())),
+        }
+    }
+}
+
+impl FromStr for NullValues {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "null" => Ok(Self::Null),
+            "skip" => Ok(Self::Skip),
+            _ => Err(Error::InvalidNullValues(s.to_string())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TableOptions {
     // TODO: support case insensitive identifier, including table name and column name.
@@ -1344,6 +1415,27 @@ pub struct TableOptions {
     /// Default is `_`.
     #[serde(default)]
     pub replace_dot_in_table_name: String,
+
+    /// Written method for insert.
+    /// Default is `auto`.
+    ///
+    /// - `auto`: auto detect written method.
+    /// - `sql`: use sql insert.
+    /// - `stmt`: use stmt insert.
+    /// - `sml`: use sml insert.
+    #[serde(default)]
+    pub written_protocol: WrittenProtocol,
+
+    /// Flat written method
+    written_method: Option<WrittenMethod>,
+
+    /// Concurrent limit
+    written_concurrent: Option<usize>,
+
+    workers_per_vgroup: Option<usize>,
+
+    /// How to deal with null values.
+    null_values: Option<NullValues>,
 }
 
 impl Default for TableOptions {
@@ -1351,12 +1443,57 @@ impl Default for TableOptions {
         Self {
             identifier_case_insensitive: false,
             replace_dot_in_table_name: "_".to_string(),
+            written_protocol: WrittenProtocol::default(),
+            written_method: None,
+            written_concurrent: None,
+            workers_per_vgroup: None,
+            null_values: None,
         }
     }
 }
 impl TableOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn written_method(&self) -> WrittenMethod {
+        self.written_method.unwrap_or_else(|| {
+            std::env::var("TAOSX_WRITTEN_METHOD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(WrittenMethod::Concurrent)
+        })
+    }
+
+    pub fn concurrent_limit(&self) -> usize {
+        self.written_concurrent.unwrap_or_else(|| {
+            std::env::var("TAOSX_WRITTEN_CONCURRENT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(
+                    std::thread::available_parallelism()
+                        .ok()
+                        .map_or(4, |v| v.get()),
+                )
+        })
+    }
+
+    pub fn workers_per_vgroup(&self) -> usize {
+        self.workers_per_vgroup.unwrap_or_else(|| {
+            std::env::var("TAOSX_WORKERS_PER_VGROUP")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(4)
+        })
+    }
+
+    pub fn null_values(&self) -> NullValues {
+        self.null_values.unwrap_or_else(|| {
+            std::env::var("TAOSX_NULL_VALUES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_default()
+        })
     }
 
     pub fn canonical_table_name<'b>(&self, name: &'b str) -> Cow<'b, str> {
@@ -1601,10 +1738,15 @@ impl MessageArrowRecords {
         }
     }
 
-    pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
+    pub fn sql_insert_part(
+        &self,
+        precision: taos::Precision,
+        with_meta: bool,
+        with_field_names: bool,
+    ) -> Vec<(String, usize)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
-            return None;
+            return vec![];
         }
         if primary_key_null_count > 0 {
             tracing::warn!(
@@ -1616,38 +1758,74 @@ impl MessageArrowRecords {
             // self.records
             tracing::warn!(records = ?self.records,  "Null indices in records: {:?} ", indices);
         }
-        let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
-            .expect("Sql values should be recognizable")?;
+        let col_values = crate::utils::sql::sql_values_from_record_batch(
+            &self.records,
+            precision,
+            // TODO: with field names in values.
+            with_field_names,
+        )
+        .expect("Sql values should be recognizable");
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
-        if !with_meta || self.table.using.is_none() {
-            return Some(format!("`{}` {}", tbname, col_values));
-        }
-        let using = self.table.using.as_ref().unwrap();
-        let tag_names = self
-            .table
-            .tags
-            .as_ref()
-            .unwrap()
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| format!("`{}`", f.name()))
-            .join(",");
 
-        let tag_values = self
-            .table
-            .tags
-            .as_ref()
-            .unwrap()
-            .columns()
-            .iter()
-            .map(|c| c.taos_value(0).to_sql_value())
-            .join(",");
+        col_values
+            .into_iter()
+            .map(|(col_values, rows)| {
+                if !with_meta || self.table.using.is_none() {
+                    return (format!("`{}` {}", tbname, col_values), rows);
+                }
+                let using = self.table.using.as_ref().unwrap();
 
-        Some(format!(
-            "`{}` using `{}` ({}) tags({}) {}",
-            tbname, using, tag_names, tag_values, col_values
-        ))
+                // TODO: with field name in tags.
+                if true {
+                    // with_field_names
+                    let names = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .schema()
+                        .fields()
+                        .iter()
+                        .map(|f| format!("`{}`", f.name()))
+                        .join(",");
+
+                    let tag_values = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+
+                    (
+                        format!(
+                            "`{}` using `{}` ({}) tags({}) {}",
+                            tbname, using, names, tag_values, col_values
+                        ),
+                        rows,
+                    )
+                } else {
+                    let tag_values = self
+                        .table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+                    (
+                        format!(
+                            "`{}` using `{}` tags ({}) {}",
+                            tbname, using, tag_values, col_values
+                        ),
+                        rows,
+                    )
+                }
+            })
+            .collect()
     }
 
     pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
@@ -1793,6 +1971,10 @@ pub trait TransformExt {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Invalid written method: {0}")]
+    InvalidWrittenMethod(String),
+    #[error("Invalid null values strategy: {0}")]
+    InvalidNullValues(String),
     #[error(transparent)]
     EvalError(#[from] expr::EvalError),
     #[error("Template {0:?} error: {1:#}")]

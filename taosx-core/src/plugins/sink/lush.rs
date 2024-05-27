@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Range, time::Duration};
 
-use super::transform::Parser;
+use super::{flat::Records, transform::Parser};
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
@@ -20,7 +20,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
-use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
+use taos::{taos_query::Manager, AsyncQueryable, TaosBuilder, TaosPool, Ty};
 use taosx_ipc::stream::reader::LushInsertAttrs;
 use thiserror::Error;
 
@@ -35,7 +35,7 @@ use super::ipc_metric::IpcMetrics;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct LushModelConfig {
-    /// The name of the column that represent sub-table name in the recived RecordBatch.
+    /// The name of the column that represent sub-table name in the received RecordBatch.
     pub table_name_column: String,
 
     /// key:  super-table name .
@@ -386,6 +386,7 @@ pub async fn write(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
+    skip_null: bool,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
@@ -393,7 +394,11 @@ pub async fn write(
         .stable_name()
         .ok_or_else(|| anyhow!("stable name not found in MessageArrowRecords"))?;
     let timer = std::time::Instant::now();
-    let sqls: Vec<Records> = message_to_sql(super_table_name, &messages, target_precision);
+    let sqls = if skip_null {
+        message_to_sql(super_table_name, &messages, target_precision)
+    } else {
+        super::flat::message_to_sql(&messages, target_precision, true, false)
+    }; //
     let gen_sql_time = timer.elapsed();
     let timer = std::time::Instant::now();
     // 写入成功返回的总行数
@@ -641,27 +646,6 @@ fn message_to_sql(
         .collect_vec()
 }
 
-/// Write records to TDengine with `sql`, which contains `tables` num of tables,
-/// and `records` number of records.
-#[derive(Debug)]
-#[allow(dead_code)]
-struct Records {
-    stable: Option<String>,
-    sql: String,
-    tables: usize,
-    records: usize,
-}
-impl Records {
-    fn sql(&self) -> &str {
-        self.sql.as_str()
-    }
-}
-impl<'a> AsRef<str> for Records {
-    fn as_ref(&self) -> &str {
-        self.sql.as_str()
-    }
-}
-
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 #[derive(Debug, Error)]
@@ -799,7 +783,7 @@ async fn write_lush_stable_with_sql(
                     0x2603 | 0x0618 => {
                         // stable/table not exists
                         break Err(WriteError::TableNotExits(
-                            records.stable.as_deref().unwrap_or("unknown").to_string(),
+                            records.stable().unwrap_or("unknown").to_string(),
                         ));
                     }
                     0x2653 => {

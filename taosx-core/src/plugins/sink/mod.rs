@@ -544,8 +544,6 @@ async fn consume_lush_record(
     record: LushMessage,
     columns: &Vec<String>,
     count: &mut usize,
-    _license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
     task: Option<i64>,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
@@ -657,10 +655,6 @@ async fn consume_lush_record(
                             bail!("lush message table query error: {err:#}");
                         }
                     }
-                }
-
-                if let Some(transferred) = transferred {
-                    transferred.tables.fetch_add(1, Ordering::SeqCst);
                 }
             }
 
@@ -989,6 +983,7 @@ async fn consume_lush_record_with_transform(
                             &req_id,
                             message,
                             metrics,
+                            parser.global().null_values().skip()
                         )
                         .in_current_span()
                         .await
@@ -2308,14 +2303,12 @@ async fn consume_flat_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &FlatMessage,
     count: &mut usize,
-    parser: Option<&Parser>,
-    _: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
+    parser: &Parser,
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
+    // let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id.as_u64());
@@ -2434,11 +2427,6 @@ async fn consume_flat_record(
                                             // dbg!(&err);
                                             if let Some(sql) = records.stable_sql() {
                                                 tracing::debug!("flat message stable sql : {sql}");
-                                                if let Some(transferred) = transferred {
-                                                    transferred
-                                                        .stables
-                                                        .fetch_add(1, Ordering::SeqCst);
-                                                }
                                                 match taos
                                                     .as_ref()
                                                     .unwrap()
@@ -2561,12 +2549,6 @@ async fn consume_flat_record(
                                                 //.inspect_err(|err| tracing::warn!("{}", err))?
                                             } else {
                                                 let sql = records.table_sql();
-                                                // dbg!(&sql);
-                                                if let Some(transferred) = transferred {
-                                                    transferred
-                                                        .tables
-                                                        .fetch_add(1, Ordering::SeqCst);
-                                                }
                                                 match taos
                                                     .as_ref()
                                                     .unwrap()
@@ -2690,18 +2672,11 @@ async fn consume_flat_record(
                                                 }
                                             }
                                         }
-
-                                        if let Some(transferred) = transferred {
-                                            transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                        }
                                         break;
                                     }
                                     //.inspect_err(|err| tracing::warn!("{}", err))?
                                 } else {
                                     let sql = records.table_sql();
-                                    if let Some(transferred) = transferred {
-                                        transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                    }
                                     match taos
                                         .as_ref()
                                         .unwrap()
@@ -2800,14 +2775,6 @@ async fn consume_flat_record(
                             metrics.add_written_points(
                                 (raw.nrows() * raw.column_views().len()) as u64,
                             );
-                            if let Some(transferred) = transferred {
-                                transferred
-                                    .records
-                                    .fetch_add(raw.nrows() as _, Ordering::SeqCst);
-                                transferred
-                                    .points
-                                    .fetch_add((raw.nrows() * raw.ncols()) as _, Ordering::SeqCst);
-                            }
                             break;
                         }
                     }
@@ -2824,8 +2791,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     lush_model_config: Option<LushModelConfig>,
-    license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
@@ -2900,8 +2865,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 record,
                 &columns,
                 &mut count,
-                license,
-                transferred,
                 task_id,
                 data_trace_id,
                 metrics,
@@ -3063,8 +3026,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     parser: Option<&Parser>,
-    license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
@@ -3095,9 +3056,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             &mut taos,
             &record,
             &mut count,
-            parser,
-            license,
-            transferred,
+            parser.unwrap(),
             target_precision,
             data_trace_id,
             metrics,
@@ -3367,8 +3326,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 ipc_reader,
                 ipc_ack_writer,
                 parser.as_ref(),
-                license.as_ref(),
-                transferred.as_deref(),
                 target_precision,
                 notifier,
                 ipc_error_strategy,
@@ -3383,8 +3340,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 ipc_reader,
                 ipc_ack_writer,
                 lush_model_config,
-                license.as_ref(),
-                transferred.as_deref(),
                 task_id,
                 notifier,
                 ipc_error_strategy,
@@ -3609,9 +3564,7 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
-                    parser, // todo: license
-                    self.license.as_deref(),
-                    self.transferred.as_deref(),
+                    parser.expect("Parser is required in flat"),
                     self.target_precision,
                     data_trace_id,
                     metrics,
@@ -3679,8 +3632,6 @@ impl IpcStreamWorker {
                         record,
                         &columns,
                         &mut count,
-                        self.license.as_deref(),
-                        self.transferred.as_deref(),
                         task,
                         data_trace_id,
                         metrics,

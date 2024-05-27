@@ -1,4 +1,5 @@
 use crate::get_data_dir;
+use anyhow::Context;
 use std::path::PathBuf;
 use tracing::{debug, info};
 
@@ -7,7 +8,73 @@ fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     path.join("tasks").join(task_id).join("breakpoints")
 }
 
+#[derive(Debug, Clone)]
+pub struct BreakpointDb {
+    db: std::sync::Arc<sled::Db>,
+}
+
+impl BreakpointDb {
+    fn new(db: sled::Db) -> Self {
+        Self {
+            db: std::sync::Arc::new(db),
+        }
+    }
+    pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
+        let path = breakpoints_db_dir(id);
+        // create db file
+        if !path.exists() {
+            tokio::fs::create_dir_all(&path).await?;
+        }
+
+        let mut retries = 0;
+        let max_retries = 5;
+        loop {
+            match sled::open(&path) {
+                Ok(db) => {
+                    return Ok(BreakpointDb::new(db));
+                }
+                Err(err) => {
+                    if retries >= max_retries {
+                        return Err(anyhow::anyhow!("sled open db file failed: {:?}", err));
+                    }
+                    retries += 1;
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
+    pub async fn set(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let db = self.db.clone();
+        let key = key.to_string();
+        let value = value.as_bytes().to_vec();
+        tokio::task::spawn_blocking(move || db.insert(key, value).map(|_| ()))
+            .await?
+            .context("Breakpoint set error")?;
+        Ok(())
+    }
+    pub async fn get(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let db = self.db.clone();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let result = db.get(key).context("Breakpoint get error")?;
+            match result {
+                Some(v) => Some(
+                    String::from_utf8(v.to_vec())
+                        .map_err(|err| anyhow::anyhow!("Breakpoint value utf8 error: {:?}", err)),
+                )
+                .transpose(),
+                None => Ok(None),
+            }
+        })
+        .await
+        .context("Spawn blocking task for breakpoint get")?
+    }
+}
+
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
+    if task_id == "-1" {
+        return Ok(());
+    }
     let path = breakpoints_db_dir(task_id);
     debug!(
         "breakpoints db path: {}, breakpoints key: {}, value: {}",

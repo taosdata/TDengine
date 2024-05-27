@@ -72,20 +72,16 @@ mod tests {
 
     #[test]
     fn test_get_file_encode() {
-        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-utf8.csv";
+        let file_path = "../tests/opc/opcua-utf8.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "UTF-8");
 
-        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-utf8_BOM.csv";
+        let file_path = "../tests/opc/opcua-utf8bom.csv";
         let encode = get_encode(file_path).unwrap();
         assert_eq!(encode.name(), "UTF-8");
 
-        let file_path = "/Users/yangzy/RustProjects/taosx/tests/opc/opcua-gbk.csv";
-        let encode = get_encode(file_path);
-        assert!(encode.is_err());
-        assert!(encode
-            .unwrap_err()
-            .to_string()
-            .starts_with("failed to open file: "));
+        let file_path = "../tests/opc/opcua-gbk.csv";
+        let encode = get_encode(file_path).unwrap();
+        assert_eq!(encode.name(), "GBK");
     }
 }
