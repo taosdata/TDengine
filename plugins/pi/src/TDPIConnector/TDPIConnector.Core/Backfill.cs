@@ -436,10 +436,21 @@ namespace TDPIConnector.Core
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             AFAttributeListWrapper attributes = new AFAttributeListWrapper();
-            foreach (AFAttributeWrapper attribute in element.Attributes) {
+            foreach (AFAttributeWrapper attribute in element.Attributes)
+            {
                 if (!attribute.IsTDengineTag() && !attribute.Unsupported()) // tag update is not here
                 {
                     attributes.Add(attribute);
+                }
+                if (attribute.HasChild())
+                {
+                    foreach (AFAttributeWrapper childAttribute in attribute.childAttributes)
+                    {
+                        if (!childAttribute.IsTDengineTag() && !childAttribute.Unsupported()) // tag update is not here
+                        {
+                            attributes.Add(childAttribute);
+                        }
+                    }
                 }
             }
             string superTableName;
