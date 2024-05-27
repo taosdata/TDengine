@@ -29,7 +29,10 @@ use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::MessageArrowRecords,
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
-    utils::trace::{create_data_trace_id, get_data_trace_id_str, RequestID, TraceStreamId},
+    utils::{
+        sql::values_to_sqls,
+        trace::{create_data_trace_id, get_data_trace_id_str, RequestID, TraceStreamId},
+    },
     Parser,
 };
 
@@ -110,10 +113,10 @@ pub(crate) fn message_to_sql(
 #[derive(Debug)]
 #[allow(dead_code)]
 pub(crate) struct Records {
-    stable: Option<String>,
-    sql: String,
-    tables: usize,
-    records: usize,
+    pub stable: Option<String>,
+    pub sql: String,
+    pub tables: usize,
+    pub records: usize,
 }
 impl Records {
     #[inline]

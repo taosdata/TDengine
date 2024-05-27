@@ -15,6 +15,7 @@ use arrow::{
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
 use faststr::FastStr;
+use itertools::Itertools as _;
 use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
