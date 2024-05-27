@@ -5,20 +5,23 @@ description: This document describes how to connect your VPC to TDengine Cloud w
 ---
 
 <!-- markdownlint-disable MD033 -->
+
 ## Introduction
 
 PrivateLink is a highly available, scalable technology that you can use to privately connect your application to TDengine Cloud instance with different VPCs. PrivateLink allows the application in your VPC to connect to TDengine Cloud instance through your private IP addresses, and no needs to expose your data to the public internet.
 
-Currently, TDengine Cloud only supports private endpoint connections in AWS. Other clouds such as GCP or Azure will soon be supported.
+Currently, TDengine Cloud supports private endpoint connections in AWS and GCP. Other clouds such as Azure will soon be supported.
 
 The architecture of the PrivateLink is as follows:
 
 ![TDengine Cloud Architecture of PrivateLink](./privatelink-arch.webp)
+
 <center><figcaption>Figure 1. Architecture of PrivateLink</figcaption></center>
 
 For more details of the PrivateLink concept, please see the following AWS documents:  
 [What is AWS PrivateLink?](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html)  
 [AWS PrivateLink concepts](https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html)  
+[GCP Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect)
 
 ## How to use PrivateLink
 
@@ -27,8 +30,10 @@ For more details of the PrivateLink concept, please see the following AWS docume
 1. Open [Instances](https://console.cloud.tdengine.com/instances/privateLink) page in TDengine Cloud, Click **Service List** button.
 2. Record the **Service Name** from the list of services in the correct cloud and region for later usage.
 
-### Step 2: Set up a private endpoint with AWS
+### Step 2: Set up a private endpoint
 
+<Tabs defaultValue="AWS">
+<TabItem value="AWS" label="AWS">
 To use the AWS Management Console to create a VPC interface endpoint, please follow these steps:
 
 1. Sign in to the [AWS Management Console](https://aws.amazon.com/console/) and open the Amazon VPC console at [AWS VPC](https://console.aws.amazon.com/vpc/).
@@ -36,6 +41,7 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 
    ![TDengine Cloud Create endpoint 1](./create-endpoint-1.webp)
    <center><figcaption>Figure 2. Create Endpoint</figcaption></center>
+
 3. Select Other endpoint services.
 4. Enter the service name that you choose in **Step 1**. Click **Verify service**.
 5. Select your VPC in the drop-down list.
@@ -45,7 +51,21 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
    Make sure the selected security group allows inbound access from your EC2 instances on port 443.
 
    :::
+
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
+</TabItem>
+<TabItem value="GCP" label="GCP">
+9. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
+10. Find **CONNECTED ENDPOINTS** and then click **CONNECT ENDPOINT**.
+11. Select **Published service**.
+    Enter the name of the first step in the input
+12. Enter the service name that you choose in **Step 1** in the **Target service**.
+13. Enter a name in the **Endpoint name**.
+14. In the Subnets area, select the Network, and select the Subnetwork.
+15. Create a Reserve a static internal IP address for the endpoint.
+16. Click ADD ENDPOINT. Then you have the **PSC Connection ID**.
+</TabItem>
+</Tabs>
 
 ### Step 3: Create endpoint connection using TDengine Cloud
 
@@ -57,10 +77,10 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 6. Wait a few minutes, then refresh the page to see the connection status is CONNECTED.
 7. The connection have three statuses: CONNECTED, DISCONNECTED and PENDING. When the operation is in progress, the connection status is PENDING. You need to wait a few minutes for the operation to complete.
 
-### Step 4: Enable private DNS names in AWS
+### Step 4: Enable private DNS names
 
-1. Click the endpoint id link in **Endpoints** page you created in Step 2 on AWS.
-2. Click **Actions**  in the upper-right area of the page and then select **Modify private DNS name**.
+1. Click the endpoint id link in **Endpoints** page you created in Step 2.
+2. Click **Actions** in the upper-right area of the page and then select **Modify private DNS name**.
 3. Check the box **Enable for this endpoint** and then click **Save changes**.
 4. Then you can find the **Private DNS names** shown in **Endpoint Details** page.
 
@@ -70,8 +90,19 @@ Now you can access TDengine Cloud instance in your VPC using the private DNS nam
 
 ## How to remove the endpoint connection
 
+<Tabs defaultValue="AWS">
+<TabItem value="AWS" label="AWS">
 1. Click the **Actions** button in **endpoint connection list** page in TDengine Cloud. After a while, the connection status will be changed into DISCONNECTED.
 2. Delete the connection in  **endpoint connection list** page in TDengine Cloud.
 3. Remove the private endpoint in the AWS Console. Otherwise, AWS will continue to charge.
    1. Select the endpoint in **Endpoints** page in AWS.  
    2. Click **Actions**  in the upper-right area of the page and then select **Delete VPC Endpoints**.
+</TabItem>
+<TabItem value="GCP" label="GCP">
+1. Click the **Actions** button in **endpoint connection list** page in TDengine Cloud. After a while, the connection status will be changed into DISCONNECTED.
+2. Delete the connection in  **endpoint connection list** page in TDengine Cloud.
+3. Remove the private endpoint in the GCP Console. Otherwise, GCP will continue to charge.
+   1. Select the endpoint in **Network services** -> **Private Service Connect** -> **CONNECTED ENDPOINTS** page in GCP.  
+   2. Click **Actions**  in the upper-right area of the page and then select **Delete**.
+</TabItem>
+</Tabs>
