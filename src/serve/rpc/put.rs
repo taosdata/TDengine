@@ -48,7 +48,7 @@ use serde::{Deserialize, Serialize};
 type PutStreamReceiver = flume::Receiver<Result<PutResult, Status>>;
 type PutStreamInner = flume::r#async::RecvStream<'static, Result<PutResult, Status>>;
 type PutStreamSender = flume::Sender<Result<PutResult, Status>>;
-type PutStreamChannel = (PutStreamSender, PutStreamReceiver);
+type PutStreamChannel = (PutStreamSender, PutStreamReceiver, Arc<tokio::sync::Notify>);
 type PutStreamAbortSender = tokio::sync::oneshot::Sender<()>;
 
 #[derive(Serialize, Deserialize)]
@@ -570,23 +570,56 @@ impl PutStream {
         let cur_span = Span::current();
         let notify_sender = self.notify_sender.clone();
         let task_id = self.task_id;
-
-        let (put_tx, put_rx) = get_ipc_stream_channel(stream_trace_id)
-            .await
-            .unwrap_or_else(|| flume::bounded(0));
         let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
-        let stream_cache_handle = tokio::spawn({
+
+        if let Some((put_tx, put_rx, notify)) = get_ipc_stream_channel(stream_trace_id).await {
+            // 如果之前有连接，说明是重连
+            tokio::spawn({
+                let put_rx = put_rx.clone();
+                let put_tx = put_tx.clone();
+                let notify = notify.clone();
+                async move {
+                    tokio::select! {
+                        _ = abort_rx => {
+                            tracing::info!("IPC stream abort");
+                            put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
+                            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                            let _ = get_ipc_stream_channel(stream_trace_id).await;
+                        }
+                        _ = notify.notified() => {
+                            tracing::info!("IPC stream closed");
+                        }
+                    }
+                }
+                .in_current_span()
+            });
+
+            // 如果之前有连接，直接返回，不需要再次创建 Writer
+            return Ok(PutStreamResp {
+                put_rx: put_rx.into_stream(),
+                abort_tx,
+            });
+        }
+        let (put_tx, put_rx) = flume::bounded(0);
+        let notify = Arc::new(tokio::sync::Notify::new());
+        tokio::spawn({
             let put_rx = put_rx.clone();
             let put_tx = put_tx.clone();
+            let notify = notify.clone();
             async move {
-                if let Err(_) = abort_rx.await {
-                    tracing::info!("IPC stream abort");
+                tokio::select! {
+                    _ = abort_rx => {
+                        tracing::info!("IPC stream abort");
+                        put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        let _ = get_ipc_stream_channel(stream_trace_id).await;
+                    }
+                    _ = notify.notified() => {
+                        tracing::info!("IPC stream closed");
+                    }
                 }
-
-                put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx)).await;
-                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                let _ = get_ipc_stream_channel(stream_trace_id).await;
             }
+            .in_current_span()
         });
 
         tokio::spawn(async move {
@@ -754,14 +787,13 @@ impl PutStream {
                     }
                 }
             }
-            stream_cache_handle.abort();
+            notify.notify_waiters();
             anyhow::Ok(())
         });
-
-        return Ok(PutStreamResp {
+        Ok(PutStreamResp {
             put_rx: put_rx.into_stream(),
             abort_tx,
-        });
+        })
     }
 }
 
