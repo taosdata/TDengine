@@ -582,9 +582,11 @@ impl PutStream {
                     tokio::select! {
                         _ = abort_rx => {
                             tracing::info!("IPC stream abort");
-                            put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
-                            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                            let _ = get_ipc_stream_channel(stream_trace_id).await;
+                            if put_tx.sender_count() > 1 {
+                                put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
+                                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                                let _ = get_ipc_stream_channel(stream_trace_id).await;
+                            }
                         }
                         _ = notify.notified() => {
                             tracing::info!("IPC stream closed");
