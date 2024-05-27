@@ -829,7 +829,12 @@ static void *taosAsyncOutputLog(void *param) {
       updateCron = 0;
     }
 
-    if (pLogBuf->stop || pSlowBuf->stop) break;
+    if (pLogBuf->stop || pSlowBuf->stop) {
+      pLogBuf->lastDuration = LOG_MAX_WAIT_MSEC;
+      taosWriteLog(pLogBuf);
+      taosWriteLog(pSlowBuf);
+      break;
+    }
   }
 
   return NULL;
