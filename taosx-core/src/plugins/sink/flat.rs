@@ -54,35 +54,6 @@ pub(crate) fn message_to_sql(
             == 1,
         "all messages should be in the same stable"
     );
-    const MAX_SQL_LENGTH: usize = 1_000_000;
-
-    fn valid_sql_or_none(
-        slice: &[(
-            String, // One table values SQL
-            usize,  // One table records
-        )],
-    ) -> Option<(
-        String, // SQL to insert into.
-        usize,  // number of tables
-        usize,  // number of records
-    )> {
-        if slice.len() == 1 {
-            return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
-        }
-        let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
-        if len < MAX_SQL_LENGTH - 12 {
-            let mut sql = String::with_capacity(len + 12);
-            sql.push_str("INSERT INTO ");
-            let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
-                sql.push_str(s);
-                (sql, records + n)
-            });
-            Some((sql, slice.len(), records))
-        } else {
-            None
-        }
-    }
-
     messages
         .iter()
         .group_by(|m| m.stable_name())

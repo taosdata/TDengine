@@ -1,10 +1,14 @@
-use std::sync::{Arc, Weak};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+};
 
 use anyhow::{bail, Context};
 use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
+use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
@@ -19,6 +23,7 @@ use taosx_core::{
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
+use tokio::sync::RwLock;
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
 use zerocopy::{AsBytes as _, FromBytes};
@@ -40,9 +45,30 @@ pub struct PutStream {
 
 use serde::{Deserialize, Serialize};
 
+type PutStreamReceiver = flume::Receiver<Result<PutResult, Status>>;
+type PutStreamInner = flume::r#async::RecvStream<'static, Result<PutResult, Status>>;
+type PutStreamSender = flume::Sender<Result<PutResult, Status>>;
+type PutStreamChannel = (PutStreamSender, PutStreamReceiver);
+type PutStreamAbortSender = tokio::sync::oneshot::Sender<()>;
+
 #[derive(Serialize, Deserialize)]
 struct AppMetadata {
     data_trace_id: u64,
+}
+
+lazy_static! {
+    static ref IPC_STREAM_CACHE: Arc<RwLock<HashMap<TraceStreamId, PutStreamChannel>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+}
+
+pub async fn get_ipc_stream_channel(trace_id: TraceStreamId) -> Option<PutStreamChannel> {
+    let mut cache = IPC_STREAM_CACHE.write().await;
+    cache.remove(&trace_id)
+}
+
+pub async fn put_ipc_stream_channel(trace_id: TraceStreamId, channel: PutStreamChannel) {
+    let mut cache = IPC_STREAM_CACHE.write().await;
+    cache.insert(trace_id, channel);
 }
 
 impl PutStream {
@@ -62,7 +88,7 @@ impl PutStream {
         }
     }
 
-    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
+    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, stream.id = %stream_trace_id, remote=self.remote.as_ref().map(ToString::to_string)))]
     pub async fn into_flight_put_result(
         self,
         stream_trace_id: TraceStreamId,
@@ -545,7 +571,23 @@ impl PutStream {
         let notify_sender = self.notify_sender.clone();
         let task_id = self.task_id;
 
-        let (put_tx, put_rx) = flume::bounded(0);
+        let (put_tx, put_rx) = get_ipc_stream_channel(stream_trace_id)
+            .await
+            .unwrap_or_else(|| flume::bounded(0));
+        let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
+        let stream_cache_handle = tokio::spawn({
+            let put_rx = put_rx.clone();
+            let put_tx = put_tx.clone();
+            async move {
+                if let Err(_) = abort_rx.await {
+                    tracing::info!("IPC stream abort");
+                }
+
+                put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                let _ = get_ipc_stream_channel(stream_trace_id).await;
+            }
+        });
 
         tokio::spawn(async move {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
@@ -712,10 +754,31 @@ impl PutStream {
                     }
                 }
             }
+            stream_cache_handle.abort();
             anyhow::Ok(())
         });
 
-        return Ok(put_rx.into_stream());
+        return Ok(PutStreamResp {
+            put_rx: put_rx.into_stream(),
+            abort_tx,
+        });
+    }
+}
+
+pub(super) struct PutStreamResp {
+    put_rx: PutStreamInner,
+    #[allow(dead_code)]
+    abort_tx: PutStreamAbortSender,
+}
+
+impl Stream for PutStreamResp {
+    type Item = Result<PutResult, Status>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.put_rx.poll_next_unpin(cx)
     }
 }
 
