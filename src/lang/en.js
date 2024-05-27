@@ -215,7 +215,7 @@ export default {
   communityContent: 'You are using the community version of TDengine, some functionalities are not available, e.g. database backup and recovery, data replication, multi-level storage, data in for various kinds of data sources, access control, view, etc. TDengine Enterprise or Cloud provides these and some other functionalities to facilitate your business needs. Please feel free to contact the TDengine team to get access to TDengine Enterprise or Cloud. ',
   dontDisturbMe: 'No more reminders within 7 days',
   communityTip: "Only available in TDengine Enterprise or Cloud. To learn more, please visit the TDengine <a href='https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>official website</a>.",
-  communityDemoDataTip: 'The current list data is only sample data',
+  communityDemoDataTip: 'The current list is only sample data',
   statuses: {
     created: "Created",
     queued: "Queued",
