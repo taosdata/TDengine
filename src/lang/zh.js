@@ -707,7 +707,10 @@ export default {
     table_name: "表名",
     create_time: "创建时间",
     columns: "列数量",
-    tags: "标签数量"
+    tags: "标签数量",
+    encode: "编码方法",
+    compress: "压缩算法",
+    level: "压缩级别"
   },
   sql: {
     analysis: "分析",
@@ -1404,7 +1407,7 @@ export default {
   },
   dataOut: {
     connectorTip:
-      "使用您选择的编程语言<a target='_blank' href='/docs/taos-sql/select/'>使用SQL</a>查询数据。",
+      `使用您选择的编程语言<a target='_blank' href='${IS_COMMUNITY ? "https://docs.taosdata.com": "/docs"}/taos-sql/select/'>使用SQL</a>查询数据。`,
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
     subscriptions: "数据订阅",

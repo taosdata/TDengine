@@ -21,7 +21,7 @@
         <el-checkbox class="my-checkbox" v-model="proper.checked">
           <span style="width: 200px;">{{ proper.defaultValue }}</span>
         </el-checkbox>
-        <!-- <el-input style="margin-left: 4px; width: 200px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input> -->
+        <el-input style="margin-left: 4px; width: 200px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
       </li>
     </ul>
   </div>
