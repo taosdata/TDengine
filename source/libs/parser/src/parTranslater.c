@@ -1001,14 +1001,22 @@ static bool isBlockTimeLineAlignedQuery(SNode* pStmt) {
   return false;
 }
 
-SNodeList* buildPartitionListFromOrderList(SNodeList* pOrderList) {
+SNodeList* buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum) {
   SNodeList* pPartitionList = NULL;
   SNode* pNode = NULL;
-  FOREACH(pNode, pOrderList) {
-    if (pNode == pOrderList->pTail->pNode) {
-      break;
-    }
-    SOrderByExprNode* pOrder = (SOrderByExprNode*)pNode;
+  if (pOrderList->length <= nodesNum) {
+    return NULL;
+  }
+
+  pNode = nodesListGetNode(pOrderList, nodesNum);
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)pNode;
+  if (!isPrimaryKeyImpl(pOrder->pExpr)) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < nodesNum; ++i) {
+    pNode = nodesListGetNode(pOrderList, i);
+    pOrder = (SOrderByExprNode*)pNode;
     nodesListMakeStrictAppend(&pPartitionList, nodesCloneNode(pOrder->pExpr));
   }
 
@@ -1028,7 +1036,7 @@ static bool isTimeLineAlignedQuery(SNode* pStmt) {
         return true;
       }
       if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
-        SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList);
+        SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
         bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
         nodesDestroyList(pPartitionList);
 
@@ -1041,7 +1049,7 @@ static bool isTimeLineAlignedQuery(SNode* pStmt) {
   if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
     if (pSelect->pPartitionByList && pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
-      SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList);
+      SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
       bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
       nodesDestroyList(pPartitionList);
 
@@ -6066,12 +6074,13 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
-    pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, pSelect->pOrderByList->length - 1))->pExpr;
-    if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
-        (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
-      pSelect->timeLineResMode = TIME_LINE_MULTI;
-      pSelect->timeLineFromOrderBy = true;
-      return;
+    for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
+      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      if (isPrimaryKeyImpl(pOrder)) {
+        pSelect->timeLineResMode = TIME_LINE_MULTI;
+        pSelect->timeLineFromOrderBy = true;
+        return;
+      }
     }
   }
   
@@ -6272,12 +6281,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {
-      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, pSetOperator->pOrderByList->length - 1))->pExpr;
-      if (isPrimaryKeyImpl(pOrder)) {
-        pSetOperator->timeLineResMode = TIME_LINE_MULTI;
-        pSetOperator->timeLineFromOrderBy = true;
-        return code;
-      }
+      for (int32_t i = 1; i < pSetOperator->pOrderByList->length; ++i) {
+        pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, i))->pExpr;
+        if (isPrimaryKeyImpl(pOrder)) {
+          pSetOperator->timeLineResMode = TIME_LINE_MULTI;
+          pSetOperator->timeLineFromOrderBy = true;
+          return code;
+        }
+      }
     }
     
     pSetOperator->timeLineResMode = TIME_LINE_NONE;
