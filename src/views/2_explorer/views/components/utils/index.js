@@ -137,7 +137,15 @@ export const tagType = [
   {
     label:'JSON',
     value:'JSON'
-  }
+  },
+  {
+    label:'VARBINARY',
+    value:'VARBINARY'
+  },
+  {
+    label:'GEOMETRY',
+    value:'GEOMETRY'
+  },
 ];
 
 export const parmaryKeyType = [

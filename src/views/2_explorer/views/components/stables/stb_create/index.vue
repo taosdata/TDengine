@@ -356,7 +356,7 @@
             </el-select>
 
             <el-input-number
-              v-if="tag.type == 'VARCHAR' || tag.type == 'NCHAR'"
+              v-if="VariableTableColumnType.includes(tag.type)"
               :value="tag.type == 'VARCHAR'
                   ? tag.varcharLength
                   : tag.ncharLength"
