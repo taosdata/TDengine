@@ -720,7 +720,11 @@ impl SuperTableConfig {
                     template_name = Some(parts[1].to_string());
                 }
                 "filter" => {
-                    filter = Some(parts[1].to_string());
+                    let filter_expr = parts[1].trim();
+                    let filter_expr = filter_expr.replace('$', "");
+                    if !filter_expr.is_empty() {
+                        filter = Some(filter_expr);
+                    }
                 }
                 _ => {
                     if parts.len() < 4 {
@@ -784,9 +788,7 @@ impl SuperTableConfig {
     fn get_filter(&self) -> Option<Filter> {
         match &self.filter {
             Some(filter) => {
-                let filter_expr = filter.replace('$', "");
-                let filter_expr = filter_expr.trim();
-                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter_expr.to_string()));
+                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter.to_string()));
                 Some(Filter::new(vec![filter_impl]))
             }
             None => None,
