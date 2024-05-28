@@ -56,9 +56,8 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 </TabItem>
 <TabItem value="GCP" label="GCP">
 9. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
-10. Find **CONNECTED ENDPOINTS** and then click **CONNECT ENDPOINT**.
+10. Find **CONNECTED ENDPOINTS** tab and then click **+CONNECT ENDPOINT**.
 11. Select **Published service**.
-    Enter the name of the first step in the input
 12. Enter the service name that you choose in **Step 1** in the **Target service**.
 13. Enter a name in the **Endpoint name**.
 14. In the Subnets area, select the Network, and select the Subnetwork.
@@ -79,10 +78,26 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 
 ### Step 4: Enable private DNS names
 
+<Tabs defaultValue="AWS">
+<TabItem value="AWS" label="AWS">
 1. Click the endpoint id link in **Endpoints** page you created in Step 2.
 2. Click **Actions** in the upper-right area of the page and then select **Modify private DNS name**.
 3. Check the box **Enable for this endpoint** and then click **Save changes**.
 4. Then you can find the **Private DNS names** shown in **Endpoint Details** page.
+</TabItem>
+<TabItem value="GCP" label="GCP">
+1. Sign in to the [GCP Cloud DNS](https://console.cloud.google.com/net-services/dns/zones).
+2. Click **CREATE ZONE** to create a new zone.
+3. Select **Private** of Zone type.
+4. Enter a name in the **Zone name**.
+5. Enter the **Private DNS Name** that you choose in **Step 1** in the **DNS Name**.
+6. Click **CREATE**.
+7. Select the zone you created in the **Cloud DNS** page.
+8. Click **ADD STANDARD** to add a new record set.
+9. Choose the static internal IP address of **Step 2** in the **IPv4 Address**.
+10. Click **CREATE**.
+</TabItem>
+</Tabs>
 
 ### Step 5: Using the private DNS name to call TDengine Cloud Service
 
