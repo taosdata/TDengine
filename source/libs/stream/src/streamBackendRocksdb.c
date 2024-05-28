@@ -386,12 +386,12 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   return code;
 }
 
-int32_t rebuildFromRemoteCheckpoint(const char* key, char* chkpPath, int64_t checkpointId, char* defaultPath) {
+int32_t rebuildFromRemoteCheckpoint(const char* key, char* chkptPath, int64_t checkpointId, char* defaultPath) {
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
   if (type == DATA_UPLOAD_S3) {
-    return rebuildFromRemoteChkp_s3(key, chkpPath, checkpointId, defaultPath);
+    return rebuildFromRemoteChkp_s3(key, chkptPath, checkpointId, defaultPath);
   } else if (type == DATA_UPLOAD_RSYNC) {
-    return rebuildFromRemoteChkp_rsync(key, chkpPath, checkpointId, defaultPath);
+    return rebuildFromRemoteChkp_rsync(key, chkptPath, checkpointId, defaultPath);
   } else {
     stError("%s no remote backup checkpoint data for:%" PRId64, key, checkpointId);
   }
@@ -538,7 +538,9 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     taosMulMkDir(defaultPath);
   }
 
-  char* checkpointRoot = taosMemoryCalloc(1, strlen(path) + 256);
+  int32_t pathLen = strlen(path) + 256;
+
+  char* checkpointRoot = taosMemoryCalloc(1, pathLen);
   sprintf(checkpointRoot, "%s%s%s", prefixPath, TD_DIRSEP, "checkpoints");
 
   if (!taosIsDir(checkpointRoot)) {
@@ -548,9 +550,9 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
 
-  char* chkptPath = taosMemoryCalloc(1, strlen(path) + 256);
+  char* chkptPath = taosMemoryCalloc(1, pathLen);
   if (chkptId > 0) {
-    sprintf(chkptPath, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkptId);
+    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkptId);
 
     code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath);
     if (code != 0) {

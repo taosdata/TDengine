@@ -153,7 +153,7 @@ void startRsync() {
   uDebug("[rsync] start server successful");
 }
 
-int32_t uploadRsync(const char* id, const char* path) {
+int32_t uploadByRsync(const char* id, const char* path) {
   int64_t st = taosGetTimestampMs();
   char    command[PATH_MAX] = {0};
 
@@ -196,6 +196,7 @@ int32_t uploadRsync(const char* id, const char* path) {
   return code;
 }
 
+// abort from retry if quit
 int32_t downloadRsync(const char* id, const char* path) {
   int64_t st = taosGetTimestampMs();
   int32_t MAX_RETRY = 60;
@@ -220,11 +221,10 @@ int32_t downloadRsync(const char* id, const char* path) {
   uDebug("[rsync] %s start to sync data from remote to:%s, %s", id, path, command);
 
   while(times++ < MAX_RETRY) {
-
     code = execCommand(command);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("[rsync] %s download checkpoint data:%s failed, retry after 1sec, code:%d," ERRNO_ERR_FORMAT, id, path, code,
-             ERRNO_ERR_DATA);
+      uError("[rsync] %s download checkpoint data:%s failed, retry after 1sec, times:%d, code:%d," ERRNO_ERR_FORMAT, id,
+             path, times, code, ERRNO_ERR_DATA);
       taosSsleep(1);
     } else {
       int32_t el = taosGetTimestampMs() - st;

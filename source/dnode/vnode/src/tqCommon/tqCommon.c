@@ -699,9 +699,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   if (isLeader && !tsDisableStream) {
-    streamMetaResetTaskStatus(pMeta);
     streamMetaWUnLock(pMeta);
-
     streamMetaStartAllTasks(pMeta, tqExpandStreamTask);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
@@ -839,13 +837,19 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   SStreamTaskState *pState = streamTaskGetStatus(pTask);
   if (pState->state == TASK_STATUS__CK) {
+    int32_t tranId = 0;
+    int64_t activeChkId = 0;
+    streamTaskGetActiveCheckpointInfo(pTask, &tranId, &activeChkId);
+
     tqDebug("s-task:%s reset task status from checkpoint, current checkpointingId:%" PRId64 ", transId:%d",
-            pTask->id.idStr, pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
+            pTask->id.idStr, activeChkId, tranId);
+
     streamTaskSetStatusReady(pTask);
   } else if (pState->state == TASK_STATUS__UNINIT) {
     tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
     ASSERT(pTask->status.downstreamReady == 0);
-    /*int32_t ret = */ streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+//    /*int32_t ret = */ streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+    tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
   } else {
     tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
   }
@@ -853,6 +857,57 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   taosThreadMutexUnlock(&pTask->lock);
 
   streamMetaReleaseTask(pMeta, pTask);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  SRetrieveChkptTriggerReq* pReq = (SRetrieveChkptTriggerReq*) pMsg;
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->upstreamTaskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d process retrieve checkpoint trigger, checkpointId:%" PRId64
+            " from s-task:0x%x, failed to acquire task:0x%x, it may have been dropped already",
+            pMeta->vgId, pReq->checkpointId, (int32_t)pReq->downstreamTaskId, pReq->upstreamTaskId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tqDebug("s-task:0x%x recv retrieve checkpoint-trigger msg from downstream s-task:0x%x, checkpointId:%" PRId64,
+          pReq->upstreamTaskId, (int32_t)pReq->downstreamTaskId, pReq->checkpointId);
+
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  if (pState->state == TASK_STATUS__CK) {  // recv the checkpoint-source/trigger already
+    int32_t transId = 0;
+    int64_t checkpointId = 0;
+
+    streamTaskGetActiveCheckpointInfo(pTask, &transId, &checkpointId);
+    ASSERT (checkpointId == pReq->checkpointId);
+
+    if (streamTaskAlreadySendTrigger(pTask, pReq->downstreamNodeId)) {
+      // re-send the lost checkpoint-trigger msg to downstream task
+      SEpSet* pEpset = streamTaskGetDownstreamEpInfo(pTask, pReq->downstreamTaskId);
+      streamTaskSendCheckpointTriggerMsg(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER, pReq->downstreamTaskId,
+                                         pReq->downstreamNodeId, pEpset);
+    } else { // not send checkpoint-trigger yet, wait
+      int32_t recv = 0, total = 0;
+      streamTaskGetTriggerRecvStatus(pTask, &recv, &total);
+
+      if (recv == total) {  // add the ts info
+        tqWarn("s-task:%s all upstream send checkpoint-source/trigger, but not processed yet, wait", pTask->id.idStr);
+      } else {
+        tqWarn(
+            "s-task:%s not all upstream send checkpoint-source/trigger, total recv:%d/%d, wait for all upstream "
+            "sending checkpoint-source/trigger",
+            pTask->id.idStr, recv, total);
+      }
+    }
+  } else {  // upstream not recv the checkpoint-source/trigger till now
+    ASSERT(pState->state == TASK_STATUS__READY || pState->state == TASK_STATUS__HALT);
+    tqWarn(
+        "s-task:%s not recv checkpoint-source from mnode or checkpoint-trigger from upstream yet, wait for all "
+        "upstream sending checkpoint-source/trigger",
+        pTask->id.idStr);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

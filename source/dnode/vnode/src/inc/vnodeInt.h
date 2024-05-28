@@ -257,6 +257,7 @@ int     tqScanWalAsync(STQ* pTq, bool ckPause);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveTriggerMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);

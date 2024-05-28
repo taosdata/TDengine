@@ -725,10 +725,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   }
 
   pTask->pBackend = NULL;
-//  code = tqExpandStreamTask(pTask, pTq->pStreamMeta);
-//  if (code != TSDB_CODE_SUCCESS) {
-//    return code;
-//  }
 
   // sink
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
@@ -1092,6 +1088,10 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
+//  if (pTq->pStreamMeta->vgId == 2) {
+//    ASSERT(0);
+//  }
+
   // disable auto rsp to mnode
   pRsp->info.handle = NULL;
 
@@ -1140,10 +1140,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   }
 
   if (pTask->status.downstreamReady != 1) {
-    pTask->chkInfo.failedId = req.checkpointId;  // record the latest failed checkpoint id
-    pTask->chkInfo.checkpointingId = req.checkpointId;
-    pTask->chkInfo.transId = req.transId;
-
+    streamTaskSetFailedChkptInfo(pTask, req.transId, req.checkpointId);  // record the latest failed checkpoint id
     tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpointId:%" PRId64
             ", transId:%d set it failed",
             pTask->id.idStr, req.checkpointId, req.transId);
@@ -1182,9 +1179,12 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // check if the checkpoint msg already sent or not.
   if (status == TASK_STATUS__CK) {
+    int64_t checkpointId = 0;
+    streamTaskGetActiveCheckpointInfo(pTask, NULL, &checkpointId);
+
     tqWarn("s-task:%s repeatly recv checkpoint-source msg checkpointId:%" PRId64
            " transId:%d already handled, ignore msg and continue process checkpoint",
-           pTask->id.idStr, pTask->chkInfo.checkpointingId, req.transId);
+           pTask->id.idStr, checkpointId, req.transId);
 
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1242,6 +1242,10 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
+}
+
+int32_t tqProcessTaskRetrieveTriggerMsg(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamTaskProcessRetrieveTriggerReq(pTq->pStreamMeta, pMsg);
 }
 
 // this function is needed, do not try to remove it.

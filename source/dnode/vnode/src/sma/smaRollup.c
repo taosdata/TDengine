@@ -1285,7 +1285,8 @@ _checkpoint:
         if (pItem && pItem->pStreamTask) {
           SStreamTask *pTask = pItem->pStreamTask;
           // atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
-          pTask->chkInfo.checkpointingId = checkpointId;
+          streamTaskSetActiveCheckpointInfo(pTask, checkpointId);
+
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
           pTask->info.triggerParam = pItem->fetchResultVer;

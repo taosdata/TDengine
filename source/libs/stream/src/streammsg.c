@@ -17,7 +17,7 @@
 #include "streammsg.h"
 #include "tstream.h"
 
-int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo) {
+int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->childId) < 0) return -1;
@@ -26,7 +26,7 @@ int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo)
   return 0;
 }
 
-int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
+int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamUpstreamEpInfo* pInfo) {
   if (tDecodeI32(pDecoder, &pInfo->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->nodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->childId) < 0) return -1;
@@ -481,7 +481,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   int32_t epSz = taosArrayGetSize(pTask->upstreamInfo.pList);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
   for (int32_t i = 0; i < epSz; i++) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (tEncodeStreamEpInfo(pEncoder, pInfo) < 0) return -1;
   }
 
@@ -557,7 +557,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   pTask->upstreamInfo.pList = taosArrayInit(epSz, POINTER_BYTES);
   for (int32_t i = 0; i < epSz; i++) {
-    SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
+    SStreamUpstreamEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamUpstreamEpInfo));
     if (pInfo == NULL) return -1;
     if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) {
       taosMemoryFreeClear(pInfo);

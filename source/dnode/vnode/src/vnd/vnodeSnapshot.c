@@ -422,7 +422,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // STREAM ============
-  vInfo("vgId:%d stream task start", vgId);
+  vInfo("vgId:%d stream task start to take snapshot", vgId);
   if (!pReader->streamTaskDone) {
     if (pReader->pStreamTaskReader == NULL) {
       code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);

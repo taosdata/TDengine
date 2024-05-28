@@ -426,7 +426,7 @@ int32_t streamTransferStatePrepare(SStreamTask* pTask) {
         streamMetaReleaseTask(pMeta, pStreamTask);
         return code;
       } else {
-        stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+        stDebug("s-task:%s sink task halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
       }
       streamMetaReleaseTask(pMeta, pStreamTask);
     }

@@ -1044,13 +1044,13 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
 
-    if ((*pTask)->chkInfo.checkpointingId != 0) {
-      entry.checkpointInfo.failed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId) ? 1 : 0;
-      entry.checkpointInfo.activeId = (*pTask)->chkInfo.checkpointingId;
-      entry.checkpointInfo.activeTransId = (*pTask)->chkInfo.transId;
+    if ((*pTask)->chkInfo.pActiveInfo->activeId != 0) {
+      entry.checkpointInfo.failed = ((*pTask)->chkInfo.pActiveInfo->failedId >= (*pTask)->chkInfo.pActiveInfo->activeId) ? 1 : 0;
+      entry.checkpointInfo.activeId = (*pTask)->chkInfo.pActiveInfo->activeId;
+      entry.checkpointInfo.activeTransId = (*pTask)->chkInfo.pActiveInfo->transId;
 
       if (entry.checkpointInfo.failed) {
-        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.transId);
+        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.pActiveInfo->transId);
       }
     }
 

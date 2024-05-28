@@ -23,12 +23,6 @@ typedef struct SBlockName {
   char     parTbName[TSDB_TABLE_NAME_LEN];
 } SBlockName;
 
-typedef struct {
-  int32_t upStreamTaskId;
-  SEpSet  upstreamNodeEpset;
-  SRpcMsg msg;
-} SStreamChkptReadyInfo;
-
 static void    doRetryDispatchData(void* param, void* tmrId);
 static int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet);
 static int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq);
@@ -85,12 +79,14 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
   void*   buf = NULL;
   int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
   ASSERT(sz > 0);
+
   for (int32_t i = 0; i < sz; i++) {
     req->reqId = tGenIdPI64();
-    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pEpInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     req->dstNodeId = pEpInfo->nodeId;
     req->dstTaskId = pEpInfo->taskId;
     int32_t len;
+
     tEncodeSize(tEncodeStreamRetrieveReq, req, len, code);
     if (code != 0) {
       ASSERT(0);
@@ -115,7 +111,6 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     code = tmsgSendReq(&pEpInfo->epSet, &rpcMsg);
     if (code != 0) {
-      ASSERT(0);
       rpcFreeCont(buf);
       return code;
     }
@@ -124,15 +119,16 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
     stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
             pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
   }
+
   return code;
 }
 
 static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBlock, SStreamRetrieveReq* req){
-  SRetrieveTableRsp* pRetrieve = NULL;
   int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-
-  pRetrieve = taosMemoryCalloc(1, dataStrLen);
-  if (pRetrieve == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  SRetrieveTableRsp* pRetrieve = taosMemoryCalloc(1, dataStrLen);
+  if (pRetrieve == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->useconds = 0;
@@ -229,6 +225,28 @@ void clearBufferedDispatchMsg(SStreamTask* pTask) {
   pMsgInfo->transId = -1;
   pMsgInfo->pData = NULL;
   pMsgInfo->dispatchMsgType = 0;
+}
+
+int32_t streamTaskBuildAndSendTriggerMsg(SStreamTask* pTask, const SStreamDataBlock* pData, int32_t dstTaskId,
+                                         int32_t vgId, SEpSet* pEpset) {
+  SStreamDispatchReq* pReq = taosMemoryCalloc(1, sizeof(SStreamDispatchReq));
+
+  int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
+  int32_t code = tInitStreamDispatchReq(pReq, pTask, pData->srcVgId, numOfBlocks, dstTaskId, pData->type);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < numOfBlocks; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
+    code = streamAddBlockIntoDispatchMsg(pDataBlock, pReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyDispatchMsg(pReq, 1);
+      return code;
+    }
+  }
+
+  return doSendDispatchMsg(pTask, pReq, vgId, pEpset);
 }
 
 static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pData) {
@@ -357,8 +375,8 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
     for (int32_t i = 0; i < numOfVgroups; i++) {
       if (pDispatchMsg[i].blockNum > 0) {
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-        stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d", pTask->id.idStr,
-                pTask->info.selfChildId, pDispatchMsg[i].blockNum, pVgInfo->vgId);
+        stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d", id, pTask->info.selfChildId,
+                pDispatchMsg[i].blockNum, pVgInfo->vgId);
 
         code = doSendDispatchMsg(pTask, &pDispatchMsg[i], pVgInfo->vgId, &pVgInfo->epSet);
         if (code < 0) {
@@ -372,8 +390,7 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
       }
     }
 
-    stDebug("s-task:%s complete shuffle-dispatch blocks to all %d vnodes, msgId:%d", pTask->id.idStr, numOfVgroups,
-            msgId);
+    stDebug("s-task:%s complete shuffle-dispatch blocks to all %d vnodes, msgId:%d", id, numOfVgroups, msgId);
   }
 
   return code;
@@ -562,7 +579,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  if (pTask->chkInfo.dispatchCheckpointTrigger) {
+  if (pTask->chkInfo.pActiveInfo->dispatchTrigger) {
     stDebug("s-task:%s already send checkpoint trigger, not dispatch anymore", id);
     atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
@@ -588,6 +605,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   if (code == 0) {
     destroyStreamDataBlock(pBlock);
   } else {  // todo handle build dispatch msg failed
+  }
+
+  if (pBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    streamTaskInitTriggerDispatchInfo(pTask);
   }
 
   int32_t retryCount = 0;
@@ -624,18 +645,24 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
 // this function is usually invoked by sink/agg task
 int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
-  int32_t num = taosArrayGetSize(pTask->pReadyMsgList);
+  SArray* pList = pTask->chkInfo.pActiveInfo->pReadyMsgList;
+
+  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
+
+  int32_t num = taosArrayGetSize(pList);
   ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) == num);
 
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, i);
+    SStreamChkptReadyInfo* pInfo = taosArrayGet(pList, i);
     tmsgSendReq(&pInfo->upstreamNodeEpset, &pInfo->msg);
 
     stDebug("s-task:%s level:%d checkpoint ready msg sent to upstream:0x%x", pTask->id.idStr, pTask->info.taskLevel,
             pInfo->upStreamTaskId);
   }
 
-  taosArrayClear(pTask->pReadyMsgList);
+  taosArrayClear(pList);
+
+  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
   stDebug("s-task:%s level:%d checkpoint ready msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
           num);
 
@@ -644,21 +671,22 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
 
 // this function is only invoked by source task, and send rsp to mnode
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
-  taosThreadMutexLock(&pTask->lock);
+  SArray* pList = pTask->chkInfo.pActiveInfo->pReadyMsgList;
 
+  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-  if (taosArrayGetSize(pTask->pReadyMsgList) == 1) {
-    SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, 0);
+  if (taosArrayGetSize(pList) == 1) {
+    SStreamChkptReadyInfo* pInfo = taosArrayGet(pList, 0);
     tmsgSendRsp(&pInfo->msg);
 
-    taosArrayClear(pTask->pReadyMsgList);
+    taosArrayClear(pList);
     stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
   } else {
     stDebug("s-task:%s level:%d already send rsp checkpoint success to mnode", pTask->id.idStr, pTask->info.taskLevel);
   }
 
-  taosThreadMutexUnlock(&pTask->lock);
+  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -777,17 +805,34 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 }
 
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask) {
-  SStreamChkptReadyInfo info = {0};
+  SStreamChkptReadyInfo info = {
+      .recvTs = taosGetTimestampMs(), .transId = pReq->transId, .checkpointId = pReq->checkpointId};
+
   streamTaskBuildCheckpointSourceRsp(pReq, pRpcInfo, &info.msg, TSDB_CODE_SUCCESS);
 
-  if (pTask->pReadyMsgList == NULL) {
-    pTask->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  taosThreadMutexLock(&pActiveInfo->lock);
+
+  int32_t size = taosArrayGetSize(pActiveInfo->pReadyMsgList);
+  if (size > 0) {
+    ASSERT(size == 1);
+
+    SStreamChkptReadyInfo* pReady = taosArrayGet(pActiveInfo->pReadyMsgList, 0);
+    if (pReady->transId == pReq->transId) {
+      stWarn("s-task:%s repeatly recv checkpoint source msg from mnode, checkpointId:%" PRId64 ", ignore",
+             pTask->id.idStr, pReq->checkpointId);
+    } else {
+      stError("s-task:%s checkpointId:%" PRId64 " transId:%d not completed, new transId:%d checkpointId:%" PRId64
+              " recv from mnode",
+              pTask->id.idStr, pReady->checkpointId, pReady->transId, pReq->transId, pReq->checkpointId);
+      ASSERT(0); // failed to handle it
+    }
+  } else {
+    taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+    stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size);
   }
 
-  taosArrayPush(pTask->pReadyMsgList, &info);
-
-  int32_t size = taosArrayGetSize(pTask->pReadyMsgList);
-  stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size);
+  taosThreadMutexUnlock(&pActiveInfo->lock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -799,7 +844,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
 
   SStreamCheckpointReadyMsg req = {0};
   req.downstreamNodeId = pTask->pMeta->vgId;
@@ -833,7 +878,14 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
 
   ASSERT(req.upstreamTaskId != 0);
 
-  SStreamChkptReadyInfo info = {.upStreamTaskId = pInfo->taskId, .upstreamNodeEpset = pInfo->epSet};
+  SStreamChkptReadyInfo info = {
+      .upStreamTaskId = pInfo->taskId,
+      .upstreamNodeEpset = pInfo->epSet,
+      .nodeId = req.upstreamNodeId,
+      .recvTs = taosGetTimestampMs(),
+      .checkpointId = req.checkpointId,
+  };
+
   initRpcMsg(&info.msg, TDMT_STREAM_TASK_CHECKPOINT_READY, buf, tlen + sizeof(SMsgHead));
 
   stDebug("s-task:%s (level:%d) prepare checkpoint ready msg to upstream s-task:0x%" PRIx64
@@ -841,39 +893,65 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
           pTask->id.idStr, pTask->info.taskLevel, req.streamId, req.upstreamTaskId, req.upstreamNodeId, index,
           req.upstreamNodeId);
 
-  if (pTask->pReadyMsgList == NULL) {
-    pTask->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  taosThreadMutexLock(&pActiveInfo->lock);
+
+  bool recved = false;
+  int32_t size = taosArrayGetSize(pActiveInfo->pReadyMsgList);
+  for (int32_t i = 0; i < size; ++i) {
+    SStreamChkptReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
+    if (p->nodeId == req.upstreamNodeId) {
+      if (p->checkpointId == req.checkpointId) {
+        stWarn("s-task:%s repeatly recv checkpoint-source msg from task:0x%x vgId:%d, checkpointId:%" PRId64 ", ignore",
+               pTask->id.idStr, p->upStreamTaskId, p->nodeId, p->checkpointId);
+      } else {
+        stError("s-task:%s checkpointId:%" PRId64 " not completed, new checkpointId:%" PRId64 " recv",
+                pTask->id.idStr, p->checkpointId, checkpointId);
+        ASSERT(0); // failed to handle it
+      }
+
+      recved = true;
+      break;
+    }
   }
 
-  taosArrayPush(pTask->pReadyMsgList, &info);
+  if (!recved) {
+    taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+  }
+
+  taosThreadMutexUnlock(&pActiveInfo->lock);
   return 0;
 }
 
 void streamClearChkptReadyMsg(SStreamTask* pTask) {
-  if (pTask->pReadyMsgList == NULL) {
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  if (pActiveInfo == NULL) {
     return;
   }
 
-  for (int i = 0; i < taosArrayGetSize(pTask->pReadyMsgList); i++) {
-    SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, i);
+  for (int i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); i++) {
+    SStreamChkptReadyInfo* pInfo = taosArrayGet(pActiveInfo->pReadyMsgList, i);
     rpcFreeCont(pInfo->msg.pCont);
   }
-  taosArrayClear(pTask->pReadyMsgList);
+
+  taosArrayClear(pActiveInfo->pReadyMsgList);
 }
 
 // this message has been sent successfully, let's try next one.
-static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
+static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId, int32_t downstreamNodeId) {
   stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
 
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
   if (delayDispatch) {
     taosThreadMutexLock(&pTask->lock);
     // we only set the dispatch msg info for current checkpoint trans
-    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK && pTask->chkInfo.checkpointingId == pTask->msgInfo.checkpointId) {
-      ASSERT(pTask->chkInfo.transId == pTask->msgInfo.transId);
-      pTask->chkInfo.dispatchCheckpointTrigger = true;
-      stDebug("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d confirmed",
-             pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
+    if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK &&
+        pTask->chkInfo.pActiveInfo->activeId == pTask->msgInfo.checkpointId) {
+      ASSERT(pTask->chkInfo.pActiveInfo->transId == pTask->msgInfo.transId);
+      stDebug("s-task:%s checkpoint-trigger msg to 0x%x rsp for checkpointId:%" PRId64 " transId:%d confirmed",
+             pTask->id.idStr, downstreamId, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
+
+      streamTaskSetTriggerDispatchConfirmed(pTask, downstreamNodeId);
     } else {
       stWarn("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64 " transId:%d discard, since expired",
              pTask->id.idStr, pTask->msgInfo.checkpointId, pTask->msgInfo.transId);
@@ -966,10 +1044,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
           pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
         stError("s-task:%s failed to dispatch checkpoint-trigger msg, checkpointId:%" PRId64
                 ", set the current checkpoint failed, and send rsp to mnode",
-                id, pTask->chkInfo.checkpointingId);
+                id, pTask->chkInfo.pActiveInfo->activeId);
         { // send checkpoint failure msg to mnode directly
-          pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;   // record the latest failed checkpoint id
-          pTask->chkInfo.checkpointingId = pTask->chkInfo.checkpointingId;
+          pTask->chkInfo.pActiveInfo->failedId = pTask->chkInfo.pActiveInfo->activeId;   // record the latest failed checkpoint id
+          pTask->chkInfo.pActiveInfo->activeId = pTask->chkInfo.pActiveInfo->activeId;
           streamTaskSendCheckpointSourceRsp(pTask);
         }
       } else {
@@ -1035,7 +1113,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         // now ready for next data output
         atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
       } else {
-        handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId);
+        handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
       }
     }
   }
@@ -1096,7 +1174,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
 
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
   if (pMeta->role == NODE_ROLE_FOLLOWER) {

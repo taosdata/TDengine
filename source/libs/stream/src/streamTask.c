@@ -24,6 +24,8 @@
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
 static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
+static void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo);
+static SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo();
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -70,12 +72,12 @@ static void freeItem(void* p) {
 }
 
 static void freeUpstreamItem(void* p) {
-  SStreamChildEpInfo** pInfo = p;
+  SStreamUpstreamEpInfo** pInfo = p;
   taosMemoryFree(*pInfo);
 }
 
-static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
-  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
+static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
+  SStreamUpstreamEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamUpstreamEpInfo));
   if (pEpInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -254,7 +256,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   streamClearChkptReadyMsg(pTask);
-  pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->msgInfo.pData != NULL) {
     clearBufferedDispatchMsg(pTask);
@@ -301,6 +302,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
   }
+
+  streamTaskDestroyActiveChkptInfo(pTask->chkInfo.pActiveInfo);
+  pTask->chkInfo.pActiveInfo = NULL;
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -414,6 +418,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (pTask->chkInfo.pActiveInfo == NULL) {
+    pTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -433,8 +441,12 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
   }
 }
 
+int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask) {
+  return taosArrayGetSize(pTask->upstreamInfo.pList);
+}
+
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
-  SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
+  SStreamUpstreamEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
   if (pEpInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -453,7 +465,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < numOfUpstream; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->nodeId == nodeId) {
       bool equal = isEpsetEqual(&pInfo->epSet, pEpSet);
       if (!equal) {
@@ -589,7 +601,7 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
 
   int32_t size = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < size; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     pInfo->stage = -1;
   }
 
@@ -603,7 +615,7 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   }
 
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     pInfo->dataAllowed = true;
   }
 
@@ -612,9 +624,16 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
   if (pInfo != NULL) {
     pInfo->dataAllowed = false;
+  }
+}
+
+void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if (pInfo != NULL) {
+    pInfo->dataAllowed = true;
   }
 }
 
@@ -723,9 +742,9 @@ int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStr
   pReq->dropRelHTask = dropRelHTask;
   pReq->hStreamId = pHTaskId->streamId;
   pReq->hTaskId = pHTaskId->taskId;
-  pReq->transId = pCheckpointInfo->transId;
+  pReq->transId = pCheckpointInfo->pActiveInfo->transId;
 
-  pReq->checkpointId = pCheckpointInfo->checkpointingId;
+  pReq->checkpointId = pCheckpointInfo->pActiveInfo->activeId;
   pReq->checkpointVer = pCheckpointInfo->processedVer;
   pReq->checkpointTs = pCheckpointInfo->startTs;
 
@@ -860,16 +879,34 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   return 0;
 }
 
-SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+SStreamUpstreamEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->taskId == taskId) {
       return pInfo;
     }
   }
 
   stError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
+  return NULL;
+}
+
+SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
+  if (pTask->info.taskLevel == TASK_OUTPUT__FIXED_DISPATCH) {
+    if (pTask->outputInfo.fixedDispatcher.taskId == taskId) {
+      return &pTask->outputInfo.fixedDispatcher.epSet;
+    }
+  } else if (pTask->info.taskLevel == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* pList = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
+    for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+      SVgroupInfo* pVgInfo = taosArrayGet(pList, i);
+      if (pVgInfo->taskId == taskId) {
+        return &pVgInfo->epSet;
+      }
+    }
+  }
+
   return NULL;
 }
 
@@ -914,4 +951,64 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
 
 void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) {
   pTask->status.removeBackendFiles = true;
+}
+
+int32_t streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId) {
+  if (pTransId != NULL) {
+    *pTransId = pTask->chkInfo.pActiveInfo->transId;
+  }
+
+  if (pCheckpointId != NULL) {
+    *pCheckpointId = pTask->chkInfo.pActiveInfo->activeId;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeCheckpointId) {
+  pTask->chkInfo.pActiveInfo->activeId = activeCheckpointId;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId) {
+  pTask->chkInfo.pActiveInfo->transId = transId;
+  pTask->chkInfo.pActiveInfo->activeId = checkpointId;
+  pTask->chkInfo.pActiveInfo->failedId = checkpointId;
+  return TSDB_CODE_SUCCESS;
+}
+
+SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo() {
+  SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
+  taosThreadMutexInit(&pInfo->lock, NULL);
+
+  pInfo->pDispatchTriggerList = taosArrayInit(4, sizeof(STaskTriggerSendInfo));
+  pInfo->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
+  return pInfo;
+}
+
+void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+
+  taosThreadMutexDestroy(&pInfo->lock);
+  pInfo->pDispatchTriggerList = taosArrayDestroy(pInfo->pDispatchTriggerList);
+  pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
+
+  if (pInfo->pCheckTmr != NULL) {
+    taosTmrStop(pInfo->pCheckTmr);
+    pInfo->pCheckTmr = NULL;
+  }
+
+  taosMemoryFree(pInfo);
+}
+
+void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
+  pInfo->activeId = 0;  // clear the checkpoint id
+  pInfo->failedId = 0;
+  pInfo->transId = 0;
+  pInfo->dispatchTrigger = false;
+
+  taosArrayClear(pInfo->pReadyMsgList);
+  taosArrayClear(pInfo->pDispatchTriggerList);
 }
