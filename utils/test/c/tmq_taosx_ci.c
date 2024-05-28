@@ -1064,7 +1064,7 @@ void testConsumeExcluded(int topic_type) {
     char* topic = "create topic topic_excluded with meta as database db_taosx";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded1, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
@@ -1073,7 +1073,7 @@ void testConsumeExcluded(int topic_type) {
     char* topic = "create topic topic_excluded as select * from stt";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded2, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
@@ -1115,7 +1115,7 @@ void testConsumeExcluded(int topic_type) {
         assert(raw.raw_type != 2 && raw.raw_type != 4 && raw.raw_type != TDMT_VND_CREATE_STB &&
                raw.raw_type != TDMT_VND_ALTER_STB && raw.raw_type != TDMT_VND_CREATE_TABLE &&
                raw.raw_type != TDMT_VND_ALTER_TABLE && raw.raw_type != TDMT_VND_DELETE);
-        assert(raw.raw_type == TDMT_VND_DROP_STB || raw.raw_type == TDMT_VND_DROP_TABLE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB || raw.raw_type == TDMT_VND_DROP_TABLE || raw.raw_type == 5);
       } else if (topic_type == 2) {
         assert(0);
       }
