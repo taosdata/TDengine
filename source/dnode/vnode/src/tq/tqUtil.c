@@ -176,6 +176,9 @@ end : {
   }
 }
 
+static void tDeleteCommon(void* parm) {
+}
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int             code = 0;
@@ -245,7 +248,18 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto end;
         }
 
-        tqDebug("fetch meta msg, ver:%" PRId64 ", vgId:%d, type:%s", pHead->version, vgId, TMSG_INFO(pHead->msgType));
+        tqDebug("fetch meta msg, ver:%" PRId64 ", vgId:%d, type:%s, enable batch meta:%d", pHead->version, vgId,
+                TMSG_INFO(pHead->msgType), pRequest->enableBatchMeta);
+        if (!pRequest->enableBatchMeta) {
+          SMqMetaRsp metaRsp = {0};
+          tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer + 1);
+          metaRsp.resMsgType = pHead->msgType;
+          metaRsp.metaRspLen = pHead->bodyLen;
+          metaRsp.metaRsp = pHead->body;
+          code = tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId);
+          goto end;
+        }
+
         if (!btMetaRsp.batchMetaReq) {
           btMetaRsp.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
           btMetaRsp.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
@@ -315,7 +329,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   }
 
 end:
-
+  tDeleteMqBatchMetaRsp(&btMetaRsp);
   tDeleteSTaosxRsp(&taosxRsp);
   return code;
 }

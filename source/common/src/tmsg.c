@@ -6216,6 +6216,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
     pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
+  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   return tlen + headLen;
 }
@@ -6240,6 +6241,12 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
   if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->enableBatchMeta) < 0) return -1;
+  } else {
+    pReq->enableBatchMeta = false;
+  }
 
   tEndDecode(&decoder);
 
@@ -7242,6 +7249,15 @@ int tDecodeSVCreateTbBatchReq(SDecoder *pCoder, SVCreateTbBatchReq *pReq) {
 
   tEndDecode(pCoder);
   return 0;
+}
+
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq) {
+  for (int32_t iReq = 0; iReq < pReq->nReqs; iReq++) {
+    SVCreateTbReq* pCreateReq = pReq->pReqs + iReq;
+    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+      taosArrayDestroy(pCreateReq->ctb.tagName);
+    }
+  }
 }
 
 int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {

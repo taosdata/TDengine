@@ -2416,6 +2416,7 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int8_t  resetOffsetCfg;
+  int8_t  enableBatchMeta;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2435,6 +2436,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI8(buf, pReq->autoCommit);
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
+  tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
 
   return tlen;
 }
@@ -2523,6 +2525,7 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
+  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
   return buf;
 }
 
@@ -2705,6 +2708,7 @@ typedef struct {
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
@@ -3633,6 +3637,7 @@ typedef struct {
   int64_t      consumerId;
   int64_t      timeout;
   STqOffsetVal reqOffset;
+  int8_t       enableBatchMeta;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);

@@ -73,6 +73,7 @@ struct tmq_conf_t {
   char*          pass;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
+  int8_t         enableBatchMeta;
 };
 
 struct tmq_t {
@@ -88,6 +89,7 @@ struct tmq_t {
   bool           hbBgEnable;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
+  int8_t         enableBatchMeta;
 
   // status
   SRWLatch        lock;
@@ -281,6 +283,7 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
   conf->resetOffset = TMQ_OFFSET__RESET_EARLIEST;
   conf->hbBgEnable = true;
+  conf->enableBatchMeta = false;
 
   return conf;
 }
@@ -409,6 +412,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.db") == 0) {
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "msg.enable.batchmeta") == 0) {
+    conf->enableBatchMeta = (taosStr2int64(value) != 0) ? true : false;
     return TMQ_CONF_OK;
   }
 
@@ -1135,6 +1143,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->commitCb = conf->commitCb;
   pTmq->commitCbUserParam = conf->commitCbUserParam;
   pTmq->resetOffsetCfg = conf->resetOffset;
+  pTmq->enableBatchMeta = conf->enableBatchMeta;
   taosInitRWLatch(&pTmq->lock);
 
   pTmq->hbBgEnable = conf->hbBgEnable;
@@ -1212,6 +1221,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   req.autoCommit = tmq->autoCommit;
   req.autoCommitInterval = tmq->autoCommitInterval;
   req.resetOffsetCfg = tmq->resetOffsetCfg;
+  req.enableBatchMeta = tmq->enableBatchMeta;
 
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
@@ -1720,6 +1730,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
   pReq->head.vgId = pVg->vgId;
   pReq->useSnapshot = tmq->useSnapshot;
   pReq->reqId = generateRequestId();
+  pReq->enableBatchMeta = tmq->enableBatchMeta;
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
