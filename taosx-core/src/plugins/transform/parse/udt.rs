@@ -361,17 +361,14 @@ mod tests {
 
     #[test]
     fn eval_with_udt_simple() {
-        let udt: Udt  = serde_json::from_str(
+        let udt: Udt = serde_json::from_str(
             r#"{
                 "udt": "[data]"
             }"#,
         )
         .unwrap();
 
-        let result = eval_with_udt(
-            r#"{"a": 1, "b": "v2"}"#,
-            &udt.udt.ast,
-        );
+        let result = eval_with_udt(r#"{"a": 1, "b": "v2"}"#, &udt.udt.ast);
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -380,16 +377,21 @@ mod tests {
 
     #[test]
     fn eval_with_udt_a() {
-        let input = format!("{{\"udt\": \"{}\"}}", r#"
+        let input = format!(
+            "{{\"udt\": \"{}\"}}",
+            r#"
         if (data["n"] == 0) { 
             []
         } else if (data["n"] == 1) { 
             [#{"a": 1, "b": "v2"}] 
         } else { 
             [#{"a": 3}, #{"b": "v5"}]
-        }"#.replace("\"", "\\\"").replace("\n", "")) ;
+        }"#
+            .replace("\"", "\\\"")
+            .replace("\n", "")
+        );
 
-        let udt: Udt  = serde_json::from_str(&input).unwrap();
+        let udt: Udt = serde_json::from_str(&input).unwrap();
 
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
@@ -403,6 +405,4 @@ mod tests {
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indics.unwrap(), vec![0, 2, 2]);
     }
-
-
 }
