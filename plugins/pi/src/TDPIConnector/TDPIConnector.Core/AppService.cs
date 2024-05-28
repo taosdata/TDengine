@@ -87,7 +87,7 @@ namespace TDPIConnector.Core
             }
             catch (Exception e)
             {
-                log.Fatal("panic: error starting the application. Connect TDEngine failed!", e);
+                log.Fatal("panic: error starting the application. Connect Agent failed!", e);
                 throw e;
             }
         }
