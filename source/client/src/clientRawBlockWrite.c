@@ -1921,6 +1921,7 @@ static char* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
 static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
   SDecoder        coder;
   SMqBatchMetaRsp rsp = {0};
+  SArray*         strArray = NULL;
   tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
   if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
     goto _end;
@@ -1928,7 +1929,7 @@ static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
 
   int64_t fullSize = 0;
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
-  SArray* strArray = taosArrayInit(num, POINTER_BYTES);
+  strArray = taosArrayInit(num, POINTER_BYTES);
   for (int32_t i = 0; i < num; i++) {
     int32_t len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
@@ -1948,10 +1949,17 @@ static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
   for (int32_t i = 0; i < num; i++) {
     char* subStr = taosArrayGetP(strArray, i);
     strcat(buf, subStr);
-    strcat(buf, "\n");
+    if (i < num - 1) {
+      strcat(buf, "\n");
+    }
   }
+  taosArrayDestroyP(strArray, taosMemoryFree);
+  tDeleteMqBatchMetaRsp(&rsp);
+  return buf;
 
 _end:
+  taosArrayDestroyP(strArray, taosMemoryFree);
+  tDeleteMqBatchMetaRsp(&rsp);
   return NULL;
 }
 

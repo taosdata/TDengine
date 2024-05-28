@@ -44,7 +44,6 @@ int32_t scanDebug = 0;
 #define STREAM_SCAN_OP_NAME               "StreamScanOperator"
 #define STREAM_SCAN_OP_STATE_NAME         "StreamScanFillHistoryState"
 #define STREAM_SCAN_OP_CHECKPOINT_NAME    "StreamScanOperator_Checkpoint"
-#define TMQ_MAX_BATCH_SIZE                4096
 
 typedef struct STableMergeScanExecInfo {
   SFileBlockLoadRecorder blockRecorder;
@@ -2408,7 +2407,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
-    for(int32_t i = 0; i < TMQ_MAX_BATCH_SIZE; i++) {
+    for(int32_t i = 0; i < tmqRowSize; i++) {
       void*         data = NULL;
       int32_t       dataLen = 0;
       int16_t       type = 0;

@@ -2075,7 +2075,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
-    } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP || pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {
+    } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
       // todo handle the wal range and epset for each vgroup
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;
       int32_t            consumerEpoch = atomic_load_32(&tmq->epoch);
@@ -2096,12 +2096,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
         updateVgInfo(pVg, &pollRspWrapper->metaRsp.rspOffset, &pollRspWrapper->metaRsp.rspOffset, pollRspWrapper->metaRsp.head.walsver, pollRspWrapper->metaRsp.head.walever, tmq->consumerId, true);
         // build rsp
-        void* pRsp = NULL;
-        if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
-          pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
-        } else {
-          pRsp = tmqBuildBatchMetaRspFromWrapper(pollRspWrapper);
-        }
+        SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
         taosFreeQitem(pRspWrapper);
         taosWUnLockLatch(&tmq->lock);
         return pRsp;
@@ -2110,6 +2105,42 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
                  tmq->consumerId, pollRspWrapper->vgId, pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
         pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
         taosFreeQitem(pollRspWrapper);
+      }
+    } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {
+      SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;
+      int32_t            consumerEpoch = atomic_load_32(&tmq->epoch);
+
+      tscDebug("consumer:0x%" PRIx64 " process meta rsp", tmq->consumerId);
+
+      if (pollRspWrapper->batchMetaRsp.head.epoch == consumerEpoch) {
+        taosWLockLatch(&tmq->lock);
+        SMqClientVg* pVg = getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
+        pollRspWrapper->vgHandle = pVg;
+        pollRspWrapper->topicHandle = getTopicInfo(tmq, pollRspWrapper->topicName);
+        if (pollRspWrapper->vgHandle == NULL || pollRspWrapper->topicHandle == NULL) {
+          tscError("consumer:0x%" PRIx64 " get vg or topic error, topic:%s vgId:%d", tmq->consumerId,
+                   pollRspWrapper->topicName, pollRspWrapper->vgId);
+          tmqFreeRspWrapper(pRspWrapper);
+          taosFreeQitem(pRspWrapper);
+          taosWUnLockLatch(&tmq->lock);
+          return NULL;
+        }
+
+        // build rsp
+        void* pRsp = NULL;
+        updateVgInfo(pVg, &pollRspWrapper->batchMetaRsp.rspOffset, &pollRspWrapper->batchMetaRsp.rspOffset,
+                     pollRspWrapper->batchMetaRsp.head.walsver, pollRspWrapper->batchMetaRsp.head.walever,
+                     tmq->consumerId, true);
+        pRsp = tmqBuildBatchMetaRspFromWrapper(pollRspWrapper);
+        taosFreeQitem(pRspWrapper);
+        taosWUnLockLatch(&tmq->lock);
+        return pRsp;
+      } else {
+        tscInfo("consumer:0x%" PRIx64 " vgId:%d msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                tmq->consumerId, pollRspWrapper->vgId, pollRspWrapper->batchMetaRsp.head.epoch, consumerEpoch);
+        setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
+        tmqFreeRspWrapper(pRspWrapper);
+        taosFreeQitem(pRspWrapper);
       }
     } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;
