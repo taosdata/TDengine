@@ -174,16 +174,16 @@ async fn ipc_stream_writer(
 
     use futures::StreamExt;
 
-    let limit = std::thread::available_parallelism()
-        .map(|v| {
-            (v.get() / 2).max(4).min(
-                std::env::var("GRPC_WORKERS_CONCURRENCY")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(32),
-            )
+    const MAX_GRPC_WORKERS_CONCURRENCY: usize = 8;
+    let limit = std::env::var("GRPC_WORKERS_CONCURRENCY")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            std::thread::available_parallelism()
+                .map(|v| (v.get() / 2).max(MAX_GRPC_WORKERS_CONCURRENCY))
+                .ok()
         })
-        .unwrap_or(4);
+        .unwrap_or(MAX_GRPC_WORKERS_CONCURRENCY);
     tracing::info!("Start IPC stream writer with concurrency limit: {}", limit);
     let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
 
