@@ -190,7 +190,7 @@ namespace TDPIConnector.TDEngine
             initAFModeTables();
             return Task.CompletedTask;
         }
-        public virtual Task CreateTablesForAFElementsV2(string database, string superTableName, List<TDTable> elements)
+        public virtual Task CreateTablesForAFElementsV2(string superTableName, List<TDTable> elements)
         {
             var taosxClient = getTaosxClient(superTableName.ToTDEngineNamingPattern());
             if (taosxClient == null)

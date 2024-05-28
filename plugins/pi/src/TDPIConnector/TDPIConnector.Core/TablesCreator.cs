@@ -232,12 +232,12 @@ namespace TDPIConnector.Core
                     }
                     if (tables.Count() > 500) {
                         log.Info($"Creating TDengine table batch index: {++batchNum} st:{superTableName} ...");
-                        await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
+                        await tdEngineProxy.CreateTablesForAFElementsV2(superTableName, tables);
                         tables.Clear();
                     }
                 };
                 log.Info($"Creating TDengine table batch index: {++batchNum} st:{superTableName} ...");
-                await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTableName, tables);
+                await tdEngineProxy.CreateTablesForAFElementsV2(superTableName, tables);
                 log.Info($"Creating TDengine table info for template: {superTableName} end");
             }
             return elementsCollection;
@@ -362,7 +362,7 @@ namespace TDPIConnector.Core
             }
             Task.WaitAll(tasks.ToArray());
 
-            await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            await tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
             log.Info($"Send subtables info: {elements.Count()} elements in template:{elementTemplate.Name}.");
             return elementsCollection;
         }
@@ -470,7 +470,7 @@ namespace TDPIConnector.Core
                 elementsCollection.Add(table.Name, element);
             }
 
-            await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            await tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
             return elementsCollection;
         }
     }

@@ -2,8 +2,9 @@
 using System;
 using System.Collections.Generic;
 using OSIsoft.AF;
+using TDPIConnector.PI;
 
-namespace TDPIConnector.PI
+namespace TDPIConnector.Core
 {
     public class AFElementTemplateEvent
     {
@@ -12,15 +13,17 @@ namespace TDPIConnector.PI
     {
         private readonly AFDatabase db;
         readonly PISystemManager piSystemManager;
+        Initializer initializer;
         System.Timers.Timer refreshTimer = new System.Timers.Timer(10 * 1000); // every 60 seconds
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         HashSet<string> observeSet;
         Action<AFElementTemplateWrapper> elementTemplateEventHandle;
 
-        public AFElementTemplateObserver(PISystemManager piSystemManager, string afDatabaseName, List<string> ElementTemplates2)
+        public AFElementTemplateObserver(PISystemManager piSystemManager, Initializer initializer, string afDatabaseName, List<string> ElementTemplates2)
         {
             this.piSystemManager = piSystemManager;
+            this.initializer = initializer;
             db = piSystemManager.GetAFDatabase(afDatabaseName);
             if (db == null)
             {
@@ -54,10 +57,10 @@ namespace TDPIConnector.PI
             else if (e.Identity == AFIdentity.Element)
             {
                 // var element = AFElement.FindElement(piSystem, e.ID);
-                log.Debug($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
                 if (e.Action == AFChangeAction.SubObjectAdd) {
                     var element = piSystemManager.GetElementsById(e.ID);
-                    log.Debug($"Object Changed: add a new element. {e.ParentID} {element.Name} {element.ID}");
+                    log.Info($"Object Changed: add a new element. {e.ParentID} {element.Name} {element.ID}");
+                    initializer.AddNewElementToTask(element);
                 }
             }
             else

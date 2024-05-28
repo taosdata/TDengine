@@ -118,6 +118,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Initializer.cs" />
+    <Compile Include="Observers\AFElementTemplateObserver.cs" />
     <Compile Include="Transform.cs" />
     <Compile Include="Conversions\TableNameConvert.cs" />
     <Compile Include="EventsSender.cs" />

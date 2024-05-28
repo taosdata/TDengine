@@ -36,14 +36,14 @@ namespace TDPIConnector.Core
             elementModeTask.Start();
         }
 
-        public void InitTaskForElements(ref string tdDatabaseName, ref AFElementTemplateWrapper elementTemplate, ref TDSTable superTable, ref List<AFElementWrapper> elements, ref IEnumerable<TDColumn> templateAttributeColumns) {
+        public void InitTaskForElements(ref AFElementTemplateWrapper elementTemplate, ref TDSTable superTable, ref List<AFElementWrapper> elements, ref IEnumerable<TDColumn> templateAttributeColumns) {
             List<TDTable> tables = new List<TDTable>();
             List<AFAttribute> attries = new List<AFAttribute>();
             foreach (var element in elements) {
                 TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
                 tables.Add(table);
             }
-            tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
             tables.Clear();
             if (AppSettings.tomlConfig.ForBackfill)
             {
@@ -62,6 +62,22 @@ namespace TDPIConnector.Core
                     log.Info($"Backfill started successfully.");
                 }
             }
+        }
+
+        public void AddNewElementToTask(AFElementWrapper element) {
+            if (element.Template != null)
+            {
+                AFElementTemplateWrapper elementTemplate = element.Template;
+                var superTable = TemplateSTableConverter.Convert(elementTemplate);
+                if (!superTable.HasValidColumn()) return;
+                var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
+                var elements = new List<AFElementWrapper>() { element };
+                InitTaskForElements(ref elementTemplate, ref superTable, ref elements, ref templateAttributeColumns);
+            }
+            else {
+                log.Info($"New Element is not in any template, skip.");
+            }
+            return;
         }
 
         public async Task InitTaskForElementTemplate(string tdDatabaseName, AFElementTemplateWrapper elementTemplate)
@@ -99,7 +115,7 @@ namespace TDPIConnector.Core
                             stopwatch.Reset();
                             stopwatch.Start();
                             var elementChunk = chunks[j];
-                            InitTaskForElements(ref tdDatabaseName, ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
+                            InitTaskForElements(ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
                             Interlocked.Add(ref finishedCount, elementChunk.Count);
                             stopwatch.Stop();
                             TimeSpan elapsed = stopwatch.Elapsed;
@@ -133,7 +149,7 @@ namespace TDPIConnector.Core
             log.Debug($"Creating TDengine table for AF Element {element.Name} table: {table.Name}");
             tables.Add(table);
 
-            await tdEngineProxy.CreateTablesForAFElementsV2(tdDatabaseName, superTable.Name, tables);
+            await tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
             return;
         }
 

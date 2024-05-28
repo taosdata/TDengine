@@ -175,7 +175,7 @@ namespace TDPIConnector.PI
                 return elements.Select(e => new AFElementWrapper(e));
             }
         }
-        public AFElementWrapper GetElementsById(string afDatabaseName, Guid id)
+        public AFElementWrapper GetElementsById(Guid id)
         {
             var e = AFElement.FindElement(piSystem, id);
             return  new AFElementWrapper(e);

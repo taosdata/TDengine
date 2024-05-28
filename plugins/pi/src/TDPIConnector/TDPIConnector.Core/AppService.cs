@@ -1,5 +1,4 @@
 ﻿using log4net;
-using Microsoft.Owin.Hosting;
 using System;
 using System.Text;
 using System.Collections.Generic;
@@ -142,11 +141,14 @@ namespace TDPIConnector.Core
                 log.Info("InitAFModeTask finished.");
             }
 
+            if (!AppSettings.tomlConfig.ForBackfill && AppSettings.tomlConfig.TemplateEventStart) {
+                StartTemplateObserve();
+            }
+
             if ((this.piPoints != null && this.piPoints.Count > 0))
             {
                 StartDataPipe();
                 StartBackfill();
-                StartTemplateObserve();
                 this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 this.standByModeTask.Start();
                 log.Info("Started");
@@ -188,7 +190,7 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager,
+            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager, this.initializer,
                AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement);
             afElementTemplateObserver.Observe(elementTemplateEventHandle);
         }

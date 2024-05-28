@@ -245,7 +245,7 @@ namespace TDPIConnector.Core
                             var task = GetNextTask(groupNum);
                             if (task != null)
                             {
-                                var element = piSystemManager.GetElementsById(AppSettings.tomlConfig.AFDatabaseName, task.elementID);
+                                var element = piSystemManager.GetElementsById(task.elementID);
                                 if (element != null)
                                 {
                                     BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
