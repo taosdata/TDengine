@@ -6,13 +6,13 @@ use self::regex::Regex;
 use self::split::Split;
 use self::udt::Udt;
 
-use super::{indices_to_ranges, TransformExt};
+use super::TransformExt;
 
 use arrow::{
     array::{
-        make_array, Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
-        LargeStringArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
+        StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
@@ -184,6 +184,9 @@ impl TransformExt for ParserImpl {
         if self.is_empty() {
             return Ok(records.clone());
         }
+        // dbg!("before parser------");
+        // dbg!(records);
+
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 
@@ -263,6 +266,7 @@ impl TransformExt for ParserImpl {
                     if let Some((idx, field)) = fields.iter().find_position(|f| name == *f.name()) {
                         (field.clone(), columns[idx].clone())
                     } else {
+                        // dbg!(&name);
                         (
                             schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
                             records.column_by_name(&name).unwrap().clone(),
@@ -275,6 +279,9 @@ impl TransformExt for ParserImpl {
         let rschema = Schema::new_with_metadata(rfields, metadata);
 
         let batch = RecordBatch::try_new(Arc::new(rschema), rcolumns)?;
+
+        // dbg!("after parser------");
+        // dbg!(&batch);
 
         Ok(batch)
     }

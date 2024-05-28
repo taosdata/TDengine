@@ -96,7 +96,7 @@ impl FromStr for Json {
 
 impl Parse for Json {
     fn num_rows_will_be_changed(&self) -> bool {
-        !self.flatten
+        self.flatten
     }
 
     fn num_columns_will_be_changed(&self) -> bool {

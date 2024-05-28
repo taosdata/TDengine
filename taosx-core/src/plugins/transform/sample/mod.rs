@@ -159,7 +159,7 @@ impl DsSampleIn {
 //     use super::*;
 
 //     #[test]
-//     fn test_tranform() {
+//     fn test_udt_tranform() {
 //         let udf = r#"let blacks = ["xxx-21", "yyy-2"];let whites = ["ddd", "ccc", "xxx-1"];
 //     if (blacks.len > 0 && blacks.contains(data["DEV_ID"]) || whites.len > 0 && !whites.contains(data["DEV_ID"])) {
 //         return [];
@@ -238,6 +238,38 @@ impl DsSampleIn {
 //             udf.replace("\n", "").replace("\"", "\\\""),
 //             raw_data1.replace("\n", "").replace("\"", "\\\""),
 //             raw_data2.replace("\n", "").replace("\"", "\\\"")
+//         );
+
+//         let ds: DsSampleIn = serde_json::from_str(&input).unwrap();
+//         let result = ds.transform(Some("Asia/Pyongyang"));
+//         match result {
+//             Ok(r) => {
+//                 println!("result");
+//             }
+//             Err(e) => {
+//                 println!("error: {:?}", e);
+//             }
+//         }
+//     }
+
+//     #[test]
+//     fn test_json_tranform() {
+//         let json = r#"{"a": 1}"#;
+
+//         let input = format!(
+//             r#"{{
+//     "parser":{{
+//         "parse":{{
+//             "payload":{{"json": ""}}
+//         }}
+//     }},
+//     "input":[{{
+//         "topic":"topic",
+//         "qos":"qos",
+//         "payload":"{}"
+//     }}]
+// }}"#,
+//             json.replace("\n", "").replace("\"", "\\\"")
 //         );
 
 //         let ds: DsSampleIn = serde_json::from_str(&input).unwrap();
