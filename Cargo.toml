@@ -9,7 +9,7 @@ shadow-rs = { version = "0.26.0" }
 clap = { version = "4.4.7", features = ["default", "derive"] }
 
 regex = { version = "1.9" }
-arrow = { version = "50.0.0", features = ["chrono-tz"] }
+arrow = { version = "50.0.0", features = ["chrono-tz", "ipc_compression"] }
 arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
 faststr = { version = "0.2.19", features = ["serde"] }
