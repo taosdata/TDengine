@@ -397,7 +397,7 @@ impl PutStream {
                                     continuous_errors = last_errors,
                                     error = format!("{:#}", err),
                                     backtrace = %err.backtrace(),
-                                    "Writing batch {} error",
+                                    "Writing batch error {} ",
                                     trace_id,
                                 );
                                 let period = match last_errors {
@@ -470,7 +470,7 @@ impl PutStream {
                                     );
                                     contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
                                 } else {
-                                    tracing::debug!("Writing batch {} success", trace_id);
+                                    tracing::debug!("Writing batch success {} ", trace_id);
                                 }
                             }
                             Ok(())
