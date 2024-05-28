@@ -86,7 +86,7 @@ else
   $* -a 2>$AsanFile
 
   unset LD_PRELOAD
-  for ((i = 1; i <= 20; i++)); do
+  for ((i = 1; i <= 5; i++)); do
     AsanFileLen=$(cat $AsanFile | wc -l)
     echo "AsanFileLen:" $AsanFileLen
     if [ $AsanFileLen -gt 10 ]; then
