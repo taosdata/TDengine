@@ -936,7 +936,11 @@ impl TaskController {
     }
 
     #[instrument(skip_all, name = "task::update", fields(task.id = id))]
-    pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
+    pub async fn update(
+        &self,
+        id: i64,
+        mut task: UpdateTask,
+    ) -> anyhow::Result<Option<TaskDetail>> {
         let old = self
             .get(id)
             .await?
@@ -946,6 +950,16 @@ impl TaskController {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
             }
+        }
+
+        // 云服务的UpdateTask没有name，需要从labels中解析
+        if task.name.is_none() {
+            task.name = task.labels.as_ref().and_then(|labels| {
+                labels
+                    .iter()
+                    .find(|t| t.starts_with("name::"))
+                    .map(|t| t[6..].to_string())
+            });
         }
 
         let mut sql = Vec::new();
