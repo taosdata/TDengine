@@ -1068,7 +1068,7 @@ export default {
                       : this.parseruleForm.type == "split"
                       ? this.$store.state.app.splitExpresList
                       : this.parseruleForm.type == "udt"
-                      ? this.parseruleForm.expression.replace("\n", "\\n")
+                      ? this.parseruleForm.expression
                       : this.parseruleForm.expression
                       ? this.parseruleForm.expression
                           .split(";")
