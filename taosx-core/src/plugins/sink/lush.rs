@@ -43,6 +43,8 @@ pub struct LushModelConfig {
     /// value: parser for the super-table.
     pub super_table_parsers: HashMap<String, Parser>,
 
+    pub super_table_sqls: Option<HashMap<String, String>>,
+
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
     pub super_table_name_mapping: HashMap<String, String>,
@@ -174,6 +176,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
+            super_table_sqls: None,
             super_table_name_mapping: sub_super_mapping,
             skip_null: false,
         }
@@ -199,7 +202,9 @@ impl From<PIElementModelConfig> for LushModelConfig {
         let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
+        let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
+            super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
             super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
         }
         // old code that use element_id to index super_table
@@ -211,6 +216,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
+            super_table_sqls: Some(super_table_sqls),
             super_table_name_mapping,
             skip_null: true,
         }
@@ -551,11 +557,13 @@ async fn alter_table(
             let errno: i32 = code.into();
             match errno {
                 0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
-                    taos.replace(pool.get().await?);
+                    tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                     if retry > alter_table_max_retry {
-                        tracing::error!("Alter table retry execeeded {retry}, {err:#}");
-                        return Err(err.into());
+                        tracing::error!("Alter table retry exceeded {retry}, {err:#}");
+                        return Err(err)
+                            .with_context(|| "Describe {stable} error: Retries exceeded");
                     } else {
+                        taos.replace(pool.get().await?);
                         continue;
                     }
                 }
@@ -564,7 +572,7 @@ async fn alter_table(
                         req_id = req_id.trace_id_str(),
                         "Describe table error: {err:#}"
                     );
-                    return Err(err.into());
+                    return Err(err).with_context(|| "Describe {stable} error: Retries exceeded");
                 }
             }
         }
@@ -578,15 +586,26 @@ async fn alter_table(
             .flat_map(|m| m.max_var_length(f.field()))
             .max();
         if f.is_tag() {
+            let length = length.unwrap_or_else(|| {
+                let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
+                (f.length() * 2).min(max)
+            });
+            if f.length() >= length {
+                tracing::debug!(
+                    req_id = req_id.trace_id_str(),
+                    stable,
+                    field,
+                    "Expect tag length {length} is less than or equal to current length {}",
+                    f.length()
+                );
+                return Ok(());
+            }
             let sql = format!(
                 "alter table `{}` modify tag `{}` {}({})",
                 stable,
                 f.field(),
                 f.ty(),
-                length.unwrap_or_else(|| {
-                    let max = if f.ty() == Ty::VarChar { 16382 } else { 4093 };
-                    (f.length() * 2).min(max)
-                })
+                length
             );
             tracing::info!(sql = sql, "Alter table");
             match taos
@@ -613,10 +632,15 @@ async fn alter_table(
                             return Ok(());
                         }
                         0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                            tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
-                                tracing::error!("Alter table retry execeeded {retry}, {err:#}");
-                                return Err(err.into());
+                                tracing::error!("Alter table retry exceeded {retry}, {err:#}");
+                                return Err(err).with_context(|| sql).with_context(|| {
+                                    format!(
+                                        "Alter table {stable} tag `{field}` error: Retries exceeded"
+                                    )
+                                });
                             }
                         }
                         _ => {
@@ -625,22 +649,35 @@ async fn alter_table(
                                 sql,
                                 "Alter table error: {err:#}"
                             );
-                            return Err(err.into());
+                            return Err(err).with_context(|| sql).with_context(|| {
+                                format!("Alter table {stable} tag `{field}` error")
+                            });
                         }
                     }
                 }
                 _ => return Ok(()),
             }
         } else {
+            let length = length.unwrap_or_else(|| {
+                let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
+                (f.length() * 2).min(max)
+            });
+            if f.length() >= length {
+                tracing::debug!(
+                    req_id = req_id.trace_id_str(),
+                    stable,
+                    field,
+                    "Expect column length {length} is less than or equal to current length {}",
+                    f.length()
+                );
+                return Ok(());
+            }
             let sql = format!(
                 "alter table `{}` modify column `{}` {}({})",
                 stable,
                 f.field(),
                 f.ty(),
-                length.unwrap_or_else(|| {
-                    let max = if f.ty() == Ty::VarChar { 65517 } else { 16382 };
-                    (f.length() * 2).min(max)
-                })
+                length,
             );
             tracing::info!(sql = sql, "Alter table");
             match taos
@@ -665,8 +702,12 @@ async fn alter_table(
                         0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
-                                tracing::error!("Alter table retry execeeded {retry}, {err:#}");
-                                return Err(err.into());
+                                tracing::error!("Alter table retry exceeded {retry}, {err:#}");
+                                return Err(err).with_context(|| sql).with_context(|| {
+                                    format!(
+                                        "Alter table {stable} column `{field}` error: Retries exceeded"
+                                    )
+                                });
                             }
                         }
                         _ => {
@@ -675,7 +716,9 @@ async fn alter_table(
                                 sql,
                                 "Alter table error: {err:#}"
                             );
-                            return Err(err.into());
+                            return Err(err).with_context(|| sql).with_context(|| {
+                                format!("Alter table {stable} column `{field}` error")
+                            });
                         }
                     }
                 }
@@ -734,7 +777,7 @@ pub enum WriteError {
     Anyhow(#[from] anyhow::Error),
 }
 
-async fn assert_create_table(
+pub async fn assert_create_table(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     sql: &str,

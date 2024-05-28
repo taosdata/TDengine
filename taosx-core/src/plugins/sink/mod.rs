@@ -857,6 +857,15 @@ async fn consume_lush_record(
     Ok(())
 }
 
+// Cargill 无数据静态超级表，可能作为树的某个节点存在，只需要同步表结构
+const STATIC_SUPER_TABLES: [&str; 5] = [
+    "technology",
+    "l1__site",
+    "cockpit_kpi_corn_wet_mill",
+    "cockpit_kpi",
+    "caf_base",
+];
+
 #[instrument(skip_all, name = "consume", fields(trace.id = %data_trace_id))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
@@ -871,13 +880,56 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
+            // 临时增加代码，为了让没有数据的表也能在目标库看到
+            let stable_name = tables[0].stable_name();
+            if stable_name.is_some() {
+                let stable_name = stable_name.unwrap();
+                tracing::debug!("Cache tables of super-table: {stable_name}");
+                if STATIC_SUPER_TABLES.contains(&stable_name.as_str()) {
+                    let super_table_sql = lush_model_config
+                        .super_table_sqls
+                        .as_ref()
+                        .unwrap()
+                        .get(stable_name.as_str());
+                    if let Some(super_table_sql) = super_table_sql {
+                        tracing::debug!("super_table_sql: {super_table_sql}");
+                        let mut taos = Some(pool.get().await.context("Target connection error")?);
+                        // 创建超级表
+                        let _ = lush::assert_create_table(
+                            pool,
+                            &mut taos,
+                            &super_table_sql,
+                            &req_id,
+                            true,
+                            metrics_arc.ipc(),
+                        )
+                        .await;
+                        // 创建子表
+                        for table in &tables {
+                            let table_sql = table.to_sql(None);
+                            if let Some(table_sql) = table_sql {
+                                tracing::debug!("table_sql: {table_sql}");
+                                let _ = lush::assert_create_table(
+                                    pool,
+                                    &mut taos,
+                                    &table_sql,
+                                    &req_id,
+                                    false,
+                                    metrics_arc.ipc(),
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+            }
             let len = tables.len();
             for table in tables {
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
             }
-            tracing::debug!("Cached tables message, size: {}", len);
+            tracing::debug!("Cached tables message: {}", len);
         }
         LushMessage::Insert(record) => {
             let pool = pool.clone();
@@ -897,7 +949,10 @@ async fn consume_lush_record_with_transform(
                 anyhow::Ok(count)
             });
             // for record in record {
-            tokio::task::spawn_blocking(move || record.into_par_iter().try_for_each_with(tx, |tx, record| {
+            let span = tracing::Span::current();
+            tokio::task::spawn_blocking(move || {
+                let _ = span.entered();
+                record.into_par_iter().try_for_each_with(tx, |tx, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
@@ -1005,7 +1060,7 @@ async fn consume_lush_record_with_transform(
                         message,
                         metrics,
                         skip_null,
-                    ).await.map(|(written_rows, gen_sql_time, write_time)| {
+                    ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                         tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
                             super_table,
@@ -1016,7 +1071,7 @@ async fn consume_lush_record_with_transform(
                             gen_sql_time.as_millis(),
                             write_time.as_millis(),
                         );
-                        metrics.add_written_rows(num_rows as u64);
+                        metrics.add_processed_rows(num_rows as u64);
                         num_rows
                     }) }.in_current_span()) {
                         tracing::error!("send to tx error: {err:#}");
@@ -1024,7 +1079,7 @@ async fn consume_lush_record_with_transform(
                     }
                 }
                 anyhow::Ok(())
-            })).await.context("Spawn blocking transform lush records inserts")??;
+            })}).await.context("Spawn blocking transform lush records inserts")??;
 
             *count += handle.await??;
         }
