@@ -285,7 +285,7 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   streamTaskInitTaskCheckInfo(pInfo, &pTask->outputInfo, taosGetTimestampMs());
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-  stDebug("s-task:%s start check-rsp monit, ref:%d ", pTask->id.idStr, ref);
+  stDebug("s-task:%s start check-rsp monitor, ref:%d ", pTask->id.idStr, ref);
 
   if (pInfo->checkRspTmr == NULL) {
     pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_CHECK_INTERVAL, pTask, streamTimer);
