@@ -10578,7 +10578,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
-  if(pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
+  if (pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -10993,7 +10993,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->deleteMark = convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
+    pReq->deleteMark =
+        convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
 
@@ -11001,7 +11002,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = rewriteTSMAFuncs(pCxt, pStmt, numOfCols, pCols);
   }
   if (TSDB_CODE_SUCCESS == code && !pStmt->pOptions->recursiveTsma) {
-    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_COLUMNS) {
+    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_TSMA_COLUMNS) {
       code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
     }
   }
