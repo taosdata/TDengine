@@ -1501,11 +1501,15 @@ export default {
       let mutateMap = {};
   
       this.tableData.forEach((item) => {
+        // 主键列不能为空
+        if (item["PrimaryKey"] && !item["Expression"]) {
+          Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
+          this.isbreak = true;
+        }
         if (item["Expression"]) {
           if (
             this.params_columns.includes(item["Name"])
           ) {
-            console.log('this.tableData',this.tableData);
             columns.push(item["Name"]);
           }
           if (this.params_tags.includes(item["Name"])) {
@@ -2030,7 +2034,7 @@ export default {
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"];
           tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
-          tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || val[1] == "TIMESTAMP"
+          tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || (val[1] == "TIMESTAMP" && !index)
           
           return tableRow;
         });
