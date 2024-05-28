@@ -332,6 +332,7 @@ async fn get_all_points(
         categories
     );
     let mut from = from.into_dsn()?;
+
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {

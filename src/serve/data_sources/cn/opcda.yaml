@@ -106,9 +106,9 @@ datasets:
         - name: child_table_expression
           display: 表名称
           description: |
-            支持 <child table prefix>_{tagname} 格式，{tagname} 表示点位名称。
+            支持 <child table prefix>_{tag_name} 格式，{tag_name} 表示点位名称。
           required: true
-          value: t_{tagname}
+          value: t_{tag_name}
           hint:
             type: str
         - name: table_primary_key

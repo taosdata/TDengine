@@ -1,3 +1,4 @@
+use std::cmp;
 use std::{
     any::Any,
     cell::Cell,
@@ -1542,7 +1543,7 @@ async fn consume_point_record(
                             let point_config = config.build_point_config(
                                 index,
                                 point_id.clone(),
-                                Some(value_raw_type.to_string()),
+                                Some(value_raw_type.clone()),
                             )?;
                             Some(point_config)
                         }
@@ -1569,7 +1570,7 @@ async fn consume_point_record(
                     None => None,
                     Some(point_model_config) => match point_model_config.update_mode {
                         UpdateMode::Append | UpdateMode::Update => {
-                            Some(config.build_table_config()?)
+                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
                         }
                         UpdateMode::None => None,
                     },
@@ -1606,7 +1607,7 @@ async fn consume_point_record(
             let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
 
             let mut value_column_name = "value";
-            let mut value_column_length = 128;
+            let mut value_column_length = 0;
             let mut values = String::new();
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &point_insertion.columns {
@@ -1649,7 +1650,7 @@ async fn consume_point_record(
                         .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
                     value_column_name = temp_alias;
-                    value_column_length = value_column.len();
+                    value_column_length = cmp::max(value_column.len(), value_column_length);
                 } else if temp_name == "quality" {
                     values.push_str(
                         format!(
@@ -1773,6 +1774,7 @@ async fn consume_point_record(
                 });
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
+                // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
                 let sql_vec = sql_vec.unwrap();
 
                 for index in 0..sql_vec.len() {
@@ -1789,6 +1791,21 @@ async fn consume_point_record(
                             sql_insertion.overflow = true;
                             continue;
                         } else {
+                            // 不同点位入同一张表的情况，需要合并column_configs
+                            let exist_column_configs =
+                                &mut sql_insertion.point_insertion.column_configs;
+                            let column_configs = &table_config.column_configs;
+                            for column_config in column_configs {
+                                if !exist_column_configs.contains(column_config) {
+                                    exist_column_configs.push(column_config.clone());
+                                }
+                            }
+                            // 需要更新 modify.value_column_length
+                            let exist_value_column_length =
+                                sql_insertion.modify.value_column_length;
+                            sql_insertion.modify.value_column_length =
+                                cmp::max(exist_value_column_length, value_column_length);
+
                             sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
                         }
@@ -1839,7 +1856,7 @@ async fn consume_point_record(
                         if break_err.is_err() {
                             break_err.context("Point message sql error")?;
                         }
-                        break;
+                        break 'outer;
                     }
                     let sql_res = taos
                         .as_ref()
@@ -1858,7 +1875,7 @@ async fn consume_point_record(
                             // TODO: points is wrong
                             metrics.add_written_points(n as u64);
                             points += n;
-                            break;
+                            break 'outer;
                         }
                         Err(err) => {
                             let errstr = format!("{err:#}");
@@ -1869,8 +1886,7 @@ async fn consume_point_record(
                             );
 
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                                // stable not exists
-                                // should be some
+                                // 超级表或子表不存在, 创建超级表
                                 let value_column_config = sql_insertion
                                     .point_insertion
                                     .value_column_config
@@ -1917,16 +1933,17 @@ async fn consume_point_record(
                                             let err_str = err.to_string();
                                             if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
-                                                retry += 1;
                                                 break_err = Err(err);
-                                                continue;
                                             } else {
                                                 tracing::error!("create stable sql error: {err:#}");
                                             }
+                                            retry += 1;
+                                            continue 'outer;
                                         }
                                     }
                                 }
-                                // batch create child table
+
+                                // 创建子表
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut child_table_counts_vec = Vec::<u32>::new();
                                 let mut sql_prefix = "CREATE TABLE".to_string();
@@ -1985,11 +2002,10 @@ async fn consume_point_record(
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
                                 // Illegal number of columns or tags, alter to add columns or tag
                                 for column_config in &sql_insertion.point_insertion.column_configs {
-                                    let mut need_add = true;
-                                    let column_name = get_real_column_name(column_config);
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
                                     let desc = match desc {
+                                        Ok(desc) => desc,
                                         Err(err) => {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
@@ -2009,20 +2025,15 @@ async fn consume_point_record(
                                                 }
                                             }
                                         }
-                                        Ok(desc) => desc,
                                     };
-
-                                    desc.into_iter().for_each(|column_meta| {
-                                        if column_name == column_meta.field() {
-                                            need_add = false;
-                                        }
-                                    });
-
+                                    // 增加 column
+                                    let column_real_name = get_real_column_name(column_config);
+                                    let need_add = desc
+                                        .into_iter()
+                                        .all(|column_meta| column_real_name != column_meta.field());
                                     if need_add {
-                                        let column_real_name = get_real_column_name(column_config);
                                         if column_config.r#type.is_none() {
-                                            // shouldn't happen if normal
-                                            // encounter when rename value column
+                                            // shouldn't happen if normal, encounter when rename value column
                                             tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                             break 'outer;
                                         }
@@ -2063,7 +2074,7 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
-
+                                // 增加 tag
                                 if let Some(tag_configs) =
                                     &sql_insertion.point_insertion.tag_configs
                                 {
@@ -2112,6 +2123,8 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0x2653]") {
                                 // column or tag length not enough
                                 let desc = taos
@@ -2180,9 +2193,6 @@ async fn consume_point_record(
                                             sql_insertion.modify.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
-                                        // taos.as_ref().unwrap().exec(sql).await.context(
-                                        //     "Modify column length error while writing point stream",
-                                        // )?;
                                         taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
                                             .await
                                             .context(
@@ -2190,13 +2200,16 @@ async fn consume_point_record(
                                             )?;
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
                                 retry += 1;
+                                continue 'outer;
                             } else {
                                 metrics.add_failed_sqls(1);
                                 Err(err)?;
-                                break;
+                                break 'outer;
                             }
                             break_err = Err(err);
                         }

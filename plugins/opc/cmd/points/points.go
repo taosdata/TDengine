@@ -4,6 +4,7 @@ import (
 	"collector/client"
 	"collector/client/opcda"
 	"collector/client/opcua"
+	"collector/common"
 	"collector/config"
 	"collector/log"
 	"context"
@@ -63,6 +64,9 @@ func getAllPoint() {
 	points, err := opcClient.GetAllPoints(conf.Points)
 	if err != nil {
 		logger.WithError(err).Panic("get all points error")
+	}
+	if len(points) == 0 {
+		points = []common.Point{}
 	}
 	j, _ := json.Marshal(points)
 	fmt.Println(string(j))
