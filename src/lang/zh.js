@@ -1201,7 +1201,7 @@ export default {
       extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
-      3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/ElementTemplates.csv" download>示例代码<a>进行参考。<br/>
+      3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/example-code.rhai" download>示例代码<a>进行参考。<br/>
       <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#12-解析" target="_blank">企业版文档<a>。</span>`,
       filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>

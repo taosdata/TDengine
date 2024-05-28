@@ -160,11 +160,12 @@
                 :selectJson="selectJson"
                 @updateData="updateData"
               />
-              <div v-else class="flexStart">
+              <div v-else style="display: inline-flex; align-items: start; width: 100%;">
                 <el-input 
+                  size="small"
                   v-model="parseruleForm.expression"
                   type="textarea" 
-                  :autosize="{ minRows: 1, maxRows: 3}"></el-input>
+                  :autosize="{ minRows: 1, maxRows: 7}"></el-input>
                 <el-upload 
                   size="small" 
                   @click="createST" 
@@ -176,7 +177,7 @@
                   :on-error="handleError"
                   :file-list="fileList"
                   :show-file-list="false">
-                  <el-button size="small" plain type="primary" style="width: auto; padding: 0 6px" :disabled="$COMMUNITY">
+                  <el-button size="small" plain type="primary" style="width: auto; padding: 0 6px; margin-top: 0;" :disabled="$COMMUNITY">
                     {{ $t("datasource.transformer.uploadCode") }}
                   </el-button>
                 </el-upload>
@@ -2547,7 +2548,7 @@ export default {
     .el-form {
       display: flex !important;
       flex: 1;
-      align-items: center;
+      align-items: flex-start;
       .el-form-item {
         margin-bottom: 0px;
         margin-right: 15px;
@@ -2565,7 +2566,7 @@ export default {
       align-items: center;
       border-radius: 6px;
       padding: 12px 20px;
-      margin-top: 2px;
+      margin-top: 5px;
     }
     .split-expression {
       margin-top: 5px;
