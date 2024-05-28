@@ -24,11 +24,13 @@
 #define LOG_ID_TAG   "connId:0x%"PRIx64",reqId:0x%"PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos,pRequest->requestId
 
+#define TMQ_META_VERSION "1.0"
+
 static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen);
 
 static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
 
-static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
+static cJSON* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
                                   int8_t t) {
   char*  string = NULL;
   cJSON* json = cJSON_CreateObject();
@@ -92,12 +94,10 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
   }
   cJSON_AddItemToObject(json, "tags", tags);
 
-  string = cJSON_PrintUnformatted(json);
-  cJSON_Delete(json);
-  return string;
+  return json;
 }
 
-static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
+static cJSON* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
   SMAlterStbReq req = {0};
   cJSON*        json = NULL;
   char*         string = NULL;
@@ -182,18 +182,16 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
     default:
       break;
   }
-  string = cJSON_PrintUnformatted(json);
 
-  end:
-  cJSON_Delete(json);
+end:
   tFreeSMAltertbReq(&req);
-  return string;
+  return json;
 }
 
-static char* processCreateStb(SMqMetaRsp* metaRsp) {
+static cJSON* processCreateStb(SMqMetaRsp* metaRsp) {
   SVCreateStbReq req = {0};
   SDecoder       coder;
-  char*          string = NULL;
+  cJSON*         pJson = NULL;
 
   uDebug("create stable data:%p", metaRsp);
   // decode and process req
@@ -204,17 +202,17 @@ static char* processCreateStb(SMqMetaRsp* metaRsp) {
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     goto _err;
   }
-  string = buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE);
-  _err:
-  uDebug("create stable return, sql json:%s", string);
+  pJson = buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE);
+_err:
+  uDebug("create stable return, sql json:%s", cJSON_PrintUnformatted(pJson));
   tDecoderClear(&coder);
-  return string;
+  return pJson;
 }
 
-static char* processAlterStb(SMqMetaRsp* metaRsp) {
+static cJSON* processAlterStb(SMqMetaRsp* metaRsp) {
   SVCreateStbReq req = {0};
   SDecoder       coder;
-  char*          string = NULL;
+  cJSON*         pJson = NULL;
   uDebug("alter stable data:%p", metaRsp);
 
   // decode and process req
@@ -225,11 +223,11 @@ static char* processAlterStb(SMqMetaRsp* metaRsp) {
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     goto _err;
   }
-  string = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
-  _err:
-  uDebug("alter stable return, sql json:%s", string);
+  pJson = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
+_err:
+  uDebug("alter stable return, sql json:%s", cJSON_PrintUnformatted(pJson));
   tDecoderClear(&coder);
-  return string;
+  return pJson;
 }
 
 static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
@@ -322,7 +320,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   taosArrayDestroy(pTagVals);
 }
 
-static char* buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs) {
+static cJSON* buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs) {
   char*  string = NULL;
   cJSON* json = cJSON_CreateObject();
   if (json == NULL) {
@@ -347,16 +345,14 @@ static char* buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs) {
     cJSON_AddItemToArray(createList, create);
   }
   cJSON_AddItemToObject(json, "createList", createList);
-  string = cJSON_PrintUnformatted(json);
-  cJSON_Delete(json);
-  return string;
+  return json;
 }
 
-static char* processCreateTable(SMqMetaRsp* metaRsp) {
+static cJSON* processCreateTable(SMqMetaRsp* metaRsp) {
   SDecoder           decoder = {0};
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq*     pCreateReq;
-  char*              string = NULL;
+  cJSON*             pJson = NULL;
   // decode
   uDebug("create table data:%p", metaRsp);
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -370,15 +366,15 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
   if (req.nReqs > 0) {
     pCreateReq = req.pReqs;
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
-      string = buildCreateCTableJson(req.pReqs, req.nReqs);
+      pJson = buildCreateCTableJson(req.pReqs, req.nReqs);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-      string =
-          buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
+      pJson = buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid,
+                                    TSDB_NORMAL_TABLE);
     }
   }
 
-  _exit:
-  uDebug("create table return, sql json:%s", string);
+_exit:
+  uDebug("create table return, sql json:%s", cJSON_PrintUnformatted(pJson));
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     taosMemoryFreeClear(pCreateReq->comment);
@@ -388,7 +384,7 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
     }
   }
   tDecoderClear(&decoder);
-  return string;
+  return pJson;
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
@@ -417,8 +413,10 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
       goto _exit;
     }
   }
-  string = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
-  _exit:
+  cJSON* pJson = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
+  string = cJSON_PrintUnformatted(pJson);
+  cJSON_Delete(pJson);
+_exit:
   uDebug("auto created table return, sql json:%s", string);
   for (int i = 0; i < rsp->createTableNum; i++) {
     tDecoderClear(&decoder[i]);
@@ -432,7 +430,7 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
   return string;
 }
 
-static char* processAlterTable(SMqMetaRsp* metaRsp) {
+static cJSON* processAlterTable(SMqMetaRsp* metaRsp) {
   SDecoder     decoder = {0};
   SVAlterTbReq vAlterTbReq = {0};
   char*        string = NULL;
@@ -549,19 +547,16 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
     default:
       break;
   }
-  string = cJSON_PrintUnformatted(json);
 
-  _exit:
-  uDebug("alter table return, sql json:%s", string);
-  cJSON_Delete(json);
+_exit:
+  uDebug("alter table return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
-  return string;
+  return json;
 }
 
-static char* processDropSTable(SMqMetaRsp* metaRsp) {
+static cJSON* processDropSTable(SMqMetaRsp* metaRsp) {
   SDecoder     decoder = {0};
   SVDropStbReq req = {0};
-  char*        string = NULL;
   cJSON*       json = NULL;
   uDebug("processDropSTable data:%p", metaRsp);
 
@@ -586,18 +581,15 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   cJSON* tableName = cJSON_CreateString(req.name);
   cJSON_AddItemToObject(json, "tableName", tableName);
 
-  string = cJSON_PrintUnformatted(json);
-  _exit:
-  uDebug("processDropSTable return, sql json:%s", string);
-  cJSON_Delete(json);
+_exit:
+  uDebug("processDropSTable return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
-  return string;
+  return json;
 }
-static char* processDeleteTable(SMqMetaRsp* metaRsp) {
+static cJSON* processDeleteTable(SMqMetaRsp* metaRsp) {
   SDeleteRes req = {0};
   SDecoder   coder = {0};
   cJSON*     json = NULL;
-  char*      string = NULL;
 
   uDebug("processDeleteTable data:%p", metaRsp);
   // decode and process req
@@ -625,18 +617,15 @@ static char* processDeleteTable(SMqMetaRsp* metaRsp) {
   cJSON* sqlJson = cJSON_CreateString(sql);
   cJSON_AddItemToObject(json, "sql", sqlJson);
 
-  string = cJSON_PrintUnformatted(json);
-  _exit:
-  uDebug("processDeleteTable return, sql json:%s", string);
-  cJSON_Delete(json);
+_exit:
+  uDebug("processDeleteTable return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&coder);
-  return string;
+  return json;
 }
 
-static char* processDropTable(SMqMetaRsp* metaRsp) {
+static cJSON* processDropTable(SMqMetaRsp* metaRsp) {
   SDecoder         decoder = {0};
   SVDropTbBatchReq req = {0};
-  char*            string = NULL;
   cJSON*           json = NULL;
 
   uDebug("processDropTable data:%p", metaRsp);
@@ -670,12 +659,10 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   }
   cJSON_AddItemToObject(json, "tableNameList", tableNameList);
 
-  string = cJSON_PrintUnformatted(json);
-  _exit:
-  uDebug("processDropTable return, json sql:%s", string);
-  cJSON_Delete(json);
+_exit:
+  uDebug("processDropTable return, json sql:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
-  return string;
+  return json;
 }
 
 static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
@@ -1685,6 +1672,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     char  err[ERR_MSG_LEN] = {0};
     code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
+    taosMemoryFreeClear(pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
@@ -1865,6 +1853,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     char err[ERR_MSG_LEN] = {0};
     code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
+    taosMemoryFreeClear(pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
@@ -1897,7 +1886,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   return code;
 }
 
-static char* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
+static cJSON* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
   if (pMetaRsp->resMsgType == TDMT_VND_CREATE_STB) {
     return processCreateStb(pMetaRsp);
   } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_STB) {
@@ -1921,15 +1910,15 @@ static char* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
 static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
   SDecoder        coder;
   SMqBatchMetaRsp rsp = {0};
-  SArray*         strArray = NULL;
   tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
   if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
     goto _end;
   }
 
-  int64_t fullSize = 0;
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION);
+  cJSON* pMetaArr = cJSON_CreateArray();
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
-  strArray = taosArrayInit(num, POINTER_BYTES);
   for (int32_t i = 0; i < num; i++) {
     int32_t len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
@@ -1939,26 +1928,19 @@ static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
     if(tDecodeMqMetaRsp(&metaCoder, &metaRsp) < 0 ) {
       goto _end;
     }
-    char* subStr = processSimpleMeta(&metaRsp);
+    cJSON* pItem = processSimpleMeta(&metaRsp);
     tDeleteMqMetaRsp(&metaRsp);
-    fullSize += strlen(subStr);
-    taosArrayPush(strArray, &subStr);
+    cJSON_AddItemToArray(pMetaArr, pItem);
   }
 
-  char* buf = (char*)taosMemoryCalloc(1, fullSize + num + 1);
-  for (int32_t i = 0; i < num; i++) {
-    char* subStr = taosArrayGetP(strArray, i);
-    strcat(buf, subStr);
-    if (i < num - 1) {
-      strcat(buf, "\n");
-    }
-  }
-  taosArrayDestroyP(strArray, taosMemoryFree);
+  cJSON_AddItemToObject(pJson, "metas", pMetaArr);
   tDeleteMqBatchMetaRsp(&rsp);
-  return buf;
+  char* fullStr = cJSON_PrintUnformatted(pJson);
+  cJSON_Delete(pJson);
+  return fullStr;
 
 _end:
-  taosArrayDestroyP(strArray, taosMemoryFree);
+  cJSON_Delete(pJson);
   tDeleteMqBatchMetaRsp(&rsp);
   return NULL;
 }
@@ -1979,7 +1961,10 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   }
 
   SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-  return processSimpleMeta(&pMetaRspObj->metaRsp);
+  cJSON* pJson = processSimpleMeta(&pMetaRspObj->metaRsp);
+  char* string = cJSON_PrintUnformatted(pJson);
+  cJSON_Delete(pJson);
+  return string;
 }
 
 void tmq_free_json_meta(char* jsonMeta) { taosMemoryFreeClear(jsonMeta); }

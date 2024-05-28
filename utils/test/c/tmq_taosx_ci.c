@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "cJSON.h"
 #include "taos.h"
 #include "types.h"
 
@@ -60,8 +61,23 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
       if (g_fp && strcmp(result, "") != 0) {
-        taosFprintfFile(g_fp, result);
-        taosFprintfFile(g_fp, "\n");
+        // RES_TYPE__TMQ_BATCH_META
+        if ((*(int8_t*)msg) == 5) {
+          cJSON* pJson = cJSON_Parse(result);
+          cJSON* pJsonArray = cJSON_GetObjectItem(pJson, "metas");
+          int32_t num = cJSON_GetArraySize(pJsonArray);
+          for (int32_t i = 0; i < num; i++) {
+            cJSON* pJsonItem = cJSON_GetArrayItem(pJsonArray, i);
+            char* itemStr = cJSON_PrintUnformatted(pJsonItem);
+            taosFprintfFile(g_fp, itemStr);
+            tmq_free_json_meta(itemStr);
+            taosFprintfFile(g_fp, "\n");
+          }
+          cJSON_Delete(pJson);
+        } else {
+          taosFprintfFile(g_fp, result);
+          taosFprintfFile(g_fp, "\n");
+        }
       }
     }
     tmq_free_json_meta(result);
