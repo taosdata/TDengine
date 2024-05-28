@@ -105,6 +105,8 @@ namespace TDPIConnector.Core
         }
         public async void Start()
         {
+            TDEngineClient.OnlyTestConnector = AppSettings.tomlConfig.OnlyTestConnector;
+
             InitializeConnections();
             backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
             eventsSender.SetBackfill(backfillManager);

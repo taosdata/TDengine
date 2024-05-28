@@ -1,6 +1,5 @@
 ﻿#define CLOUD_LICENSE_ONLY
 #define UNUSE_ADAPTER
-#define NONLY_PI_TEST
 
 using Newtonsoft.Json;
 using System;
@@ -22,9 +21,10 @@ namespace TDPIConnector.TDEngine
         private readonly HttpClient httpClient;
         private readonly string baseUrl;
         private readonly string queryStringToken;
-        private readonly string tablesPrefix;
         private readonly bool forTaosX;
         private readonly byte[] credentialsByteArray = null;
+
+        static public bool OnlyTestConnector = false;
 
         public TDEngineClient(bool forTaosX, string hostname, int port, string username, string password, string token, string tablesPrefix) : base()
         {
@@ -39,7 +39,6 @@ namespace TDPIConnector.TDEngine
                 baseUrl = string.Format("{0}:{1}", hostname, port);
             }
             this.queryStringToken = token;
-            this.tablesPrefix = tablesPrefix;
             this.forTaosX = forTaosX;
 
 
@@ -51,9 +50,8 @@ namespace TDPIConnector.TDEngine
 
         public override void Connect()
         {
-#if ONLY_PI_TEST
-            return;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return;
+
             try
             {
                 TDEngineResponse resp = this.GetServerVersion().Result;
@@ -87,9 +85,8 @@ namespace TDPIConnector.TDEngine
         }
         public override async Task<TDEngineResponse> GetSTables(string database, string stable)
         {
-#if ONLY_PI_TEST
-            return null;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return null;
+
             string sqlCommand = $"desc {database.ToTDEngineNamingRawPattern()}.{stable.ToTDEngineNamingPattern()};";
             return await MakeHttpRequest(sqlCommand);
         }
@@ -111,9 +108,8 @@ namespace TDPIConnector.TDEngine
 
             foreach (var STableName in STableNames)
             {
-#if ONLY_PI_TEST
-                break;
-#endif
+                if (TDEngineClient.OnlyTestConnector) break;
+
                 string sqlCommand = $"SELECT tbname, LAST_ROW(*) FROM {database}.{STableName} PARTITION BY TBNAME;";
                 TDEngineResponse resp = await MakeHttpRequest(sqlCommand);
                 foreach (var dataItem in resp.Data)
@@ -415,9 +411,8 @@ namespace TDPIConnector.TDEngine
 
         public override async Task<TDEngineResponse> DeleteByTimeRange(string db, string tbName, string startTime, string endTime)
         {
-#if ONLY_PI_TEST
-            return null;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return null;
+
             try
             {
                 string sqlCommand = $"DELETE FROM {db.ToTDEngineNamingRawPattern()}.{tbName} " +

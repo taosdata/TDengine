@@ -43,6 +43,7 @@ namespace TDPIConnector.Core
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
             public bool ForBackfill { get; set; } = false;
+            public bool OnlyTestConnector { get; set; } = false;
             public bool TemplateEventStart { get; set; } = true;
             public string TaskID { get; set; } = "0";
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;

@@ -1,6 +1,4 @@
-﻿#define NONLY_PI_TEST
-
-using log4net;
+﻿using log4net;
 using System;
 using System.Diagnostics;
 using Apache.Arrow;
@@ -114,9 +112,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         private void resHandler()
         {
-#if ONLY_PI_TEST
-            return;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return;
+
             if (stream == null) {
                 log.Info($"Stream is null, create arrow reader failed!");
                 return;
@@ -416,9 +413,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         private void writeRecordBatch(RecordBatch recordBatch) {
-#if ONLY_PI_TEST
-            return;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return;
+
             try
             {
                 Interlocked.Decrement(ref actualQueueBufferSize);
