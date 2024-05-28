@@ -291,8 +291,7 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
         }
       } else {
         walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
-        tqError("s-task:%s append input queue failed, code:too many items, ver:%" PRId64, id,
-                pTask->chkInfo.nextProcessVer);
+        tqTrace("s-task:%s append input queue failed, code:too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
         break;
       }
     }

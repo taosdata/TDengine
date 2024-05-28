@@ -25,7 +25,6 @@ static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
 static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
 static void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo);
-static SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo();
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);

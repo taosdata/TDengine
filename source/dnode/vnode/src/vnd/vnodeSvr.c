@@ -843,7 +843,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER:
-      return tqProcessTaskRetrieveTriggerMsg(pVnode->pTq, pMsg);
+      return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
       return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_REQ_CHKPT_RSP:
@@ -851,7 +851,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
       return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
-      return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
+      return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
     case TDMT_VND_GET_STREAM_PROGRESS:
       return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
     default:

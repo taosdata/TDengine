@@ -1240,8 +1240,12 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
 
-int32_t tqProcessTaskRetrieveTriggerMsg(STQ* pTq, SRpcMsg* pMsg) {
+int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessRetrieveTriggerReq(pTq->pStreamMeta, pMsg);
+}
+
+int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamTaskProcessRetrieveTriggerRsp(pTq->pStreamMeta, pMsg);
 }
 
 // this function is needed, do not try to remove it.

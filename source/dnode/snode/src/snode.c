@@ -136,6 +136,10 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
       return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER:
+      return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
+      return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);

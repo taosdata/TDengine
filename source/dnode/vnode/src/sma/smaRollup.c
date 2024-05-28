@@ -298,7 +298,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
     pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
-
+    pStreamTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;

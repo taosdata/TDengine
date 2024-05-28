@@ -480,7 +480,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
 void streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration) {
   pTask->msgInfo.retryCount++;
 
-  stWarn("s-task:%s retry send dispatch data in %" PRId64 "ms, in timer msgId:%d, retryTimes:%d", pTask->id.idStr,
+  stTrace("s-task:%s retry send dispatch data in %" PRId64 "ms, in timer msgId:%d, retryTimes:%d", pTask->id.idStr,
          waitDuration, pTask->execInfo.dispatch, pTask->msgInfo.retryCount);
 
   if (pTask->msgInfo.pTimer != NULL) {

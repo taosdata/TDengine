@@ -678,8 +678,7 @@ bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeI
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
 void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
-int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t checkpointType, int32_t dstTaskId, int32_t vgId,
-                                           SEpSet* pEpset);
+int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, SRpcHandleInfo* pRpcInfo);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
@@ -753,6 +752,7 @@ tmr_h   streamTimerGetInstance();
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
+int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTriggerRsp* pRsp);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg);
@@ -764,6 +764,7 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
 int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, STaskId* pHTaskId,
                                               SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpointInfoReq* pReq);
+SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo();
 
 // stream task state machine, and event handling
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);

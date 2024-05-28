@@ -246,7 +246,7 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
 }
 
 int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTaskCheckRsp* pRsp,
-                           SRpcHandleInfo* pRpcInfo, int32_t taskId) {
+                               SRpcHandleInfo* pRpcInfo, int32_t taskId) {
   SEncoder encoder;
   int32_t  code;
   int32_t  len;
