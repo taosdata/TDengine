@@ -897,7 +897,10 @@ async fn consume_lush_record_with_transform(
                 anyhow::Ok(count)
             });
             // for record in record {
-            tokio::task::spawn_blocking(move || record.into_par_iter().try_for_each_with(tx, |tx, record| {
+            let span = tracing::Span::current();
+            tokio::task::spawn_blocking(move || {
+                let _ = span.entered();
+                record.into_par_iter().try_for_each_with(tx, |tx, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
@@ -1005,7 +1008,7 @@ async fn consume_lush_record_with_transform(
                         message,
                         metrics,
                         skip_null,
-                    ).await.map(|(written_rows, gen_sql_time, write_time)| {
+                    ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                         tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
                             super_table,
@@ -1024,7 +1027,7 @@ async fn consume_lush_record_with_transform(
                     }
                 }
                 anyhow::Ok(())
-            })).await.context("Spawn blocking transform lush records inserts")??;
+            })}).await.context("Spawn blocking transform lush records inserts")??;
 
             *count += handle.await??;
         }
