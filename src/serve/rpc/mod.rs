@@ -596,14 +596,15 @@ impl FlightService for FlightServiceImpl {
             req,
             self.notify_sender.clone(),
             addr,
-        );
+            TraceStreamId::from_hex(stream_trace_id),
+            self.spawn_sender.clone(),
+        )
+        .await
+        .map_err(|err| Status::unavailable(err.to_string()))?;
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result(
-                    TraceStreamId::from_hex(stream_trace_id),
-                    self.spawn_sender.clone(),
-                )
+                .into_flight_put_result()
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
         )))

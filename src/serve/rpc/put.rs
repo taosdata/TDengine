@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::{bail, Context};
+use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
@@ -39,16 +40,32 @@ pub struct PutStream {
     req: Streaming<FlightData>,
     controller: TaskControllerRef,
     task_id: i64,
-    notify_sender: AgentNotifySender,
     remote: Option<std::net::SocketAddr>,
+    notify_sender: AgentNotifySender,
+    stream_trace_id: TraceStreamId,
+    spawn_sender: AgentSpawnSender,
+    cluster_id: i64,
+    agent_id: i64,
 }
 
 use serde::{Deserialize, Serialize};
 
-type PutStreamReceiver = flume::Receiver<Result<PutResult, Status>>;
+// type PutStreamReceiver = flume::Receiver<Result<PutResult, Status>>;
 type PutStreamInner = flume::r#async::RecvStream<'static, Result<PutResult, Status>>;
-type PutStreamSender = flume::Sender<Result<PutResult, Status>>;
-type PutStreamChannel = (PutStreamSender, PutStreamReceiver, Arc<tokio::sync::Notify>);
+// type PutStreamSender = flume::Sender<Result<PutResult, Status>>;
+type PutStreamBatchSender = flume::Sender<(RecordBatch, TraceDataId)>;
+type PutStreamAbortReceiver = flume::Receiver<Result<PutResult, Status>>;
+type PutStreamChannel = (
+    Arc<PutStreamBatchSender>,
+    PutStreamAbortReceiver,
+    Arc<tokio::sync::Notify>,
+);
+// (
+//     PutStreamSender,
+//     PutStreamReceiver,
+//     Arc<PutStreamBatchSender>,
+//     Arc<tokio::sync::Notify>,
+// );
 type PutStreamAbortSender = tokio::sync::oneshot::Sender<()>;
 
 #[derive(Serialize, Deserialize)]
@@ -71,43 +88,466 @@ pub async fn put_ipc_stream_channel(trace_id: TraceStreamId, channel: PutStreamC
     cache.insert(trace_id, channel);
 }
 
+async fn ipc_stream_writer(
+    notify_sender: AgentNotifySender,
+    agent_id: i64,
+    task: TaskDetail,
+    pool: taos::TaosPool,
+    lock: Arc<tokio::sync::Mutex<()>>,
+    schema: Arc<arrow::datatypes::Schema>,
+    tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, TraceDataId)>>,
+    rx: flume::Receiver<(arrow::record_batch::RecordBatch, TraceDataId)>,
+    // rsp_tx: flume::Sender<anyhow::Result<()>>,
+    license: Option<ConnectorLicense>,
+    _transferred: Option<Arc<ConnectorTransferred>>,
+    lush_table_cache: Option<Arc<TableTagCache>>,
+    span: tracing::Span,
+    abort_message_tx: flume::Sender<Result<PutResult, Status>>,
+    ipc_error_strategy: IpcErrorStrategy,
+    stream_trace_id: TraceStreamId,
+    notify: Arc<tokio::sync::Notify>,
+) -> anyhow::Result<()> {
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let _drop_guard = cancellation.clone().drop_guard();
+    tokio::spawn(async move {
+        cancellation.cancelled().await;
+        notify.notify_waiters();
+    });
+    // dbg!(&task);
+    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+        agent_id,
+        TaskActivity::ipc_started(task.id),
+    ))?;
+    let task_id = task.id;
+    let from = task.from.parse().unwrap();
+    let taos = pool.get().await?;
+    let _ = span.clone().entered();
+    let worker = IpcStreamWorker::new(
+        pool.clone(),
+        from,
+        lock,
+        schema,
+        license,
+        None,
+        lush_table_cache,
+        span,
+        Some(task_id),
+    )
+    .in_current_span()
+    .await?;
+    let parser: Option<Arc<Parser>> = task
+        .parser
+        .as_ref()
+        .map(|v| serde_json::from_value(v.clone()).unwrap())
+        .map(Arc::new);
+    let metadata = worker.parser.metadata();
+    let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
+    let metrics = metrics_arc.ipc();
+    let lush_parser = metadata.init().map(|init| {
+        let columns = init.columns();
+        let fields: LinkedHashMap<String, FieldParser> = columns
+            .iter()
+            .map(|(col_name, ipc_type)| {
+                (
+                    col_name.clone(),
+                    FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
+                )
+            })
+            .collect();
+        Arc::new(ParserImpl::new(fields))
+    });
+    if worker.lush_model_config.get().is_none() {
+        if let Some(sql) = metadata.init_sql_string() {
+            let init = metadata.init().unwrap();
+            let req_id = RequestID::new(stream_trace_id.as_u64());
+            handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
+        }
+    }
+
+    if let Some(init) = metadata.init() {
+        tracing::info!("Start IPC stream writer for stable: {}", init.name());
+    } else {
+        tracing::info!("Start IPC stream writer");
+    }
+
+    let stream = rx.stream();
+
+    use futures::StreamExt;
+
+    let limit = std::thread::available_parallelism()
+        .map(|v| {
+            (v.get() / 2).max(4).min(
+                std::env::var("GRPC_WORKERS_CONCURRENCY")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(32),
+            )
+        })
+        .unwrap_or(4);
+    tracing::info!("Start IPC stream writer with concurrency limit: {}", limit);
+    let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+    // only for lush stream supported transform.
+    let tables_messages_in_progress = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    if let Err(err) = stream
+        .map(|(record, trace_id)| {
+            anyhow::Ok((
+                record,
+                trace_id,
+                &worker,
+                &parser,
+                &notify_sender,
+                &tx,
+                &abort_message_tx,
+                &contiguous_errors,
+                &metrics_arc,
+                &lush_parser,
+                &tables_messages_in_progress,
+            ))
+        })
+        .try_for_each_concurrent(
+            limit,
+            |(
+                record,
+                trace_id,
+                worker,
+                parser,
+                notify_sender,
+                tx,
+                abort_message_tx,
+                contiguous_errors,
+                metrics_arc,
+                lush_parser,
+                tables_messages_in_progress,
+            )| {
+                async move {
+                    tracing::info!("Writing batch {trace_id}");
+                    if let Err(err) = worker
+                        .process_record(
+                            record.clone(),
+                            parser.as_deref(),
+                            trace_id,
+                            metrics,
+                            metrics_arc,
+                            lush_parser,
+                            tables_messages_in_progress,
+                        )
+                        .in_current_span()
+                        .await
+                    {
+                        let last_errors =
+                            contiguous_errors.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        metrics.add_failed_batches(1);
+                        tracing::error!(
+                            continuous_errors = last_errors,
+                            error = format!("{:#}", err),
+                            backtrace = %err.backtrace(),
+                            "Writing batch error {}",
+                            trace_id,
+                        );
+                        let period = match last_errors {
+                            errors if errors < 8 => 8,
+                            errors if errors < 16 => 16,
+                            errors if errors < 32 => 32,
+                            errors if errors < 64 => 64,
+                            _ => 128,
+                        };
+                        tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
+                        let message = format!("IPC processing record {trace_id} error: {err:#}");
+                        let _ = notify_sender.send(
+                            crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                agent_id,
+                                TaskActivity::warn(task_id, message),
+                            ),
+                        );
+                        if ipc_error_strategy.will_stop() || last_errors > 10 {
+                            let _ = abort_message_tx.send(Err(Status::cancelled(format!(
+                                "IPC worker will be stopped since{err:#}"
+                            ))));
+                            let _ = notify_sender.send(
+                                crate::serve::scheduler::agent::AgentNotify::WriterError(
+                                    agent_id,
+                                    task_id,
+                                    format!("{err:#}"),
+                                ),
+                            );
+                            bail!("IPC worker will be stopped since {err:#}");
+                        }
+                        if let Some(tx) = tx.upgrade() {
+                            tracing::warn!(
+                                trace_id = %trace_id,
+                                "Re-queue with {} rows record",
+                                record.num_rows()
+                            );
+                            tx.send_async((record, trace_id))
+                                .await
+                                .context("Re-queue error")?;
+                        } else {
+                            tracing::warn!(
+                                trace_id = %trace_id,
+                                "IPC channel is closed, cannot re-queue record {trace_id}"
+                            );
+                        }
+                    } else {
+                        metrics.add_processed_batches(1);
+                        let last_errors =
+                            contiguous_errors.load(std::sync::atomic::Ordering::SeqCst);
+                        if last_errors > 0 {
+                            tracing::info!(
+                                continuous_errors = last_errors,
+                                "Rescue from {} continuous errors",
+                                last_errors
+                            );
+                            let _ = notify_sender.send(
+                                crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                    agent_id,
+                                    TaskActivity::info(
+                                        task_id,
+                                        format!("Rescue from {} continuous errors", last_errors),
+                                        "running",
+                                    ),
+                                ),
+                            );
+                            contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
+                        } else {
+                            tracing::debug!("Writing batch success {}", trace_id);
+                        }
+                    }
+                    Ok(())
+                }
+                .in_current_span()
+            },
+        )
+        .in_current_span()
+        .await
+    {
+        tracing::warn!("Receiving finished with error: {err:#}")
+    }
+
+    tracing::info!(task.id = task_id, "IPC stream writer finished");
+
+    Ok(())
+}
+
+async fn spawn_stream_writer(
+    stream_trace_id: TraceStreamId,
+    cluster_id: i64,
+    task_id: i64,
+    agent_id: i64,
+    controller: &TaskControllerRef,
+    notify_sender: AgentNotifySender,
+    spawn_sender: AgentSpawnSender,
+    schema: Arc<Schema>,
+) -> anyhow::Result<PutStreamChannel> {
+    let task = controller
+        .get(task_id)
+        .await
+        .map_err(|err| Status::internal(err.to_string()))
+        .unwrap()
+        .unwrap();
+    // dbg!(&task);
+    let builder = TaosBuilder::from_dsn(&task.to)?;
+    let pool = builder.pool()?;
+    let lock = Arc::new(tokio::sync::Mutex::new(()));
+
+    let from_dsn: Dsn = task.from.parse()?;
+    let to_dsn: Dsn = task.to.parse()?;
+
+    let connector = match from_dsn.driver.as_str() {
+        "opcda" => Some("opc_da"),
+        "opcua" => Some("opc_ua"),
+        "pi" => Some("pi"),
+        "pibackfill" => Some("pi"),
+        "influxdb" => Some("influxdb"),
+        "opentsdb" => Some("opentsdb"),
+        taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
+        taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
+        "mqtt" => Some("mqtt"),
+        _ => None,
+    };
+
+    // data channel
+    let (tx, rx) = match from_dsn.driver.as_str() {
+        "pibackfill" => flume::bounded(50),
+        _ => flume::bounded(1024),
+    };
+
+    let lush_table_cache = match from_dsn.driver.as_str() {
+        "pi" | "pibackfill" => {
+            let task_lush_table_cache_lock = controller.scheduler.lush_table_cache.clone();
+            let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
+            if task_lush_table_cache.contains_key(&task_id) {
+                tracing::info!("Got existing lush_table_cache");
+                Some(task_lush_table_cache.get(&task_id).unwrap().clone())
+            } else {
+                tracing::info!("Create new lush_table_cache");
+                let table_tag_cache = Arc::new(TableTagCache::new());
+                task_lush_table_cache.insert(task_id, table_tag_cache.clone());
+                Some(table_tag_cache)
+            }
+        }
+        _ => None,
+    };
+
+    let tx = Arc::new(tx);
+
+    tracing::trace!(schema = ?schema, "parsing put stream schema");
+    let tx_cloned = Arc::downgrade(&tx);
+    let taos = pool.get().await?;
+
+    let ipc_error_strategy = IpcErrorStrategy::from(connector);
+
+    // let should_abort = Arc::new(AtomicBool::new(false));
+    let (abort_message_tx, abort_message_rx) = flume::bounded(1);
+    let notify = Arc::new(tokio::sync::Notify::new());
+
+    let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+        // get tdengine server version and handle compatibility
+        let server_version = get_server_version(&taos).await?;
+        let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
+        let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+        } else {
+            format!("select `{connector}` from information_schema.ins_grants")
+        };
+
+        #[cfg(feature = "disable-enterprise-connector-validation")]
+        let license: Option<ConnectorLicense> = None;
+        #[cfg(not(feature = "disable-enterprise-connector-validation"))]
+        let license: Option<ConnectorLicense> =
+            if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
+                None
+            } else {
+                taos.query_one::<_, String>(&grants_sql)
+                    .await
+                    .unwrap_or(None)
+                    .and_then(|s| serde_json::from_str(&s).ok())
+            };
+
+        if let Some(license) = license {
+            if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
+                if license.is_expired_second() {
+                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                }
+            } else {
+                if license.is_expired_day() {
+                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                }
+            }
+        }
+        None
+    } else {
+        None
+    };
+
+    let transferred = match connector {
+        Some(_) => {
+            controller
+                .transferred
+                .get(&(cluster_id, from_dsn.driver.clone()))
+                .await
+        }
+        _ => None,
+    };
+
+    // Spawn writer task.
+    tokio::spawn({
+        let notify = notify.clone();
+        async move {
+            let task_id = task.id;
+            let (sender, receiver) = tokio::sync::oneshot::channel();
+            let timeout = std::time::Duration::from_secs(60);
+            if let Err(err) = tokio::time::timeout(
+                timeout,
+                spawn_sender.send_async((
+                    Box::pin(
+                        ipc_stream_writer(
+                            notify_sender.clone(),
+                            agent_id,
+                            task,
+                            pool,
+                            lock,
+                            schema,
+                            tx_cloned,
+                            rx.clone(),
+                            // rsp_tx,
+                            license,
+                            transferred,
+                            lush_table_cache,
+                            Span::current(),
+                            abort_message_tx,
+                            ipc_error_strategy,
+                            stream_trace_id,
+                            notify,
+                        )
+                        .in_current_span(),
+                    ),
+                    sender,
+                )),
+            )
+            .await
+            {
+                tracing::error!(
+                    error.source = format!("{err:#}"),
+                    "IPC stream writer spawn error"
+                );
+                let _ =
+                    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                        agent_id,
+                        TaskActivity::warn(task_id, format!("{err:#}")),
+                    ));
+                drop(rx);
+                return;
+            }
+            match receiver.await {
+                Ok(Ok(_)) => {
+                    tracing::info!("IPC stream writer spawned successfully");
+                }
+                Ok(Err(err)) => {
+                    tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                }
+                Err(err) => {
+                    tracing::error!("IPC stream writer stopped, err:{:#?}", err);
+                }
+            }
+            let _ = notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                agent_id,
+                TaskActivity::ipc_finished(task_id),
+            ));
+
+            tracing::info!(
+                ipc.channel.capacity = rx.capacity(),
+                ipc.channel.len = rx.len(),
+                ipc.channel.receiver_count = rx.receiver_count(),
+                ipc.channel.sender_count = rx.sender_count(),
+                ipc.channel.is_disconnected = rx.is_disconnected(),
+                "IPC stream writer stopped successfully"
+            );
+            drop(rx);
+        }
+        .in_current_span()
+    });
+    Ok((tx, abort_message_rx, notify))
+}
+
 impl PutStream {
-    pub(super) fn new(
+    pub(super) async fn new(
         controller: TaskControllerRef,
         task_id: i64,
         req: Streaming<FlightData>,
         notify_sender: AgentNotifySender,
         remote: Option<std::net::SocketAddr>,
-    ) -> Self {
-        Self {
-            req,
-            controller,
-            task_id,
-            notify_sender,
-            remote,
-        }
-    }
-
-    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
-    pub async fn into_flight_put_result(
-        self,
         stream_trace_id: TraceStreamId,
         spawn_sender: AgentSpawnSender,
-    ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
-        // todo: directly use task detail instead of id.
-        // dbg!(&self.task_id);
-        set_data_trace_id_for_current_span(&stream_trace_id);
-        tracing::info!("Put stream by task id {}", self.task_id,);
-        let task = self
-            .controller
-            .get(self.task_id)
+    ) -> anyhow::Result<Self> {
+        let task = controller
+            .get(task_id)
             .await
             .map_err(|err| Status::internal(err.to_string()))
             .unwrap()
             .unwrap();
-        // dbg!(&task);
         let builder = TaosBuilder::from_dsn(&task.to)?;
-        let pool = builder.pool()?;
+        let _ = builder.pool()?;
 
         let cluster_id: i64 = if let Some(cluster_id) = task.task.labels.find("to_cluster") {
             cluster_id.parse().map_err(|err| {
@@ -124,7 +564,30 @@ impl PutStream {
         };
         let agent_id = task
             .via
-            .ok_or_else(|| anyhow::format_err!("Cannot find agent id for task {}", self.task_id))?;
+            .ok_or_else(|| anyhow::format_err!("Cannot find agent id for task {}", task_id))?;
+        Ok(Self {
+            req,
+            controller,
+            task_id,
+            notify_sender,
+            remote,
+            stream_trace_id,
+            spawn_sender,
+            cluster_id,
+            agent_id,
+        })
+    }
+
+    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id, remote=self.remote.as_ref().map(ToString::to_string)))]
+    pub async fn into_flight_put_result(
+        self,
+    ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
+        // todo: directly use task detail instead of id.
+        // dbg!(&self.task_id);
+        let stream_trace_id = self.stream_trace_id;
+        let agent_id = self.agent_id;
+        set_data_trace_id_for_current_span(&stream_trace_id);
+        tracing::info!("Put stream by task id {}", self.task_id,);
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
@@ -135,494 +598,71 @@ impl PutStream {
             );
             Into::into(err)
         }));
-        // let schema = stream.schema();
-        // dbg!(schema);
+        let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
 
-        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let (tx, abort_message_rx, notify) = if let Some((tx, abort_message_rx, notify)) =
+            get_ipc_stream_channel(stream_trace_id).await
+        {
+            // 如果之前有连接，说明是重连
 
-        let from_dsn: Dsn = task.from.parse()?;
-        let to_dsn: Dsn = task.to.parse()?;
-
-        let connector = match from_dsn.driver.as_str() {
-            "opcda" => Some("opc_da"),
-            "opcua" => Some("opc_ua"),
-            "pi" => Some("pi"),
-            "pibackfill" => Some("pi"),
-            "influxdb" => Some("influxdb"),
-            "opentsdb" => Some("opentsdb"),
-            taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
-            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
-            "mqtt" => Some("mqtt"),
-            _ => None,
-        };
-
-        // data channel
-        let (tx, rx) = match from_dsn.driver.as_str() {
-            "pibackfill" => flume::bounded(50),
-            _ => flume::bounded(1024),
-        };
-
-        let lush_table_cache = match from_dsn.driver.as_str() {
-            "pi" | "pibackfill" => {
-                let task_lush_table_cache_lock = self.controller.scheduler.lush_table_cache.clone();
-                let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
-                if task_lush_table_cache.contains_key(&self.task_id) {
-                    tracing::info!("Got existing lush_table_cache");
-                    Some(task_lush_table_cache.get(&self.task_id).unwrap().clone())
-                } else {
-                    tracing::info!("Create new lush_table_cache");
-                    let table_tag_cache = Arc::new(TableTagCache::new());
-                    task_lush_table_cache.insert(self.task_id, table_tag_cache.clone());
-                    Some(table_tag_cache)
-                }
-            }
-            _ => None,
-        };
-
-        let tx = Arc::new(tx);
-        // response channel
-        let schema = stream
-            .try_next()
-            .await?
-            .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
-        let schema = if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
-            schema
-            // let _ = span.enter();
+            // 如果之前有连接，直接返回，不需要再次创建 Writer
+            (tx, abort_message_rx, notify)
         } else {
-            anyhow::bail!("Invalid IPC stream");
-        };
-
-        tracing::trace!(schema = ?schema, "parsing put stream schema");
-        let tx_cloned = Arc::downgrade(&tx);
-        let taos = pool.get().await?;
-
-        let ipc_error_strategy = IpcErrorStrategy::from(connector);
-
-        // let should_abort = Arc::new(AtomicBool::new(false));
-        let (abort_message_tx, abort_message_rx) = flume::bounded(1);
-
-        let license: Option<ConnectorLicense> = if let Some(connector) = connector {
-            // get tdengine server version and handle compatibility
-            let server_version = get_server_version(&taos).await?;
-            let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
-            let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-                format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
-            } else {
-                format!("select `{connector}` from information_schema.ins_grants")
-            };
-
-            #[cfg(feature = "disable-enterprise-connector-validation")]
-            let license: Option<ConnectorLicense> = None;
-            #[cfg(not(feature = "disable-enterprise-connector-validation"))]
-            let license: Option<ConnectorLicense> =
-                if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
-                    None
+            let schema = stream
+                .try_next()
+                .await?
+                .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
+            let schema =
+                if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
+                    schema
+                    // let _ = span.enter();
                 } else {
-                    taos.query_one::<_, String>(&grants_sql)
-                        .await
-                        .unwrap_or(None)
-                        .and_then(|s| serde_json::from_str(&s).ok())
+                    anyhow::bail!("Invalid IPC stream");
                 };
 
-            if let Some(license) = license {
-                if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-                    if license.is_expired_second() {
-                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                    }
-                } else {
-                    if license.is_expired_day() {
-                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                    }
-                }
-            }
-            None
-        } else {
-            None
-        };
-
-        let transferred = match connector {
-            Some(_) => {
-                self.controller
-                    .transferred
-                    .get(&(cluster_id, from_dsn.driver.clone()))
-                    .await
-            }
-            _ => None,
-        };
-
-        async fn ipc_stream_writer(
-            notify_sender: AgentNotifySender,
-            agent_id: i64,
-            task: TaskDetail,
-            pool: taos::TaosPool,
-            lock: Arc<tokio::sync::Mutex<()>>,
-            schema: Arc<arrow::datatypes::Schema>,
-            tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, TraceDataId)>>,
-            rx: flume::Receiver<(arrow::record_batch::RecordBatch, TraceDataId)>,
-            // rsp_tx: flume::Sender<anyhow::Result<()>>,
-            license: Option<ConnectorLicense>,
-            _transferred: Option<Arc<ConnectorTransferred>>,
-            lush_table_cache: Option<Arc<TableTagCache>>,
-            span: tracing::Span,
-            abort_message_tx: flume::Sender<Result<PutResult, Status>>,
-            ipc_error_strategy: IpcErrorStrategy,
-            stream_trace_id: TraceStreamId,
-        ) -> anyhow::Result<()> {
-            // dbg!(&task);
-            notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                agent_id,
-                TaskActivity::ipc_started(task.id),
-            ))?;
-            let task_id = task.id;
-            let from = task.from.parse().unwrap();
-            let taos = pool.get().await?;
-            let _ = span.clone().entered();
-            let worker = IpcStreamWorker::new(
-                pool.clone(),
-                from,
-                lock,
+            spawn_stream_writer(
+                self.stream_trace_id,
+                self.cluster_id,
+                self.task_id,
+                self.agent_id,
+                &self.controller,
+                self.notify_sender.clone(),
+                self.spawn_sender.clone(),
                 schema,
-                license,
-                None,
-                lush_table_cache,
-                span,
-                Some(task_id),
             )
             .in_current_span()
-            .await?;
-            let parser: Option<Arc<Parser>> = task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap())
-                .map(Arc::new);
-            let metadata = worker.parser.metadata();
-            let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
-            let metrics = metrics_arc.ipc();
-            let lush_parser = metadata.init().map(|init| {
-                let columns = init.columns();
-                let fields: LinkedHashMap<String, FieldParser> = columns
-                    .iter()
-                    .map(|(col_name, ipc_type)| {
-                        (
-                            col_name.clone(),
-                            FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
-                        )
-                    })
-                    .collect();
-                Arc::new(ParserImpl::new(fields))
-            });
-            if worker.lush_model_config.get().is_none() {
-                if let Some(sql) = metadata.init_sql_string() {
-                    let init = metadata.init().unwrap();
-                    let req_id = RequestID::new(stream_trace_id.as_u64());
-                    handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
-                }
-            }
+            .await?
+        };
 
-            if let Some(init) = metadata.init() {
-                tracing::info!("Start IPC stream writer for stable: {}", init.name());
-            } else {
-                tracing::info!("Start IPC stream writer");
-            }
+        // response channel
+        tokio::spawn({
+            let tx = tx.clone();
+            let abort_message_rx = abort_message_rx.clone();
+            let notify = notify.clone();
+            async move {
+                   tokio::select! {
+                       _ = abort_rx => {
+                           tracing::info!("IPC stream abort");
+                           if tx.sender_count() > 1 {
+                               put_ipc_stream_channel(stream_trace_id, (tx, abort_message_rx, notify)).await;
+                               tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                               let _ = get_ipc_stream_channel(stream_trace_id).await;
+                           }
+                       }
+                       _ = notify.notified() => {
+                           tracing::info!("IPC stream closed");
+                       }
+                   }
+               }
+               .in_current_span()
+        });
 
-            let stream = rx.stream();
-
-            use futures::StreamExt;
-
-            let limit = std::thread::available_parallelism()
-                .map(|v| {
-                    (v.get() / 2).max(4).min(
-                        std::env::var("GRPC_WORKERS_CONCURRENCY")
-                            .ok()
-                            .and_then(|s| s.parse().ok())
-                            .unwrap_or(32),
-                    )
-                })
-                .unwrap_or(4);
-            tracing::info!("Start IPC stream writer with concurrency limit: {}", limit);
-            let contiguous_errors = Arc::new(std::sync::atomic::AtomicU32::new(0));
-
-            // only for lush stream supported transform.
-            let tables_messages_in_progress = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-            if let Err(err) = stream
-                .map(|(record, trace_id)| {
-                    anyhow::Ok((
-                        record,
-                        trace_id,
-                        &worker,
-                        &parser,
-                        &notify_sender,
-                        &tx,
-                        &abort_message_tx,
-                        &contiguous_errors,
-                        &metrics_arc,
-                        &lush_parser,
-                        &tables_messages_in_progress,
-                    ))
-                })
-                .try_for_each_concurrent(
-                    limit,
-                    |(
-                        record,
-                        trace_id,
-                        worker,
-                        parser,
-                        notify_sender,
-                        tx,
-                        abort_message_tx,
-                        contiguous_errors,
-                        metrics_arc,
-                        lush_parser,
-                        tables_messages_in_progress,
-                    )| {
-                        async move {
-                            tracing::info!("Writing batch {trace_id}");
-                            if let Err(err) = worker
-                                .process_record(
-                                    record.clone(),
-                                    parser.as_deref(),
-                                    trace_id,
-                                    metrics,
-                                    metrics_arc,
-                                    lush_parser,
-                                    tables_messages_in_progress,
-                                )
-                                .in_current_span()
-                                .await
-                            {
-                                let last_errors = contiguous_errors
-                                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                                metrics.add_failed_batches(1);
-                                tracing::error!(
-                                    continuous_errors = last_errors,
-                                    error = format!("{:#}", err),
-                                    backtrace = %err.backtrace(),
-                                    "Writing batch error {} ",
-                                    trace_id,
-                                );
-                                let period = match last_errors {
-                                    errors if errors < 8 => 8,
-                                    errors if errors < 16 => 16,
-                                    errors if errors < 32 => 32,
-                                    errors if errors < 64 => 64,
-                                    _ => 128,
-                                };
-                                tokio::time::sleep(std::time::Duration::from_millis(period * 80))
-                                    .await;
-                                let message =
-                                    format!("IPC processing record {trace_id} error: {err:#}");
-                                let _ = notify_sender.send(
-                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                        agent_id,
-                                        TaskActivity::warn(task_id, message),
-                                    ),
-                                );
-                                if ipc_error_strategy.will_stop() || last_errors > 10 {
-                                    let _ = abort_message_tx.send(Err(Status::cancelled(format!(
-                                        "IPC worker will be stopped since{err:#}"
-                                    ))));
-                                    let _ = notify_sender.send(
-                                        crate::serve::scheduler::agent::AgentNotify::WriterError(
-                                            agent_id,
-                                            task_id,
-                                            format!("{err:#}"),
-                                        ),
-                                    );
-                                    bail!("IPC worker will be stopped since {err:#}");
-                                }
-                                if let Some(tx) = tx.upgrade() {
-                                    tracing::warn!(
-                                        trace_id = %trace_id,
-                                        "Re-queue with {} rows record",
-                                        record.num_rows()
-                                    );
-                                    tx.send_async((record, trace_id))
-                                        .await
-                                        .context("Re-queue error")?;
-                                } else {
-                                    tracing::warn!(
-                                        trace_id = %trace_id,
-                                        "IPC channel is closed, cannot re-queue record {trace_id}"
-                                    );
-                                }
-                            } else {
-                                metrics.add_processed_batches(1);
-                                let last_errors =
-                                    contiguous_errors.load(std::sync::atomic::Ordering::SeqCst);
-                                if last_errors > 0 {
-                                    tracing::info!(
-                                        continuous_errors = last_errors,
-                                        "Rescue from {} continuous errors",
-                                        last_errors
-                                    );
-                                    let _ = notify_sender.send(
-                                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                            agent_id,
-                                            TaskActivity::info(
-                                                task_id,
-                                                format!(
-                                                    "Rescue from {} continuous errors",
-                                                    last_errors
-                                                ),
-                                                "running",
-                                            ),
-                                        ),
-                                    );
-                                    contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
-                                } else {
-                                    tracing::debug!("Writing batch success {} ", trace_id);
-                                }
-                            }
-                            Ok(())
-                        }
-                        .in_current_span()
-                    },
-                )
-                .in_current_span()
-                .await
-            {
-                tracing::warn!("Receiving finished with error: {err:#}")
-            }
-
-            tracing::info!(task.id = task_id, "IPC stream writer finished");
-
-            Ok(())
-        }
-        let notify_sender = self.notify_sender.clone();
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
-        tokio::spawn(
-            async move {
-                let task_id = task.id;
-                let (sender, receiver) = tokio::sync::oneshot::channel();
-                let timeout = std::time::Duration::from_secs(60);
-                if let Err(err) = tokio::time::timeout(
-                    timeout,
-                    spawn_sender.send_async((
-                        Box::pin(
-                            ipc_stream_writer(
-                                notify_sender.clone(),
-                                agent_id,
-                                task,
-                                pool,
-                                lock,
-                                schema,
-                                tx_cloned,
-                                rx.clone(),
-                                // rsp_tx,
-                                license,
-                                transferred,
-                                lush_table_cache,
-                                Span::current(),
-                                abort_message_tx,
-                                ipc_error_strategy,
-                                stream_trace_id,
-                            )
-                            .in_current_span(),
-                        ),
-                        sender,
-                    )),
-                )
-                .await
-                {
-                    tracing::error!(
-                        error.source = format!("{err:#}"),
-                        "IPC stream writer spawn error"
-                    );
-                    let _ = notify_sender.send(
-                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                            agent_id,
-                            TaskActivity::warn(task_id, format!("{err:#}")),
-                        ),
-                    );
-                    drop(rx);
-                    return;
-                }
-                match receiver.await {
-                    Ok(Ok(_)) => {
-                        tracing::info!("IPC stream writer spawned successfully");
-                    }
-                    Ok(Err(err)) => {
-                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
-                    }
-                    Err(err) => {
-                        tracing::error!("IPC stream writer stopped, err:{:#?}", err);
-                    }
-                }
-                let _ =
-                    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                        agent_id,
-                        TaskActivity::ipc_finished(task_id),
-                    ));
-
-                tracing::info!(
-                    ipc.channel.capacity = rx.capacity(),
-                    ipc.channel.len = rx.len(),
-                    ipc.channel.receiver_count = rx.receiver_count(),
-                    ipc.channel.sender_count = rx.sender_count(),
-                    ipc.channel.is_disconnected = rx.is_disconnected(),
-                    "IPC stream writer stopped successfully"
-                );
-                drop(rx);
-            }
-            .in_current_span(),
-        );
         let cur_span = Span::current();
         let notify_sender = self.notify_sender.clone();
         let task_id = self.task_id;
-        let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
-
-        if let Some((put_tx, put_rx, notify)) = get_ipc_stream_channel(stream_trace_id).await {
-            // 如果之前有连接，说明是重连
-            tokio::spawn({
-                let put_rx = put_rx.clone();
-                let put_tx = put_tx.clone();
-                let notify = notify.clone();
-                async move {
-                    tokio::select! {
-                        _ = abort_rx => {
-                            tracing::info!("IPC stream abort");
-                            if put_tx.sender_count() > 1 {
-                                put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
-                                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                                let _ = get_ipc_stream_channel(stream_trace_id).await;
-                            }
-                        }
-                        _ = notify.notified() => {
-                            tracing::info!("IPC stream closed");
-                        }
-                    }
-                }
-                .in_current_span()
-            });
-
-            // 如果之前有连接，直接返回，不需要再次创建 Writer
-            return Ok(PutStreamResp {
-                put_rx: put_rx.into_stream(),
-                abort_tx,
-            });
-        }
         let (put_tx, put_rx) = flume::bounded(0);
-        let notify = Arc::new(tokio::sync::Notify::new());
-        tokio::spawn({
-            let put_rx = put_rx.clone();
-            let put_tx = put_tx.clone();
-            let notify = notify.clone();
-            async move {
-                tokio::select! {
-                    _ = abort_rx => {
-                        tracing::info!("IPC stream abort");
-                        put_ipc_stream_channel(stream_trace_id, (put_tx, put_rx, notify)).await;
-                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                        let _ = get_ipc_stream_channel(stream_trace_id).await;
-                    }
-                    _ = notify.notified() => {
-                        tracing::info!("IPC stream closed");
-                    }
-                }
-            }
-            .in_current_span()
-        });
 
         tokio::spawn(async move {
             let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(53));
@@ -674,12 +714,14 @@ impl PutStream {
                 tokio::select! {
                     _ = heartbeat.tick() => {
                         tracing::trace!("Send heartbeat");
-                        if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata: "heartbeat".into() })).await {
-                            cur_span.in_scope(|| {
-                                tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
-                            });
-                            break;
-                        };
+                        put_tx
+                            .send_async(Ok(PutResult { app_metadata: "heartbeat".into() }))
+                            .await
+                            .inspect_err(|err| {
+                                cur_span.in_scope(|| {
+                                    tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                                });
+                            })?;
                     }
                     _ = error_check_interval.tick() => {
                         message_error_count = 0;
@@ -700,15 +742,13 @@ impl PutStream {
                                             "Too many IPC stream errors"
                                         );
                                     });
-                                    if let Err(err) = put_tx.send_async(Err(Status::aborted(format!("Too many put stream errors: {:#}", err)))).await {
-                                        cur_span.in_scope(|| {
-                                            tracing::warn!(
-                                                error.source = format!("{err:#}"),
-                                                "IPC stream finished"
-                                            );
-                                        });
-                                        break;
-                                    };
+                                    put_tx.send_async(Err(Status::aborted(format!("Too many put stream errors: {:#}", err))))
+                                        .await
+                                        .inspect_err(|err| {
+                                            cur_span.in_scope(|| {
+                                                tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
+                                            });
+                                        })?;
                                 } else {
                                     cur_span.in_scope(|| {
                                         tracing::warn!(
@@ -743,34 +783,36 @@ impl PutStream {
                                 let mut metadata = MessageMetadata::new_ack(RPC_ACK_RECEIVED, trace_id.as_u64(), count);
                                 let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
                                 // 1. send ack for received message
-                                if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata})).await {
-                                    cur_span.in_scope(|| {
-                                        tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
-                                    });
-                                    break;
-                                }
+                                put_tx.send_async(Ok(PutResult { app_metadata}))
+                                    .await
+                                    .inspect_err(|err| {
+                                        cur_span.in_scope(|| {
+                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                        });
+                                    })?;
                                 let item = process_item(message, trace_id).in_current_span().await;
 
                                 // 2. send processed message
                                 if let Some(item) = item {
-                                    if let Err(err) = put_tx.send_async(Ok(item)).await {
-                                        cur_span.in_scope(|| {
-                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
-                                        });
-                                        break;
-                                    }
+                                    put_tx.send_async(Ok(item))
+                                        .await
+                                        .inspect_err(|err| {
+                                            cur_span.in_scope(|| {
+                                                tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                            });
+                                        })?;
                                 } else {
                                     cur_span.in_scope(|| {
                                         tracing::warn!("Put stream worker dropped");
                                     });
                                     metadata.set_ack(RPC_ACK_STREAM_END);
                                     let app_metadata = Bytes::copy_from_slice(metadata.as_bytes());
-                                    if let Err(err) = put_tx.send_async(Ok(PutResult { app_metadata })).await {
-                                        cur_span.in_scope(|| {
-                                            tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
-                                        });
-                                        break;
-                                    }
+                                    put_tx.send_async(Ok(PutResult { app_metadata })).await
+                                        .inspect_err(|err| {
+                                            cur_span.in_scope(|| {
+                                                tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                            });
+                                        })?;
                                     drop(put_tx);
                                     break;
                                 }
@@ -780,9 +822,12 @@ impl PutStream {
                     abort = abort_message_rx.recv_async() => {
                         tracing::info!("IPC stream abort");
                         if let Ok(abort) = abort {
-                            if let Err(err) = put_tx.send_async(abort).await {
-                                tracing::info!(error.source = format!("{err:#}"), "IPC stream aborted");
-                            }
+                            put_tx.send_async(abort).await
+                                .inspect_err(|err| {
+                                    cur_span.in_scope(|| {
+                                        tracing::info!(error.source = format!("{err:#}"), "Put stream response stream closed");
+                                    });
+                                })?;
                         }
                         drop(put_tx);
                         break;
@@ -798,7 +843,6 @@ impl PutStream {
         })
     }
 }
-
 pub(super) struct PutStreamResp {
     put_rx: PutStreamInner,
     #[allow(dead_code)]
