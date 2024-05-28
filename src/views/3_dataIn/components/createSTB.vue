@@ -77,7 +77,7 @@
               style="min-width: 60px"
             >
           </el-input>
-          <el-tag effect="plain" type="info" v-if="index==1">
+          <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300">
               <el-checkbox 
                 v-model="column.primaryKey"  
                 :disabled="parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1"
@@ -85,7 +85,7 @@
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -104,7 +104,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -123,7 +123,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -225,6 +225,7 @@ import {
   tagType,
   parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive
 } from "../../2_explorer/views/components/utils/index";
+import VersionMixin from "@/mixins/version";
 export default {
   name: "CreateSTB",
   data() {
@@ -294,6 +295,7 @@ export default {
       default: () => [],
     }
   },
+  mixins: [VersionMixin],
   watch: {
     "columnsArr": {
       handler(columnsArr_new) {
