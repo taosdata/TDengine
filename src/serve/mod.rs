@@ -11,6 +11,8 @@ use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Socket, Type};
+use std::net::SocketAddr;
 use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
@@ -166,7 +168,25 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
 
 #[get("/health")]
 async fn health() -> impl Responder {
-    HttpResponse::Ok().json("ok")
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None);
+    match socket {
+        Ok(socket) => {
+            let socket_addr = SocketAddr::from(([0, 0, 0, 0], 6055));
+            let bind_result = socket.bind(&socket_addr.into());
+            match bind_result {
+                Ok(_) => {
+                    return HttpResponse::InternalServerError()
+                        .json("The 6055 port provided to the agent is not listening");
+                }
+                Err(_) => {
+                    return HttpResponse::Ok().json("ok");
+                }
+            }
+        }
+        Err(_) => {
+            return HttpResponse::InternalServerError().json("socket error");
+        }
+    }
 }
 
 impl Cli {
