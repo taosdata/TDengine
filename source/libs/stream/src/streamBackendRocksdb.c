@@ -338,7 +338,7 @@ int32_t rebuildFromRemoteChkp_rsync(const char* key, char* chkptPath, int64_t ch
   if (taosIsDir(defaultPath)) {
     taosRemoveDir(defaultPath);
     taosMulMkDir(defaultPath);
-    stDebug("clear local default dir before download checkpoint data:%s succ", defaultPath);
+    stDebug("clear local default dir before downloading checkpoint data:%s succ", defaultPath);
   }
 
   code = streamTaskDownloadCheckpointData(key, chkptPath);

@@ -51,12 +51,15 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     taskId = replaceStreamTaskId(pTask);
   }
 
-  pTask->pState = streamStateOpen(pMeta->path, pTask, false, -1, -1);
-  if (pTask->pState == NULL) {
-    tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
-    return -1;
-  } else {
-    tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+  // sink task does not need the pState
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    pTask->pState = streamStateOpen(pMeta->path, pTask, false, -1, -1);
+    if (pTask->pState == NULL) {
+      tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+      return -1;
+    } else {
+      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+    }
   }
 
   if (pTask->info.fillHistory) {

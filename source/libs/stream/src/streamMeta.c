@@ -250,7 +250,7 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
 
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
-  if (ppBackend != NULL && *ppBackend != NULL) {
+  if ((ppBackend != NULL) && (*ppBackend != NULL)) {
     taskDbAddRef(*ppBackend);
 
     STaskDbWrapper* pBackend = *ppBackend;
@@ -258,7 +258,6 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
     pTask->pBackend = pBackend;
 
     taosThreadMutexUnlock(&pMeta->backendMutex);
-
     stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
     return 0;
   }
