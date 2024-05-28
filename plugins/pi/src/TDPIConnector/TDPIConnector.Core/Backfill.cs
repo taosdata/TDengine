@@ -256,7 +256,7 @@ namespace TDPIConnector.Core
                             {
                                 if (stopAddNewTask)
                                 {
-                                    log.Info($"backfill task manager: finished, gourp({groupNum}) quit!");
+                                    log.Info($"backfill task manager: finished, group({groupNum}) quit!");
                                     return;
                                 }
                                 await Task.Delay(500);
@@ -486,12 +486,6 @@ namespace TDPIConnector.Core
                     {
                         found = true;
                         AFAttributeWrapper attribute = values[0].Attribute;
-                        if (attribute.IsTDengineTag())
-                        {
-                            var valuestring = attribute.ToStringWithUOM();
-                            log.Debug($"element tag {element.Name}: {attribute.Name}:{valuestring}");
-                            continue;
-                        }
                         ConvertAFAttibutesAndValuesToTDTables(attribute, values, in elementValues, in columnNames);
                         if (values[values.Count - 1].Timestamp.LocalTime < smallLastAttributeTime
                             && values[values.Count - 1].AFSDKObject.IsGood == true)

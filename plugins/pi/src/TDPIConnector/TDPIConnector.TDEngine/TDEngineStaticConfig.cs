@@ -19,6 +19,7 @@ namespace TDPIConnector.TDEngine
         public int MaxWaitLen { get; set; } = 1000;
         public int HttpMaxRetryTime { get; internal set; } = 3;
         public int HttpMaxRetryTimes { get; private set; }
+        public bool ForBackfill { get; private set; } = false;
 
         public TDEngineStaticConfig() { 
         }
@@ -48,6 +49,12 @@ namespace TDPIConnector.TDEngine
         public TDEngineStaticConfig SetTDDatabase(string tdDataBase)
         {
             TDDataBase = tdDataBase;
+            return this;
+        }
+
+        public TDEngineStaticConfig SetBackfill(bool forBackfill)
+        {
+            ForBackfill = forBackfill;
             return this;
         }
     }

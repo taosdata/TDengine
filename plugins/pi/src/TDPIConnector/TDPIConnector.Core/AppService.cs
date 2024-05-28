@@ -79,7 +79,8 @@ namespace TDPIConnector.Core
                 .SetPITablesPrefix(AppSettings.TDEnginePITablesPrefix)
                 .SetMaxWaitLen(AppSettings.tomlConfig.MaxWaitLen)
                 .SetTDDatabase(AppSettings.tomlConfig.TDDataBase)
-                .SetHttpMaxTryTimes(AppSettings.tomlConfig.HttpMaxRetryTimes);
+                .SetHttpMaxTryTimes(AppSettings.tomlConfig.HttpMaxRetryTimes)
+                .SetBackfill(AppSettings.tomlConfig.ForBackfill);
 
             try
             {

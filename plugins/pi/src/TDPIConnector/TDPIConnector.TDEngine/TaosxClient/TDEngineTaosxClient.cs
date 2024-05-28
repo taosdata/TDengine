@@ -103,8 +103,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         private void start() {
-            Task task = new Task(work);
-            task.Start();
+            if (!StaticConfig.Default.ForBackfill) {
+                Task task = new Task(work);
+                task.Start();
+            }
 
             Task responseHandler = new Task(resHandler);
             responseHandler.Start();
@@ -287,6 +289,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     }
                 }
             }
+            if (StaticConfig.Default.ForBackfill && builder.tsArrowArray.Length > 0)
+            {
+                send();
+            }
         }
 
         internal void ArrowMsgQueueWait()
@@ -467,7 +473,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 stopTaosxSend = true;
                 send();
             }
-            if(null != stream) stream.Close();
+            if (null != writer) writer.WriteEnd();
+            if (null != stream) stream.Close();
             if(null != client) client.Close();
             return;
         }
