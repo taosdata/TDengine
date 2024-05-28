@@ -821,8 +821,11 @@ impl SuperTableConfig {
     pub fn get_sql(&self) -> String {
         let mut sql = format!("create stable if not exists `{}` (", self.super_table_name);
         for row in &self.schema {
-            if row.column_type == ColumnType::COLUMN {
-                sql.push_str(&format!("`{}` {},", row.column_name, row.column_data_type));
+            match row.column_type {
+                ColumnType::COLUMN | ColumnType::Key => {
+                    sql.push_str(&format!("`{}` {},", row.column_name, row.column_data_type));
+                }
+                _ => {}
             }
         }
         sql.pop();

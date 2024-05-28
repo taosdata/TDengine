@@ -857,6 +857,15 @@ async fn consume_lush_record(
     Ok(())
 }
 
+// Cargill 无数据静态超级表，可能作为树的某个节点存在，只需要同步表结构
+const STATIC_SUPER_TABLES: [&str; 5] = [
+    "technology",
+    "l1__site",
+    "cockpit_kpi_corn_wet_mill",
+    "cockpit_kpi",
+    "caf_base",
+];
+
 #[instrument(skip_all, name = "consume", fields(trace.id = %data_trace_id))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
@@ -875,13 +884,13 @@ async fn consume_lush_record_with_transform(
             let stable_name = tables[0].stable_name();
             if stable_name.is_some() {
                 let stable_name = stable_name.unwrap();
-                if stable_name == "technology" {
+                tracing::debug!("Cache tables of super-table: {stable_name}");
+                if STATIC_SUPER_TABLES.contains(&stable_name.as_str()) {
                     let super_table_sql = lush_model_config
                         .super_table_sqls
                         .as_ref()
                         .unwrap()
-                        .get("technology");
-
+                        .get(stable_name.as_str());
                     if let Some(super_table_sql) = super_table_sql {
                         tracing::debug!("super_table_sql: {super_table_sql}");
                         let mut taos = Some(pool.get().await.context("Target connection error")?);
