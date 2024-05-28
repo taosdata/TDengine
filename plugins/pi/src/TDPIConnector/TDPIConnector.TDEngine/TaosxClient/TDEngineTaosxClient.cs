@@ -37,6 +37,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         Stopwatch stopwatch = new Stopwatch();
         const long QueueSize = 30;
         long actualQueueBufferSize = QueueSize;
+        DateTime lastSend = DateTime.UtcNow;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -176,7 +177,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 {
                     try
                     {
-                        send();
+                        if ((DateTime.UtcNow - lastSend).TotalSeconds > 1) {
+                            send();
+                        }
+                        Thread.Sleep(1000);
                     }
                     catch (Exception e)
                     {
@@ -366,8 +370,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 log.Debug($"Stable:{builder.stableName} Write records into stream start...");
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName} Write records into stream end.");
+                log.Debug($"Stable:{builder.stableName} Write {builder.tableUniqKeyArrowArray.Length} records into stream end.");
                 clear();
+                lastSend = DateTime.UtcNow;
             }
         }
 

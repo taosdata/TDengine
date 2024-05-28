@@ -106,7 +106,7 @@ namespace TDPIConnector.Core
                 lock (taskLock)
                 {
                     ++finished;
-                    log.Info($"backfill task process: element {element.Name}:" +
+                    log.Info($"backfill task process: element {element.TemplateName()}:" +
                         $"{element.ID.ToString()} group({groupNum}) finshed: {finished}/{all}");
                 }
             }
@@ -259,7 +259,7 @@ namespace TDPIConnector.Core
                                     log.Info($"backfill task manager: finished, gourp({groupNum}) quit!");
                                     return;
                                 }
-                                Thread.Sleep(1000);
+                                await Task.Delay(500);
                             }
                         }
                         catch (Exception e) {
@@ -508,7 +508,7 @@ namespace TDPIConnector.Core
                 tables.Add(elementTableKey, elementValues);
                 stables.Add(superTableName, tables);
                 this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-                log.Info($"Backfill TDEngine {element.Name}:{element.ID} from {currentStart} count:{count} , written in {stopwatch.ElapsedMilliseconds} ms");
+                log.Info($"Backfill Element {superTableName}:{element.ID} from {currentStart} row:{elementValues.Count} , written in {stopwatch.ElapsedMilliseconds} ms");
 
                 if (count < AppSettings.tomlConfig.BackfillBatchSize) {
                     break;
