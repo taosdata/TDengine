@@ -16,13 +16,12 @@
 #include "tsdb.h"
 #include "vnd.h"
 
-typedef struct SCompMonitor SCompMonitor;
 typedef struct SCompState   SCompState;
 typedef struct SCompMonInfo SCompMonInfo;
 
 struct SCompState {
-  int32_t fid;
-  int64_t taskId;
+  int32_t   fid;
+  SVATaskID taskId;
 };
 
 struct SCompMonitor {
@@ -58,7 +57,7 @@ int32_t tsdbCloseCompMonitor(STsdb *tsdb) {
   return 0;
 }
 
-int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, int64_t taskId) {
+int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId) {
   if (TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr) == 0) {
     tsdb->pCompMonitor->startTimeSec = taosGetTimestampSec();
     tsdb->pCompMonitor->totalCompTasks = 0;
@@ -66,25 +65,25 @@ int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, int64_t taskId) {
 
   SCompState state = {
       .fid = fid,
-      .taskId = taskId,
+      .taskId = *taskId,
   };
 
   int32_t code = TARRAY2_APPEND(&tsdb->pCompMonitor->stateArr, state);
   if (code) return code;
   tsdb->pCompMonitor->totalCompTasks++;
   tsdbDebug("vid:%d, fid:%d, taskId:%" PRId64 " is added to compact monitor, number of tasks:%d", TD_VID(tsdb->pVnode),
-            fid, taskId, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
+            fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
   return 0;
 }
 
-int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, int64_t taskId) {
+int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
   taosThreadMutexLock(&tsdb->mutex);
 
   for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr); i++) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
-    if (state->taskId == taskId) {
+    if (state->taskId.async == taskId->async && state->taskId.id == taskId->id) {
       tsdbInfo("vid:%d, fid:%d, taskId:%" PRId64 " is removed from compact monitor, number of tasks:%d",
-               TD_VID(tsdb->pVnode), state->fid, taskId, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
+               TD_VID(tsdb->pVnode), state->fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
       TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
       break;
     }
@@ -95,8 +94,7 @@ int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, int64_t taskId) {
 }
 
 int32_t tsdbStopAllCompTask(STsdb *tsdb) {
-  int32_t  i;
-  SVAsync *async;
+  int32_t i;
 
   taosThreadMutexLock(&tsdb->mutex);
 
@@ -105,16 +103,10 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
     return 0;
   }
 
-  if (tsdb->pVnode->config.sttTrigger == 1) {
-    async = vnodeAsyncHandle[0];
-  } else {
-    async = vnodeAsyncHandle[1];
-  }
-
   i = 0;
   while (i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
-    if (vnodeACancel(async, state->taskId) == 0) {
+    if (vnodeACancel(&state->taskId) == 0) {
       TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
     } else {
       i++;
