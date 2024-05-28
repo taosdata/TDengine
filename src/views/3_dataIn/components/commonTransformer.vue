@@ -153,39 +153,36 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
-              <!-- <el-select v-else
-                multiple
-                size="small"
-                v-model="parseruleForm.expression"
-                @visible-change="handleChange"
-              >
-                <el-option
-                  v-for="item in allProperties"
-                  :key="item.defaultValue"
-                  :value="item.defaultValue"
-                >
-                <template #default>
-                  <el-checkbox class="my-checkbox" v-model="item.checked">
-                    <span style="float: left">{{ item.defaultValue }}</span>
-                    <el-input style="margin-left: 4px; width: 100px; float: right" size="mini" v-model="item.rename" @focus="focus" @mousedown.native="handleInput" ref="inputRef"></el-input>
-                  </el-checkbox>
-                </template>
-                </el-option>
-              </el-select> -->
               <cusSelect
-                v-else
+                v-else-if="parseruleForm.type == 'json'"
                 v-model="parseruleForm.expression"
                 :allProperties="allProperties"
                 :selectJson="selectJson"
                 @updateData="updateData"
               />
+              <div v-else style="display: inline-flex; align-items: start; width: 100%;">
+                <el-input 
+                  size="small"
+                  v-model="parseruleForm.expression"
+                  type="textarea" 
+                  :autosize="{ minRows: 1, maxRows: 7}"></el-input>
+                <el-upload 
+                  size="small" 
+                  @click="createST" 
+                  style="margin-left: 10px"
+                  :action="uploadUrl"
+                  :data="uploadData"
+                  :before-remove="beforeRemove"
+                  :on-success="handleSuccessUdt"
+                  :on-error="handleError"
+                  :file-list="fileList"
+                  :show-file-list="false">
+                  <el-button size="small" plain type="primary" style="width: auto; padding: 0 6px; margin-top: 0;" :disabled="$COMMUNITY">
+                    {{ $t("datasource.transformer.uploadCode") }}
+                  </el-button>
+                </el-upload>
+              </div>
             </el-form-item>
-            <!-- <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
-              <Icon
-                :name="'json'"
-                class="transform-json-icon"
-              ></Icon>
-            </el-button> -->
             <el-tooltip
               placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
@@ -603,22 +600,46 @@
           </el-button>
         </div>
       </el-dialog>
-      <el-dialog
-        :title="$t('datasource.transformer.jsonExtractTip')"
+      <!-- <el-dialog
+        :title="$t('datasource.transformer.udtTip')"
         :visible.sync="dialogVisible"
-        width="30%"
-        >
-        <div>
-          <el-checkbox class="my-checkbox" v-for="proper in allProperties" :key="proper.defaultValue" v-model="proper.checked">
-            <span style="width: 200px;display: inline-block">{{ proper.defaultValue }}</span>
-            <el-input style="margin-left: 4px; width: 100px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
-          </el-checkbox>
+        width="1000px"
+        destroy-on-close
+        :append-to-body="true"
+        @close="closeDialog"
+        :close-on-click-modal="false"
+      >
+        <el-input 
+          type="textarea" 
+          class="udt" 
+          :autosize="{ minRows: 10, maxRows: 10}"
+          v-model="parseruleForm.expression"></el-input>
+        <div class="flexBetween">
+          <a>下载示例代码</a>
+          <span class="flexStart">
+            <el-button size="small" @click="createST" plain type="primary">
+              {{ $t("preview") }}
+            </el-button>
+            <el-upload 
+              size="small" 
+              @click="createST" 
+              style="margin-left: 10px"
+              :action="uploadUrl"
+              :before-remove="beforeRemove"
+              :on-success="handleSuccess"
+              :on-error="handleError"
+              :file-list="fileList"
+              :show-file-list="false">
+              <el-button size="small" plain type="primary">
+                {{ $t("datasource.transformer.uploadCode") }}
+              </el-button>
+            </el-upload>
+            <el-button size="small" type="primary" @click="closeDialog" style="margin-left: 10px">
+              {{ $t("confirm") }}
+            </el-button>
+          </span>
         </div>
-        <span slot="footer" class="dialog-footer">
-          <el-button size="mini" @click="dialogVisible = false">{{ $t('cancel') }}</el-button>
-          <el-button size="mini" type="primary" @click="handleCheckedProperties">{{ $t('confirm') }}</el-button>
-        </span>
-      </el-dialog>
+      </el-dialog> -->
     </template>
   </div>
 </template>
@@ -666,7 +687,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["regex", "json"],
+      parseTypes: ["regex", "json", "udt"],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
       parseruleForm: {
@@ -988,6 +1009,18 @@ export default {
     
       reader.readAsText(file.raw); // 读取文本文件
     },
+    handleSuccessUdt(_, file, fileList) {
+      const reader = new FileReader();
+      const _this = this;
+    
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        _this.parseruleForm.expression += contents + "\n";
+        _this.request = false;
+      };
+    
+      reader.readAsText(file.raw); // 读取文本文件
+    },
     beforeRemove(file, fileList) {
       return this.$confirm(`确定移除 ${file.name}？`);
     },
@@ -1037,6 +1070,8 @@ export default {
                       ? this.parseruleForm.expression
                       : this.parseruleForm.type == "split"
                       ? this.$store.state.app.splitExpresList
+                      : this.parseruleForm.type == "udt"
+                      ? this.parseruleForm.expression
                       : this.parseruleForm.expression
                       ? this.parseruleForm.expression
                           .split(";")
@@ -2530,7 +2565,7 @@ export default {
     .el-form {
       display: flex !important;
       flex: 1;
-      align-items: center;
+      align-items: flex-start;
       .el-form-item {
         margin-bottom: 0px;
         margin-right: 15px;
@@ -2548,7 +2583,7 @@ export default {
       align-items: center;
       border-radius: 6px;
       padding: 12px 20px;
-      margin-top: 2px;
+      margin-top: 5px;
     }
     .split-expression {
       margin-top: 5px;
@@ -2611,5 +2646,8 @@ export default {
   height: 16px;
   flex-shrink: 0;
   margin-top: 4px;
+}
+.udt {
+  margin-bottom: 16px;
 }
 </style>

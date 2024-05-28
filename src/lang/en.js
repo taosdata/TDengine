@@ -1414,10 +1414,11 @@ export default {
       mappingvaildtip:
         "Please fill in the correct primary key, column, and tag",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-      extractdesc: `<strong style='paddingRight: 20px'>taosX supports two kinds of extractor currently</strong>:<br/>
+      extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank">the enterprise version documentation</a>.</span>`,
+      3. <strong>UDT</strong>: Use custom scripts parse data. Download the <a href="/example-code.rhai" download>sample code<a> for reference.<br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank"> the enterprise version documentation</a>.</span>`,
       subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
@@ -1477,7 +1478,9 @@ export default {
       defaultValuePlaceholder: "default value",
       dataRangeInputTip: "Please input integer value between {min} and {max}",
       defaultValueErrorTip: "default value for column[{}] input error",
-      jsonExtractTip: 'JSON extract expression editor'
+      jsonExtractTip: 'JSON extract expression editor',
+      udtTip: 'UDT editor',
+      uploadCode: "Upload Code"
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
