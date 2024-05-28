@@ -540,6 +540,14 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     return -1;
   }
 
+  int64_t roleTimeMs = mndGetRoleTimeMs(pMnode);
+  int64_t nowMs = taosGetTimestampMs();
+  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalSec * 1000 * 2) {
+    mInfo("arb skip to check sync since mnd had just switch over, roleTime:%" PRId64 " now:%" PRId64, roleTimeMs,
+          nowMs);
+    return 0;
+  }
+
   SArray *pUpdateArray = taosArrayInit(16, sizeof(SArbGroup));
 
   while (1) {
@@ -551,7 +559,6 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     taosThreadMutexUnlock(&pArbGroup->mutex);
 
     int32_t vgId = arbGroupDup.vgId;
-    int64_t nowMs = taosGetTimestampMs();
 
     bool                member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
     bool                member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
