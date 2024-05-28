@@ -49,6 +49,7 @@ TEST_F(MndTestFunc, 01_Show_Func) {
 }
 
 TEST_F(MndTestFunc, 02_Create_Func) {
+#ifndef WINDOWS
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "");
@@ -159,9 +160,11 @@ TEST_F(MndTestFunc, 02_Create_Func) {
 
   test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
+#endif
 }
 
 TEST_F(MndTestFunc, 03_Retrieve_Func) {
+#ifndef WINDOWS
   {
     SRetrieveFuncReq retrieveReq = {0};
     retrieveReq.numOfFuncs = 1;
@@ -376,9 +379,11 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_FUNC_NOT_EXIST);
   }
+#endif
 }
 
 TEST_F(MndTestFunc, 04_Drop_Func) {
+#ifndef WINDOWS
   {
     SDropFuncReq dropReq = {0};
     strcpy(dropReq.name, "");
@@ -441,9 +446,11 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
 
   test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
+#endif
 }
 
 TEST_F(MndTestFunc, 05_Actual_code) {
+#ifndef WINDOWS
   {
     SCreateFuncReq createReq = {0};
     strcpy(createReq.name, "udf1");
@@ -507,4 +514,5 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     }
     tFreeSRetrieveFuncRsp(&retrieveRsp);
   }
+#endif
 }

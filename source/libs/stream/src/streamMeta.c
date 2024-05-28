@@ -544,6 +544,7 @@ void streamMetaCloseImpl(void* arg) {
 
 // todo let's check the status for each task
 int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+  int32_t vgId = pTask->pMeta->vgId;
   void*   buf = NULL;
   int32_t len;
   int32_t code;
@@ -566,11 +567,12 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   int64_t id[2] = {pTask->id.streamId, pTask->id.taskId};
+
   code = tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn);
-  if (code < 0) {
-    stError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s vgId:%d task meta save to disk failed, code:%s", pTask->id.idStr, vgId, tstrerror(terrno));
   } else {
-    stDebug("s-task:%s vgId:%d stream task write to meta file", pTask->id.idStr, pTask->pMeta->vgId);
+    stDebug("s-task:%s vgId:%d task meta save to disk", pTask->id.idStr, vgId);
   }
 
   taosMemoryFree(buf);

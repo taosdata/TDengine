@@ -415,6 +415,7 @@ typedef struct SSelectStmt {
   int32_t       returnRows;  // EFuncReturnRows
   ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
+  bool          timeLineFromOrderBy;
   bool          isEmptyResult;
   bool          isSubquery;
   bool          hasAggFuncs;
@@ -453,6 +454,7 @@ typedef struct SSetOperator {
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
   ETimeLineMode    timeLineResMode;  
+  bool             timeLineFromOrderBy;
   bool             joinContains;
 } SSetOperator;
 

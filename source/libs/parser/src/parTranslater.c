@@ -959,7 +959,8 @@ static bool isTimeLineQuery(SNode* pStmt) {
     return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
            (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineCurMode);
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
-    return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
+    return (TIME_LINE_MULTI == ((SSetOperator*)pStmt)->timeLineResMode) ||
+           (TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode);
   } else {
     return false;
   }
@@ -1000,18 +1001,64 @@ static bool isBlockTimeLineAlignedQuery(SNode* pStmt) {
   return false;
 }
 
+SNodeList* buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum) {
+  SNodeList* pPartitionList = NULL;
+  SNode* pNode = NULL;
+  if (pOrderList->length <= nodesNum) {
+    return NULL;
+  }
+
+  pNode = nodesListGetNode(pOrderList, nodesNum);
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)pNode;
+  if (!isPrimaryKeyImpl(pOrder->pExpr)) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < nodesNum; ++i) {
+    pNode = nodesListGetNode(pOrderList, i);
+    pOrder = (SOrderByExprNode*)pNode;
+    nodesListMakeStrictAppend(&pPartitionList, nodesCloneNode(pOrder->pExpr));
+  }
+
+  return pPartitionList;
+}
+
+
 static bool isTimeLineAlignedQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   if (!isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return false;
   }
-  if (QUERY_NODE_SELECT_STMT != nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    return false;
+  if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSelect->pPartitionByList) {
+      if (!pSub->timeLineFromOrderBy && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+        return true;
+      }
+      if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+        SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
+        bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
+        nodesDestroyList(pPartitionList);
+
+        if (match) {
+          return true;
+        }
+      }
+    }
   }
-  SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-  if (pSelect->pPartitionByList && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
-    return true;
+  if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSelect->pPartitionByList && pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+      SNodeList* pPartitionList = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
+      bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
+      nodesDestroyList(pPartitionList);
+
+      if (match) {
+        return true;
+      }
+    }
   }
+
   return false;
 }
 
@@ -6025,9 +6072,19 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
       (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
-  } else {
-    pSelect->timeLineResMode = TIME_LINE_NONE;
+    return;
+  } else if (pSelect->pOrderByList->length > 1) {
+    for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
+      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      if (isPrimaryKeyImpl(pOrder)) {
+        pSelect->timeLineResMode = TIME_LINE_MULTI;
+        pSelect->timeLineFromOrderBy = true;
+        return;
+      }
+    }
   }
+  
+  pSelect->timeLineResMode = TIME_LINE_NONE;
 }
 
 static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6180,16 +6237,13 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
-    if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_COLUMN == nodeType(pRight)) {
-      SColumnNode* pLCol = (SColumnNode*)pLeft;
-      SColumnNode* pRCol = (SColumnNode*)pRight;
+    bool isLeftPrimTs = isPrimaryKeyImpl(pLeft);
+    bool isRightPrimTs = isPrimaryKeyImpl(pRight);
+
+    if (isLeftPrimTs && isRightPrimTs) {
       SColumnNode* pFCol = (SColumnNode*)pProj;
-      if (pLCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID && pRCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-        if (pLCol->isPrimTs && pRCol->isPrimTs) {
-          pFCol->isPrimTs = true;
-        }
-      }
+      pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pFCol->isPrimTs = true;
     }
     if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, pProj)) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -6225,9 +6279,19 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
     if (isPrimaryKeyImpl(pOrder)) {
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
-    } else {
-      pSetOperator->timeLineResMode = TIME_LINE_NONE;
+      return code;
+    } else if (pSetOperator->pOrderByList->length > 1) {
+      for (int32_t i = 1; i < pSetOperator->pOrderByList->length; ++i) {
+        pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, i))->pExpr;
+        if (isPrimaryKeyImpl(pOrder)) {
+          pSetOperator->timeLineResMode = TIME_LINE_MULTI;
+          pSetOperator->timeLineFromOrderBy = true;
+          return code;
+        }
+      }
     }
+    
+    pSetOperator->timeLineResMode = TIME_LINE_NONE;
   }
   return code;
 }
