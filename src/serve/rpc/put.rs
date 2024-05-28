@@ -604,7 +604,7 @@ impl PutStream {
             get_ipc_stream_channel(stream_trace_id).await
         {
             // 如果之前有连接，说明是重连
-
+            tracing::info!("Reconnect IPC stream");
             // 如果之前有连接，直接返回，不需要再次创建 Writer
             (tx, abort_message_rx, notify)
         } else {
@@ -640,21 +640,47 @@ impl PutStream {
             let abort_message_rx = abort_message_rx.clone();
             let notify = notify.clone();
             async move {
-                   tokio::select! {
-                       _ = abort_rx => {
-                           tracing::info!("IPC stream abort");
-                           if tx.sender_count() > 1 {
-                               put_ipc_stream_channel(stream_trace_id, (tx, abort_message_rx, notify)).await;
-                               tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                               let _ = get_ipc_stream_channel(stream_trace_id).await;
-                           }
-                       }
-                       _ = notify.notified() => {
-                           tracing::info!("IPC stream closed");
-                       }
-                   }
-               }
-               .in_current_span()
+                let put_stream_cache = async {
+                    tracing::info!(
+                        worker.senders = tx.sender_count(),
+                        worker.receivers = tx.receiver_count(),
+                        worker.capacity = tx.capacity(),
+                        "IPC stream abort"
+                    );
+                    if abort_message_rx.is_disconnected() {
+                        tracing::info!(
+                            "IPC worker will be stopped since abort message channel is closed"
+                        );
+                        return;
+                    }
+                    put_ipc_stream_channel(
+                        stream_trace_id,
+                        (tx, abort_message_rx.clone(), notify.clone()),
+                    )
+                    .await;
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    {
+                        let mut cache = IPC_STREAM_CACHE.write().await;
+                        if let Some(channel) = cache.get(&stream_trace_id) {
+                            if channel.1.same_channel(&abort_message_rx) {
+                                cache.remove(&stream_trace_id);
+                                tracing::info!(
+                                    "IPC worker has not been reconnected, remove from cache"
+                                );
+                            }
+                        }
+                    }
+                };
+                tokio::select! {
+                    _ = abort_rx => {
+                        put_stream_cache.await;
+                    }
+                    _ = notify.notified() => {
+                        tracing::info!("IPC stream closed");
+                    }
+                }
+            }
+            .in_current_span()
         });
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
