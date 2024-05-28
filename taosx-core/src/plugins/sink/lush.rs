@@ -25,7 +25,7 @@ use taos::{taos_query::Manager, AsyncQueryable, TaosBuilder, TaosPool, Ty};
 use taosx_ipc::stream::reader::LushInsertAttrs;
 use thiserror::Error;
 
-use tracing::{error, instrument};
+use tracing::{error, instrument, Instrument};
 
 use crate::{
     core_metrics::TaskMetrics, plugins::transform::MessageArrowRecords,
@@ -418,9 +418,13 @@ pub async fn write(
     for records in sqls {
         let mut retry = 0;
         let taos = &mut taos;
+        let mut error = Ok(());
         loop {
             retry += 1;
-            match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics).await {
+            match write_lush_stable_with_sql(pool, taos, req_id, &records, metrics)
+                .in_current_span()
+                .await
+            {
                 Ok(n) => {
                     metrics.add_written_points((n * cols) as u64);
                     written_rows += n;
@@ -431,6 +435,7 @@ pub async fn write(
                         if let Some(stable_sql) = messages[0].stable_sql() {
                             tracing::info!("{stable_sql}");
                             assert_create_table(pool, taos, &stable_sql, req_id, true, metrics)
+                                .in_current_span()
                                 .await?;
                         }
                         for m in &messages {
@@ -439,15 +444,29 @@ pub async fn write(
                             for _ in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
+                                        .in_current_span()
                                         .await
                                 {
                                     match err {
                                         WriteError::ContainerLengthTooShort(field) => {
                                             // 尝试修改超级表
-                                            let _ = alter_table(
+                                            if let Err(alter) = alter_table(
                                                 pool, taos, stable, &field, &messages, req_id,
                                             )
-                                            .await;
+                                            .in_current_span()
+                                            .await
+                                            {
+                                                tracing::error!(
+                                                    stable,
+                                                    field,
+                                                    "Alter table error: {alter:#}"
+                                                );
+                                                error = Err(alter).context(err).with_context(|| {
+                                                    format!(
+                                                        "Try alter table {stable} field `{field}` error"
+                                                    )
+                                                });
+                                            }
                                             // 无论成功失败都重试建表
                                         }
                                         _ => Err(err)?,
@@ -460,14 +479,47 @@ pub async fn write(
                         }
                     }
                     WriteError::ContainerLengthTooShort(field) => {
-                        let _ = alter_table(pool, taos, stable, &field, &messages, req_id).await;
+                        if let Err(alter) =
+                            alter_table(pool, taos, stable, &field, &messages, req_id)
+                                .in_current_span()
+                                .await
+                        {
+                            tracing::error!(stable, field, "Alter table error: {alter:#}");
+                            let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                            if error.is_err() {
+                                error = error.context(context);
+                            } else {
+                                error = Err(WriteError::ContainerLengthTooShort(field))
+                                    .context(context);
+                            }
+                        } else {
+                            let context = format!(
+                                "Try alter table {stable} field `{field}` round {retry} success"
+                            );
+                            if error.is_err() {
+                                error = error.context(context);
+                            } else {
+                                error = Err(WriteError::ContainerLengthTooShort(field))
+                                    .context(context);
+                            }
+                        }
                     }
                     _ => {
                         return Err(err)?;
                     }
                 },
             }
-            if retry > 2 {
+            if retry > 5 {
+                if let Err(err) = error {
+                    tracing::error!(
+                        stable,
+                        error = format!("{err:#}"),
+                        backtrace = ?err,
+                        "Retry insert exceeded {retry}"
+                    );
+                    return Err(err)
+                        .with_context(|| format!("Insert retries exceeded with {retry} times"))?;
+                }
                 tracing::error!(stable, "Retry insert exceeded {retry}");
                 return Err(anyhow!("Retry insert exceeded {retry}"));
             }
