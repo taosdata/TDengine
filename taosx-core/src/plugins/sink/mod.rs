@@ -871,13 +871,56 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables) => {
+            // 临时增加代码，为了让没有数据的表也能在目标库看到
+            let stable_name = tables[0].stable_name();
+            if stable_name.is_some() {
+                let stable_name = stable_name.unwrap();
+                if stable_name == "technology" {
+                    let super_table_sql = lush_model_config
+                        .super_table_sqls
+                        .as_ref()
+                        .unwrap()
+                        .get("technology");
+
+                    if let Some(super_table_sql) = super_table_sql {
+                        tracing::debug!("super_table_sql: {super_table_sql}");
+                        let mut taos = Some(pool.get().await.context("Target connection error")?);
+                        // 创建超级表
+                        let _ = lush::assert_create_table(
+                            pool,
+                            &mut taos,
+                            &super_table_sql,
+                            &req_id,
+                            true,
+                            metrics_arc.ipc(),
+                        )
+                        .await;
+                        // 创建子表
+                        for table in &tables {
+                            let table_sql = table.to_sql(None);
+                            if let Some(table_sql) = table_sql {
+                                tracing::debug!("table_sql: {table_sql}");
+                                let _ = lush::assert_create_table(
+                                    pool,
+                                    &mut taos,
+                                    &table_sql,
+                                    &req_id,
+                                    false,
+                                    metrics_arc.ipc(),
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+            }
             let len = tables.len();
             for table in tables {
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
             }
-            tracing::debug!("Cached tables message, size: {}", len);
+            tracing::debug!("Cached tables message: {}", len);
         }
         LushMessage::Insert(record) => {
             let pool = pool.clone();
@@ -1019,7 +1062,7 @@ async fn consume_lush_record_with_transform(
                             gen_sql_time.as_millis(),
                             write_time.as_millis(),
                         );
-                        metrics.add_written_rows(num_rows as u64);
+                        metrics.add_processed_rows(num_rows as u64);
                         num_rows
                     }) }.in_current_span()) {
                         tracing::error!("send to tx error: {err:#}");

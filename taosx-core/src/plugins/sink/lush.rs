@@ -43,6 +43,8 @@ pub struct LushModelConfig {
     /// value: parser for the super-table.
     pub super_table_parsers: HashMap<String, Parser>,
 
+    pub super_table_sqls: Option<HashMap<String, String>>,
+
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
     pub super_table_name_mapping: HashMap<String, String>,
@@ -174,6 +176,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
+            super_table_sqls: None,
             super_table_name_mapping: sub_super_mapping,
             skip_null: false,
         }
@@ -199,7 +202,9 @@ impl From<PIElementModelConfig> for LushModelConfig {
         let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
+        let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
+            super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
             super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
         }
         // old code that use element_id to index super_table
@@ -211,6 +216,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
+            super_table_sqls: Some(super_table_sqls),
             super_table_name_mapping,
             skip_null: true,
         }
@@ -771,7 +777,7 @@ pub enum WriteError {
     Anyhow(#[from] anyhow::Error),
 }
 
-async fn assert_create_table(
+pub async fn assert_create_table(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     sql: &str,

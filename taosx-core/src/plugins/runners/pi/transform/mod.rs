@@ -574,7 +574,7 @@ impl Display for PIElementModelConfig {
 }
 
 /// 配置文件 schema 定义部分第 2 列的类型
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
     TAG,
     COLUMN,
@@ -816,6 +816,26 @@ impl SuperTableConfig {
             r#where: None,
             global: options,
         }
+    }
+
+    pub fn get_sql(&self) -> String {
+        let mut sql = format!("create stable if not exists `{}` (", self.super_table_name);
+        for row in &self.schema {
+            if row.column_type == ColumnType::COLUMN {
+                sql.push_str(&format!("`{}` {},", row.column_name, row.column_data_type));
+            }
+        }
+        sql.pop();
+        sql.push(')');
+        sql.push_str(" tags (");
+        for row in &self.schema {
+            if row.column_type == ColumnType::TAG {
+                sql.push_str(&format!("`{}` {},", row.column_name, row.column_data_type));
+            }
+        }
+        sql.pop();
+        sql.push(')');
+        sql
     }
 }
 
