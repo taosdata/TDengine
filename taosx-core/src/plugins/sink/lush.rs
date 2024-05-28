@@ -447,7 +447,7 @@ pub async fn write(
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!("{sql}");
-                            for retry in 0..6 {
+                            for retry in 0..12 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
                                         .in_current_span()
@@ -503,6 +503,7 @@ pub async fn write(
                                     .context(context);
                             }
                         } else {
+                            retry -= 1;
                             let context = format!(
                                 "Try alter table {stable} field `{field}` round {retry} success"
                             );

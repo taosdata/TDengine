@@ -775,6 +775,18 @@ impl PutStream {
                                                 tracing::info!(error.source = format!("{err:#}"), "IPC stream finished");
                                             });
                                         })?;
+
+                                    if let Err(err) = notify_sender.send(
+                                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                            agent_id,
+                                            TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                        ),
+                                    ) {
+                                        tracing::warn!(
+                                            error.source = format!("{err:#}"),
+                                            "Put stream message error"
+                                        );
+                                    }
                                 } else {
                                     cur_span.in_scope(|| {
                                         tracing::warn!(
@@ -783,18 +795,6 @@ impl PutStream {
                                             "IPC stream message error"
                                         );
                                     });
-                                }
-
-                                if let Err(err) = notify_sender.send(
-                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                        agent_id,
-                                        TaskActivity::warn(task_id, format!("Put stream message error: {err:#}")),
-                                    ),
-                                ) {
-                                    tracing::warn!(
-                                        error.source = format!("{err:#}"),
-                                        "Put stream message error"
-                                    );
                                 }
                             }
                             Ok(message) => {
