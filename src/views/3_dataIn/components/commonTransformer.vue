@@ -634,7 +634,8 @@ import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, deepClone } from "@/utils"
-import cusSelect from "./cusSelect.vue"
+import cusSelect from "./cusSelect.vue";
+import VersionMixin from "@/mixins/version";
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -660,6 +661,7 @@ export default {
       },
     },
   },
+  mixins: [VersionMixin],
   data() {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
@@ -1864,6 +1866,17 @@ export default {
                 );
               }
             }
+            if (!this.version_gt_3300) {
+              this.$refs.createstb.stable_form.columns = this.$refs.createstb.stable_form.columns.map((item) => {
+                return {
+                  ...item,
+                  encode: '',
+                  compress: '',
+                  level: ''
+                }
+              });
+            }
+            
             let payload = {
               selected_db: this.$store.state.app.currentDBName,
               stable_form: this.$refs.createstb.stable_form,

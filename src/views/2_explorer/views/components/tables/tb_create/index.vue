@@ -88,7 +88,7 @@
                 :placeholder="$t('data.columnNameTip')"
               >
               </el-input>
-              <el-tag effect="plain" type="info" v-if="index == 1">
+              <el-tag effect="plain" type="info" v-if="index == 1 && version_gt_3300">
               <el-checkbox 
                 :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
                 v-model="column.primaryKey" 
@@ -96,7 +96,7 @@
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -114,7 +114,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -132,7 +132,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -210,7 +210,7 @@
               </el-input>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.encode')">
+                :content="$t('console.encode')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -227,7 +227,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.compress')">
+                :content="$t('console.compress')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -245,7 +245,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.level')">
+                :content="$t('console.level')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -362,6 +362,7 @@ import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/ga
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
 import { Message } from "element-ui";
+import VersionMixin from "@/mixins/version";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -385,6 +386,7 @@ export default {
       loading: false,
     };
   },
+  mixins: [VersionMixin],
   computed: {
     ...mapState({
       selected_db: (state) => state.dbs.selected_db,
@@ -513,7 +515,7 @@ export default {
           second_field: column.field, // new_col_name
         };
       }
-      if (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level) {
+      if (this.version_gt_3300 && (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level)) {
         other_params = {
           operation: "modify column",
           first_field: column.field,
@@ -657,6 +659,16 @@ export default {
           (item) => item.value
         );
       }
+      if (!this.version_gt_3300) {
+        this.table_form.columns = this.table_form.columns.map((item) => {
+          return {
+            ...item,
+            encode: '',
+            compress: '',
+            level: ''
+          }
+        });
+      }
     },
     handleEditTable() {
       this.handleCreateTable();
@@ -686,7 +698,7 @@ export default {
       let params = {
         operation: "add column",
         first_field: this.currentData.field,
-        second_field: second_field + other,
+        second_field: this.version_gt_3300 ? second_field + other : second_field,
 
       };
       this.columnEdit = false;
