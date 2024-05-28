@@ -2017,7 +2017,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     // create sql
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char buf[TSDB_MAX_TSMA_COLUMNS * 64 + VARSTR_HEADER_SIZE] = {0};
-    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
+    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_TSMA_COLUMNS * 64, "%s", pSma->sql);
     varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
     colDataSetVal(pColInfo, numOfRows, buf, false);
 
