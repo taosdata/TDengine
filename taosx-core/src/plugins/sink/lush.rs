@@ -441,7 +441,7 @@ pub async fn write(
                         for m in &messages {
                             let sql = m.table_sql();
                             tracing::info!("{sql}");
-                            for _ in 0..6 {
+                            for retry in 0..6 {
                                 if let Err(err) =
                                     assert_create_table(pool, taos, &sql, req_id, false, metrics)
                                         .in_current_span()
@@ -461,11 +461,15 @@ pub async fn write(
                                                     field,
                                                     "Alter table error: {alter:#}"
                                                 );
-                                                error = Err(alter).context(err).with_context(|| {
-                                                    format!(
-                                                        "Try alter table {stable} field `{field}` error"
+                                                let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                                if error.is_err() {
+                                                    error = error.context(context);
+                                                } else {
+                                                    error = Err(
+                                                        WriteError::ContainerLengthTooShort(field),
                                                     )
-                                                });
+                                                    .context(context);
+                                                }
                                             }
                                             // 无论成功失败都重试建表
                                         }
