@@ -270,13 +270,11 @@ impl TaskConfig {
             time_range_exist = true;
         }
         if sql.contains("${start_time}") && sql.contains("${end_time}") {
-            let query_start = format!("TO_DATE('{}','HH24:MI:SS')", start_tz.format("%H:%M:%S"));
-            let mut query_end = format!("TO_DATE('{}','HH24:MI:SS')", end_tz.format("%H:%M:%S"));
+            let query_start = format!("'{}'", start_tz.format("%H:%M:%S"));
+            let mut query_end = format!("'{}'", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "TO_DATE('00:00:00','HH24:MI:SS')"
-                || end_tz.date_naive() > start_tz.date_naive()
-            {
-                query_end = String::from("TO_DATE('23:59:59','HH24:MI:SS')");
+            if query_end == "'00:00:00'" || end_tz.date_naive() > start_tz.date_naive() {
+                query_end = String::from("'24:00:00'");
             }
             sql = sql
                 .replace("${start_time}", &query_start)
@@ -352,5 +350,21 @@ mod tests {
         dbg!(&sql);
         assert!(sql.contains("TO_DATE('2021-01-01 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
         assert!(sql.contains("TO_DATE('2021-01-02 00:00:00','YYYY-MM-DD HH24:MI:SS')"));
+
+        let dsn = Dsn::from_str("oracle://root:password@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+            .unwrap();
+        let config = OracleConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("'2021-01-01'"));
+        assert!(sql.contains("'2021-01-02'"));
+
+        let dsn = Dsn::from_str("oracle://root:password@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+            .unwrap();
+        let config = OracleConfig::from_dsn(&dsn).unwrap();
+        let sql = config.task.generate_sql().unwrap();
+        dbg!(&sql);
+        assert!(sql.contains("'00:00:00'"));
+        assert!(sql.contains("'24:00:00'"));
     }
 }
