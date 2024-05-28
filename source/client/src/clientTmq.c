@@ -71,6 +71,7 @@ struct tmq_conf_t {
   char*          pass;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
+  int8_t         enableBatchMeta;
 };
 
 struct tmq_t {
@@ -87,6 +88,7 @@ struct tmq_t {
   uint64_t       consumerId;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
+  int8_t         enableBatchMeta;
 
   // status
   SRWLatch lock;
@@ -269,6 +271,7 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommit = true;
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
   conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
+  conf->enableBatchMeta = false;
 
   return conf;
 }
@@ -395,6 +398,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.db") == 0) {
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "msg.enable.batchmeta") == 0) {
+    conf->enableBatchMeta = (taosStr2int64(value) != 0) ? true : false;
     return TMQ_CONF_OK;
   }
 
@@ -1122,6 +1130,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->resetOffsetCfg = conf->resetOffset;
   pTmq->replayEnable = conf->replayEnable;
   pTmq->sourceExcluded = conf->sourceExcluded;
+  pTmq->enableBatchMeta = conf->enableBatchMeta;
   if (conf->replayEnable) {
     pTmq->autoCommit = false;
   }
@@ -1199,6 +1208,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   req.autoCommitInterval = tmq->autoCommitInterval;
   req.resetOffsetCfg = tmq->resetOffsetCfg;
   req.enableReplay = tmq->replayEnable;
+  req.enableBatchMeta = tmq->enableBatchMeta;
 
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
@@ -1623,6 +1633,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
   pReq->reqId = generateRequestId();
   pReq->enableReplay = tmq->replayEnable;
   pReq->sourceExcluded = tmq->sourceExcluded;
+  pReq->enableBatchMeta = tmq->enableBatchMeta;
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
