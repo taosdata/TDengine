@@ -882,11 +882,27 @@ async fn consume_lush_record_with_transform(
         LushMessage::Insert(record) => {
             let pool = pool.clone();
             let metrics_arc = metrics_arc.clone();
-            for record in record {
+            use rayon::prelude::*;
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+            let handle = tokio::spawn(async move {
+                let mut count = 0;
+                let mut set = tokio::task::JoinSet::new();
+                while let Some(future) = rx.recv().await {
+                    set.spawn(future);
+                }
+                while let Some(res) = set.join_next().await {
+                    count += res.context("Transform lush record join error")??;
+                }
+                anyhow::Ok(count)
+            });
+            // for record in record {
+            tokio::task::spawn_blocking(move || record.into_par_iter().try_for_each_with(tx, |tx, record| {
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
-                    continue;
+                    return anyhow::Ok(());
+                    // continue;
                 }
                 let timer = std::time::Instant::now();
                 let name_of_table_name_column = lush_model_config.table_name_column.as_str();
@@ -905,7 +921,8 @@ async fn consume_lush_record_with_transform(
                     lush::create_tags_record(table_name_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
-                    continue;
+                    return Ok(());
+                    // continue;
                 }
                 let tags_records: RecordBatch = tags_records.unwrap();
                 // 左右合并 RecordBatch
@@ -946,7 +963,8 @@ async fn consume_lush_record_with_transform(
                         "default_super_table {} not found in super_table_name_mapping",
                         default_super_table
                     );
-                    continue;
+                    return Ok(());
+                    // continue;
                 }
                 let super_table = super_table.unwrap();
                 let parser: &transform::Parser = lush_model_config
@@ -969,53 +987,46 @@ async fn consume_lush_record_with_transform(
                 let transform_elapsed = timer.elapsed();
                 if let crate::plugins::transform::Message::Records(message) = message {
                     if message.is_empty() {
-                        continue;
+                        return Ok(());
+                        // continue;
                     }
                     let table_count = message.len();
                     let pool = pool.clone();
                     let super_table = super_table.clone();
                     let req_id = req_id.clone();
                     let metrics_ref = metrics_arc.clone();
-                    let metrics = metrics_ref.ipc();
-                    lush::write(
-                            &pool,
-                            super_table.as_str(),
-                            taos::Precision::Millisecond,
-                            &req_id,
-                            message,
-                            metrics,
-                            skip_null,
-                        )
-                        .in_current_span()
-                        .await
-                        .map(|(written_rows, gen_sql_time, write_time)| {
-                            // 对于实时数据，基本每批都会打印这个日志，意义不大
-                            // if written_rows != num_rows {
-                            //     tracing::debug!(
-                            //         "written rows not equal to num_rows, written: {}, num_rows: {}",
-                            //         written_rows,
-                            //         num_rows
-                            //     );
-                            // }
-                            //process_rows 是 RecordBatch 里的行数。 与 written_rows 不同，后者是实际写入的行数。written_rows 在执行 sql 成功时已经做了统计
-                            metrics.add_processed_rows(num_rows as u64);
-                            *count += num_rows;
-                            // 性能统计
-                            tracing::info!(
-                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
-                                super_table,
-                                table_count,
-                                written_rows,
-                                prepare_elapsed.as_millis(),
-                                transform_elapsed.as_millis(),
-                                gen_sql_time.as_millis(),
-                                write_time.as_millis(),
-                            );
-                        })
-                        .context("Write transformed records with sql error")?;
+                    if let Err(err) = tx.send(async move {
+                        let metrics = metrics_ref.ipc();
+                         lush::write(
+                        &pool,
+                        super_table.as_str(),
+                        taos::Precision::Millisecond,
+                        &req_id,
+                        message,
+                        metrics,
+                        skip_null,
+                    ).await.map(|(written_rows, gen_sql_time, write_time)| {
+                        tracing::info!(
+                            "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
+                            super_table,
+                            table_count,
+                            written_rows,
+                            prepare_elapsed.as_millis(),
+                            transform_elapsed.as_millis(),
+                            gen_sql_time.as_millis(),
+                            write_time.as_millis(),
+                        );
+                        metrics.add_written_rows(num_rows as u64);
+                        num_rows
+                    }) }.in_current_span()) {
+                        tracing::error!("send to tx error: {err:#}");
+                        bail!("Send future error: {err:#}");
+                    }
                 }
-                // } / end for each super table
-            }
+                anyhow::Ok(())
+            })).await.context("Spawn blocking transform lush records inserts")??;
+
+            *count += handle.await??;
         }
     }
     Ok(())
