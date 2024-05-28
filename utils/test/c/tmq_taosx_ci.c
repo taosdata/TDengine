@@ -32,6 +32,7 @@ typedef struct {
   int  srcVgroups;
   int  dstVgroups;
   char dir[64];
+  bool btMeta;
 } Config;
 
 Config g_conf = {0};
@@ -568,6 +569,10 @@ tmq_t* build_consumer() {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
+  if (g_conf.btMeta) {
+    tmq_conf_set(conf, "msg.enable.batchmeta", "true");
+  }
+
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -925,6 +930,8 @@ int main(int argc, char* argv[]) {
       g_conf.subTable = true;
     } else if (strcmp(argv[i], "-onlymeta") == 0) {
       g_conf.meta = 1;
+    } else if (strcmp(argv[i], "-bt") == 0) {
+      g_conf.btMeta = true;
     }
   }
 
