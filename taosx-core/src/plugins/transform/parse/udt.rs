@@ -256,6 +256,7 @@ impl Parse for Udt {
         field: &arrow::datatypes::Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
+        let _ = field;
         if array.len() == 0 {
             // Return empty record batch.
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
@@ -359,20 +360,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_eval_ast() {
-        let udt: Udt = serde_json::from_str("{\"udt\": \"x += 2; x\"}").unwrap();
+    fn eval_with_udt_simple() {
+        let udt: Udt  = serde_json::from_str(
+            r#"{
+                "udt": "[data]"
+            }"#,
+        )
+        .unwrap();
 
-        // let ast = ENGINE.compile("x += 2; x").unwrap();
-        let mut scope = Scope::new();
-        scope.push("x", 1_i64);
+        let result = eval_with_udt(
+            r#"{"a": 1, "b": "v2"}"#,
+            &udt.udt.ast,
+        );
 
-        match ENGINE.eval_ast_with_scope::<i64>(&mut scope, &(udt.udt.ast)) {
-            Ok(result) => {
-                println!("{:?}", result);
-            }
-            Err(err) => {
-                println!("{:?}", err);
-            }
-        }
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert_eq!(result.len(), 1);
     }
+
+    #[test]
+    fn eval_with_udt_a() {
+        let input = format!("{{\"udt\": \"{}\"}}", r#"
+        if (data["n"] == 0) { 
+            []
+        } else if (data["n"] == 1) { 
+            [#{"a": 1, "b": "v2"}] 
+        } else { 
+            [#{"a": 3}, #{"b": "v5"}]
+        }"#.replace("\"", "\\\"").replace("\n", "")) ;
+
+        let udt: Udt  = serde_json::from_str(&input).unwrap();
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"n": 1}"#,
+            r#"{"n": 0}"#,
+            r#"{"n": 2}"#,
+        ]));
+
+        let (records, indics) = udt.parse_array(&field, &array).unwrap();
+        assert_eq!(records.num_columns(), 2);
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indics.unwrap(), vec![0, 2, 2]);
+    }
+
+
 }
