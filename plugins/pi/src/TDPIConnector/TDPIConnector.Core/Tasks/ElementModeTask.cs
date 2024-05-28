@@ -50,8 +50,8 @@ namespace TDPIConnector.Core.Tasks
             {
                 afDataPipeWrapper.AddSignupAttributes(ref templateName, ref attributes);
             }
-            catch (Exception) {
-                log.Error($"SignUp failed! Will retry one by one!");
+            catch (Exception e) {
+                log.Error($"SignUp failed! Will retry one by one! {e.Message}");
                 afDataPipeWrapper.RetrySignUpBatchAttributes(ref templateName, ref attributes);
             }
         }

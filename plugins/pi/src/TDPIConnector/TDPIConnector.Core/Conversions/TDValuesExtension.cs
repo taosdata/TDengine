@@ -33,7 +33,12 @@ namespace TDPIConnector.Core.Conversions
             }
             else
             {
-                return new TDValue(value.Value, eventTime, ValueTypeConverter.Convert(value.ValueTypeCode));
+                if (value.IsGood())
+                {
+                    return new TDValue(value.Value, eventTime, ValueTypeConverter.Convert(value.ValueTypeCode));
+                } else {
+                    return new TDValue(null, eventTime, -1, ValueTypeConverter.Convert(value.ValueTypeCode));
+                }
             }
         }
     }

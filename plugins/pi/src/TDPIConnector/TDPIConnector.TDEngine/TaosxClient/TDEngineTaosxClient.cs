@@ -113,6 +113,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         private void resHandler()
         {
+#if ONLY_PI_TEST
+            return;
+#endif
             if (stream == null) {
                 log.Info($"Stream is null, create arrow reader failed!");
                 return;

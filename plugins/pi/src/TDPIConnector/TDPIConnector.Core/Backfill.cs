@@ -144,7 +144,7 @@ namespace TDPIConnector.Core
             if (null != groupManager) {
                 var task = groupManager.GetNextTask();
                 if (task != null) return task;
-                log.Info($"backfill task manager: templalte:{groupManager.templateName} finished, group({groupNum}).");
+                log.Info($"backfill task manager: templalte:{groupManager.templateName} finished, group({groupNum}), waitting new task.");
             }
             
             ElementsBackfillTaskManager newGroupManager = GetNotStartedGroup(groupNum);
@@ -156,6 +156,7 @@ namespace TDPIConnector.Core
             if (stopAddNewTask)
             {
                 while (true) {
+                    Task.Delay(500);
                     ElementsBackfillTaskManager newManagerToadd = GetNotFinishedGroup(groupNum);
                     if (null == newManagerToadd)
                     {
@@ -164,10 +165,13 @@ namespace TDPIConnector.Core
                     else
                     {
                         var task = newManagerToadd.GetNextTask();
-                        if (task != null) {
+                        if (task != null)
+                        {
                             log.Info($"backfill task manager: add a new backfill group for templalte:{newManagerToadd.templateName}, group({groupNum}).");
-                            Task.Delay(500);
                             return task;
+                        }
+                        else {
+                            Task.Delay(500);
                         }
                     }
                 }
