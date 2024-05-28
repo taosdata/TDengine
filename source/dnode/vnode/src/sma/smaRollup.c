@@ -622,8 +622,8 @@ int32_t smaRetention(SSma *pSma, int64_t now) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbRetention(pSma->pRSmaTsdb[i], now, pSma->pVnode->config.sttTrigger == 1);
-      if (code) goto _end;
+      // code = tsdbRetention(pSma->pRSmaTsdb[i], now, pSma->pVnode->config.sttTrigger == 1);
+      // if (code) goto _end;
     }
   }
 
