@@ -1088,10 +1088,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-//  if (pTq->pStreamMeta->vgId == 2) {
-//    ASSERT(0);
-//  }
-
   // disable auto rsp to mnode
   pRsp->info.handle = NULL;
 

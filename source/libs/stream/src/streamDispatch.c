@@ -595,8 +595,9 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK || pBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-         pBlock->type == STREAM_INPUT__TRANS_STATE);
+  int32_t type = pBlock->type;
+  ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+         type == STREAM_INPUT__TRANS_STATE);
 
   pTask->execInfo.dispatch += 1;
   pTask->msgInfo.startTs = taosGetTimestampMs();
@@ -607,7 +608,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   } else {  // todo handle build dispatch msg failed
   }
 
-  if (pBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+  if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
     streamTaskInitTriggerDispatchInfo(pTask);
   }
 
@@ -829,7 +830,7 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
     }
   } else {
     taosArrayPush(pActiveInfo->pReadyMsgList, &info);
-    stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size);
+    stDebug("s-task:%s add checkpoint source rsp msg, total:%d", pTask->id.idStr, size + 1);
   }
 
   taosThreadMutexUnlock(&pActiveInfo->lock);

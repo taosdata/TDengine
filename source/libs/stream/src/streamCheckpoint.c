@@ -562,11 +562,11 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
   int32_t vgId = pTask->pMeta->vgId;
   int64_t now = taosGetTimestampMs();
-  stDebug("s-task:%s vgId:%d checkpoint-trigger monit start, ts:%" PRId64, pTask->id.idStr, vgId, now);
+  stDebug("s-task:%s vgId:%d checkpoint-trigger monitor start, ts:%" PRId64, pTask->id.idStr, vgId, now);
 
   taosThreadMutexLock(&pTask->lock);
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
-  if (pState->state == TASK_STATUS__CK) {
+  if (pState->state != TASK_STATUS__CK) {
     stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger", pTask->id.idStr, vgId);
     taosThreadMutexUnlock(&pTask->lock);
     return;
@@ -599,12 +599,14 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   // do send retrieve checkpoint trigger msg to upstream
+  int32_t size = taosArrayGetSize(pNotSendList);
   doSendRetrieveTriggerMsg(pTask, pNotSendList);
   taosThreadMutexUnlock(&pActiveInfo->lock);
 
   // check every 100ms
-  if (taosArrayGetSize(pNotSendList) > 0) {
+  if (size > 0) {
     taosTmrReset(checkpointTriggerMonitorFn, 10000, pTask, streamTimer, &pActiveInfo->pCheckTmr);
+    stDebug("s-task:%s start monitor trigger in 10sec", pTask->id.idStr);
   }
 
   taosArrayDestroy(pNotSendList);
@@ -614,8 +616,11 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
   int32_t     code = 0;
   int32_t     vgId = pTask->pMeta->vgId;
   const char* pId = pTask->id.idStr;
+  int32_t     size = taosArrayGetSize(pNotSendList);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pNotSendList); i++) {
+  stDebug("s-task:%s start to send trigger-retrieve msg to %d upstream(s)", pId, size);
+
+  for (int32_t i = 0; i < size; i++) {
     SStreamUpstreamEpInfo* pUpstreamTask = taosArrayGet(pNotSendList, i);
 
     SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
@@ -633,10 +638,13 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
     pReq->upstreamNodeId = pUpstreamTask->nodeId;
     pReq->checkpointId = pTask->chkInfo.pActiveInfo->activeId;
 
+
     SRpcMsg rpcMsg = {0};
-    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE, pReq, sizeof(SRetrieveChkptTriggerReq));
+    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, pReq, sizeof(SRetrieveChkptTriggerReq));
 
     code = tmsgSendReq(&pUpstreamTask->epSet, &rpcMsg);
+    stDebug("s-task:%s vgId:%d send retrieve msg to 0x%x checkpointId:%" PRId64, pId, vgId, pUpstreamTask->taskId,
+            pReq->checkpointId);
   }
 
   return TSDB_CODE_SUCCESS;
