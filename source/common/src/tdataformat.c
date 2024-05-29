@@ -424,12 +424,6 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   return code;
 }
 
-typedef struct {
-  int32_t          columnId;
-  int32_t          type;
-  TAOS_MULTI_BIND *bind;
-} SBindInfo;
-
 static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *param) {
   if (((SBindInfo *)p1)->columnId < ((SBindInfo *)p2)->columnId) {
     return -1;
@@ -439,8 +433,15 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
   return 0;
 }
 
-int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, const STSchema *pTSchema, SArray *rowArray,
-                          bool infoSorted) {
+/* build rows to `rowArray` from bind
+ * `infos` is the bind information array
+ * `numOfInfos` is the number of bind information
+ * `infoSorted` is whether the bind information is sorted by column id
+ * `pTSchema` is the schema of the table
+ * `rowArray` is the array to store the rows
+ */
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
