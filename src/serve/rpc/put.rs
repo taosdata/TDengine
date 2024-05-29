@@ -363,7 +363,7 @@ async fn spawn_stream_writer(
 
     // data channel
     let (tx, rx) = match from_dsn.driver.as_str() {
-        "pibackfill" => flume::bounded(50),
+        "pi" | "pibackfill" => flume::bounded(50),
         _ => flume::bounded(1024),
     };
 
