@@ -183,9 +183,9 @@ impl<'de> Deserialize<'de> for UdtAST {
             Err(e) => UdtAST {
                 ast: None,
                 error: Some(e),
-            }
+            },
         };
-        
+
         Ok(udt_ast)
     }
 }
@@ -210,23 +210,25 @@ impl Udt {
     fn parse_data(&self, item_raw_data: &str) -> Result<Vec<Dynamic>, super::ParseError> {
         if self.udt.ast.is_none() {
             let parse_error = self.udt.error.as_ref().unwrap();
-            return Err(super::ParseError::UdtError(EvalAltResult::ErrorParsing(parse_error.err_type().clone(), parse_error.position())));
+            return Err(super::ParseError::UdtError(EvalAltResult::ErrorParsing(
+                parse_error.err_type().clone(),
+                parse_error.position(),
+            )));
         }
 
         let _map = ENGINE
             .parse_json(item_raw_data, false)
             .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
-    
+
         let mut scope = Scope::new();
         scope.push("data", _map);
-    
+
         // 约定返回的数据为
         ENGINE
             .eval_ast_with_scope::<rhai::Array>(&mut scope, self.udt.ast.as_ref().unwrap())
             .map_err(|source| super::ParseError::UdtError(*source))
     }
 }
-
 
 impl Parse for Udt {
     // 行数可能修改
