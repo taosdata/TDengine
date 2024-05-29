@@ -35,3 +35,4 @@ targets
 *.csv
 .DS_Store
 tmp.*
+/*.ps1
