@@ -894,38 +894,24 @@ typedef enum {
   READER_EXEC_ROWS = 0x2,
 } EExecMode;
 
+#define LAST_COL_VERSION (0x1)
+
 typedef struct {
   SRowKey rowKey;
   int8_t  dirty;
   SColVal colVal;
 } SLastCol;
 
-typedef struct  {
-  union {
-    int64_t val;
-    struct {
-      uint8_t *pData;
-      uint32_t nData;
-    };
-  };
-} SValueV0;
-
 typedef struct {
-  int16_t  cid;
-  int8_t   type;
-  int8_t   flag;
-  SValueV0 value;
-} SColValV0;
-
-typedef struct {
-  TSKEY     ts;
-  int8_t    dirty;
-  SColValV0 colVal;
-} SLastColV0;
+  int8_t      lflag;
+  STsdbRowKey tsdbRowKey;
+  SColVal     colVal;
+} SLastUpdateCtx;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *row);
+int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow, SRow **aRow);
+int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);

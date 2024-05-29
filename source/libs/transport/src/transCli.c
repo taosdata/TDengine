@@ -381,11 +381,16 @@ void cliHandleResp(SCliConn* conn) {
 
   STransMsgHead* pHead = NULL;
 
-  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
+  int8_t  resetBuf = conn->status == ConnAcquire ? 0 : 1;
+  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
+  }
+
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), conn);
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
@@ -2458,7 +2463,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
           pSyncMsg->hasEpSet = 1;
           epsetAssign(&pSyncMsg->epSet, &pCtx->epSet);
         }
-        tsem_post(pSyncMsg->pSem);
+        tsem2_post(pSyncMsg->pSem);
         taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
       } else {
         rpcFreeCont(pResp->pCont);
@@ -2689,8 +2694,8 @@ _RETURN:
   return ret;
 }
 int64_t transCreateSyncMsg(STransMsg* pTransMsg) {
-  tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
-  tsem_init(sem, 0, 0);
+  tsem2_t* sem = taosMemoryCalloc(1, sizeof(tsem2_t));
+  tsem2_init(sem, 0, 0);
 
   STransSyncMsg* pSyncMsg = taosMemoryCalloc(1, sizeof(STransSyncMsg));
 
@@ -2750,7 +2755,7 @@ int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STr
     goto _RETURN;
   }
 
-  ret = tsem_timewait(pSyncMsg->pSem, timeoutMs);
+  ret = tsem2_timewait(pSyncMsg->pSem, timeoutMs);
   if (ret < 0) {
     pRsp->code = TSDB_CODE_TIMEOUT_ERROR;
     ret = TSDB_CODE_TIMEOUT_ERROR;

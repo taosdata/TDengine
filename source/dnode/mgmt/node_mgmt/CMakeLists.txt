@@ -16,10 +16,6 @@ IF (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 ENDIF()
 
-IF (DEFINED GRANT_CFG_INCLUDE_DIR)
-  add_definitions(-DGRANTS_CFG)
-ENDIF()
-
 target_include_directories(
     dnode
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"

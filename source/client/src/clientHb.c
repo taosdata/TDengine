@@ -92,6 +92,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
         if (!pRsp) {
           releaseTscObj(pReq->connKey.tscRid);
+          taosHashCancelIterate(hbMgr->activeInfo, pReq);
           break;
         }
       }
@@ -738,7 +739,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
 _return:
   releaseTscObj(connKey->tscRid);
   if (code) {
-    tscError("hb got user auth info failed since %s", terrstr(code));
+    tscError("hb got user auth info failed since %s", tstrerror(code));
   }
 
   return code;

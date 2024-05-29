@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "tgrant.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -150,6 +151,7 @@ static bool dmCheckDataDirVersion() {
 
 extern int32_t s3Begin();
 extern void    s3End();
+extern int8_t  tsS3Enabled;
 
 #endif
 

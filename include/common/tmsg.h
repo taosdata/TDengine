@@ -329,6 +329,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DB_ALIVE_STMT,
   QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
   QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
+  QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT,
   QUERY_NODE_RESTORE_DNODE_STMT,
   QUERY_NODE_RESTORE_QNODE_STMT,
   QUERY_NODE_RESTORE_MNODE_STMT,
@@ -2357,20 +2358,24 @@ void    tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp* pRsp);
 typedef struct {
   int32_t dnodeId;
   char*   token;
-} SMArbUpdateGroupReqMember;
+} SMArbUpdateGroupMember;
 
 typedef struct {
-  int32_t vgId;
-  int64_t dbUid;
-  SMArbUpdateGroupReqMember members[2];
-  int8_t                    isSync;
-  SMArbUpdateGroupReqMember assignedLeader;
-  int64_t                   version;
-} SMArbUpdateGroupReq;
+  int32_t                vgId;
+  int64_t                dbUid;
+  SMArbUpdateGroupMember members[2];
+  int8_t                 isSync;
+  SMArbUpdateGroupMember assignedLeader;
+  int64_t                version;
+} SMArbUpdateGroup;
 
-int32_t tSerializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-int32_t tDeserializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-void    tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq* pReq);
+typedef struct {
+  SArray* updateArray;  // SMArbUpdateGroup
+} SMArbUpdateGroupBatchReq;
+
+int32_t tSerializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+int32_t tDeserializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+void    tFreeSMArbUpdateGroupBatchReq(SMArbUpdateGroupBatchReq* pReq);
 
 typedef struct {
   char queryStrId[TSDB_QUERY_ID_LEN];
@@ -2425,10 +2430,11 @@ int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistrib
 void    tFreeSRedistributeVgroupReq(SRedistributeVgroupReq* pReq);
 
 typedef struct {
-  int32_t useless;
+  int32_t reserved;
   int32_t vgId;
   int32_t sqlLen;
   char*   sql;
+  char    db[TSDB_DB_FNAME_LEN];
 } SBalanceVgroupLeaderReq;
 
 int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);

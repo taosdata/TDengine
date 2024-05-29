@@ -2411,31 +2411,37 @@ _end:
 
 void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId) {
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  if (stbName == NULL) {
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%" PRIu64, groupId);
-  } else {
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%" PRIu64, stbName, groupId);
+  if (stbName == NULL){
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+  }else{
+    int32_t i = strlen(stbName) - 1;
+    for(; i >= 0; i--){
+      if (stbName[i] == '.'){
+        break;
+      }
+    }
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName + i + 1, groupId);
   }
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
+  for(int i = 0; i < strlen(ctbName); i++){
+    if(ctbName[i] == '.'){
+      ctbName[i] = '_';
+    }
+  }
 }
 
 // auto stream subtable name starts with 't_', followed by the first segment of MD5 digest for group vals.
 // the total length is fixed to be 34 bytes.
 bool isAutoTableName(char* ctbName) { return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_'); }
 
-bool alreadyAddGroupId(char* ctbName) {
-  size_t len = strlen(ctbName);
-  if (len == 0) return false;
-  size_t _location = len - 1;
-  while (_location > 0) {
-    if (ctbName[_location] < '0' || ctbName[_location] > '9') {
-      break;
-    }
-    _location--;
-  }
-
-  return ctbName[_location] == '_' && len - 1 - _location >= 15;  // 15 means the min length of groupid
+bool alreadyAddGroupId(char* ctbName, int64_t groupId) {
+  char tmp[64] = {0};
+  snprintf(tmp, sizeof(tmp), "%" PRIu64, groupId);
+  size_t len1 = strlen(ctbName);
+  size_t len2 = strlen(tmp);
+  if (len1 < len2) return false;
+  return memcmp(ctbName + len1 - len2, tmp, len2) == 0;
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {

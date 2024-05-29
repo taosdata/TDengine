@@ -666,6 +666,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
 
 _err:
   vError("vgId:%d, vnode snapshot writer open failed since %s", TD_VID(pVnode), tstrerror(code));
+  if (pWriter) taosMemoryFreeClear(pWriter);
   *ppWriter = NULL;
   return code;
 }

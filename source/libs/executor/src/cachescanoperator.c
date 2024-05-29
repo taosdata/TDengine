@@ -160,9 +160,6 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   // partition by tbname
   if (oneTableForEachGroup(pTableListInfo) || (totalTables == 1)) {
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
-    if (pInfo->numOfPks > 0) {
-      pInfo->retrieveType |= CACHESCAN_RETRIEVE_PK;
-    }
 
     STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
 
