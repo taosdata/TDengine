@@ -566,9 +566,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
   int32_t     numOfElems = streamQueueGetNumOfItems(pTask->outputq.queue);
   if (numOfElems > 0) {
-    double size = SIZE_IN_MiB(taosQueueMemorySize(pTask->outputq.queue->pQueue));
-    stDebug("s-task:%s start to dispatch intermediate block to downstream, elem in outputQ:%d, size:%.2fMiB", id,
-            numOfElems, size);
+    double  size = SIZE_IN_MiB(taosQueueMemorySize(pTask->outputq.queue->pQueue));
+    int32_t numOfUnAccessed = streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue);
+    stDebug("s-task:%s start to dispatch intermediate block to downstream, elem in outputQ:%d/%d, size:%.2fMiB", id,
+            numOfUnAccessed, numOfElems, size);
   }
 
   // to make sure only one dispatch is running
@@ -889,7 +890,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
 
   initRpcMsg(&info.msg, TDMT_STREAM_TASK_CHECKPOINT_READY, buf, tlen + sizeof(SMsgHead));
 
-  stDebug("s-task:%s (level:%d) prepare checkpoint ready msg to upstream s-task:0x%" PRIx64
+  stDebug("s-task:%s (level:%d) prepare checkpoint-ready msg to upstream s-task:0x%" PRIx64
           ":0x%x (vgId:%d) idx:%d, vgId:%d",
           pTask->id.idStr, pTask->info.taskLevel, req.streamId, req.upstreamTaskId, req.upstreamNodeId, index,
           req.upstreamNodeId);

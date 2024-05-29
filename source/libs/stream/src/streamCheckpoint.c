@@ -198,8 +198,9 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s start checkpoint-trigger monitor in 10s, ref:%d ", pTask->id.idStr, ref);
     SActiveCheckpointInfo* pActive = pTask->chkInfo.pActiveInfo;
+    streamMetaAcquireOneTask(pTask);
+
     if (pActive->pCheckTmr == NULL) {
-      streamMetaAcquireOneTask(pTask);
       pActive->pCheckTmr = taosTmrStart(checkpointTriggerMonitorFn, 100, pTask, streamTimer);
     } else {
       taosTmrReset(checkpointTriggerMonitorFn, 100, pTask, streamTimer, &pActive->pCheckTmr);
@@ -605,6 +606,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   if (++pActiveInfo->checkCounter < 100) {
+    taosTmrReset(checkpointTriggerMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pCheckTmr);
     return;
   }
 
@@ -614,7 +616,10 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   taosThreadMutexLock(&pTask->lock);
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
   if (pState->state != TASK_STATUS__CK) {
-    stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger", pTask->id.idStr, vgId);
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", pTask->id.idStr,
+            vgId, ref);
+
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
@@ -769,7 +774,7 @@ void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
   taosThreadMutexLock(&pInfo->lock);
 
   // outputQ should be empty here
-  ASSERT(streamQueueGetNumOfItems(pTask->outputq.queue) == 1);
+  ASSERT(streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) == 0);
 
   pInfo->dispatchTrigger = true;
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {

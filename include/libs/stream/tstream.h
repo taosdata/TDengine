@@ -681,6 +681,7 @@ void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, SRpcHandleInfo* pRpcInfo);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
+int32_t streamQueueGetNumOfUnAccessedItems(const SStreamQueue* pQueue);
 
 // common
 void    streamTaskPause(SStreamTask* pTask);
