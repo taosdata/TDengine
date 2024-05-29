@@ -562,13 +562,13 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (streamQueueIsFull(pTask->outputq.queue)) {
-      stWarn("s-task:%s outputQ is full, idle for 500ms and retry", id);
+      stTrace("s-task:%s outputQ is full, idle for 500ms and retry", id);
       streamTaskSetIdleInfo(pTask, 1000);
       return 0;
     }
 
     if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-      stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", id);
+      stTrace("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", id);
       streamTaskSetIdleInfo(pTask, 1000);
       return 0;
     }
