@@ -128,6 +128,7 @@
                 size="small"
                 :placeholder="$t('datasource.transformer.filter_type')"
                 v-model="parseruleForm.type"
+                @change="handleTypeChange"
               >
                 <el-option
                   v-for="item in parseTypes"
@@ -1398,7 +1399,6 @@ export default {
           });
         }
       });
-      console.log('value.parser.model',value.parser.model);
       this.$store.commit("app/SET_ECHO_MAP_DATA", {
         model: value.parser.model,
         tableData: echoMapData,
@@ -1682,7 +1682,6 @@ export default {
               : item.expression,
         };
       });
-      console.log('this.mappingParser.parser.model',this.mappingParser.parser.model);
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
@@ -2285,6 +2284,9 @@ export default {
       
 
       return inputString;
+    },
+    handleTypeChange() {
+      this.parseruleForm.expression = ""
     }
   },
   watch: {
@@ -2354,11 +2356,6 @@ export default {
         }
       },
     },
-    "parseruleForm.type": {
-      handler() {
-        this.parseruleForm.expression = ""
-      }
-    }
   },
 };
 </script>
