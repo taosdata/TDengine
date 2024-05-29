@@ -588,6 +588,13 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
     tsdbCachePutBatch(pLastCol, key, klen, (SCacheFlushState *)ud);
   }
 
+  for (uint8_t i = 0; i < pLastCol->rowKey.numOfPKs; ++i) {
+    SValue *pValue = &pLastCol->rowKey.pks[i];
+    if (IS_VAR_DATA_TYPE(pValue->type)) {
+      taosMemoryFree(pValue->pData);
+    }
+  }
+
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
@@ -1072,6 +1079,8 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
       SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_KEY(idxKey->key) && !COL_VAL_IS_VALUE(pColVal)) {
+        taosMemoryFreeClear(PToFree);
+        rocksdb_free(values_list[i]);
         continue;
       }
 
@@ -1238,6 +1247,18 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   ctxArray = taosArrayInit(pBlockData->nColData, sizeof(SLastUpdateCtx));
 
   // 1. prepare last
+  STsdbRowKey tsdbRowKey = {0};
+  tsdbRowGetKey(&lRow, &tsdbRowKey);
+
+  {
+    SLastUpdateCtx updateCtx = {
+        .lflag = LFLAG_LAST,
+        .tsdbRowKey = tsdbRowKey,
+        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP,
+                                                                       .val = lRow.pBlockData->aTSKEY[lRow.iRow]}))};
+    taosArrayPush(ctxArray, &updateCtx);
+  }
+
   TSDBROW tRow = tsdbRowFromBlockData(pBlockData, 0);
 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; ++iColData) {
@@ -1263,9 +1284,6 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   }
 
   // 2. prepare last row
-  STsdbRowKey tsdbRowKey = {0};
-  tsdbRowGetKey(&lRow, &tsdbRowKey);
-
   STSDBRowIter iter = {0};
   tsdbRowIterOpen(&iter, &lRow, pTSchema);
   for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {

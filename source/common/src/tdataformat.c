@@ -2907,7 +2907,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         }
       } else {
         if (varDataTLen(data + offset) > bytes) {
-          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
+          uError("var data length invalid, varDataTLen(data + offset):%d >= bytes:%d", (int)varDataTLen(data + offset),
                  bytes);
           code = TSDB_CODE_PAR_VALUE_TOO_LONG;
           goto _exit;
