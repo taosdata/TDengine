@@ -13,11 +13,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
             return $"status";
         }
 
-        public static string AFValColomn(string name)
+        public static string AFValColomn(in string name)
         {
-            return $"{name}";
+            return name;
         }
-        public static string AFStatusColomn(string name)
+        public static string AFStatusColomn(in string name)
         {
             return $"{name}_status";
         }

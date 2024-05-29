@@ -226,17 +226,19 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             foreach (var table in tables)
             {
+                Dictionary<string, string> valDic = new Dictionary<string, string> { };
+                Dictionary<string, int> statusDic = new Dictionary<string, int> { };
                 foreach (var row in table.Value)
                 {
-                    Dictionary<string, string> valDic = new Dictionary<string, string> { };
-                    Dictionary<string, int> statusDic = new Dictionary<string, int> { };
+                    valDic.Clear();
+                    statusDic.Clear();
                     if (row.Value.Count == 0) continue;
                     DateTime ts = new DateTime();
                     foreach (var value in row.Value)
                     {
                         string columnName = value.Name.ToTDEngineNamingPattern();
                         ts = value.Timestamp;
-                        var colValName = TDEngineTableFormat.AFValColomn(columnName);
+                        var colValName = TDEngineTableFormat.AFValColomn(in columnName);
                         if (valDic.ContainsKey(colValName))
                         {
                             if (valDic[colValName] != value.ValueString)
@@ -248,12 +250,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         if (value.Quality == 0)
                         {
                             valDic.Add(colValName, value.ValueString);
-                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), 0);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), 0);
                         }
                         else
                         {
                             valDic.Add(colValName, null);
-                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(columnName), value.Quality);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), value.Quality);
                         }
                     }
                     lock (stLock)
