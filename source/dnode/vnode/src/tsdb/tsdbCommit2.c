@@ -621,7 +621,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
 
       int64_t minKey, maxKey;
       tsdbFidKeyRange(fset->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
-      tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
+      iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
       for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
         STbData *pTbData = TCONTAINER_OF(node, STbData, rbtn);
         for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
