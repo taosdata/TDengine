@@ -1156,7 +1156,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     taosArrayPush(pList, &in);
 
     int32_t currentSize = taosArrayGetSize(pList);
-    mDebug("stream:%s (uid:0x%" PRIx64 ") checkpoint interval beyond threshold: %" PRId64 "s(%" PRId64
+    mDebug("stream:%s (uid:0x%" PRIx64 ") checkpoint interval beyond threshold: %ds(%" PRId64
            "s) beyond threshold:%d",
            pStream->name, pStream->uid, tsStreamCheckpointInterval, duration / 1000, currentSize);
 
