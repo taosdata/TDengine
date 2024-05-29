@@ -472,4 +472,3 @@ async fn validate_connector_license(
     }
     Ok(LicenseKind::Good)
 }
-
