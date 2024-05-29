@@ -61,7 +61,7 @@
                 handleChange(newVal, oldVal, column.type, index)
             "
             :min="1"
-            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            :max="column.type == 'NCHAR' ? 4093 : 65617"
             label="Length"
             controls-position="right"
             class="custom-length"
@@ -186,7 +186,7 @@
                 tagLengthChange(newVal, oldVal, column.type, index)
             "
             :min="1"
-            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            :max="column.type == 'NCHAR' ? 4093 : 16382"
             label="Length"
             controls-position="right"
             class="custom-length"

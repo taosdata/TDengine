@@ -104,7 +104,7 @@
                   handleChange(newVal, oldVal, column.type, index)
               "
               :min="1"
-              :max="column.type == 'VARCHAR' ? 16374 : 4093"
+              :max="column.type == 'NCHAR' ? 4093 : 65517"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -225,7 +225,7 @@
                   handleEdit(newVal, currentData.type)
               "
               :min="1"
-              :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+              :max="currentData.type == 'NCHAR' ? 4093 : 65517"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -352,7 +352,7 @@
               :value="tag.length"
               @change="(newVal,oldVal)=>tagLengthChange(newVal,oldVal,tag.type,index)"
               :min="1"
-              :max="tag.type == 'VARCHAR' ? 16374 : 4093"
+              :max="tag.type == 'NCHAR' ? 4093 : 16382"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -409,7 +409,7 @@
                   handleTagEdit(newVal, currentData.type)
               "
               :min="1"
-              :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+              :max="currentData.type == 'NCHAR' ? 4093 : 16382"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -869,8 +869,9 @@ export default {
       let params = {
         operation: "add " + this.currentEdit,
         first_field: this.currentData.field,
-        second_field: this.currentData.type=='VARCHAR'?`VARCHAR(${this.currentData.varcharLength})`:this.currentData.type=='NCHAR'?
-        `NCHAR(${this.currentData.ncharLength})`:this.currentData.type,
+        second_field: VariableTableColumnType.includes(this.currentData.type)
+        ? `${this.currentData.type}(${this.currentData.length})`
+        : this.currentData.type,
         encode: this.version_gt_3300 ? this.currentData.encode : '',
         compress: this.version_gt_3300 ? this.currentData.compress : '',
         level: this.version_gt_3300 ? this.currentData.level : ''
