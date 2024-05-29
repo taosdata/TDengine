@@ -233,6 +233,12 @@ static int32_t tsdbCompactFSetCloseIter(SCompactor2 *compactor) {
 static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t lcn = 0;
+
+  STFileObj *fobj = compactor->fset->farr[TSDB_FTYPE_DATA];
+  if (fobj) {
+    lcn = fobj->f->lcn;
+  }
 
   ASSERT(compactor->ctx->writer == NULL);
   SFSetWriterConfig config = {
@@ -247,6 +253,7 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
       .cid = compactor->cid,
       .did = compactor->ctx->did,
       .level = 0,
+      .lcn = lcn,
   };
 
   code = tsdbFSetWriterOpen(&config, &compactor->ctx->writer);
