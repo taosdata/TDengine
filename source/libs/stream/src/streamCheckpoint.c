@@ -377,8 +377,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
     streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-
-    // commit the update
     int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
     stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId, pReq->taskId, numOfTasks);
   }
