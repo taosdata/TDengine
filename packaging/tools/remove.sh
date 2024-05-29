@@ -58,7 +58,7 @@ service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
 
 services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"x" ${PREFIX}"-explorer" ${PREFIX}"keeper")
-tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript)
+tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
 csudo=""
 if command -v sudo >/dev/null; then

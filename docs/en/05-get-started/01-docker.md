@@ -27,7 +27,7 @@ docker pull tdengine/tdengine:3.0.1.4
 And then run the following command:
 
 ```shell
-docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
 ```
 
 Note that TDengine Server 3.0 uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connections. You can open these ports as needed.
@@ -36,7 +36,7 @@ If you need to persist data to a specific directory on your local machine, pleas
 ```shell
 docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
-  -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+  -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
 ```
 :::note
 
@@ -62,7 +62,7 @@ You can now access TDengine or run other Linux commands.
 
 Note: For information about installing docker, see the [official documentation](https://docs.docker.com/get-docker/).
 
-## Open the TDengine CLI
+## TDengine Command Line Interface
 
 On the container, run the following command to open the TDengine CLI:
 
@@ -72,6 +72,12 @@ $ taos
 taos>
 
 ```
+
+## TDegnine Graphic User Interface
+
+From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
+
+To use taos-explorer in the container, you need to access the host port mapped from container port 6060. Assuming the host name is abc.com, and the port used on host is 6060, you need to access `http://abc.com:6060`. taos-explorer uses port 6060 by default in the container. When you use it the first time, you need to register with your enterprise email, then can logon using your user name and password in the TDengine database management system.
 
 ## Test data insert performance
 
@@ -124,6 +130,7 @@ SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(
 ```
 
 In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be `\_wstart` which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
+
 
 ## Additional Information
 

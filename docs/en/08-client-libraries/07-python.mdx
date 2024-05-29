@@ -19,7 +19,7 @@ The source code for the Python client library is hosted on [GitHub](https://gith
 - **REST connection**, which correspond to the `taosrest` modules of the `taospy` package, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported. 
 - **Websocket connection** `taos-ws-py` is an optional package to enable using WebSocket to connect TDengine, which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.   
 
-For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
@@ -105,7 +105,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 
 1. Install Python. The recent taospy package requires Python 3.6.2+. The earlier versions of taospy require Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
-If you use a native connection, you will also need to [Install Client Driver](../#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
+If you use a native connection, you will also need to [Install Client Driver](../#install-client-driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
 ### Install via pip
 

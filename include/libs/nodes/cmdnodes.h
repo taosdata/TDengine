@@ -582,6 +582,7 @@ typedef struct SBalanceVgroupStmt {
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
   int32_t   vgId;
+  char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {

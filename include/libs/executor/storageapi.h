@@ -35,7 +35,6 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
-#define CACHESCAN_RETRIEVE_PK          0x10
 
 #define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
@@ -271,7 +270,7 @@ typedef struct SStoreMeta {
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
 
-  void* (*storeGetIndexInfo)();
+  void* (*storeGetIndexInfo)(void *pVnode);
   void* (*getInvertIndex)(void* pVnode);
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
   int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
