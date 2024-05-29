@@ -201,21 +201,36 @@ pub fn sql_values_from_record_batch(
                         .as_any()
                         .downcast_ref::<arrow::array::Float16Array>()
                         .unwrap();
-                    values.push_str(&array.value(row).to_string());
+                    let v = array.value(row);
+                    if v.is_nan() {
+                        values.push_str("NULL");
+                    } else {
+                        values.push_str(&v.to_string());
+                    }
                 }
                 arrow_schema::DataType::Float32 => {
                     let array = array
                         .as_any()
                         .downcast_ref::<arrow::array::Float32Array>()
                         .unwrap();
-                    values.push_str(&array.value(row).to_string());
+                    let v = array.value(row);
+                    if v.is_nan() {
+                        values.push_str("NULL");
+                    } else {
+                        values.push_str(&v.to_string());
+                    }
                 }
                 arrow_schema::DataType::Float64 => {
                     let array = array
                         .as_any()
                         .downcast_ref::<arrow::array::Float64Array>()
                         .unwrap();
-                    values.push_str(&array.value(row).to_string());
+                    let v = array.value(row);
+                    if v.is_nan() {
+                        values.push_str("NULL");
+                    } else {
+                        values.push_str(&v.to_string());
+                    }
                 }
                 arrow_schema::DataType::Timestamp(unit, _) => match unit {
                     arrow_schema::TimeUnit::Second => {
