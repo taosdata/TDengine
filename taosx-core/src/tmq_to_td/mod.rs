@@ -274,22 +274,36 @@ async fn write_data(
                                     .context("Create table error")?;
                                 }
                                 if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                                let from = source.get().await?;
-                                let target_opts = Default::default();
-                                sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
-                                // 临时代码，保证编译通过
-                                let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                                sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
-                                taos.write_raw_block(&raw)
-                                    .await
-                                    .context("Write raw block into target error")?;
-                            } else {
-                                // normal table
-                                sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
-                                taos.write_raw_block(&raw)
-                                    .await
-                                    .context("Write raw block into target error")?;
+                                    let from = source.get().await?;
+                                    let target_opts = Default::default();
+                                    sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create super table error")?;
+                                    // 临时代码，保证编译通过
+                                    let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                                    sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
+                                    taos.write_raw_block(&raw)
+                                        .await
+                                        .context("Write raw block into target error")?;
+                                } else {
+                                    // normal table
+                                    sync_normal_table_schema(&from, &source_table_name, actions, None, taos).await.context("Create table error")?;
+                                    taos.write_raw_block(&raw)
+                                        .await
+                                        .context("Write raw block into target error")?;
+                                }
                             }
+                            0x061B => {
+                                // Table schema is old.
+                                let _ = taos.describe(raw.table_name().unwrap()).await;
+                                let mut max_retries = 5;
+                                loop {
+                                    if let Err(err) = taos.write_raw_block(&raw).await {
+                                        if max_retries == 0 {
+                                            Err(err).context("Try to fix 0x061B error failed")?;
+                                        } else {
+                                            max_retries -= 1;
+                                        }
+                                    }
+                                }
                             }
                             _ => Err(err)?,
                         }
