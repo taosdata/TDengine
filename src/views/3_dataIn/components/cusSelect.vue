@@ -94,6 +94,8 @@ export default {
 <style scoped>
 .custom-select {
   position: relative;
+  display: inline-block;
+  width: 100%;
 }
 .custom-input 
 ::v-deep .el-input__inner:hover {

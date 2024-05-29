@@ -176,7 +176,6 @@
               size="mini"
               style="font-size: 12px; color: #4d6992"
               :disabled="
-                scope.row.status.toLowerCase() == 'failed' ||
                 scope.row.status.toLowerCase() == 'cancelled' ||
                 $COMMUNITY
               "
@@ -376,6 +375,7 @@
     </div>
     <el-alert
       v-if="$COMMUNITY"
+      class="my-alert"
       style="margin-top: 8px"
       type="warning"
       :description="$t('communityDemoDataTip')"
@@ -1005,6 +1005,9 @@ export default {
 }
 .err-circle {
   animation: circle 1s infinite;
+}
+.my-alert ::v-deep.el-alert .el-alert__description  {
+  font-size: 14px;
 }
 @keyframes circle {
   0% {
