@@ -1,5 +1,5 @@
 [workspace]
-members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics"]
+members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics", "crates/arrow-compute-ext"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
@@ -12,6 +12,7 @@ regex = { version = "1.9" }
 arrow = { version = "50.0.0", features = ["chrono-tz", "ipc_compression"] }
 arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
+arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 faststr = { version = "0.2.19", features = ["serde"] }
 rayon = { version = "1" }
 parquet = "50.0.0"

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use super::{flat::Records, transform::Parser};
 use crate::{
@@ -7,11 +7,9 @@ use crate::{
     utils::sql::values_to_sqls,
 };
 use anyhow::{anyhow, Context};
+use arrow::array::{ArrayRef, StringArray, UInt16Builder};
 use arrow::{array::Array, record_batch::RecordBatch};
-use arrow::{
-    array::{ArrayRef, StringArray},
-    compute::concat_batches,
-};
+use arrow_compute_ext::*;
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
 use faststr::FastStr;
@@ -54,14 +52,14 @@ pub struct LushModelConfig {
 }
 
 #[derive(Debug)]
-pub struct TableTagCache(scc::HashMap<FastStr, LushInsertAttrs>);
+pub struct TableTagCache(scc::HashMap<FastStr, Arc<LushInsertAttrs>>);
 
 impl TableTagCache {
     pub fn new() -> Self {
         TableTagCache(scc::HashMap::new())
     }
 
-    pub fn get(&self, table_name: &str) -> Option<LushInsertAttrs> {
+    pub fn get(&self, table_name: &str) -> Option<Arc<LushInsertAttrs>> {
         // get the value from the cache
         let entry = self.0.get(table_name);
         match entry {
@@ -70,12 +68,16 @@ impl TableTagCache {
         }
     }
 
-    pub fn insert(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
-        let _ = self.0.insert(table_name.into(), value);
+    pub fn insert(&self, table_name: impl Into<FastStr>, value: impl Into<Arc<LushInsertAttrs>>) {
+        let _ = self.0.insert(table_name.into(), value.into());
     }
 
-    pub async fn insert_async(&self, table_name: impl Into<FastStr>, value: LushInsertAttrs) {
-        let (mut k, mut v) = (table_name.into(), value);
+    pub async fn insert_async(
+        &self,
+        table_name: impl Into<FastStr>,
+        value: impl Into<Arc<LushInsertAttrs>>,
+    ) {
+        let (mut k, mut v) = (table_name.into(), value.into());
         let mut retry = 5;
         loop {
             match self.0.insert_async(k, v).await {
@@ -266,14 +268,14 @@ pub fn create_tags_record(
     }
     // 收集每一行 tag 值
     let mut tag_values: Vec<Vec<String>> = Vec::new();
-    let mut stables = Vec::<String>::new();
+    let mut stables = Vec::new();
     for table_name in table_name_column.iter() {
         let table_name = table_name.unwrap();
         let table = table_cache
             .get(table_name)
             .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
         let tags = table.tags().as_ref().unwrap();
-        let stable = table.stable_name().as_deref().unwrap().to_string();
+        let stable = table.stable_name().unwrap().clone();
         stables.push(stable);
         let values: Vec<String> = tags
             .iter()
@@ -297,7 +299,9 @@ pub fn create_tags_record(
     }
     // 添加 _using 列
     fields.push(Field::new("_using".to_string(), DataType::Utf8, true));
-    columns.push(Arc::new(StringArray::from(stables)) as ArrayRef);
+    columns.push(Arc::new(StringArray::from_iter_values(
+        stables.iter().map(|fs| fs.as_str()),
+    )) as ArrayRef);
 
     let schema = Schema::new(fields);
     RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
@@ -306,11 +310,11 @@ pub fn create_tags_record(
 /// 单列模型，按 table_name 列（值是子表名）对应的超级表名分组
 /// 为了避免过多的内存复制，这里不是每遍历一行就调 concat_batches 方法创建一个 RecordBatch， 而是先把连续属于同一超级表的行 slice 成一个 RecordBatch，暂存起来
 /// 最后对于每个超级表，调用一次 concat_batches 合并成一个 RecordBatch
-pub fn group_by_super_table_name(
+pub fn group_by_super_table_name<'b>(
     records: &RecordBatch,
     name_of_table_name_column: &str,
-    sub_super_mapping: &HashMap<String, String>,
-) -> LinkedHashMap<String, RecordBatch> {
+    sub_super_mapping: &'b HashMap<String, String>,
+) -> LinkedHashMap<&'b str, RecordBatch> {
     let table_name_column: &Arc<dyn Array> = records
         .column_by_name(name_of_table_name_column)
         .expect("table_name_column not found");
@@ -319,7 +323,7 @@ pub fn group_by_super_table_name(
         .downcast_ref::<StringArray>()
         .unwrap();
 
-    let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
+    let mut super_table_ranges: LinkedHashMap<&str, UInt16Builder> = LinkedHashMap::new();
     for i in 0..table_name_column.len() {
         let table_name = table_name_column.value(i);
         let super_table = sub_super_mapping.get(table_name);
@@ -327,30 +331,22 @@ pub fn group_by_super_table_name(
             error!("table_name {} not found in sub_super_mapping", table_name);
             continue;
         }
-        let super_table = super_table.unwrap();
-        if super_table_ranges.contains_key(super_table.as_str()) {
-            let ranges = super_table_ranges.get_mut(super_table.as_str()).unwrap();
-            let last_range = ranges.last_mut().unwrap();
-            if last_range.end == i {
-                last_range.end += 1;
-            } else {
-                ranges.push(i..i + 1);
-            }
+        let super_table = super_table.unwrap().as_str();
+        if super_table_ranges.contains_key(super_table) {
+            let builder = super_table_ranges.get_mut(super_table).unwrap();
+            builder.append_value(i as _);
         } else {
-            super_table_ranges.insert(super_table.as_str(), vec![i..i + 1]);
+            let mut builder = UInt16Builder::new();
+            builder.append_value(i as _);
+            super_table_ranges.insert(super_table, builder);
         }
     }
-    let schema = records.schema();
     super_table_ranges
         .into_iter()
-        .map(|(super_table, ranges)| {
-            let mut record_batches: Vec<RecordBatch> = Vec::new();
-            for range in ranges {
-                let record = records.slice(range.start, range.end - range.start);
-                record_batches.push(record);
-            }
-            let record_batch = concat_batches(&schema, record_batches.iter()).unwrap();
-            (super_table.to_string(), record_batch)
+        .map(|(super_table, mut builder)| {
+            let indices = builder.finish();
+            let record_batch = records.take(&indices).unwrap();
+            (super_table, record_batch)
         })
         .collect()
 }
@@ -364,31 +360,23 @@ pub fn group_by_super_table_name2(records: &RecordBatch) -> LinkedHashMap<&str, 
         .downcast_ref::<StringArray>()
         .unwrap();
 
-    let mut super_table_ranges: LinkedHashMap<&str, Vec<Range<usize>>> = LinkedHashMap::new();
+    let mut super_table_ranges: LinkedHashMap<&str, UInt16Builder> = LinkedHashMap::new();
     for i in 0..stable_name_column.len() {
         let super_table = stable_name_column.value(i);
         if super_table_ranges.contains_key(super_table) {
-            let ranges = super_table_ranges.get_mut(super_table).unwrap();
-            let last_range = ranges.last_mut().unwrap();
-            if last_range.end == i {
-                last_range.end += 1;
-            } else {
-                ranges.push(i..i + 1);
-            }
+            let builder = super_table_ranges.get_mut(super_table).unwrap();
+            builder.append_value(i as _);
         } else {
-            super_table_ranges.insert(super_table, vec![i..i + 1]);
+            let mut builder = arrow::array::UInt16Builder::new();
+            builder.append_value(i as _);
+            super_table_ranges.insert(super_table, builder);
         }
     }
-    let schema = records.schema();
     super_table_ranges
         .into_iter()
-        .map(|(super_table, ranges)| {
-            let mut record_batches: Vec<RecordBatch> = Vec::new();
-            for range in ranges {
-                let record = records.slice(range.start, range.end - range.start);
-                record_batches.push(record);
-            }
-            let record_batch = concat_batches(&schema, record_batches.iter()).unwrap();
+        .map(|(super_table, mut builder)| {
+            let indices = builder.finish();
+            let record_batch = records.take(&indices).unwrap();
             (super_table, record_batch)
         })
         .collect()

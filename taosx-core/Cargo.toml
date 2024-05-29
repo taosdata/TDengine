@@ -23,6 +23,8 @@ zerocopy = { workspace = true }
 regex = { workspace = true }
 
 arrow-cast-guess-precision = "0.4.0"
+arrow-compute-ext = { workspace = true }
+ring-channel = "0.12"
 
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"

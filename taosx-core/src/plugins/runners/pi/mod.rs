@@ -83,8 +83,14 @@ pub async fn pi_to_taos(
         .get()
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-    let config =
-        PiConfig::new(from.clone(), td_database.unwrap(), ipc_port, sql_port, task_id).await?;
+    let config = PiConfig::new(
+        from.clone(),
+        td_database.unwrap(),
+        ipc_port,
+        sql_port,
+        task_id,
+    )
+    .await?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
