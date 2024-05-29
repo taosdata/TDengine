@@ -130,6 +130,11 @@ namespace TDPIConnector.Core
                 }
             }
 
+            if (!AppSettings.tomlConfig.ForBackfill && AppSettings.tomlConfig.TemplateEventStart)
+            {
+                StartTemplateObserve();
+            }
+
             if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
             {
                 try
@@ -142,10 +147,6 @@ namespace TDPIConnector.Core
                     throw e;
                 }
                 log.Info("InitAFModeTask finished.");
-            }
-
-            if (!AppSettings.tomlConfig.ForBackfill && AppSettings.tomlConfig.TemplateEventStart) {
-                StartTemplateObserve();
             }
 
             if ((this.piPoints != null && this.piPoints.Count > 0))

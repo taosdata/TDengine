@@ -481,7 +481,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();
-            if(null != client) client.Close();
+            if (null != client) client.Close();
             return;
         }
     }

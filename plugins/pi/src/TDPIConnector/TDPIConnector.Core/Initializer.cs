@@ -64,12 +64,20 @@ namespace TDPIConnector.Core
             }
         }
 
-        public void AddNewElementToTask(AFElementWrapper element) {
+        public async Task AddNewElementToTaskAsync(AFElementWrapper element) {
             if (element.Template != null)
             {
                 AFElementTemplateWrapper elementTemplate = element.Template;
                 var superTable = TemplateSTableConverter.Convert(elementTemplate);
                 if (!superTable.HasValidColumn()) return;
+
+                var taosxClient = tdEngineProxy.GetTaosxClient(superTable.Name);
+                if (taosxClient == null)
+                {
+                    await tdEngineProxy.CreateSuperTableForAFElement(AppSettings.tomlConfig.TDDataBase, superTable);
+                    log.Info($"New Element add event， create super table finished.");
+                }
+
                 var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
                 var elements = new List<AFElementWrapper>() { element };
                 InitTaskForElements(ref elementTemplate, ref superTable, ref elements, ref templateAttributeColumns);

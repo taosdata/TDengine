@@ -60,7 +60,7 @@ namespace TDPIConnector.Core
                 if (e.Action == AFChangeAction.SubObjectAdd) {
                     var element = piSystemManager.GetElementsById(e.ID);
                     log.Info($"Object Changed: add a new element. {e.ParentID} {element.Name} {element.ID}");
-                    initializer.AddNewElementToTask(element);
+                    initializer.AddNewElementToTaskAsync(element).Wait();
                 }
             }
             else
