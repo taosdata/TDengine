@@ -5,6 +5,7 @@ use std::{
     io::{Read, Write},
     iter::zip,
     net::SocketAddr,
+    num::NonZeroUsize,
     str::FromStr,
     sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     time::Duration,
@@ -39,7 +40,7 @@ use arrow::array::{
 };
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient};
-use arrow_schema::Field;
+use arrow_schema::{ArrowError, Field};
 use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
@@ -48,6 +49,7 @@ use faststr::FastStr;
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
+use ring_channel::ring_channel;
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
@@ -193,6 +195,8 @@ async fn ipc_tcp_forward(
     info!(client, remote, "Reading batches");
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
+    let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
+
     let mut cause_error = None;
     const MAX_LAST_RETRIES: usize = 10; // allow 5 times retry in last 2 minutes;
     const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -216,8 +220,36 @@ async fn ipc_tcp_forward(
     let batch_number = Arc::new(AtomicU32::new(1));
     'start: loop {
         let batch_number = batch_number.clone();
+        let tables_cache_tx = tables_cache_tx.clone();
         let cur_span = Span::current();
-        let data_stream = ipc_stream.clone();
+        let is_lush = schema
+            .metadata
+            .get("schema")
+            .map(|v| v == "lush")
+            .unwrap_or(false);
+        fn is_tables_record(record: &RecordBatch) -> bool {
+            let v = record
+                .column_by_name("__type__")
+                .expect("the lush message stream should contains __type__ field")
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap();
+            let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
+            matches!(v, LushMessageType::Children)
+        }
+        let data_stream = tables_cache_rx
+            .clone()
+            .map(Ok)
+            .chain(ipc_stream.clone())
+            .inspect_ok(move |batch| {
+                if is_lush && is_tables_record(batch) {
+                    let _ = tables_cache_tx.send(batch.clone());
+                }
+            })
+            .map_err(|err: ArrowError| {
+                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+                FlightError::from(err)
+            });
         if last_retries > MAX_LAST_RETRIES {
             tracing::warn!(
                 "There're {} retries happened in 2m, break now",
@@ -238,15 +270,13 @@ async fn ipc_tcp_forward(
         } else if last_retries > 0 {
             tracing::error!(error = ?cause_error, retries = last_retries, "Retry connections");
         }
+
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
             .with_options(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
             )
-            .build(data_stream.map_err(|err| {
-                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
-                FlightError::from(err)
-            }))
+            .build(data_stream)
             .map(move |v| {
                 let cur_batch_number = batch_number.fetch_add(1, Ordering::SeqCst);
                 let data_trace_id = stream_trace_id.with_data_id(cur_batch_number);
@@ -1028,7 +1058,7 @@ async fn consume_lush_record_with_transform(
                     .ok_or_else(|| {
                         anyhow!(
                             "super_table {} not found in model_config.super_table_parsers",
-                            super_table.to_string()
+                            super_table
                         )
                     })?;
                 let message: transform::Message =

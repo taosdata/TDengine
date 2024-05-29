@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Weak},
-};
+use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
@@ -9,7 +6,6 @@ use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
-use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
@@ -24,7 +20,6 @@ use taosx_core::{
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
-use tokio::sync::RwLock;
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
 use zerocopy::{AsBytes as _, FromBytes};
@@ -66,27 +61,27 @@ type PutStreamChannel = (
 //     Arc<PutStreamBatchSender>,
 //     Arc<tokio::sync::Notify>,
 // );
-type PutStreamAbortSender = tokio::sync::oneshot::Sender<()>;
+// type PutStreamAbortSender = tokio::sync::oneshot::Sender<()>;
 
 #[derive(Serialize, Deserialize)]
 struct AppMetadata {
     data_trace_id: u64,
 }
 
-lazy_static! {
-    static ref IPC_STREAM_CACHE: Arc<RwLock<HashMap<TraceStreamId, PutStreamChannel>>> =
-        Arc::new(RwLock::new(HashMap::new()));
-}
+// lazy_static! {
+//     static ref IPC_STREAM_CACHE: Arc<RwLock<HashMap<TraceStreamId, PutStreamChannel>>> =
+//         Arc::new(RwLock::new(HashMap::new()));
+// }
 
-pub async fn get_ipc_stream_channel(trace_id: TraceStreamId) -> Option<PutStreamChannel> {
-    let mut cache = IPC_STREAM_CACHE.write().await;
-    cache.remove(&trace_id)
-}
+// pub async fn get_ipc_stream_channel(trace_id: TraceStreamId) -> Option<PutStreamChannel> {
+//     let mut cache = IPC_STREAM_CACHE.write().await;
+//     cache.remove(&trace_id)
+// }
 
-pub async fn put_ipc_stream_channel(trace_id: TraceStreamId, channel: PutStreamChannel) {
-    let mut cache = IPC_STREAM_CACHE.write().await;
-    cache.insert(trace_id, channel);
-}
+// pub async fn put_ipc_stream_channel(trace_id: TraceStreamId, channel: PutStreamChannel) {
+//     let mut cache = IPC_STREAM_CACHE.write().await;
+//     cache.insert(trace_id, channel);
+// }
 
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
@@ -598,90 +593,114 @@ impl PutStream {
             );
             Into::into(err)
         }));
-        let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
+        // let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
 
-        let (tx, abort_message_rx, notify) = if let Some((tx, abort_message_rx, notify)) =
-            get_ipc_stream_channel(stream_trace_id).await
-        {
-            // 如果之前有连接，说明是重连
-            tracing::info!("Reconnect IPC stream");
-            // 如果之前有连接，直接返回，不需要再次创建 Writer
-            (tx, abort_message_rx, notify)
-        } else {
-            let schema = stream
-                .try_next()
-                .await?
-                .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
-            let schema =
-                if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
-                    schema
-                    // let _ = span.enter();
-                } else {
-                    anyhow::bail!("Invalid IPC stream");
-                };
+        // let (tx, abort_message_rx, notify) = if let Some((tx, abort_message_rx, notify)) =
+        //     get_ipc_stream_channel(stream_trace_id).await
+        // {
+        //     // 如果之前有连接，说明是重连
+        //     tracing::info!("Reconnect IPC stream");
+        //     // 如果之前有连接，直接返回，不需要再次创建 Writer
+        //     (tx, abort_message_rx, notify)
+        // } else {
+        //     let schema = stream
+        //         .try_next()
+        //         .await?
+        //         .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
+        //     let schema =
+        //         if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
+        //             schema
+        //             // let _ = span.enter();
+        //         } else {
+        //             anyhow::bail!("Invalid IPC stream");
+        //         };
 
-            spawn_stream_writer(
-                self.stream_trace_id,
-                self.cluster_id,
-                self.task_id,
-                self.agent_id,
-                &self.controller,
-                self.notify_sender.clone(),
-                self.spawn_sender.clone(),
-                schema,
-            )
-            .in_current_span()
-            .await?
-        };
+        //     spawn_stream_writer(
+        //         self.stream_trace_id,
+        //         self.cluster_id,
+        //         self.task_id,
+        //         self.agent_id,
+        //         &self.controller,
+        //         self.notify_sender.clone(),
+        //         self.spawn_sender.clone(),
+        //         schema,
+        //     )
+        //     .in_current_span()
+        //     .await?
+        // };
 
         // response channel
-        tokio::spawn({
-            let tx = tx.clone();
-            let abort_message_rx = abort_message_rx.clone();
-            let notify = notify.clone();
-            async move {
-                let put_stream_cache = async {
-                    tracing::info!(
-                        worker.senders = tx.sender_count(),
-                        worker.receivers = tx.receiver_count(),
-                        worker.capacity = tx.capacity(),
-                        "IPC stream abort"
-                    );
-                    if abort_message_rx.is_disconnected() {
-                        tracing::info!(
-                            "IPC worker will be stopped since abort message channel is closed"
-                        );
-                        return;
-                    }
-                    put_ipc_stream_channel(
-                        stream_trace_id,
-                        (tx, abort_message_rx.clone(), notify.clone()),
-                    )
-                    .await;
-                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                    {
-                        let mut cache = IPC_STREAM_CACHE.write().await;
-                        if let Some(channel) = cache.get(&stream_trace_id) {
-                            if channel.1.same_channel(&abort_message_rx) {
-                                cache.remove(&stream_trace_id);
-                                tracing::info!(
-                                    "IPC worker has not been reconnected, remove from cache"
-                                );
-                            }
-                        }
-                    }
-                };
-                tokio::select! {
-                    _ = abort_rx => {
-                        put_stream_cache.await;
-                    }
-                    _ = notify.notified() => {
-                        tracing::info!("IPC stream closed");
-                    }
-                }
-            }
-            .in_current_span()
-        });
+        // tokio::spawn({
+        //     let tx = tx.clone();
+        //     let abort_message_rx = abort_message_rx.clone();
+        //     let notify = notify.clone();
+        //     async move {
+        //         let put_stream_cache = async {
+        //             tracing::info!(
+        //                 worker.senders = tx.sender_count(),
+        //                 worker.receivers = tx.receiver_count(),
+        //                 worker.capacity = tx.capacity(),
+        //                 "IPC stream abort"
+        //             );
+        //             if abort_message_rx.is_disconnected() {
+        //                 tracing::info!(
+        //                     "IPC worker will be stopped since abort message channel is closed"
+        //                 );
+        //                 return;
+        //             }
+        //             put_ipc_stream_channel(
+        //                 stream_trace_id,
+        //                 (tx, abort_message_rx.clone(), notify.clone()),
+        //             )
+        //             .await;
+        //             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        //             {
+        //                 let mut cache = IPC_STREAM_CACHE.write().await;
+        //                 if let Some(channel) = cache.get(&stream_trace_id) {
+        //                     if channel.1.same_channel(&abort_message_rx) {
+        //                         cache.remove(&stream_trace_id);
+        //                         tracing::info!(
+        //                             "IPC worker has not been reconnected, remove from cache"
+        //                         );
+        //                     }
+        //                 }
+        //             }
+        //         };
+        //         tokio::select! {
+        //             _ = abort_rx => {
+        //                 put_stream_cache.await;
+        //             }
+        //             _ = notify.notified() => {
+        //                 tracing::info!("IPC stream closed");
+        //             }
+        //         }
+        //     }
+        //     .in_current_span()
+        // });
+
+        let schema = stream
+            .try_next()
+            .await?
+            .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
+        let schema = if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
+            schema
+            // let _ = span.enter();
+        } else {
+            anyhow::bail!("Invalid IPC stream");
+        };
+
+        let (tx, abort_message_rx, notify) = spawn_stream_writer(
+            self.stream_trace_id,
+            self.cluster_id,
+            self.task_id,
+            self.agent_id,
+            &self.controller,
+            self.notify_sender.clone(),
+            self.spawn_sender.clone(),
+            schema,
+        )
+        .in_current_span()
+        .await?;
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = get_metrics(self.task_id).await.expect("metrics not found");
@@ -865,14 +884,14 @@ impl PutStream {
         });
         Ok(PutStreamResp {
             put_rx: put_rx.into_stream(),
-            abort_tx,
+            // abort_tx,
         })
     }
 }
 pub(super) struct PutStreamResp {
     put_rx: PutStreamInner,
-    #[allow(dead_code)]
-    abort_tx: PutStreamAbortSender,
+    // #[allow(dead_code)]
+    // abort_tx: PutStreamAbortSender,
 }
 
 impl Stream for PutStreamResp {
