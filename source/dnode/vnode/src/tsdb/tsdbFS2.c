@@ -1015,7 +1015,7 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
   int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
 
   tsdbFSGetFSet(tsdb->pFS, fid, fset);
-  if (sttTrigger == 1 && fset) {
+  if (sttTrigger == 1 && (*fset)) {
     for (;;) {
       if ((*fset)->taskRunning) {
         (*fset)->numWaitTask++;
