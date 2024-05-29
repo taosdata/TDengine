@@ -372,6 +372,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
+  rpcInit.shareConn = 1;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   taosVersionStrToInt(version, &(rpcInit.compatibilityVer));

@@ -75,6 +75,7 @@ typedef struct {
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
   int64_t       refId;
+  int8_t        shareConn;
   TdThreadMutex mutex;
 } SRpcInfo;
 

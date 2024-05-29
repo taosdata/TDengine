@@ -50,7 +50,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 
 static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
-static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
@@ -931,13 +931,13 @@ end:
   return ret;
 }
 
-static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp) {
+static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t                 code = -1;
   SMetaReader             mr = {0};
   SVDropTtlTableReq       ttlReq = {0};
   SVFetchTtlExpiredTbsRsp rsp = {0};
   SEncoder                encoder = {0};
-  SArray*                 pNames = NULL;
+  SArray                 *pNames = NULL;
   pRsp->msgType = TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -950,8 +950,8 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void*
 
   ASSERT(ttlReq.nUids == taosArrayGetSize(ttlReq.pTbUids));
 
-  tb_uid_t       suid;
-  char           ctbName[TSDB_TABLE_NAME_LEN];
+  tb_uid_t    suid;
+  char        ctbName[TSDB_TABLE_NAME_LEN];
   SVDropTbReq expiredTb = {.igNotExists = true};
   metaReaderDoInit(&mr, pVnode->pMeta, 0);
   rsp.vgId = TD_VID(pVnode);
@@ -965,12 +965,12 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode* pVnode, int64_t ver, void*
   }
   char buf[TSDB_TABLE_NAME_LEN];
   for (int32_t i = 0; i < ttlReq.nUids; ++i) {
-    tb_uid_t* uid = taosArrayGet(ttlReq.pTbUids, i);
+    tb_uid_t *uid = taosArrayGet(ttlReq.pTbUids, i);
     expiredTb.suid = *uid;
     terrno = metaReaderGetTableEntryByUid(&mr, *uid);
     if (terrno < 0) goto _end;
     strncpy(buf, mr.me.name, TSDB_TABLE_NAME_LEN);
-    void* p = taosArrayPush(pNames, buf);
+    void *p = taosArrayPush(pNames, buf);
     expiredTb.name = p;
     if (mr.me.type == TSDB_CHILD_TABLE) {
       expiredTb.suid = mr.me.ctbEntry.suid;
