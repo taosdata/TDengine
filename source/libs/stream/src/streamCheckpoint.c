@@ -309,12 +309,15 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
     { // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
+      streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
         streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                 id, vgId, pReq->taskId, numOfTasks);
       }
+
+      streamMetaWLock(pMeta);
     }
 
     return TSDB_CODE_SUCCESS;
