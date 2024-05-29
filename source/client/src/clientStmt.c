@@ -20,13 +20,13 @@ static FORCE_INLINE void* stmtAllocFromBuf(STscStmt* pStmt, int32_t size) {
 }
 
 bool stmtDequeue(STscStmt* pStmt, SStmtQNode **param) {
-  while (0 == atomic_load_64(&pStmt->queue.qRemainNum)) {
+  int64_t qRemainNum = 0;
+  while (0 == (qRemainNum = atomic_load_64(&pStmt->queue.qRemainNum))) {
     taosUsleep(1);
     return false;
   }
 
   SStmtQNode *orig = pStmt->queue.head;
-
   SStmtQNode *node = pStmt->queue.head->next;
   pStmt->queue.head = pStmt->queue.head->next;
 
@@ -358,7 +358,10 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
     pStmt->exec.tbBlkNum = 0;
     pStmt->exec.smInfo.pColIdx = 0;
     pStmt->stat.bufIdxSum += pStmt->exec.smInfo.buffIdx;
-    pStmt->exec.smInfo.buffIdx = 0;
+    pStmt->queue.head = pStmt->queue.tail = pStmt->exec.smInfo.buff;
+    pStmt->exec.smInfo.buffIdx = sizeof(*pStmt->queue.head);
+    pStmt->queue.qRemainNum = 0;
+    pStmt->queue.head->next = NULL;
     if (deepClean) {
       //int32_t tbNum = taosArrayGetSize(pStmt->exec.pTbBlkList);
       //for (int32_t i = 0; i < tbNum; ++i) {
@@ -785,7 +788,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
       taosMemoryFree(pStmt);
       return NULL;
     }
-    pStmt->exec.smInfo.buffSize = 1048576L * 20;
+    pStmt->exec.smInfo.buffSize = 1048576L * 200;
     pStmt->exec.smInfo.buff = taosMemoryMalloc(pStmt->exec.smInfo.buffSize);
     
     //pStmt->exec.pTbBlkList = taosArrayInit(400000, sizeof(STableColsData));
