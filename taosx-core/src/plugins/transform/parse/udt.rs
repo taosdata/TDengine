@@ -5,11 +5,10 @@ use arrow::{
 };
 use arrow_schema::Fields;
 use lazy_static::lazy_static;
-use rhai::{Dynamic, Engine, ParseError, Scope, AST};
+use rhai::{Dynamic, Engine, EvalAltResult, ParseError, Scope, AST};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
 use std::fmt;
-use std::{collections::HashMap, str::FromStr, sync::Arc};
-use thiserror::Error;
+use std::{collections::HashMap, sync::Arc};
 use tracing::warn;
 
 use super::Parse;
@@ -142,50 +141,15 @@ impl ArrowDataField {
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct UdtAST {
     #[serde(skip)]
-    pub(crate) ast: AST,
+    pub(crate) ast: Option<AST>,
+
+    #[serde(skip)]
+    pub(crate) error: Option<ParseError>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Udt {
     pub(crate) udt: UdtAST,
-}
-
-#[derive(Debug, Error)]
-#[error("udt error: {source:?}")]
-pub struct UdtParserError {
-    msg: String,
-    source: Option<ParseError>,
-}
-
-fn init_data_array<T>(value: T, init_capacity: usize) -> Vec<Option<T>> {
-    let mut values: Vec<Option<T>> = vec![];
-    for _ in 0..init_capacity {
-        values.push(None);
-    }
-    values.push(Some(value));
-    values
-}
-
-fn init_data_field(name: &str, data_type: DataType, cast_from: &str) -> Field {
-    let field = Field::new(name, data_type, true);
-    field.with_metadata(HashMap::from([(
-        "from_cast".to_string(),
-        cast_from.to_string(),
-    )]))
-}
-
-fn eval_with_udt(item_raw_data: &str, udt: &AST) -> Result<Vec<Dynamic>, super::ParseError> {
-    let _map = ENGINE
-        .parse_json(item_raw_data, false)
-        .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
-
-    let mut scope = Scope::new();
-    scope.push("data", _map);
-
-    // 约定返回的数据为
-    ENGINE
-        .eval_ast_with_scope::<rhai::Array>(&mut scope, udt)
-        .map_err(|source| super::ParseError::UdtError(*source))
 }
 
 impl<'de> Deserialize<'de> for UdtAST {
@@ -211,32 +175,58 @@ impl<'de> Deserialize<'de> for UdtAST {
         }
 
         let s = deserializer.deserialize_str(StringVisitor)?;
-        let ast = ENGINE.compile(&s).map_err(serde::de::Error::custom)?;
-        Ok(UdtAST { ast })
+        let udt_ast = match ENGINE.compile(&s) {
+            Ok(ast) => UdtAST {
+                ast: Some(ast),
+                error: None,
+            },
+            Err(e) => UdtAST {
+                ast: None,
+                error: Some(e),
+            },
+        };
+
+        Ok(udt_ast)
     }
 }
 
-impl FromStr for UdtAST {
-    type Err = UdtParserError;
+fn init_data_array<T>(value: T, init_capacity: usize) -> Vec<Option<T>> {
+    let mut values: Vec<Option<T>> = vec![];
+    for _ in 0..init_capacity {
+        values.push(None);
+    }
+    values.push(Some(value));
+    values
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim();
-        println!("parse udt from str: {}.", s);
-        // dbg!(&s);
-
-        if s.is_empty() {
-            return Err(UdtParserError {
-                msg: "Empty script".to_string(),
-                source: None,
-            });
+fn init_data_field(name: &str, data_type: DataType, cast_from: &str) -> Field {
+    let field = Field::new(name, data_type, true);
+    field.with_metadata(HashMap::from([(
+        "from_cast".to_string(),
+        cast_from.to_string(),
+    )]))
+}
+impl Udt {
+    fn parse_data(&self, item_raw_data: &str) -> Result<Vec<Dynamic>, super::ParseError> {
+        if self.udt.ast.is_none() {
+            let parse_error = self.udt.error.as_ref().unwrap();
+            return Err(super::ParseError::UdtError(EvalAltResult::ErrorParsing(
+                parse_error.err_type().clone(),
+                parse_error.position(),
+            )));
         }
 
-        let ast = ENGINE.compile(s).map_err(|source| UdtParserError {
-            msg: "rhai compile error".to_string(),
-            source: Some(source),
-        })?;
+        let _map = ENGINE
+            .parse_json(item_raw_data, false)
+            .map_err(|rhai_error| super::ParseError::UdtError(*rhai_error))?;
 
-        Ok(UdtAST { ast })
+        let mut scope = Scope::new();
+        scope.push("data", _map);
+
+        // 约定返回的数据为
+        ENGINE
+            .eval_ast_with_scope::<rhai::Array>(&mut scope, self.udt.ast.as_ref().unwrap())
+            .map_err(|source| super::ParseError::UdtError(*source))
     }
 }
 
@@ -276,7 +266,7 @@ impl Parse for Udt {
                 continue;
             }
 
-            let rslt = eval_with_udt(string_array_raw_data.value(i), &self.udt.ast)?;
+            let rslt = self.parse_data(string_array_raw_data.value(i))?;
 
             for row_value in rslt {
                 // 将 row_value 转换为 其表达类型的值
@@ -368,7 +358,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = eval_with_udt(r#"{"a": 1, "b": "v2"}"#, &udt.udt.ast);
+        let result = udt.parse_data(r#"{"a": 1, "b": "v2"}"#);
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -404,5 +394,34 @@ mod tests {
         assert_eq!(records.num_columns(), 2);
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indics.unwrap(), vec![0, 2, 2]);
+    }
+
+    #[test]
+    fn eval_with_udt_error() {
+        let input = format!(
+            "{{\"udt\": \"{}\"}}",
+            r#"
+        if (data"n"] == 0) { 
+            []
+        } else if (data["n"] == 1) { 
+            [#{"a": 1, "b": "v2"}] 
+        } else { 
+            [#{"a": 3}, #{"b": "v5"}]
+        }"#
+            .replace("\"", "\\\"")
+            .replace("\n", "")
+        );
+
+        let udt: Udt = serde_json::from_str(&input).unwrap();
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"n": 1}"#,
+            r#"{"n": 0}"#,
+            r#"{"n": 2}"#,
+        ]));
+
+        let result = udt.parse_array(&field, &array);
+        assert!(result.is_err());
     }
 }
