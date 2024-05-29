@@ -196,9 +196,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     }
 
     int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s start check-rsp monitor in 10s, ref:%d ", pTask->id.idStr, ref);
+    stDebug("s-task:%s start checkpoint-trigger monitor in 10s, ref:%d ", pTask->id.idStr, ref);
     SActiveCheckpointInfo* pActive = pTask->chkInfo.pActiveInfo;
     if (pActive->pCheckTmr == NULL) {
+      streamMetaAcquireOneTask(pTask);
       pActive->pCheckTmr = taosTmrStart(checkpointTriggerMonitorFn, 100, pTask, streamTimer);
     } else {
       taosTmrReset(checkpointTriggerMonitorFn, 100, pTask, streamTimer, &pActive->pCheckTmr);

@@ -598,7 +598,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       if (pTask->pMeta->vgId == 2) {
-        taosSsleep(20);
+//        taosSsleep(20);
       }
 
       streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
