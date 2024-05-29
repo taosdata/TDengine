@@ -210,12 +210,6 @@ impl TransformExt for ParserImpl {
                     }
                 })?;
                 if parser.num_rows_will_be_changed() {
-                    // if multi_indices.is_some() {
-                    //     return Err(super::Error::FieldParserError {
-                    //         field: name.to_string(),
-                    //         error: ParseError::MoreThanOneNumerRowChangeError("Only one column can split to multiple row".to_string()),
-                    //     });
-                    // }
                     for field in batch.schema().fields() {
                         multi_fields.push(field.clone());
                         let array = batch.column_by_name(field.name()).unwrap();
