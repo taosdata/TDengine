@@ -49,7 +49,7 @@ use faststr::FastStr;
 use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
-use ring_channel::ring_channel;
+use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
@@ -218,6 +218,13 @@ async fn ipc_tcp_forward(
         };
     }
     let batch_number = Arc::new(AtomicU32::new(1));
+    fn retain_tables_cache(table_cache_rx: &RingReceiver<RecordBatch>) -> Vec<RecordBatch> {
+        let mut vec = Vec::with_capacity(50);
+        while let Ok(i) = table_cache_rx.try_recv() {
+            vec.push(i);
+        }
+        vec
+    }
     'start: loop {
         let batch_number = batch_number.clone();
         let tables_cache_tx = tables_cache_tx.clone();
@@ -237,8 +244,8 @@ async fn ipc_tcp_forward(
             let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
             matches!(v, LushMessageType::Children)
         }
-        let data_stream = tables_cache_rx
-            .clone()
+        let retained_tables = retain_tables_cache(&tables_cache_rx);
+        let data_stream = futures::stream::iter(retained_tables)
             .map(Ok)
             .chain(ipc_stream.clone())
             .inspect_ok(move |batch| {
