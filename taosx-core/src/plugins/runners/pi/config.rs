@@ -67,6 +67,8 @@ pub struct PiConfig {
     // log level
     #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
     log_level: Option<String>,
+    #[serde(rename = "TaskID", skip_serializing_if = "Option::is_none")]
+    task_id: Option<i64>,
 }
 
 impl PiConfig {
@@ -99,6 +101,7 @@ impl PiConfig {
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
             backfill_end_time: Self::parse_backfill_end_time(dsn)?,
             log_level: Self::parse_log_level(dsn)?,
+            task_id: None,
         };
 
         Ok(pi_config)
@@ -108,7 +111,7 @@ impl PiConfig {
         td_database: String,
         ipc_port: u16,
         sql_port: u16,
-        _is_real_run: bool,
+        task_id: Option<i64>,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&from)?;
         let system_name = Self::parse_system_name(&from);
@@ -217,6 +220,7 @@ impl PiConfig {
             backfill_start_time,
             backfill_end_time,
             log_level,
+            task_id,
         })
     }
 
@@ -713,7 +717,7 @@ mod tests {
     async fn test_config() {
         dbg!(std::env::current_dir().unwrap());
         let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv").unwrap();
-        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, None)
             .await
             .unwrap();
         dbg!(&config);
@@ -721,7 +725,7 @@ mod tests {
         let dsn: Dsn =
             Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp")
                 .unwrap();
-        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, None)
             .await
             .unwrap();
         dbg!(&config2);
