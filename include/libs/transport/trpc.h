@@ -126,6 +126,7 @@ typedef struct SRpcInit {
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
+  int8_t  shareConn;  // 0: no share, 1. share
   void   *parent;
 } SRpcInit;
 
