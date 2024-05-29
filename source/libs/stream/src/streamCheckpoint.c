@@ -293,6 +293,9 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
     }
 
     streamMetaWUnLock(pMeta);
+    }
+
+    streamMetaWUnLock(pMeta);
   }
 
   return code;
