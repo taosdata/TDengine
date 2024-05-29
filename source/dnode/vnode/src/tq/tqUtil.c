@@ -250,7 +250,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
         tqDebug("fetch meta msg, ver:%" PRId64 ", vgId:%d, type:%s, enable batch meta:%d", pHead->version, vgId,
                 TMSG_INFO(pHead->msgType), pRequest->enableBatchMeta);
-        if (!pRequest->enableBatchMeta) {
+        if (!pRequest->enableBatchMeta && !pRequest->useSnapshot) {
           SMqMetaRsp metaRsp = {0};
           tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer + 1);
           metaRsp.resMsgType = pHead->msgType;
