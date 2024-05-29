@@ -46,7 +46,7 @@
             @change="() => handleTypeChange(column, index)"
           >
             <el-option
-              v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+              v-for="item in handleTypeList(column.type, 'dataType')"
               :key="item.value"
               v-bind="item"
             ></el-option>
@@ -74,14 +74,18 @@
               v-model="column.field"
               :maxlength="64"
               :placeholder="$t('data.columnNameTip')"
+              style="min-width: 60px"
             >
           </el-input>
-          <el-tag effect="plain" type="info" v-if="index==1">
-              <el-checkbox v-model="column.primaryKey"  @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+          <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300">
+              <el-checkbox 
+                v-model="column.primaryKey"  
+                :disabled="parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1"
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -100,7 +104,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -119,7 +123,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -139,14 +143,14 @@
           <el-button
             icon="el-icon-minus"
             size="small"
-            :disabled="!index || column.primaryKey"
+            :disabled="!index"
             @click="minusColumn(index)"
           ></el-button>
           <el-button @click="addColumn" icon="el-icon-plus" size="small"></el-button>
           <el-tooltip
             :content="$t('data.clickColumnTip')"
           >
-          <el-button @click="removeToTag(index)" size="small">
+          <el-button @click="removeToTag(index)" size="small" :disabled="!index">
             <Icon
               :name="'tag'"
               class="console-tree-icon"
@@ -221,6 +225,7 @@ import {
   tagType,
   parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive
 } from "../../2_explorer/views/components/utils/index";
+import VersionMixin from "@/mixins/version";
 export default {
   name: "CreateSTB",
   data() {
@@ -290,27 +295,37 @@ export default {
       default: () => [],
     }
   },
-  mounted() {
-    if (this.columnsArr.length > 0) {
-      let arr = this.columnsArr.reverse().map(item => {
-        let type = item.localType.toUpperCase()
-        type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
-        return {
-          field: item.name,
-          type: type,
-          encode: this.handleEncodeList(type)['defaultEncode'],
-          compress: this.handleEncodeList(type)['defaultCompress'],
-          level: 'medium'
+  mixins: [VersionMixin],
+  watch: {
+    "columnsArr": {
+      handler(columnsArr_new) {
+        if (columnsArr_new.length > 0) {
+          let arr = columnsArr_new;
+          arr = arr.map(item => {
+            let type = item.localType.toUpperCase()
+            type = type.startsWith('TIMESTAMP') ? type.split('(')[0] : type
+            return {
+              field: item.name,
+              type: type,
+              encode: this.handleEncodeList(type)['defaultEncode'],
+              compress: this.handleEncodeList(type)['defaultCompress'],
+              level: 'medium'
+            }
+          })
+          arr.unshift(deepClone(this.column_item_ts))
+          this.stable_form.columns = arr;
+          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+        } else {
+          this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
+          this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
+          this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
         }
-      })
-      arr.unshift(deepClone(this.column_item_ts))
-      this.stable_form.columns = arr;
-      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
-    } else {
-      this.$set(this.stable_form.columns, 0, deepClone(this.column_item_ts));
-      this.$set(this.stable_form.columns, 1, deepClone(this.column_item));
-      this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+      },
+      immediate: true,
+      deep: true,
     }
+  },
+  mounted() {
   },
   methods: {
     handleChange(newVal, oldVal, type, index) {
@@ -333,6 +348,10 @@ export default {
       if (this.stable_form.columns.length > 1) {
         this.stable_form.columns.splice(index, 1);
       }
+      // 是主键列
+      if (index == 1) {
+        this.handPrimarykeyCol(index)
+      }
     },
     minusTags(index) {
       if (this.stable_form.tags.length > 1) {
@@ -351,6 +370,13 @@ export default {
         let column = this.stable_form.columns.splice(index, 1)[0];
         this.stable_form.tags.push(deepClone(column));
       }
+      // 是主键列
+      if (index == 1) {
+        this.handPrimarykeyCol(index)
+      }
+    },
+    handPrimarykeyCol(index) {
+      this.$set(this.stable_form.columns[index], "primaryKey", false);
     },
     handleEncodeList(type) {
       if (!type) return this.storageCompression.empty
@@ -373,17 +399,18 @@ export default {
       const { defaultEncode, defaultCompress } = data
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
+      this.$set(this.stable_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1) 
+      {
+        this.$set(this.stable_form.columns[index], "primaryKey", false);
+      }
     },
     handleTypeList(currentType, name) {
       return this[name];
     },
-    handleCheckChange(val, index, type) {
-      if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
-        this.$set(this.stable_form.columns[index], "type", '');
-        this.$set(this.stable_form.columns[index], "encode", '');
-        this.$set(this.stable_form.columns[index], "compress", '');
-      } 
-    }
   },
 };
 </script>

@@ -195,7 +195,7 @@ export default {
   microseconds: '微秒',
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
-  communityDemoDataTip: '当前列表数据仅为示例数据',
+  communityDemoDataTip: '当前列表仅为示例数据',
   fullscreen: "全屏显示",
   statuses: {
     created: "已创建",
@@ -1199,9 +1199,10 @@ export default {
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      extractdesc: `<strong>taosX 目前支持 2 种规则解析原始消息体</strong>：<br/>
+      extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
+      3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/example-code.rhai" download>示例代码<a>进行参考。<br/>
       <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#12-解析" target="_blank">企业版文档<a>。</span>`,
       filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
@@ -1261,7 +1262,9 @@ export default {
       defaultValuePlaceholder: "默认值",
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
       defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
-      jsonExtractTip: 'JSON 提取表达式编辑器'
+      jsonExtractTip: 'JSON 提取表达式编辑器',
+      udtTip: 'UDT 编辑',
+      uploadCode: "上传代码"
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",

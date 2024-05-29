@@ -91,7 +91,7 @@
               @change="() => handleTypeChange(column, index)"
             >
               <el-option
-                v-for="item in handleTypeList(column.type, column.primaryKey ? 'parmaryKeyType' : 'dataType')"
+                v-for="item in handleTypeList(column.type, 'dataType')"
                 :key="item.value"
                 v-bind="item"
               ></el-option>
@@ -121,12 +121,15 @@
               :placeholder="$t('data.columnNameTip')"
             >
             </el-input>
-            <el-tag effect="plain" type="info" v-if="index==1">
-              <el-checkbox :disabled="isEdit" v-model="column.primaryKey" @change="(val) => handleCheckChange(val, index, column.type)">PRIMARY KEY</el-checkbox>
+            <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300">
+              <el-checkbox 
+                :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
+                v-model="column.primaryKey" 
+                >PRIMARY KEY</el-checkbox>
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -145,7 +148,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -164,7 +167,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -185,7 +188,7 @@
               size="small"
               icon="el-icon-minus"
               @click="minusColumn(index)"
-              :disabled="!index || column.primaryKey"
+              :disabled="!index || (isEdit && column.primaryKey)"
             ></el-button>
             <el-button
               v-if="!isEdit"
@@ -244,7 +247,7 @@
             </el-input>
             <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.encode')">
+                :content="$t('console.encode')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -261,7 +264,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.compress')">
+                :content="$t('console.compress')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -279,7 +282,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.level')">
+                :content="$t('console.level')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -484,6 +487,7 @@ import { dataType, tagType, parmaryKeyType, storageCompression, levelList, group
 import { changeStableStruct, changeStableStructOther } from "@/api/gateway/data/stables";
 import { VariableTableColumnType } from "@/const";
 import { Message } from "element-ui";
+import VersionMixin from "@/mixins/version";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -512,6 +516,7 @@ export default {
       tagLength: 8,
     };
   },
+  mixins: [VersionMixin],
   computed: {
     ...mapState({
       selected_db: (state) => state.dbs.selected_db,
@@ -613,6 +618,13 @@ export default {
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
       this.$set(this.stable_form.columns[index], "compress", defaultCompress);
       this.$set(this.stable_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1) 
+      {
+        this.$set(this.stable_form.columns[index], "primaryKey", false);
+      }
     },
     handleEditTypeChange(column, index) {
       const data = this.handleEncodeList(column.type)
@@ -676,12 +688,13 @@ export default {
         second_field: data.type == 'VARCHAR'
           ? data.varcharLength ? `${data.type}(${data.varcharLength})` : data.type
           : data.ncharLength ? `${data.type}(${data.ncharLength})` : data.type,
-        encode: data.encode,
-        compress: data.compress,
-        level: data.level
+        encode: this.version_gt_3300 ? data.encode : '',
+        compress: this.version_gt_3300 ? data.compress : '',
+        level: this.version_gt_3300 ? data.level : ''
       };
       if (type == "tag") {
         //这里区分tag修改的是啥
+        isVariable = true;
         if (this.duplicate[index].type == data.type) {
           params = {
             operation: "rename " + type,
@@ -693,8 +706,9 @@ export default {
       if (isVariable) {
         this.updateData(params);
       }
-
-      this.updateDataOther(params)
+      if (this.version_gt_3300) {
+        this.updateDataOther(params)
+      }
 
     },
     // 当修改时更新数据的接口，与新增无关
@@ -763,7 +777,13 @@ export default {
       };
     },
     minusColumn(index) {
-      if (!this.isEdit) return this.stable_form.columns.remove(index);
+      if (!this.isEdit) {
+        this.stable_form.columns.remove(index, 'column');
+        if (index == 1) {
+          this.$set(this.stable_form.columns[index], "primaryKey", false);
+        }
+        return 
+      }
       this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
@@ -870,6 +890,16 @@ export default {
       this.stable_form.tags = this.stable_form.tags.filter(
         (item) => item.field
       );
+      if (!this.version_gt_3300) {
+        this.stable_form.columns = this.stable_form.columns.map((item) => {
+          return {
+            ...item,
+            encode: '',
+            compress: '',
+            level: ''
+          }
+        });
+      }
     },
     // 修改状态时，确定后发送请求添加数据
     add() {
@@ -878,9 +908,9 @@ export default {
         first_field: this.currentData.field,
         second_field: this.currentData.type=='VARCHAR'?`VARCHAR(${this.currentData.varcharLength})`:this.currentData.type=='NCHAR'?
         `NCHAR(${this.currentData.ncharLength})`:this.currentData.type,
-        encode: this.currentData.encode,
-        compress: this.currentData.compress,
-        level: this.currentData.level
+        encode: this.version_gt_3300 ? this.currentData.encode : '',
+        compress: this.version_gt_3300 ? this.currentData.compress : '',
+        level: this.version_gt_3300 ? this.currentData.level : ''
       };
       this.currentData = {};
       this.currentEdit = "";
@@ -889,16 +919,6 @@ export default {
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
     },
-    handleCheckChange(val, index, type) {
-      if (!this.isEdit) {
-        if (val && this.parmaryKeyType.findIndex((item) => item.value.includes(type)) == -1) {
-          this.$set(this.stable_form.columns[index], "type", '');
-          this.$set(this.stable_form.columns[index], "encode", '');
-          this.$set(this.stable_form.columns[index], "compress", '');
-          this.$set(this.stable_form.columns[index], "level", '');
-        } 
-      }
-    }
   },
 };
 </script>
