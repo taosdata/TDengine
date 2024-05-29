@@ -78,7 +78,7 @@ static int32_t addAvroSchema(SArray *colArray, cJSON* root){
   if (avroSchama == NULL){
     terrno = TSDB_CODE_TEMPLATE_TO_AVRO_ERROR;
     cJSON_Delete(avroJson);
-    return terrno;
+    return -1;
   }
   avro_schema_incref(avroSchama);
   taosArrayPush(colArray, &avroSchama);
@@ -107,6 +107,16 @@ static int64_t getAvroArrayRefIdByColId(SHashObj *tableHash, col_id_t colId){
   return refId;
 }
 
+static int32_t addJsonSchema(SArray* avroArray, const char* templateJsonString){
+  cJSON *root = cJSON_Parse(templateJsonString);
+  if (root == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  int32_t code = addAvroSchema(avroArray, root);
+  cJSON_Delete(root);
+  return code;
+}
 int32_t addAvroSchema2TableHash(SHashObj *tableHash, SHashObj *pHashJsonTemplate){
   void *data = taosHashIterate(pHashJsonTemplate, NULL);
   while (data) {
@@ -118,25 +128,28 @@ int32_t addAvroSchema2TableHash(SHashObj *tableHash, SHashObj *pHashJsonTemplate
     if(avroArray == NULL){
       goto FAILED;
     }
-    SArray *                element = hashValue->pJsonTemplateArray;
-    for (int i = 0; i < taosArrayGetSize(element); i++) {
-      SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(element, i);
-      cJSON *root = cJSON_Parse(pTemplate->templateJsonString);
-      if (root == NULL){
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+    SArray *element = hashValue->pJsonTemplateArray;
+//    if(taosArrayGetSize(avroArray) == taosArrayGetSize(element))   // modify json column drop template id
+    if(taosArrayGetSize(avroArray) == 0){           // add json column or create json table
+      for (int i = 0; i < taosArrayGetSize(element); i++) {
+        SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(element, i);
+        if(addJsonSchema(avroArray, pTemplate->templateJsonString) != 0){
+          taosReleaseRef(jsonTemplateRef, refId);
+          goto FAILED;
+        }
+      }
+    }else if(taosArrayGetSize(avroArray) < taosArrayGetSize(element)){  // modify json column add template
+      ASSERT(taosArrayGetSize(avroArray) + 1 == taosArrayGetSize(element));
+      SJsonTemplate *pTemplate = (SJsonTemplate *)taosArrayGet(element, taosArrayGetSize(element) - 1);
+      if(addJsonSchema(avroArray, pTemplate->templateJsonString) != 0){
         taosReleaseRef(jsonTemplateRef, refId);
         goto FAILED;
       }
-      if(addAvroSchema(avroArray, root) != 0){
-        cJSON_Delete(root);
-        taosReleaseRef(jsonTemplateRef, refId);
-        goto FAILED;
-      }
-      cJSON_Delete(root);
     }
     data = taosHashIterate(pHashJsonTemplate, data);
     taosReleaseRef(jsonTemplateRef, refId);
   }
+  metaInfo("add avro schema to table hash success");
   return TDB_CODE_SUCCESS;
 
 FAILED:
@@ -360,6 +373,62 @@ static int32_t buildJsonTemplateCache(SMeta *pMeta, SHashObj* pHashJsonTemplate,
   }
   return TDB_CODE_SUCCESS;
 }
+//
+//static int32_t addJsonTemplateCache(SMeta *pMeta, SJsonTemplate *pTemplate, int64_t uid, col_id_t cid){
+//  if (pMeta->pTableJsonTemplate == NULL) {
+//    return 0;
+//  }
+//
+//  void *tableHash = taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid));
+//  if(tableHash == NULL) {
+//    return 0;
+//  }
+//  ASSERT (taosHashGetSize(tableHash) != 0);
+//
+//  int64_t refId = getAvroArrayRefIdByColId(tableHash, cid);
+//  SArray* avroArray = (SArray *)taosAcquireRef(jsonTemplateRef, refId);
+//  ASSERT(avroArray != NULL);
+//
+//  cJSON *root = cJSON_Parse(pTemplate->templateJsonString);
+//  if (root == NULL){
+//    terrno = TSDB_CODE_OUT_OF_MEMORY;
+//    taosReleaseRef(jsonTemplateRef, refId);
+//    return -1;
+//  }
+//  if(addAvroSchema(avroArray, root) != 0){
+//    cJSON_Delete(root);
+//    taosReleaseRef(jsonTemplateRef, refId);
+//    return -1;
+//  }
+//  cJSON_Delete(root);
+//  taosReleaseRef(jsonTemplateRef, refId);
+//  metaInfo("add json template cache, cid:%d uid:%"PRId64, cid, uid);
+//  return TDB_CODE_SUCCESS;
+//}
+
+static int32_t deleteColumnJsonTemplateCache(SMeta *pMeta, int64_t uid, col_id_t cid){
+  if (pMeta->pTableJsonTemplate == NULL) {
+    return 0;
+  }
+
+  void *tableHash = taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid));
+  if(tableHash == NULL) {
+    return 0;
+  }
+  metaInfo("delete column json template cache, cid:%d uid:%"PRId64, cid, uid);
+  ASSERT(taosHashGetSize(tableHash) != 0);
+  ASSERT(taosHashGet(tableHash, &cid, sizeof(cid)) != NULL);
+  return taosHashRemove(tableHash, &cid, sizeof(cid));
+}
+
+static int32_t deleteTableJsonTemplateCache(SMeta *pMeta, int64_t uid){
+  if (pMeta->pTableJsonTemplate == NULL || taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid))) {
+    return 0;
+  }
+  metaInfo("delete table json template cache, uid:%"PRId64, uid);
+  return taosHashRemove(pMeta->pTableJsonTemplate, &uid, sizeof(uid));
+}
+
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
   int         kLen = 0;
@@ -467,6 +536,10 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   tdbTbcClose(pCtbIdxc);
 
   (void)tsdbCacheDropSubTables(pMeta->pVnode->pTsdb, tbUidList, pReq->suid);
+
+  if (deleteTableJsonTemplateCache(pMeta, pReq->suid) != 0){
+    metaError("vgId:%d, failed to delete json template cache for stable table:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->suid, tstrerror(terrno));
+  }
 
   metaWLock(pMeta);
 
@@ -631,6 +704,11 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       }
     }
     if (uids) taosArrayDestroy(uids);
+  }
+
+  nStbEntry.pHashJsonTemplate = pReq->pHashJsonTemplate;
+  if (buildJsonTemplateCache(pMeta, nStbEntry.pHashJsonTemplate, pReq->suid) != 0) {
+    return -1;
   }
 
   metaWLock(pMeta);
@@ -1084,48 +1162,36 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
       tsdbCacheNewTable(pMeta->pVnode->pTsdb, me.uid, -1, &me.ntbEntry.schemaRow);
     }
 
-    me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
-    if(me.pHashJsonTemplate == NULL){
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-    taosHashSetFreeFp(me.pHashJsonTemplate, destroyJsonTemplateArray);
+    bool hasJsonCol = false;
     for (int32_t i = 0; i < me.ntbEntry.schemaRow.nCols; i++) {
-      char *jsonTemplate = (char*)taosArrayGetP(pReq->jsonTemplate, i);
-      if (strlen(jsonTemplate) == 0){
-        continue;
+      if (me.ntbEntry.schemaRow.pSchema[i].type == TSDB_DATA_TYPE_JSON) {
+        hasJsonCol = true;
       }
-
-      cJSON *root = cJSON_Parse(jsonTemplate);
-      if (root == NULL){
-        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-        goto _err;
-      }
-
-      SJsonTemplate tmp = {.templateId=1, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
-      cJSON_Delete(root);
-      SArray* arr = taosArrayInit(1, sizeof(tmp));
-      if (arr == NULL){
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(tmp.templateJsonString);
-        goto _err;
-      }
-      taosArrayPush(arr, &tmp);
-      SJsonTemplateHashValue hashValue = {0};
-      hashValue.pJsonTemplateArray = arr;
-      if(taosHashPut(me.pHashJsonTemplate, &me.ntbEntry.schemaRow.pSchema[i].colId,
-                      sizeof(me.ntbEntry.schemaRow.pSchema[i].colId), &hashValue, sizeof(hashValue)) != 0){
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(tmp.templateJsonString);
-        taosArrayDestroy(arr);
-        goto _err;
-      }
-      metaInfo("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
-                me.ntbEntry.schemaRow.pSchema[i].colId, tmp.templateJsonString);
     }
-    if (buildJsonTemplateCache(pMeta, me.pHashJsonTemplate, me.uid) != 0) {
-      return -1;
+    if(hasJsonCol){
+      me.pHashJsonTemplate = taosHashInit(me.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+      if(me.pHashJsonTemplate == NULL){
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+      taosHashSetFreeFp(me.pHashJsonTemplate, destroyJsonTemplateArray);
+      for (int32_t i = 0; i < me.ntbEntry.schemaRow.nCols; i++) {
+        if (me.ntbEntry.schemaRow.pSchema[i].type != TSDB_DATA_TYPE_JSON) {
+          continue;
+        }
+        char *jsonTemplate = (char*)taosArrayGetP(pReq->jsonTemplate, i);
+        if(taosHashInsertJsonTemplate(me.pHashJsonTemplate, jsonTemplate, me.ntbEntry.schemaRow.pSchema[i].colId) != 0){
+          goto _err;
+        }
+
+        metaInfo("normal table add json template for column:%s, id:%d, template:%s", me.ntbEntry.schemaRow.pSchema[i].name,
+                 me.ntbEntry.schemaRow.pSchema[i].colId, jsonTemplate);
+      }
+      if (buildJsonTemplateCache(pMeta, me.pHashJsonTemplate, me.uid) != 0) {
+        return -1;
+      }
     }
+
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -1209,6 +1275,9 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
     *tbUid = uid;
   }
 
+  if (type == TSDB_NORMAL_TABLE && deleteTableJsonTemplateCache(pMeta, uid) != 0){
+    metaError("vgId:%d, failed to delete json template cache for table:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid, tstrerror(terrno));
+  }
   pMeta->changed = true;
 _exit:
   tdbFree(pData);
@@ -1713,6 +1782,31 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       updataTableColCmpr(&entry.colCmpr, pCol, 1);
       freeColCmpr = true;
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
+
+      if(pAlterTbReq->type == TSDB_DATA_TYPE_JSON) {
+        if (entry.pHashJsonTemplate == NULL){
+          entry.pHashJsonTemplate = taosHashInit(entry.ntbEntry.schemaRow.nCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+          if (entry.pHashJsonTemplate == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
+          taosHashSetFreeFp(entry.pHashJsonTemplate, destroyJsonTemplateArray);
+        }
+
+        if (taosHashInsertJsonTemplate(entry.pHashJsonTemplate, pAlterTbReq->newComment,
+                                       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId) != 0) {
+          goto _err;
+        }
+
+        metaInfo("normal table add json template for column:%s, id:%d, template:%s",
+                 pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name,
+                 pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId,
+                 pAlterTbReq->newComment);
+
+        if (buildJsonTemplateCache(pMeta, entry.pHashJsonTemplate, entry.uid) != 0) {
+          goto _err;
+        }
+      }
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -1750,6 +1844,14 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
       updataTableColCmpr(&entry.colCmpr, &tScheam, 0);
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
+      if(pAlterTbReq->type == TSDB_DATA_TYPE_JSON) {
+        ASSERT(entry.pHashJsonTemplate != NULL);
+        taosHashRemove(entry.pHashJsonTemplate, &pColumn->colId, sizeof(pColumn->colId));
+        metaInfo("normal table drop json template for column:%s, id:%d", pColumn->name, pColumn->colId);
+        if (deleteColumnJsonTemplateCache(pMeta, entry.uid, pColumn->colId) != 0) {
+          goto _err;
+        }
+      }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {
@@ -1793,6 +1895,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       if(metaUpdateTableJsonTemplate(pAlterTbReq, pColumn, &entry) != 0){
         goto _err;
       }
+      if (pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_JSON_TEMPLATE &&
+          buildJsonTemplateCache(pMeta, entry.pHashJsonTemplate, entry.uid) != 0) {
+        goto _err;
+      }
+
       pSchema->version++;
     }
   }

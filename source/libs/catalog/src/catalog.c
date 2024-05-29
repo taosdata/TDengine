@@ -467,7 +467,7 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
 
 _return:
 
-  tFreeSTableCfgRsp((STableCfgRsp*)pCfg, true);
+  tFreeSTableCfgRsp((STableCfgRsp*)pCfg);
   
   CTG_RET(code);
 }

@@ -38,6 +38,13 @@ typedef struct SMetaCache SMetaCache;
 #define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("MTA ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef enum {
+  JSON_TEMPLATE_CACHE_CREATE = 1,
+  JSON_TEMPLATE_CACHE_ADD = 2,
+  JSON_TEMPLATE_CACHE_REMOVE = 3,
+  JSON_TEMPLATE_CACHE_DELETE = 4,e
+} JSON_CACHE_OP;
+
 // metaOpen ==================
 int32_t metaRLock(SMeta* pMeta);
 int32_t metaWLock(SMeta* pMeta);

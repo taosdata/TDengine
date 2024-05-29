@@ -198,6 +198,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  SHashObj *pHashJsonTemplate = NULL;
 
   // decode req
   if (tDeserializeSTableCfgReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
@@ -243,6 +244,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     cfgRsp.tagsLen = pTag->len;
     cfgRsp.pTags = taosMemoryMalloc(cfgRsp.tagsLen);
     memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
+    pHashJsonTemplate = mer2.me.pHashJsonTemplate;
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
@@ -250,10 +252,12 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
     }
+    pHashJsonTemplate = mer1.me.pHashJsonTemplate;
   } else {
     ASSERT(0);
   }
 
+  cfgRsp.pHashJsonTemplate = taosHashCopyJsonTemplate(pHashJsonTemplate);
   cfgRsp.numOfTags = schemaTag.nCols;
   cfgRsp.numOfColumns = schema.nCols;
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
@@ -310,7 +314,7 @@ _exit:
     *pMsg = rpcMsg;
   }
 
-  tFreeSTableCfgRsp(&cfgRsp, false);
+  tFreeSTableCfgRsp(&cfgRsp);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;

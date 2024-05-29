@@ -1218,7 +1218,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  qDebug("json template table type:%d uid:%lld, suid:%lld", pScanNode->tableType, pScanNode->uid, pScanNode->suid);
+  qDebug("json template table type:%d uid:%"PRIu64", suid:%"PRIu64, pScanNode->tableType, pScanNode->uid, pScanNode->suid);
   SHashObj* jsonTemplateHash = getJsonTemplateAvroArrayByUid(readHandle, pScanNode->tableType == TSDB_CHILD_TABLE ? pScanNode->suid: pScanNode->uid, pTaskInfo);
   setJsonTemplateArray(pInfo->pResBlock->pDataBlock, jsonTemplateHash, pInfo->base.matchInfo.pList);
   prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
@@ -4689,7 +4689,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  qDebug("json template table type:%d uid:%lld, suid:%lld", pTableScanNode->scan.tableType, pTableScanNode->scan.suid, pTableScanNode->scan.uid);
+  qDebug("json template table type:%d uid:%"PRIu64", suid:%"PRIu64, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableScanNode->scan.suid);
   SHashObj* jsonTemplateHash = getJsonTemplateAvroArrayByUid(readHandle, pTableScanNode->scan.tableType == TSDB_CHILD_TABLE ? pTableScanNode->scan.suid: pTableScanNode->scan.uid, pTaskInfo);
   setJsonTemplateArray(pInfo->pResBlock->pDataBlock, jsonTemplateHash, pInfo->base.matchInfo.pList);
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);

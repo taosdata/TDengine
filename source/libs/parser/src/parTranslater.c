@@ -8054,6 +8054,12 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
   return doTranslateDropSuperTable(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName),
                                    pStmt->ignoreNotExists);
 }
+#define FILL_COMMENT(comment,commentLen,data) \
+  if(strlen(data) == 0) return TSDB_CODE_JSON_COL_TEMPLATE_NEEDED;                   \
+  comment = taosStrdup(data);                 \
+  if (NULL != comment) {                      \
+    commentLen = strlen(data);                \
+  }
 
 static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
   SName tableName;
@@ -8063,11 +8069,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
     //    pAlterReq->ttl = pStmt->pOptions->ttl;
     if (pStmt->pOptions->commentNull == false) {
-      pAlterReq->comment = taosStrdup(pStmt->pOptions->comment);
-      if (NULL == pAlterReq->comment) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      pAlterReq->commentLen = strlen(pStmt->pOptions->comment);
+      FILL_COMMENT(pAlterReq->comment, pAlterReq->commentLen, pStmt->pOptions->comment)
     } else {
       pAlterReq->commentLen = -1;
     }
@@ -8090,6 +8092,10 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       strcpy(field.name, pStmt->colName);
       taosArrayPush(pAlterReq->pFields, &field);
+      if(pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN && pStmt->dataType.type == TSDB_DATA_TYPE_JSON){
+        // use comment to store json template
+        FILL_COMMENT(pAlterReq->comment, pAlterReq->commentLen, pStmt->pColOptions->jsonTemplate)
+      }
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
@@ -8125,11 +8131,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       taosArrayPush(pAlterReq->pFields, &field);
 
       // use comment to store json template
-      pAlterReq->comment = taosStrdup(pStmt->pColOptions->jsonTemplate);
-      if (NULL == pAlterReq->comment) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      pAlterReq->commentLen = strlen(pStmt->pColOptions->jsonTemplate);
+      FILL_COMMENT(pAlterReq->comment, pAlterReq->commentLen, pStmt->pColOptions->jsonTemplate)
       break;
     }
     default:
@@ -12026,12 +12028,12 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.jsonTemplate = taosArrayInit(req.ntb.schemaRow.nCols, POINTER_BYTES);
   FOREACH(pCol, pStmt->pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
-    SSchema*        pScheam = req.ntb.schemaRow.pSchema + index;
-    toSchema(pColDef, index + 1, pScheam);
+    SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
+    toSchema(pColDef, index + 1, pSchema);
     if (pColDef->pOptions) {
       req.colCmpr.pColCmpr[index].id = index + 1;
       int32_t code = setColCompressByOption(
-          pScheam->type, columnEncodeVal(((SColumnOptions*)pColDef->pOptions)->encode),
+          pSchema->type, columnEncodeVal(((SColumnOptions*)pColDef->pOptions)->encode),
           columnCompressVal(((SColumnOptions*)pColDef->pOptions)->compress),
           columnLevelVal(((SColumnOptions*)pColDef->pOptions)->compressLevel), true, &req.colCmpr.pColCmpr[index].alg);
       if (code != TSDB_CODE_SUCCESS) {
@@ -12753,6 +12755,11 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if(pStmt->dataType.type == TSDB_DATA_TYPE_JSON){
+    // use comment to store json template
+    FILL_COMMENT(pReq->newComment, pReq->newCommentLen, pStmt->pColOptions->jsonTemplate)
+  }
+
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
@@ -12899,11 +12906,7 @@ static int buildAlterTableJsonTemplate(STranslateContext* pCxt, SAlterTableStmt*
   }
 
   // use comment to store json template
-  pReq->newComment = taosStrdup(pStmt->pColOptions->jsonTemplate);
-  if (NULL == pReq->newComment) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pReq->newCommentLen = strlen(pStmt->pColOptions->jsonTemplate);
+  FILL_COMMENT(pReq->newComment, pReq->newCommentLen, pStmt->pColOptions->jsonTemplate)
   return TSDB_CODE_SUCCESS;
 }
 

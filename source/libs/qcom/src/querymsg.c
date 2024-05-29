@@ -717,7 +717,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
-    tFreeSTableCfgRsp(out, true);
+    tFreeSTableCfgRsp(out);
     taosMemoryFree(out);
     return TSDB_CODE_INVALID_MSG;
   }

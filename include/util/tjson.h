@@ -118,6 +118,7 @@ void        tjsonDeleteItemFromObject(const SJson* pJson, const char* pName);
 extern int32_t jsonTemplateRef;
 
 int32_t       testJsonAvro(const char* json);
+int32_t       checkJsonTemplateString(const char *jsonTemplate);
 int32_t       checkJsonTemplate(SJson *pJson);
 cJSON*        transformJson2JsonTemplate(cJSON* objectSrc);
 cJSON*        transformJsonTemplate2AvroRecord(cJSON* cTemplate);

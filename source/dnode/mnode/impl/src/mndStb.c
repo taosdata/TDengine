@@ -1026,31 +1026,11 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
       if(pField->type != TSDB_DATA_TYPE_JSON){
         continue;
       }
-
-      cJSON *root = cJSON_Parse(pField->jsonTemplate);
-      if (root == NULL){
-        terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+      if(taosHashInsertJsonTemplate(pDst->pHashJsonTemplate, pField->jsonTemplate, pDst->pColumns[i].colId) != 0){
         return -1;
       }
 
-      SJsonTemplate tmp = {.templateId=1, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
-      cJSON_Delete(root);
-      SArray* arr = taosArrayInit(1, sizeof(tmp));
-      if (arr == NULL){
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(tmp.templateJsonString);
-        return -1;
-      }
-      taosArrayPush(arr, &tmp);
-      SJsonTemplateHashValue hashValue = {0};
-      hashValue.pJsonTemplateArray = arr;
-      if(taosHashPut(pDst->pHashJsonTemplate, &pDst->pColumns[i].colId, sizeof(pDst->pColumns[i].colId), &hashValue, sizeof(hashValue)) != 0){
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        taosMemoryFree(tmp.templateJsonString);
-        taosArrayDestroy(arr);
-        return -1;
-      }
-      mDebug("mnode:%p, add json template for column:%s, id:%d, template:%s", pDst, pDst->pColumns[i].name, pDst->pColumns[i].colId, tmp.templateJsonString);
+      mInfo("mnode:%p, add json template for column:%s, id:%d, template:%s", pDst, pDst->pColumns[i].name, pDst->pColumns[i].colId, pField->jsonTemplate);
     }
   }
 
@@ -1912,7 +1892,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
 
   return 0;
 }
-static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {
+static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols, const char* jsonTemplate) {
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
     return -1;
@@ -1961,6 +1941,27 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     pCmpr->id = pSchema->colId;
     pCmpr->alg = createDefaultColCmprByType(pSchema->type);
 
+    if(pField->type == TSDB_DATA_TYPE_JSON) {
+      if (pOld->pHashJsonTemplate == NULL){
+        pNew->pHashJsonTemplate = taosHashInit(pNew->numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+        if (pNew->pHashJsonTemplate == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return -1;
+        }
+        taosHashSetFreeFp(pNew->pHashJsonTemplate, destroyJsonTemplateArray);
+      }else{
+        pNew->pHashJsonTemplate = taosHashCopyJsonTemplate(pOld->pHashJsonTemplate);
+        if(pNew->pHashJsonTemplate == NULL){
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return -1;
+        }
+      }
+
+      if (taosHashInsertJsonTemplate(pNew->pHashJsonTemplate, jsonTemplate, pSchema->colId) != 0) {
+        return -1;
+      }
+      mInfo("mnode:%p, add json template for column:%s, id:%d, template:%s", pNew, pSchema->name, pSchema->colId, jsonTemplate);
+    }
     mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
   }
 
@@ -1999,6 +2000,17 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   memmove(pNew->pCmpr + col, pNew->pCmpr + col + 1, sizeof(SColCmpr) * sz);
   pNew->numOfColumns--;
 
+  if(pOld->pColumns[col].type == TSDB_DATA_TYPE_JSON) {
+    ASSERT(pOld->pHashJsonTemplate != NULL);
+    taosHashRemove(pOld->pHashJsonTemplate, &colId, sizeof(colId));
+
+    pNew->pHashJsonTemplate = taosHashCopyJsonTemplate(pOld->pHashJsonTemplate);
+    if(pNew->pHashJsonTemplate == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    mInfo("mnode:%p, drop json template for column:%s, id:%d", pNew, pOld->pColumns[col].name, pOld->pColumns[col].colId);
+  }
   pNew->colVer++;
   mInfo("stb:%s, start to drop col %s", pNew->name, colName);
   return 0;
@@ -2270,7 +2282,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
     pSchExt->compress = pCmpr->alg;
   }
 
-  pRsp->pHashJsonTemplate = pStb->pHashJsonTemplate;
+  pRsp->pHashJsonTemplate = taosHashCopyJsonTemplate(pStb->pHashJsonTemplate);
   taosRUnLockLatch(&pStb->lock);
   return 0;
 }
@@ -2624,7 +2636,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
+      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields, pAlter->comment);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       pField0 = taosArrayGet(pAlter->pFields, 0);
@@ -3098,7 +3110,7 @@ _OVER:
     mError("stb:%s.%s, failed to retrieve cfg since %s", cfgReq.dbFName, cfgReq.tbName, terrstr());
   }
 
-  tFreeSTableCfgRsp(&cfgRsp, false);
+  tFreeSTableCfgRsp(&cfgRsp);
   return code;
 }
 

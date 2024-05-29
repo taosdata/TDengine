@@ -796,7 +796,8 @@ typedef struct {
   volatile int32_t  refcount;
 } SJSonAvroHashValue;
 
-int32_t   taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, char* src, int8_t action, col_id_t colId);
+int32_t   taosHashInsertJsonTemplate(SHashObj *pHashJsonTemplate, const char *src, col_id_t colId);
+int32_t   taosHashUpdateJsonTemplate(SHashObj* pHashJsonTemplate, const char* src, int8_t action, col_id_t colId);
 SHashObj* taosHashCopyJsonTemplate(SHashObj *pHashObj);
 int32_t   tEncodeHashJsonTemplate(SEncoder* pEncoder, SHashObj* pHashJsonTemplate);
 int32_t   tDecodeHashJsonTemplate(SDecoder* pDecoder, SHashObj** pHashJsonTemplate, bool buildAvroHash);
@@ -1246,7 +1247,7 @@ int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
 int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
-void    tFreeSTableCfgRsp(STableCfgRsp* pRsp, bool freeJsonTemplate);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

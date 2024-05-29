@@ -983,6 +983,27 @@ int32_t checkJsonTemplate(SJson *pJson){
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t checkJsonTemplateString(const char *jsonTemplate){
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (0 == strlen(jsonTemplate)) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+  cJSON *root = cJSON_Parse(jsonTemplate);
+  if (root == NULL){
+    return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+  if (root->type != cJSON_Object){
+    code = TSDB_CODE_TEMPLATE_MUST_BE_OBJECT;
+    goto END;
+  }
+
+  code = checkJsonTemplate(root);
+
+END:
+  cJSON_Delete(root);
+  return code;
+}
+
 uint8_t decodeTemplateId(uint8_t* data, int32_t *value){
   *value = 0;
   uint8_t b;

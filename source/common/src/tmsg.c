@@ -3037,7 +3037,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   return 0;
 }
 
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp, bool freeJsonTemplate) {
+void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
   if (NULL == pRsp) {
     return;
   }
@@ -3046,10 +3046,8 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp, bool freeJsonTemplate) {
   taosMemoryFreeClear(pRsp->pSchemas);
   taosMemoryFreeClear(pRsp->pSchemaExt);
   taosMemoryFreeClear(pRsp->pTags);
-  if (freeJsonTemplate) {
-    taosHashCleanup(pRsp->pHashJsonTemplate);
-    pRsp->pHashJsonTemplate = NULL;
-  }
+  taosHashCleanup(pRsp->pHashJsonTemplate);
+  pRsp->pHashJsonTemplate = NULL;
 
   taosArrayDestroy(pRsp->pFuncs);
 }
@@ -10816,7 +10814,34 @@ int32_t tDecodeHashJsonTemplate(SDecoder *pDecoder, SHashObj **pHashJsonTemplate
   return 0;
 }
 
-int32_t taosHashUpdateJsonTemplate(SHashObj *pHashJsonTemplate, char *src, int8_t action, col_id_t colId) {
+int32_t taosHashInsertJsonTemplate(SHashObj *pHashJsonTemplate, const char *src, col_id_t colId) {
+  cJSON *root = cJSON_Parse(src);
+  if (root == NULL){
+    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    return -1;
+  }
+
+  SJsonTemplate tmp = {.templateId=1, .templateJsonString=cJSON_PrintUnformatted(root), .isValidate=true};
+  cJSON_Delete(root);
+  SArray* arr = taosArrayInit(1, sizeof(tmp));
+  if (arr == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(tmp.templateJsonString);
+    return -1;
+  }
+  taosArrayPush(arr, &tmp);
+  SJsonTemplateHashValue hashValue = {0};
+  hashValue.pJsonTemplateArray = arr;
+  if(taosHashPut(pHashJsonTemplate, &colId, sizeof(colId), &hashValue, sizeof(hashValue)) != 0){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(tmp.templateJsonString);
+    taosArrayDestroy(arr);
+    return -1;
+  }
+  return 0;
+}
+
+int32_t taosHashUpdateJsonTemplate(SHashObj *pHashJsonTemplate, const char *src, int8_t action, col_id_t colId) {
   SJsonTemplateHashValue *hashValue = (SJsonTemplateHashValue *)taosHashGet(pHashJsonTemplate, &colId, sizeof(colId));
   ASSERT(hashValue != NULL);
   SArray *templateArray = hashValue->pJsonTemplateArray;

@@ -1763,26 +1763,7 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, EColumnOptionT
         break;
       }
       COPY_STRING_FORM_STR_TOKEN(((SColumnOptions*)pOptions)->jsonTemplate, (SToken*)pVal);
-      if (0 == strlen(((SColumnOptions*)pOptions)->jsonTemplate)) {
-        pCxt->errCode = TSDB_CODE_TSC_INVALID_JSON;
-        break;
-      }
-      cJSON *root = cJSON_Parse(((SColumnOptions*)pOptions)->jsonTemplate);
-      if (root == NULL){
-        pCxt->errCode = TSDB_CODE_INVALID_JSON_FORMAT;
-        break;
-      }
-      if (root->type != cJSON_Object){
-        pCxt->errCode = TSDB_CODE_TEMPLATE_MUST_BE_OBJECT;
-        cJSON_Delete(root);
-        break;
-      }
-
-      int32_t code = checkJsonTemplate(root);
-      if (code != TSDB_CODE_SUCCESS){
-        pCxt->errCode = code;
-      }
-      cJSON_Delete(root);
+      pCxt->errCode = checkJsonTemplateString(((SColumnOptions*)pOptions)->jsonTemplate);
       break;
     case COLUMN_OPTION_DROP_JSON_TEMPLATE:
       memset(((SColumnOptions*)pOptions)->jsonTemplate, 0, TSDB_MAX_JSON_TEMPLATE_LEN);
@@ -1916,13 +1897,35 @@ SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable,
 }
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
-                                    SDataType dataType) {
+                                    SDataType dataType, SToken* jsonTemplate) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pColName)) {
     return NULL;
   }
+  if (dataType.type != TSDB_DATA_TYPE_JSON && jsonTemplate != NULL){
+    pCxt->errCode = buildSyntaxErrMsg(&pCxt->msgBuf, "only json column can add template", NULL);
+    return NULL;
+  }
+
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  if (dataType.type == TSDB_DATA_TYPE_JSON){
+    if (jsonTemplate == NULL){
+      pCxt->errCode = buildSyntaxErrMsg(&pCxt->msgBuf, "json column need a template", NULL);
+      return NULL;
+    }
+    SColumnOptions* pOptions = (SColumnOptions*)createDefaultColumnOptions(pCxt);
+    COPY_STRING_FORM_STR_TOKEN(pOptions->jsonTemplate, jsonTemplate);
+
+    pCxt->errCode = checkJsonTemplateString(pOptions->jsonTemplate);
+    if (pCxt->errCode != TSDB_CODE_SUCCESS){
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, pCxt->errCode);
+      nodesDestroyNode((SNode*)pOptions);
+      return NULL;
+    }
+    pStmt->pColOptions = pOptions;
+  }
+
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;

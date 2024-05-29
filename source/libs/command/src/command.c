@@ -603,7 +603,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
-    char     type[32 + 60];  // 60 byte for compress info
+    char     type[32 + TSDB_MAX_JSON_TEMPLATE_LEN]  = {0};  // 60 byte for compress info
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {

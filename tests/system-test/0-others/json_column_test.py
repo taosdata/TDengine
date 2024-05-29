@@ -81,11 +81,7 @@ class TDTestCase:
         tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},3:{"k1":"string","k2":"boolean"}')
 
         tdSql.query(f'show create table {self.dbname}.t1')
-        tdSql.checkData(0, 1, '''
-        CREATE TABLE `t1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `c1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', 
-        `c2` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}', 
-        `c3` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"boolean"}')
-        ''')
+        tdSql.checkData(0, 1, '''CREATE TABLE `t1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `c1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `c2` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}', `c3` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long"}')''')
 
         tdSql.execute(''' insert into t1(ts,c2) values(now,'{"Cmd":2,"Encrypt":1,"Vin":"1G1BL52P7TR115520","Data":{"Infos":[{"Motors":[{"CtrlTemp":125,"DCBusCurrent":31203,"InputVoltage":30012,"MotorTemp":125,"No":1,"Rotating":30000,"Status":1,"Torque":25000},{"CtrlTem
 p":125,"DCBusCurrent":30200,"InputVoltage":32000,"MotorTemp":145,"No":2,"Rotating":30200,"Status":1,"Torque":25300}],"Number":2,"Type":"DriveMotor"}],"Time":{"Day":1,"Hour":2,"Minute":59,"Month":1,"Second":0,"Year":16}}}') ''')
@@ -137,17 +133,15 @@ p":125,"DCBusCurrent":30200,"InputVoltage":32000,"MotorTemp":145,"No":2,"Rotatin
         tdSql.checkData(2, 7, '1:{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"},3:{"k1":"string","k2":"boolean"}')
 
         tdSql.query(f'show create table {self.dbname}.t2')
-        tdSql.checkData(0, 1, '''
-            CREATE TABLE `t1` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `c1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', 
-            `c2` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}', 
-            `c3` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"boolean"}')
-            ''')
+        tdSql.checkData(0, 1, '''CREATE STABLE `t2` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `c1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `c2` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long","k3":["double"],"k4":"long","k5":{"k6":"boolean","k7":"double"},"k8":"string"}', `c3` JSON ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' TEMPLATE '{"k1":"string","k2":"long"}') TAGS (`t` INT)''')
+
+
     def run(self):
         tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
 
         self.check_create_normal_table_result()
-        # self.check_create_super_table_result()
+        self.check_create_super_table_result()
 
     def stop(self):
         tdSql.close()

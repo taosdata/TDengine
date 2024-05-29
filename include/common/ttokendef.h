@@ -131,9 +131,9 @@
 #define TK_NK_LP                          113
 #define TK_NK_RP                          114
 #define TK_STABLE                         115
-#define TK_COLUMN                         116
-#define TK_MODIFY                         117
-#define TK_TEMPLATE                       118
+#define TK_TEMPLATE                       116
+#define TK_COLUMN                         117
+#define TK_MODIFY                         118
 #define TK_RENAME                         119
 #define TK_TAG                            120
 #define TK_SET                            121
