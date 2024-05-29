@@ -117,6 +117,7 @@ int taos_linked_list_push(taos_linked_list_t *self, void *item) {
   return 0;
 }
 
+/*
 void *taos_linked_list_pop(taos_linked_list_t *self) {
   TAOS_ASSERT(self != NULL);
   if (self == NULL) return NULL;
@@ -141,6 +142,7 @@ void *taos_linked_list_pop(taos_linked_list_t *self) {
   }
   return item;
 }
+*/
 
 int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   TAOS_ASSERT(self != NULL);

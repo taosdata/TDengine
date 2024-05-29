@@ -59,6 +59,7 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
   r = pthread_rwlock_init(self->lock, NULL);
   if (r) {
     TAOS_LOG("failed to initialize rwlock");
+    taos_free(self);
     return NULL;
   }
   return self;
@@ -301,6 +302,9 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 
 _OVER:
   tjsonDelete(pJson);
+  if(tmp_builder != NULL){
+    taos_string_builder_destroy(tmp_builder);
+  }
 
   return NULL;
 }

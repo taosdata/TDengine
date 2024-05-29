@@ -33,6 +33,8 @@ taos_map_t *taos_collector_default_collect(taos_collector_t *self) { return self
 taos_collector_t *taos_collector_new(const char *name) {
   int r = 0;
   taos_collector_t *self = (taos_collector_t *)taos_malloc(sizeof(taos_collector_t));
+  if (self == NULL) return NULL;
+  memset(self, 0, sizeof(taos_collector_t));
   self->name = taos_strdup(name);
   self->metrics = taos_map_new();
   if (self->metrics == NULL) {
@@ -66,9 +68,11 @@ int taos_collector_destroy(taos_collector_t *self) {
   if (r) ret = r;
   self->metrics = NULL;
 
-  r = taos_string_builder_destroy(self->string_builder);
-  if (r) ret = r;
-  self->string_builder = NULL;
+  if(self->string_builder != NULL){
+    r = taos_string_builder_destroy(self->string_builder);
+    if (r) ret = r;
+    self->string_builder = NULL;
+  }
 
   taos_free((char *)self->name);
   self->name = NULL;
