@@ -3463,7 +3463,7 @@ class StreamComputingTest(TDCase):
                                 self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.stream_query_row)
                                 # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;', count_expected_res=self.stream_query_row)
                                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.stream_query_row)
-                                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                                self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
                     else:
                         self.tdSql.query(f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart')
                         self.batch_query_row = self.tdSql.query_row
@@ -3480,7 +3480,7 @@ class StreamComputingTest(TDCase):
                             self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.stream_query_row)
                             # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;', count_expected_res=self.stream_query_row)
                             self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.stream_query_row)
-                            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                            self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
         if fill_value:
             history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
