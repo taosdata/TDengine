@@ -1344,6 +1344,12 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto FAIL;
   }
 
+  if(pMsg->pData == NULL){
+    tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d, since msg is NULL", tmq->consumerId, vgId);
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto FAIL;
+  }
+
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
   if (pRspWrapper == NULL) {
     tscWarn("consumer:0x%" PRIx64 " msg discard from vgId:%d, since out of memory", tmq->consumerId, vgId);
@@ -1354,11 +1360,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (code != 0) {
     goto END;
-  }
-
-  if(pMsg->pData == NULL){
-    tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d, since msg is NULL", tmq->consumerId, vgId);
-    goto FAIL;
   }
 
   int32_t msgEpoch = ((SMqRspHead*)pMsg->pData)->epoch;
@@ -2809,8 +2810,6 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   int64_t transporterId = 0;
   code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, &transporterId, sendInfo);
   if (code != 0) {
-    taosMemoryFree(buf);
-    taosMemoryFree(sendInfo);
     tsem_destroy(&pParam->sem);
     taosMemoryFree(pParam);
     return code;
@@ -3235,8 +3234,6 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   int64_t transporterId = 0;
   code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
   if (code != 0) {
-    taosMemoryFree(msg);
-    taosMemoryFree(sendInfo);
     tsem_destroy(&pParam->sem);
     taosMemoryFree(pParam);
     return code;
