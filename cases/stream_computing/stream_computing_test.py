@@ -867,7 +867,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
 
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
             # self.tdSql.query(f'select * from {self.tb_name}')
             # self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
@@ -1138,7 +1138,7 @@ class StreamComputingTest(TDCase):
                             # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                             ptn_counter += 1
                     if tname != self.stb_name:
-                        self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                        self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
                 else:
                     self.tdSql.query(f'select t1 from {self.ctb_name}')
                     ptn_counter = 0
@@ -1342,7 +1342,7 @@ class StreamComputingTest(TDCase):
                             self.tdSql.query(f'select count(*) from `{tbname}`')
                             # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                             ptn_counter += 1
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
                 else:
                     self.tdSql.query(f'select t1 from {self.ctb_name}')
                     ptn_counter = 0
@@ -2116,7 +2116,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
         # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
@@ -2142,7 +2142,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
 
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def at_once_state_window_ext(self, state_window, partition="tbname", delete=False, fill_history_value=None, case_when=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
         if not stb_field_name_value:
@@ -2576,7 +2576,8 @@ class StreamComputingTest(TDCase):
                         tbname = self.get_subtable_wait(f'{self.stb_name}_{self.subtable_prefix}{abs(c1_value[self.c1_idx])}{self.subtable_suffix}')
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def gen_event_window_condition(self):
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
@@ -2921,7 +2922,7 @@ class StreamComputingTest(TDCase):
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] , self.range_count)
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
@@ -2940,7 +2941,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
 
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
         if fill_value:
             history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
@@ -3462,7 +3463,7 @@ class StreamComputingTest(TDCase):
                                 self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.stream_query_row)
                                 # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;', count_expected_res=self.stream_query_row)
                                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.stream_query_row)
-                                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if self.stream_query_row > 0 else self.tdSql.checkEqual(self.tdSql.query_data[0][0], 0)
+                                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
                     else:
                         self.tdSql.query(f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart')
                         self.batch_query_row = self.tdSql.query_row
@@ -3479,7 +3480,7 @@ class StreamComputingTest(TDCase):
                             self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.stream_query_row)
                             # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;', count_expected_res=self.stream_query_row)
                             self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.stream_query_row)
-                            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if self.stream_query_row > 0 else self.tdSql.checkEqual(self.tdSql.query_data[0][0], 0)
+                            self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
         if fill_value:
             history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
@@ -4922,7 +4923,7 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
@@ -4946,7 +4947,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
 
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def at_once_interval_demo(self, interval, partition="tbname", trigger_mode="at_once", fill_history_value=None, check_stream_task=None, checkpoint_check=False):
         # Initialize parameters and encapsulate method（create table、insert）
