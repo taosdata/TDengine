@@ -566,8 +566,15 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       fid = tsdbKeyFid(TSDBROW_TS(row), tsdb->keepCfg.days, tsdb->keepCfg.precision);
       tsdbFidKeyRange(fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
 
-      code = tsdbCommitInfoAdd(tsdb, fid);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      SFileSetCommitInfo *info;
+      SFileSetCommitInfo  tinfo = {
+           .fid = fid,
+      };
+      vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
+      if (info == NULL) {
+        code = tsdbCommitInfoAdd(tsdb, fid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
 
       from.ts = maxKey + 1;
     }
