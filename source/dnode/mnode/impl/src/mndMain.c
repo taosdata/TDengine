@@ -334,6 +334,8 @@ static int32_t minCronTime() {
   min = TMIN(min, tsStreamCheckpointInterval);
   min = TMIN(min, 6);  // checkpointRemain
   min = TMIN(min, tsStreamNodeCheckInterval);
+  min = TMIN(min, tsArbHeartBeatIntervalSec);
+  min = TMIN(min, tsArbCheckSyncIntervalSec);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
   min = TMIN(min, telemInt);
@@ -390,6 +392,18 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
+
+  if (sec % (tsArbHeartBeatIntervalSec) == 0) {
+    if (mndPullupArbHeartbeat(pMnode) != 0) {
+      mError("failed to pullup arb heartbeat, since:%s", terrstr());
+    }
+  }
+
+  if (sec % (tsArbCheckSyncIntervalSec) == 0) {
+    if (mndPullupArbCheckSync(pMnode) != 0) {
+      mError("failed to pullup arb check sync, since:%s", terrstr());
+    }
+  }
 }
 void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   if (sec % (tsStatusInterval * 5) == 0) {
@@ -421,18 +435,6 @@ static void *mndThreadFp(void *param) {
       continue;
     }
     mndDoTimerPullupTask(pMnode, sec);
-
-    if (sec % (tsArbHeartBeatIntervalSec) == 0) {
-      if (mndPullupArbHeartbeat(pMnode) != 0) {
-        mError("failed to pullup arb heartbeat, since:%s", terrstr());
-      }
-    }
-
-    if (sec % (tsArbCheckSyncIntervalSec) == 0) {
-      if (mndPullupArbCheckSync(pMnode) != 0) {
-        mError("failed to pullup arb check sync, since:%s", terrstr());
-      }
-    }
   }
 
   return NULL;
@@ -1074,6 +1076,11 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   mTrace("mnode current syncState is %s, syncRestore:%d, syncTerm:%" PRId64 " ,roleTimeMs:%" PRId64,
          syncStr(pLoad->syncState), pLoad->syncRestore, pLoad->syncTerm, pLoad->roleTimeMs);
   return 0;
+}
+
+int64_t mndGetRoleTimeMs(SMnode *pMnode) {
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+  return state.roleTimeMs;
 }
 
 void mndSetRestored(SMnode *pMnode, bool restored) {
