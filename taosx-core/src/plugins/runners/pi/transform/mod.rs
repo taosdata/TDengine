@@ -771,7 +771,7 @@ impl SuperTableConfig {
     }
 
     /// 从超级表的配置中获取需要做 transfrom 的列（目前仅支持“映射”类型的 transfrom）
-    fn get_map_transfrom(&self) -> Option<Map> {
+    fn get_map_transform(&self) -> Option<Map> {
         let mut map: LinkedHashMap<String, FieldValue> = LinkedHashMap::new();
         for row in &self.schema {
             if let Some(field_value) = row.try_to_map_field() {
@@ -844,7 +844,7 @@ impl SuperTableConfig {
 
 impl Into<Parser> for SuperTableConfig {
     fn into(self) -> Parser {
-        let map = self.get_map_transfrom();
+        let map = self.get_map_transform();
         let filter = self.get_filter();
         let mut mutate = Vec::<Mutate>::new();
         if let Some(filter) = filter {
