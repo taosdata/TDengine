@@ -47,7 +47,7 @@ int taos_linked_list_push(taos_linked_list_t *self, void *item);
 /**
  * @brief API PRIVATE Pop the first item off of the list
  */
-void *taos_linked_list_pop(taos_linked_list_t *self);
+//void *taos_linked_list_pop(taos_linked_list_t *self);
 
 /**
  * @brief API PRIVATE Returns the item at the head of the list or NULL if not present
