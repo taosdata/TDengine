@@ -57,6 +57,20 @@ struct STsdbSnapReader {
   STombBlock tombBlock[1];
 };
 
+static int32_t tsdbSnapReadFileSetCloseReader(STsdbSnapReader* reader) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TARRAY2_CLEAR(reader->sttReaderArr, tsdbSttFileReaderClose);
+  tsdbDataFileReaderClose(&reader->dataReader);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
+  }
+  return code;
+}
+
 static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -100,27 +114,16 @@ static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
       code = tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = TARRAY2_APPEND(reader->sttReaderArr, sttReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      if ((code = TARRAY2_APPEND(reader->sttReaderArr, sttReader))) {
+        tsdbSttFileReaderClose(&sttReader);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
-  }
-  return code;
-}
-
-static int32_t tsdbSnapReadFileSetCloseReader(STsdbSnapReader* reader) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  TARRAY2_CLEAR(reader->sttReaderArr, tsdbSttFileReaderClose);
-  tsdbDataFileReaderClose(&reader->dataReader);
-
-_exit:
-  if (code) {
+    tsdbSnapReadFileSetCloseReader(reader);
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
   return code;
