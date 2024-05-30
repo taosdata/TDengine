@@ -31,7 +31,7 @@ use crate::{
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
     utils::{
         sql::values_to_sqls,
-        trace::{create_data_trace_id, get_data_trace_id_str, RequestID, TraceStreamId},
+        trace::{RequestID, TraceDataId, TraceStreamId},
     },
     Parser,
 };
@@ -1013,7 +1013,7 @@ async fn consume_flat_record_with_sink(
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
-    _data_trace_id: u64,
+    _data_trace_id: TraceDataId,
     trace_id_str: &str,
 ) -> anyhow::Result<()> {
     for message in record.records() {
@@ -1041,7 +1041,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1087,8 +1087,8 @@ pub async fn ipc_flat_stream_worker_vgroup(
             let mut worker_written = 0;
             while let Ok(record) = msg_rx.recv_async().await {
                 let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+                let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                let data_trace_id_str: String = data_trace_id.to_string();
                 trace!("Writing batch {}", data_trace_id_str);
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
@@ -1210,7 +1210,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1244,8 +1244,8 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
             Ok(record) => {
                 // msg_tx.send_async(record).await?;
                 let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+                let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                let data_trace_id_str: String = data_trace_id.to_string();
                 trace!("Writing batch {}", data_trace_id_str);
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {

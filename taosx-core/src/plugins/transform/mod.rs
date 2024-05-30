@@ -1443,6 +1443,11 @@ impl Default for TableOptions {
         Self {
             identifier_case_insensitive: false,
             replace_dot_in_table_name: "_".to_string(),
+            written_protocol: WrittenProtocol::default(),
+            written_method: None,
+            written_concurrent: None,
+            workers_per_vgroup: None,
+            null_values: None,
         }
     }
 }
@@ -1540,6 +1545,7 @@ impl ArrowFieldExt for Field {
         }
     }
 }
+
 impl MessageArrowRecords {
     pub fn schema(&self) -> Describe {
         let schema = self.records.schema();
@@ -1733,12 +1739,6 @@ impl MessageArrowRecords {
         }
     }
 
-    pub fn sql_insert_part(
-        &self,
-        precision: taos::Precision,
-        with_meta: bool,
-        with_field_names: bool,
-    ) -> Vec<(String, usize)> {
     pub fn sql_insert_part(
         &self,
         precision: taos::Precision,

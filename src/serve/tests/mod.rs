@@ -98,10 +98,13 @@ pub(crate) async fn generate_scheduler_for_test(
         }
     });
 
+    let (_agent_spawn_sender, agent_spawn_receiver) = flume::bounded(0);
+
     let agent_worker = AgentWorker::new(
         agent_activity_sender,
         agent_notify_receiver,
         weak_notify_sender,
+        agent_spawn_receiver,
     )
     .await;
     let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);

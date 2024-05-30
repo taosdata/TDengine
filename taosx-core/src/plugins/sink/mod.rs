@@ -13,15 +13,13 @@ use std::{
 };
 
 use crate::plugins::runners::opc::config::model::ColumnConfig;
+use crate::plugins::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TagConfig;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
     utils::{get_main_version_from_server_version, get_server_version},
-};
-use crate::{
-    plugins::runners::opc::config::model::OpcModelConfig, sink::flat::flat_write_with_sql,
 };
 use crate::{plugins::transform::TransformExt, utils::trace::TraceDataId};
 use crate::{runners::opc::config::model::TableConfig, sink::transform::parse::FieldParser};
@@ -47,8 +45,8 @@ use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
 use faststr::FastStr;
-use linked_hash_map::LinkedHashMap;
 use futures_util::{Sink, Stream, StreamExt};
+use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
 use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
@@ -65,42 +63,26 @@ use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
-use tokio::sync::{Mutex, Notify, OnceCell};
-use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::runners::opc::config::model::TableConfig;
-use crate::runners::opc::config::model::TagConfig;
+use tracing::{trace, warn};
+
 use crate::runners::opc::config::points::UpdateMode;
-use crate::utils::breakpoints::breakpoints_set;
-use crate::utils::trace::create_data_trace_id;
-use crate::utils::trace::create_stream_trace_id;
-use crate::utils::trace::get_data_trace_id_str;
-use crate::utils::trace::set_data_trace_id_for_current_span;
-use crate::utils::trace::RequestID;
-use crate::ConnectorLicense;
 use crate::{
-    core_metrics::get_metrics_arc_from_i64,
-    core_metrics::{CoreMetrics, TaskMetrics},
-    plugins::runners::opc::config::model::ColumnConfig,
     plugins::transform::WrittenMethod,
-    runners::opc::config::OPCConfig,
     sink::flat::{
         ipc_flat_stream_worker_concurrent, ipc_flat_stream_worker_vgroup,
         ipc_flat_stream_worker_vgroup_sequential,
     },
-    utils::trace::get_stream_id_u64,
-    utils::{get_main_version_from_server_version, get_server_version},
 };
 
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
 use self::{
-    lush::{LushModelConfig, TableTagCache},
-    transform::parse::ParserImpl,
     flat::{flat_write_with_raw_block, flat_write_with_sql},
     ipc_metric::IpcMetrics,
+    lush::{LushModelConfig, TableTagCache},
+    transform::parse::ParserImpl,
 };
 use crate::plugins::transform::parse::cast;
 
@@ -2952,7 +2934,7 @@ async fn ipc_flat_stream_worker(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: TraceStreamId,
-    metrics: &IpcMetrics,
+    metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     tokio::pin!(stream);
@@ -3047,7 +3029,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         notifier,
         ipc_error_strategy,
         stream_trace_id,
-        metrics_arc.ipc(),
+        metrics_arc,
     )
     .await
 }
@@ -3268,11 +3250,13 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ipc_reader,
                 ipc_ack_writer,
                 parser.as_ref(),
+                license.as_ref(),
+                transferred.as_deref(),
                 target_precision,
                 notifier,
                 ipc_error_strategy,
                 stream_trace_id,
-                metrics,
+                metrics_arc.clone(),
             )
             .await?
         }
@@ -3979,7 +3963,7 @@ pub async fn channel_based_transformer(
                         target_precision,
                         notifier,
                         ipc_error_strategy,
-                        0,
+                        TraceStreamId::new(0),
                         get_metrics_arc_from_i64(task_id).await,
                     )
                     .await
@@ -3990,46 +3974,4 @@ pub async fn channel_based_transformer(
         .in_current_span(),
     );
     Ok((msg_tx, ack_rx))
-}
-
-#[test]
-fn test_get_ts_from_sql() {
-    let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
-    let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
-    let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
-    let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
-
-    #[test]
-    fn test_group_by_super_table_name() {
-        let table_name = StringArray::from(vec!["table1", "table2", "table3"]);
-        let sub_super_mapping: HashMap<String, String> = HashMap::from_iter(vec![
-            ("table1".to_string(), "super1".to_string()),
-            ("table2".to_string(), "super2".to_string()),
-            ("table3".to_string(), "super1".to_string()),
-        ]);
-        let schema = Schema::new(vec![Field::new("table_name", DataType::Utf8, true)]);
-        let record =
-            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(table_name) as ArrayRef]).unwrap();
-        let grouped_batches =
-            lush::group_by_super_table_name(&record, "table_name", &sub_super_mapping);
-        assert_eq!(grouped_batches.len(), 2);
-        let record_batch = grouped_batches.get("super1").unwrap();
-        assert_eq!(record_batch.num_rows(), 2);
-        for (super_table_name, record) in grouped_batches {
-            println!("super_table_name: {}", super_table_name);
-            println!("record: {:?}", record);
-        }
-    }
-    #[test]
-    fn test_get_ts_from_sql() {
-        let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
-        let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
-        let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
-        let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
-
-        assert_eq!(get_ts_from_sql(sql1), Some("123".to_string()));
-        assert_eq!(get_ts_from_sql(sql2), Some("456".to_string()));
-        assert_eq!(get_ts_from_sql(sql3), Some("789".to_string()));
-        assert_eq!(get_ts_from_sql(sql4), Some("101".to_string()));
-    }
 }

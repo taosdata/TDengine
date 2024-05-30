@@ -1096,7 +1096,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
         let new_value = if k == "csv_config_file" {
             encode_csv_config_file(v.clone())?
         } else if k == "transform_config_file" {
-            // pass
+            String::new()
         } else if v.contains("@") {
             get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
         } else {
