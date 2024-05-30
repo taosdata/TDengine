@@ -245,6 +245,7 @@ int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmit
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode);
