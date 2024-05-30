@@ -1027,6 +1027,7 @@ func (c *UAClient) Close() error {
 
 func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 	// observe
+	c.logger.Info("opcua start to change collect config")
 	if c.collectMode != conf.Ua.CollectMode {
 		c.logger.Error("collect mode not match")
 		return
@@ -1049,6 +1050,7 @@ func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 			oldNode := oldNodeMap[conf.Ua.Nodes[i].ID]
 			if oldNode != nil {
 				newCacheNodes = append(newCacheNodes, oldNode)
+				delete(oldNodeMap, conf.Ua.Nodes[i].ID)
 			} else {
 				cache := &nodeValue{
 					nodeID: node,
@@ -1058,7 +1060,11 @@ func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 				}
 				newCacheNodes = append(newCacheNodes, cache)
 				needInitNodeIDs = append(needInitNodeIDs, cache)
+				c.logger.Info("opcua add node:", conf.Ua.Nodes[i].ID)
 			}
+		}
+		for s := range oldNodeMap {
+			c.logger.Info("opcua remove node:", s)
 		}
 		c.readNameBatch(needInitNodeIDs)
 		c.readValueBatch(needInitNodeIDs)
@@ -1104,37 +1110,42 @@ func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 			var unsubRetryNode []*nodeValue
 
 			var monitoredItemIDs []uint32
+			var unsubscribeNode []*nodeValue
 			for _, node := range monitoredNode {
 				if !node.subscribed {
 					continue
 				}
+				c.logger.Info("opcua unsubscribe node:", node.nodeValue.IDStr)
+				unsubscribeNode = append(unsubscribeNode, node)
 				monitoredItemIDs = append(monitoredItemIDs, node.monitoredItemID)
 			}
 			if len(monitoredItemIDs) > 0 {
 				subscriber := c.subList[subscriptionID]
 				resp, err := subscriber.sub.Unmonitor(c.ctx, monitoredItemIDs...)
 				if err != nil {
-					c.logger.WithError(err).Error("unmonitor response error")
+					c.logger.WithError(err).Error("unsubscribe response error")
 				}
 				for index, r := range resp.Results {
 					if !errors.Is(r, ua.StatusOK) {
-						c.logger.WithError(r).WithField("nodeID", monitoredNode[index].nodeValue.IDStr).Error("unmonitor error")
-						unsubRetryNode = append(unsubRetryNode, monitoredNode[index])
+						c.logger.WithError(r).WithField("nodeID", unsubscribeNode[index].nodeValue.IDStr).Error("unsubscribe error")
+						unsubRetryNode = append(unsubRetryNode, unsubscribeNode[index])
 					} else {
-						monitoredNode[index].subscribed = false
+						c.logger.Info(unsubscribeNode[index].nodeValue.IDStr, "unsubscribe success")
+						unsubscribeNode[index].subscribed = false
 						subscriber.subCount -= 1
 					}
 				}
 				for _, value := range unsubRetryNode {
-					c.logger.WithField("nodeID", value.nodeValue.IDStr).Debug("retry unmonitor")
+					c.logger.WithField("nodeID", value.nodeValue.IDStr).Info("retry unsubscribe")
 					resp, err := subscriber.sub.Unmonitor(c.ctx, value.monitoredItemID)
 					if err != nil {
-						c.logger.WithError(err).WithField("nodeID", value.nodeValue.IDStr).Error("retry unmonitor response error")
+						c.logger.WithError(err).WithField("nodeID", value.nodeValue.IDStr).Error("retry unsubscribe response error")
 						continue
 					}
 					if !errors.Is(resp.Results[0], ua.StatusOK) {
-						c.logger.WithError(resp.Results[0]).WithField("nodeID", value.nodeValue.IDStr).Error("retry unmonitor error")
+						c.logger.WithError(resp.Results[0]).WithField("nodeID", value.nodeValue.IDStr).Error("retry unsubscribe error")
 					} else {
+						c.logger.Info(value.nodeValue.IDStr, "unsubscribe success after retry")
 						value.subscribed = false
 						subscriber.subCount -= 1
 					}
@@ -1156,6 +1167,9 @@ func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 					continue
 				}
 				subHandle := c.subList[i]
+				for _, n := range nodes {
+					c.logger.Info("opcua resubscribe node:", n.nodeValue.IDStr)
+				}
 				err := c.doSubBatch(subHandle, nodes)
 				if err != nil {
 					c.logger.WithError(err).Error("resubscribe error")
@@ -1163,6 +1177,9 @@ func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
 			}
 		}
 		if len(newSubNode) > 0 {
+			for _, n := range newSubNode {
+				c.logger.Info("opcua subscribe new node:", n.nodeValue.IDStr)
+			}
 			// subscribe new nodes
 			c.readNameBatch(newSubNode)
 			c.nodes = append(c.nodes, newSubNode...)

@@ -60,6 +60,7 @@ func collect() {
 			if lastMD5 == newMD5 {
 				return
 			}
+			logger.Info("config file changed, reload config.")
 			lastMD5 = newMD5
 			c, err := config.ParseConfig(configPath)
 			if err != nil {
