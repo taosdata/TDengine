@@ -576,14 +576,17 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   int32_t code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
-  
+
+#if 0  
   pTbCtx->pData->aCol = pTbData->aCol;
   
   SColData* pCol = taosArrayGet(pTbCtx->pData->aCol, 0);
   if (pCol->nVal <= 0) {
     return TSDB_CODE_SUCCESS;
   }
-  
+#else
+  pTbCtx->pData->aRowP = pTbData->aCol;
+#endif
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -597,9 +600,9 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
   }
 
-  taosArraySort(pTbCtx->pData->aCol, insColDataComp);
+  //taosArraySort(pTbCtx->pData->aCol, insColDataComp);
 
-  tColDataSortMerge(pTbCtx->pData->aCol);
+  //tColDataSortMerge(pTbCtx->pData->aCol);
 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
