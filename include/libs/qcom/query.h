@@ -224,6 +224,7 @@ typedef struct SStmtBuildOutputInfo {
   void*     buff;
   int64_t   buffSize;
   int64_t   buffIdx;
+  STSchema* pTSchema;
 
   SArray        *pCols[STMT_COL_BUF_SIZE];
   int32_t        pColIdx;

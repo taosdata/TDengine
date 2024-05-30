@@ -878,7 +878,8 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
     
     pStmt->sql.pCache->pDataCtx = pDst;
     for (int32_t i = 0; i < STMT_COL_BUF_SIZE; i++) {
-      pStmt->exec.smInfo.pCols[i] = taosArrayDup(pDst->pData->aCol, NULL);
+      //pStmt->exec.smInfo.pCols[i] = taosArrayDup(pDst->pData->aCol, NULL);
+      pStmt->exec.smInfo.pCols[i] = taosArrayInit(20, POINTER_BYTES);
     }
     
     pStmt->sql.pCache->boundTags = pStmt->bInfo.boundTags;
@@ -1062,12 +1063,16 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       #if 1
       pTbData->aCol = pStmt->exec.smInfo.pCols[pStmt->exec.smInfo.pColIdx++];
       //STMT_ERR_RET(qResetStmtColumns(pTbData->aCol, false));
+      #if 0
       int32_t        colNum = taosArrayGetSize(pTbData->aCol);
 
       for (int32_t i = 0; i < colNum; ++i) {
         SColData* pCol = (SColData*)taosArrayGet(pTbData->aCol, i);
         tColDataClear(pCol);
-      }      
+      }    
+      #else
+      taosArrayClear(pTbData->aCol);
+      #endif
       #else
       if (pStmt->sql.pCache) {
         pTbData->aCol = taosArrayDup(pStmt->sql.pCache->pDataCtx->pData->aCol, NULL);
@@ -1089,7 +1094,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   pStmt->stat.bindDataUs2 += startUs3 - startUs2;    
 
   if (colIdx < 0) {
-    code = qBindStmtColsValue(*pDataBlock, pTbData->aCol, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen);
+    code = qBindStmtColsValue(*pDataBlock, pTbData->aCol, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, &pStmt->exec.smInfo.pTSchema);
     if (code) {
       tscError("qBindStmtColsValue failed, error:%s", tstrerror(code));
       STMT_ERR_RET(code);
