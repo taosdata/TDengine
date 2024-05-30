@@ -463,7 +463,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     taosArrayClear(colValArray);
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
-      if (infos[iInfo].bind->is_null[iRow]) {
+      if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
         colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
       } else {
         SValue value = {
