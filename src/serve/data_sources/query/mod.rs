@@ -28,8 +28,8 @@ pub async fn query_data_source(
         if controller.is_none() {
             anyhow::bail!("controller is required when query datasource via agent");
         }
-        let controler = controller.unwrap();
-        controler
+        let controller = controller.unwrap();
+        controller
             .query_data_source_via_agent(request, agent_id)
             .await
     } else {

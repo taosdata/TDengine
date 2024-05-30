@@ -906,12 +906,11 @@ async fn consume_lush_record(
 }
 
 // Cargill 无数据静态超级表，可能作为树的某个节点存在，只需要同步表结构
-const STATIC_SUPER_TABLES: [&str; 5] = [
+const STATIC_SUPER_TABLES: [&str; 4] = [
     "technology",
     "l1__site",
     "cockpit_kpi_corn_wet_mill",
     "cockpit_kpi",
-    "caf_base",
 ];
 
 #[instrument(skip_all, name = "consume", fields(trace.id = %data_trace_id))]

@@ -282,7 +282,7 @@ impl Args {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
                 if let Some(matches) = matches.subcommand_matches("serve") {
-                    macro_rules! tak_or_not {
+                    macro_rules! take_or_not {
                         ($f:ident) => {
                             match matches.value_source(stringify!($f)) {
                                 Some(ValueSource::DefaultValue) | None => {}
@@ -292,11 +292,11 @@ impl Args {
                             }
                         };
                     }
-                    tak_or_not!(listen);
-                    tak_or_not!(grpc);
-                    tak_or_not!(database_url);
-                    tak_or_not!(secret_prefix);
-                    tak_or_not!(do_not_resume);
+                    take_or_not!(listen);
+                    take_or_not!(grpc);
+                    take_or_not!(database_url);
+                    take_or_not!(secret_prefix);
+                    take_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
             }

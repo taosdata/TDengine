@@ -12,9 +12,9 @@
 //! 我们定义了一些功能性的关键词来即用来标记某个超级表定义的开始，同时也用来完成一些特殊的功能。
 //! 这些关键词都必须出现在超级表 schema 正式开始之前。
 //! 第一个关键词是 “SuperTable”，它表示一个超级表定义的开始，它的右边紧跟这个超级表的名字。所以它有“标记开始”和“定义超级表名”两个作用。
-//! 第二个关键词是“SubTable”，它出现的位置必须是 “SupterTable” 关键词行之后，超级表结构定义开始之前。它的作用是表示子表名映射规则。比如对于单列模型，默认的子表名是 $point_name, 你可以增加在  poin_name 前后增加前缀或后缀。配置文件中所有以 $ 开头的值为对源数据中某个属性的引用。如果是单列模式的数据，$point_name 就是一个内置的属性。还有很多其它内置属性，在“单列模型配置文件”一节会做详细说明。
+//! 第二个关键词是“SubTable”，它出现的位置必须是 “SupterTable” 关键词行之后，超级表结构定义开始之前。它的作用是表示子表名映射规则。比如对于单列模型，默认的子表名是 $point_name, 你可以增加在  point_name 前后增加前缀或后缀。配置文件中所有以 $ 开头的值为对源数据中某个属性的引用。如果是单列模式的数据，$point_name 就是一个内置的属性。还有很多其它内置属性，在“单列模型配置文件”一节会做详细说明。
 //! 第三个关键词“Filter”，它出现的位置同样必须是 “SupterTable” 关键词行之后，超级表结构定义开始之前。它定义了数据入库前的过滤规则。
-//! 第四个关键词是“Template”，它出现的位置同样是“SupterTable” 关键词行之后，超级表结构定义开始之前。它定义了数据入库前的过滤规则。它只出现在多列模型的配置文件中，仅用来表示自动生成这个超级表定义的时候，参考的是 PI 系统中的哪个 Template。这个关键词是可选的。我们给用户自由从头开始自定义一个超级表，不参考任何已有的 Tempalte。
+//! 第四个关键词是“Template”，它出现的位置同样是“SupterTable” 关键词行之后，超级表结构定义开始之前。它定义了数据入库前的过滤规则。它只出现在多列模型的配置文件中，仅用来表示自动生成这个超级表定义的时候，参考的是 PI 系统中的哪个 Template。这个关键词是可选的。我们给用户自由从头开始自定义一个超级表，不参考任何已有的 Template。
 //! 下面重点描述 schema 定义部分。这一部分为 4 列。
 //! 第一列为列名；
 //! 第二列为列类型分为：KEY、COLUMN和TAG。
@@ -491,7 +491,7 @@ fn split_csv_config(content: String, object_filter: &str) -> (Vec<String>, Vec<S
         match line {
             Some(line) => {
                 let lower_line = line.to_lowercase();
-                // 非 elemnt 即 supertable
+                // 非 element 即 supertable
                 if lower_line.contains(object_filter) {
                     object_lines.push(line.to_string());
                 } else if !line.is_empty() {
@@ -687,7 +687,7 @@ fn split_csv_line(line: &str) -> Vec<&str> {
         }
     }
     let sec = &line[start..];
-    // trime the qutoe at beging and end
+    // trime the qutoe at beginning and end
     let pat = '`';
     if sec.starts_with(pat) && sec.ends_with(pat) {
         let set = sec.trim_matches(pat);
