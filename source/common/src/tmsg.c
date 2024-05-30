@@ -9616,7 +9616,9 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);
       }
+#if 0      
       taosArrayDestroy(pTbData->aRowP);
+#endif      
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
     if (pTbData->pCreateTbReq) {
