@@ -5630,6 +5630,7 @@ int32_t tDeserializeSVKillCompactReq(void *buf, int32_t bufLen, SVKillCompactReq
     code = TSDB_CODE_MSG_DECODE_ERROR;
     goto _exit;
   }
+
   if (tDecodeI32(&decoder, &pReq->vgId) < 0) {
     code = TSDB_CODE_MSG_DECODE_ERROR;
     goto _exit;
