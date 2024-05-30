@@ -254,7 +254,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       pTableCxt->pData->flags = (pCreateTbReq != NULL && NULL != *pCreateTbReq) ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
-      pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
+      // pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
       pTableCxt->pData->suid = pTableMeta->suid;
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
