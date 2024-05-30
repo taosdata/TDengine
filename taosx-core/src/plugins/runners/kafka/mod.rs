@@ -246,7 +246,7 @@ async fn execute(
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
 
     // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify)?;
+    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
@@ -255,7 +255,14 @@ async fn execute(
         let timeout = task.timeout;
 
         consumers.spawn(poll_message(
-            idx, consumer, tx, timeout, aborted, schema, batch_size,
+            idx,
+            consumer,
+            tx,
+            timeout,
+            aborted,
+            schema,
+            batch_size,
+            notify.clone(),
         ));
     }
 
@@ -272,7 +279,7 @@ struct SubTask {
 impl SubTask {
     pub fn build_tasks(
         config: KafkaTaskConfig,
-        notify: crate::TaskNotifySender,
+        _notify: crate::TaskNotifySender,
     ) -> anyhow::Result<Vec<Self>> {
         let client_config = build_client_config(config.connect.clone());
 
@@ -298,11 +305,14 @@ impl SubTask {
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
             .collect::<Vec<_>>();
         if topics_readable.len() != config.topics.len() {
-            let _ = notify.send(crate::TaskNotify::error("Some topics are not readable, please check your topic authorization, and then restart the task."));
             tracing::error!(
                 "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
                 config.topics.len(),
-                topics_readable.len())
+                topics_readable.len());
+            anyhow::bail!(
+                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                    config.topics.len(),
+                    topics_readable.len());
         }
 
         topics_readable.into_iter().for_each(|tp| {
@@ -316,8 +326,11 @@ impl SubTask {
         });
 
         if topic_partitions.is_empty() {
-            let _ = notify.send(crate::TaskNotify::error("Topics is empty, please check your topic authorization, and then restart the task."));
             tracing::error!(
+                "topics is empty, expected: {:?}, please check your topic authorization",
+                config.topics
+            );
+            anyhow::bail!(
                 "topics is empty, expected: {:?}, please check your topic authorization",
                 config.topics
             );
@@ -375,6 +388,7 @@ async fn poll_message(
     aborted: Arc<AtomicBool>,
     schema: Schema,
     batch_size: usize,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut last_polling = chrono::Utc::now().timestamp_millis();
 
@@ -428,6 +442,10 @@ async fn poll_message(
                 }
             }
             Err(err) => {
+                let _ = notify.send(crate::TaskNotify::error(format!(
+                    "failed to polling from kafka, cause: {}",
+                    err.to_string()
+                )));
                 tracing::error!("failed to polling from kafka, cause: {}", err.to_string());
             }
         };
