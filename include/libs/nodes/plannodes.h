@@ -183,6 +183,7 @@ typedef struct SProjectLogicNode {
   char       stmtName[TSDB_TABLE_NAME_LEN];
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
+  bool       isSetOpProj;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {

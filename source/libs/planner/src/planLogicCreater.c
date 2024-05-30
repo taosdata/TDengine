@@ -1587,6 +1587,7 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
     TSWAP(pProject->node.pLimit, pSetOperator->pLimit);
   }
   pProject->ignoreGroupId = true;
+  pProject->isSetOpProj = true;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
