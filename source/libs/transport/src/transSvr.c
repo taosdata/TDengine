@@ -623,7 +623,8 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STrans* pTransInst = pConn->pTransInst;
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+  if (pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp && pTransInst->compressSize != -1 &&
+      pTransInst->compressSize < pMsg->contLen) {
     len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)len);
   }
@@ -688,11 +689,11 @@ static void destroyAllConn(SWorkThrd* pThrd) {
     QUEUE_REMOVE(h);
     QUEUE_INIT(h);
 
-                 SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
-                 while (T_REF_VAL_GET(c) >= 2) {
-                   transUnrefSrvHandle(c);
+    SSvrConn* c = QUEUE_DATA(h, SSvrConn, queue);
+    while (T_REF_VAL_GET(c) >= 2) {
+      transUnrefSrvHandle(c);
     }
-                 transUnrefSrvHandle(c);
+    transUnrefSrvHandle(c);
   }
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
