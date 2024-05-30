@@ -9624,6 +9624,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+#if 0    
       int32_t   nColData = TARRAY_SIZE(pTbData->aCol);
       SColData *aColData = (SColData *)TARRAY_DATA(pTbData->aCol);
 
@@ -9631,6 +9632,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
         tColDataDestroy(&aColData[i]);
       }
       taosArrayDestroy(pTbData->aCol);
+#endif      
     } else {
       int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
       SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
