@@ -6,25 +6,23 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, Dsn, Taos};
 
-use taosx_ipc::types::DataSetsReq;
-
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::model::{ColumnConfig, OpcModelConfig};
-use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::points::{PointsConfig, UpdateMode};
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::{csv_string_record_from_iter, opc_datasets, OpcType};
+use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
 
-mod collect;
+pub mod collect;
 mod connect;
 pub mod csv;
 pub mod model;
 pub mod points;
 mod report;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
@@ -79,23 +77,18 @@ impl OPCConfig {
 
             model_config
         } else {
-            let points = opc_datasets(&DataSetsReq {
-                from: dsn.to_string(),
-                categories: vec![String::from("nodes")],
-                via: None,
-                offset: 0,
-                pattern: None,
-                limit: usize::MAX / 2 - 1,
-                lang: None,
-            })
-            .await?;
-
+            let points = opc_datasets_impl(dsn.clone()).await?;
             let mut opc_model_config = OpcModelConfig::new();
-            opc_model_config.add_points(points, dsn)?;
-
+            let point_model_config = OpcPointModelConfig::from_dsn(dsn)?;
+            opc_model_config.set_point_model_config(point_model_config);
+            opc_model_config.add_points(points)?;
             opc_model_config
         };
 
+        let points_config = PointsConfig::from_dsn(dsn)?;
+
+        // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
+        // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
         let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
             |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
@@ -112,7 +105,7 @@ impl OPCConfig {
             debug,
             connect,
             report,
-            points: None,
+            points: Some(points_config),
             collect: Some(collect),
             model_config: Some(model_config),
         })
@@ -144,7 +137,7 @@ impl OPCConfig {
     }
 
     pub async fn from_dsn_check_mode(dsn: &Dsn) -> anyhow::Result<Self> {
-        Ok(OPCConfig {
+        Ok(Self {
             opc_type: OpcType::from_dsn(dsn)?,
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
@@ -178,7 +171,15 @@ impl OPCConfig {
     }
 
     pub fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
-        dsn.params.get("csv_config_file").map(|v| v.to_string())
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+                Some(v.to_string())
+            })
+            .flatten()
     }
 
     /// 从 dsn 中解析参数 select_all_points 参数
@@ -206,16 +207,27 @@ impl OPCConfig {
     /// 从 dsn 中解析参数 stable_expression 参数：超级表名的表达式
     /// “选择数据点位”时，super_table_expression 参数是必须的
     pub fn parse_stable_expression(dsn: &Dsn) -> anyhow::Result<String> {
-        let expr = dsn
+        // TODO: 使用 opc_{type} 作为默认值，是为了兼容之前的任务
+        let stable_expression = dsn
             .params
             .get("super_table_expression")
-            .ok_or(anyhow::anyhow!("super_table_expression is required"))?;
+            .map(|v| {
+                if v.is_empty() {
+                    "opc_{type}".to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or("opc_{type}".to_string());
 
-        if expr.is_empty() {
-            bail!("super_table_expression cannot be empty");
-        }
-
-        let stable_expression = expr.to_string();
+        // let expr = dsn
+        //     .params
+        //     .get("super_table_expression")
+        //     .ok_or(anyhow::anyhow!("super_table_expression is required"))?;
+        // if expr.is_empty() {
+        //     bail!("super_table_expression cannot be empty");
+        // }
+        // let stable_expression = expr.to_string();
 
         Ok(stable_expression)
     }
@@ -343,7 +355,39 @@ impl OPCConfig {
     */
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpcPointModelConfig {
+    pub opc_type: OpcType,
+    pub update_mode: UpdateMode,
+    pub stable_expression: String,
+    pub tbname_expression: String,
+    pub primary_key: String,
+    pub primary_key_alias: String,
+}
+
+impl OpcPointModelConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+        let update_mode = PointsConfig::parse_update_mode(dsn)?.unwrap_or(UpdateMode::None);
+        let stable_expression = OPCConfig::parse_stable_expression(dsn)?;
+        let tbname_expression = OPCConfig::parse_tbname_expression(dsn)?;
+        let primary_key =
+            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
+        let primary_key_alias =
+            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+
+        Ok(Self {
+            opc_type,
+            update_mode,
+            stable_expression,
+            tbname_expression,
+            primary_key,
+            primary_key_alias,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub enum AuthMethod {
     Anonymous,
     UserName,
@@ -454,20 +498,23 @@ mod tests {
 
     #[test]
     fn test_parse_stable_expression() {
-        let dsn = "opcua://?super_table_expression=opc_{type}"
+        let dsn = "opcua://?super_table_expression=abc_{type}"
             .to_string()
             .into_dsn()
             .unwrap();
         let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
-        assert_eq!(stable_expression, "opc_{type}");
+        assert_eq!(stable_expression, "abc_{type}");
 
         let dsn = "opcua://".to_string().into_dsn().unwrap();
-        let result = OPCConfig::parse_stable_expression(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "super_table_expression is required",
-            result.err().unwrap().to_string()
-        );
+        let stable_expression = OPCConfig::parse_stable_expression(&dsn).unwrap();
+        assert_eq!(stable_expression, "opc_{type}");
+
+        // let result = OPCConfig::parse_stable_expression(&dsn);
+        // assert!(result.is_err());
+        // assert_eq!(
+        //     "super_table_expression is required",
+        //     result.err().unwrap().to_string()
+        // );
     }
 
     #[test]

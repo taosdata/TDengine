@@ -138,18 +138,47 @@ pub struct MqttConnectConfig {
 
 impl MqttConnectConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let ca =
-            get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
-                anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
-            })?;
-        let cert =
-            get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
-                anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string())
-            })?;
-        let cert_key = get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None)
-            .map_err(|err| {
-                anyhow::anyhow!("failed to read cert_key config, cause: {}", err.to_string())
-            })?;
+        let ca = dsn.get("ca");
+        let ca = if ca.is_none() || ca.unwrap().is_empty() {
+            Ok(None)
+        } else {
+            let ca = ca.unwrap();
+            if ca.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
+                    anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
+                })
+            } else {
+                Ok(Some(ca.to_string()))
+            }
+        }?;
+
+        let cert = dsn.get("cert");
+        let cert = if cert.is_none() || cert.unwrap().is_empty() {
+            Ok(None)
+        } else {
+            let cert = cert.unwrap();
+            if cert.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
+                    anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string())
+                })
+            } else {
+                Ok(Some(cert.to_string()))
+            }
+        }?;
+
+        let cert_key = dsn.get("cert_key");
+        let cert_key = if cert_key.is_none() || cert_key.unwrap().is_empty() {
+            Ok(None)
+        } else {
+            let cert_key = cert_key.unwrap();
+            if cert_key.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(
+                    |err| anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string()),
+                )
+            } else {
+                Ok(Some(cert_key.to_string()))
+            }
+        }?;
 
         let host = dsn
             .addresses

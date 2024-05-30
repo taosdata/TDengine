@@ -108,9 +108,9 @@ datasets:
             type: str
         - name: child_table_expression
           display: Table Name
-          value: t_{tagname}
+          value: t_{tag_name}
           description: |
-            Support <child table prefix>_{tagname} pattern, {tagname} is the name of the OPC point.
+            Support <child table prefix>_{tag_name} pattern, {tag_name} is the name of the OPC point.
           required: true
           hint:
             type: str
@@ -173,6 +173,26 @@ groups:
           min: 1
           max: 60
         value: 1
+      - name: update_mode
+        display: Point Update Mode
+        description: |
+          Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.
+        value: none
+        hint:
+          type: str
+          choices:
+            - none
+            - append
+            - update
+      - name: update_interval
+        display: Point Update Interval
+        description: |
+          Update the OPC data points interval in seconds.
+        value: 600
+        hint:
+          type: integer
+          min: 60
+          max: 2147483647
 
 advanced:
   name: Advanced Options

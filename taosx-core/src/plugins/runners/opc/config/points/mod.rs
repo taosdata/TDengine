@@ -5,7 +5,7 @@ use taos::Dsn;
 
 use crate::runners::opc::OpcType;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsConfig {
     pub regex: Option<String>,
     pub limit: usize, // always 0
@@ -46,7 +46,7 @@ impl PointsConfig {
         dsn.params.get("pattern").map(|v| v.to_string())
     }
 
-    fn parse_update_mode(dsn: &Dsn) -> anyhow::Result<Option<UpdateMode>> {
+    pub fn parse_update_mode(dsn: &Dsn) -> anyhow::Result<Option<UpdateMode>> {
         dsn.params
             .get("update_mode")
             .map(|v| v.parse::<UpdateMode>())
@@ -132,7 +132,7 @@ mod points_config_tests {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsUaConfig {
     root: Option<String>,
     namespaces: Option<Vec<u16>>,
@@ -216,7 +216,7 @@ mod points_ua_config_tests {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsDaConfig {
     access_path: Option<Vec<String>>,
 }
@@ -263,7 +263,7 @@ mod points_da_config_tests {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UpdateMode {
     None,
     Append,

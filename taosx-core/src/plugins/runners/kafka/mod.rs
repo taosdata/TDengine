@@ -100,13 +100,13 @@ pub async fn kafka_to_taos(
         transferred,
         span,
         task_id.clone(),
-        notify,
+        notify.clone(),
     )
     .await?;
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let mut join_set = execute(from, ipc_port, aborted_cloned).await?;
+    let mut join_set = execute(from, ipc_port, aborted_cloned, notify.clone()).await?;
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
@@ -183,6 +183,7 @@ async fn execute(
     from: Dsn,
     ipc_server_port: u16,
     aborted: Arc<AtomicBool>,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<KafkaJoinSet> {
     let ipc_server = format!("127.0.0.1:{}", ipc_server_port);
 
@@ -246,7 +247,7 @@ async fn execute(
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
 
     // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config)?;
+    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify)?;
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
@@ -270,7 +271,10 @@ struct SubTask {
 }
 
 impl SubTask {
-    pub fn build_tasks(config: KafkaTaskConfig) -> anyhow::Result<Vec<Self>> {
+    pub fn build_tasks(
+        config: KafkaTaskConfig,
+        notify: crate::TaskNotifySender,
+    ) -> anyhow::Result<Vec<Self>> {
         let client_config = build_client_config(config.connect.clone());
 
         // create a base consumer
@@ -286,23 +290,38 @@ impl SubTask {
             })?;
 
         let mut topic_partitions: Vec<String> = Vec::new();
-        metadata
+
+        // filter topics
+        let topics_readable = metadata
             .topics()
             .iter()
             .filter(|tp| !tp.name().starts_with("__"))
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
-            .for_each(|tp| {
-                let topic_name = tp.name();
-                let partitions: Vec<String> = tp
-                    .partitions()
-                    .iter()
-                    .map(|partition| format!("{}:{}", topic_name, partition.id()))
-                    .collect();
-                topic_partitions.extend(partitions);
-            });
+            .collect::<Vec<_>>();
+        if topics_readable.len() != config.topics.len() {
+            let _ = notify.send(crate::TaskNotify::error("Some topics are not readable, please check your topic authorization, and then restart the task."));
+            tracing::error!(
+                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                config.topics.len(),
+                topics_readable.len())
+        }
+
+        topics_readable.into_iter().for_each(|tp| {
+            let topic_name = tp.name();
+            let partitions: Vec<String> = tp
+                .partitions()
+                .iter()
+                .map(|partition| format!("{}:{}", topic_name, partition.id()))
+                .collect();
+            topic_partitions.extend(partitions);
+        });
 
         if topic_partitions.is_empty() {
-            anyhow::bail!("topics is empty");
+            let _ = notify.send(crate::TaskNotify::error("Topics is empty, please check your topic authorization, and then restart the task."));
+            tracing::error!(
+                "topics is empty, expected: {:?}, please check your topic authorization",
+                config.topics
+            );
         }
 
         let mut concurrency = config
@@ -410,7 +429,7 @@ async fn poll_message(
                 }
             }
             Err(err) => {
-                anyhow::bail!("failed to polling from kafka, cause: {}", err.to_string());
+                tracing::error!("failed to polling from kafka, cause: {}", err.to_string());
             }
         };
 
@@ -647,5 +666,42 @@ mod tests {
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
             .unwrap();
         dbg!(metadata.topics().len());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_use_sasl() {
+        let dsn = format!(
+            "kafka://{}?sasl_mechanism={}&sasl_username={}&sasl_password={}",
+            "192.168.2.19:9094", "PLAIN", "nick", "nick-sec",
+        )
+        .into_dsn()
+        .unwrap();
+
+        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
+        let client_config: ClientConfig = build_client_config(config.clone());
+        // create a base consumer
+        let consumer: BaseConsumer = client_config
+            .create()
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .unwrap();
+        // fetch metadata
+        let metadata = consumer
+            .fetch_metadata(None, Duration::from_secs(5))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .unwrap();
+        dbg!(metadata.topics().len());
+        // filter topics
+        let topics = [String::from("test_taosx_sasl")];
+        let topics_readable = metadata
+            .topics()
+            .iter()
+            .filter(|tp| {
+                println!("{}", tp.name());
+                !tp.name().starts_with("__")
+            })
+            .filter(|tp| topics.contains(&tp.name().to_string()))
+            .collect::<Vec<_>>();
+        dbg!(topics_readable.len());
     }
 }

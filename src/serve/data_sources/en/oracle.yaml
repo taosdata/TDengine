@@ -52,16 +52,21 @@ groups:
     params:
       - name: sql
         display: SQL Template
-        description: >
-          SQL statement used for querying.
+        description: |
+          SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.
+          SQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:
+          1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800
+          2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00
+          3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14
+          4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00
         required: true
-        placeholder: "SELECT * FROM table WHERE time >= $start AND time < $end"
+        placeholder: "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
         hint:
           type: str
       - name: start
         display: Start Time
         description: >
-          Start time applied to the query statement.
+          Start time for migrating data.
         required: true
         placeholder: "for example: 2023-01-01 00:00:00"
         hint:
@@ -69,7 +74,7 @@ groups:
       - name: end
         display: End Time
         description: >
-          End time applied to the query statement.
+          End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.
         required: false
         placeholder: "for example: 2024-01-01 00:00:00"
         hint:
@@ -77,7 +82,7 @@ groups:
       - name: interval
         display: Query Interval
         description: >
-          Time interval used for segmented queries.
+          The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.
         required: false
         placeholder: 1d
         hint:
@@ -85,7 +90,7 @@ groups:
       - name: delay
         display: Delay
         description: >
-          Waiting time for synchronizing future data.
+          In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.
         required: false
         placeholder: 10s
         hint:

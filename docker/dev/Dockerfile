@@ -34,7 +34,7 @@ RUN wget -c https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.75.0
+ENV RUST_VERSION=1.78.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --default-toolchain nightly
 ENV PATH=/root/.cargo/bin:$PATH
 
@@ -58,7 +58,8 @@ ENV RUSTC_WRAPPER=/usr/bin/sccache
 
 WORKDIR /app
 RUN git config --global --add safe.directory /app
-RUN ln -s /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
+RUN ln -sf /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
+RUN ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
 ADD docker/dev/entrypoint.sh /sbin/entrypoint.sh
 ADD docker/dev/cargo.toml /root/.cargo/config

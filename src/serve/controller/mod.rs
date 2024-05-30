@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -31,6 +30,7 @@ use uuid::Uuid;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::QueryDataSourceReq;
 use taosx_core::{
@@ -413,6 +413,13 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .execute(pool)
                 .await?;
         }
+        "suspended" => {
+            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
@@ -565,18 +572,26 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn set_file_content(dsn: &mut Dsn, key: &str) {
-    let content = dsn.get(key).map(|v| {
-        if v.starts_with('@') {
-            // let v = v.trim_start_matches('@');
-            std::fs::read_to_string(Path::new(&v[1..])).unwrap()
-        } else {
-            v.to_string()
+use crate::serve::rpc::encode_csv_config_file;
+use taosx_core::utils::get_string_content_from_param_value;
+
+async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone();
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        let mut new_value = String::new();
+        if v.contains("@") {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
         }
-    });
-    if content.is_some() {
-        dsn.set(key, content.unwrap());
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
     }
+    dsn.params = map;
+    Ok(())
 }
 
 impl TaskController {
@@ -1544,10 +1559,11 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        set_file_content(dsn, "certificate");
-        set_file_content(dsn, "private_key");
-        set_file_content(dsn, "auth_certificate");
-        set_file_content(dsn, "auth_private_key");
+        if let Some(csv_config_file) = OPCConfig::parse_csv_config_file(dsn) {
+            let new_value = encode_csv_config_file(csv_config_file)?;
+            dsn.params.insert("csv_config_file".to_string(), new_value);
+        }
+        set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
             from: dsn.to_string(),
@@ -1638,10 +1654,10 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
-        set_file_content(&mut dsn_agent, "certificate");
-        set_file_content(&mut dsn_agent, "private_key");
-        set_file_content(&mut dsn_agent, "auth_certificate");
-        set_file_content(&mut dsn_agent, "auth_private_key");
+        let result = set_file_contents(&mut dsn_agent).await;
+        if let Err(err) = result {
+            return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
+        }
 
         let result = tokio::time::timeout(
             Duration::from_secs(600),
@@ -3326,6 +3342,24 @@ mod tests {
         let from = Dsn::from_str("taos+ws://192.168.1.40:6041")?;
         let to = Dsn::from_str("taos+ws://localhost:6041")?;
         license::validate_task(&from, &to, Some(&controller.pool)).await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn active_active_edition_check() -> anyhow::Result<()> {
+        let _ = tracing_subscriber_init();
+        let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041/test")?;
+        license::validate_task(&from, &to, None).await?;
+        let from = Dsn::from_str("tmq:///test?replica")?;
+        let to = Dsn::from_str("taos:///test")?;
+        license::validate_task(&from, &to, None).await?;
+
+        let from = Dsn::from_str("tmq+ws://localhost:16041/test?replica")?;
+        let to = Dsn::from_str("taos+ws://localhost:6041/test")?;
+        let res = license::validate_task(&from, &to, None).await;
+        dbg!(&res);
+        assert!(res.is_err());
         Ok(())
     }
 }

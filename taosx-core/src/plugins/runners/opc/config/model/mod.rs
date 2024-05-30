@@ -5,22 +5,20 @@ use anyhow::bail;
 use csv_async::StringRecord;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taos::{Dsn, Ty};
+use taos::Ty;
 
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::config::OpcPointModelConfig;
 use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::validate_table_column_name;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcModelConfig {
-    /// id, (code, stable, enabled)
-    /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
-    /// when stable is none stable_prefix will be enabled
+    point_model_config: Option<OpcPointModelConfig>,
     pub point_config_map: LinkedHashMap<String, PointConfig>,
     pub table_config_map: LinkedHashMap<String, TableConfig>,
 }
@@ -28,88 +26,129 @@ pub struct OpcModelConfig {
 impl OpcModelConfig {
     pub fn new() -> Self {
         OpcModelConfig {
+            point_model_config: None,
             point_config_map: LinkedHashMap::new(),
             table_config_map: LinkedHashMap::new(),
         }
     }
 
-    pub fn add_points(&mut self, points: Vec<DataSet>, dsn: &Dsn) -> anyhow::Result<()> {
-        let stable_expr = OPCConfig::parse_stable_expression(dsn)?;
-        let tbname_expr = OPCConfig::parse_tbname_expression(dsn)?;
-        let primary_key =
-            OPCConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
-        let primary_key_alias =
-            OPCConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
+    pub fn set_point_model_config(&mut self, point_model_config: OpcPointModelConfig) {
+        self.point_model_config = Some(point_model_config);
+    }
 
-        let mut index = 0;
+    pub fn get_point_model_config(&self) -> Option<OpcPointModelConfig> {
+        self.point_model_config.clone()
+    }
+
+    pub fn build_point_config(
+        &self,
+        index: usize,
+        point_id: String,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<PointConfig> {
+        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
+            "super_table_expression and child_table_expression should be set before add points"
+        ))?;
+
+        let driver = point_model_config.opc_type.to_string();
+        let stable_expr = point_model_config.stable_expression.clone();
+        let tbname_expr = point_model_config.tbname_expression.clone();
+
+        let tbname = generate_tbname_from_pattern(&driver, &tbname_expr, point_id.as_str());
+        let stable = generate_stable_from_pattern(&stable_expr, &point_type);
+        let point_config = PointConfig {
+            row_index: index,
+            code: tbname,
+            stable: Some(stable),
+            tag_values: None,
+            value_type: point_type,
+        };
+
+        Ok(point_config)
+    }
+
+    pub fn build_table_config(
+        &self,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<TableConfig> {
+        let point_model_config = self.point_model_config.clone().ok_or(anyhow::anyhow!(
+            "super_table_expression and child_table_expression should be set before add points"
+        ))?;
+
+        let primary_key = point_model_config.primary_key.clone();
+        let primary_key_alias = point_model_config.primary_key_alias.clone();
+        let value_type = point_type.map(|t| t.ty());
+
+        let mut column_configs = vec![];
+        column_configs.push(ColumnConfig {
+            name: ColumnConfig::VALUE.to_string(),
+            r#type: value_type,
+            alias: Some(String::from("val")),
+            transform: None,
+            is_primary_key: false,
+        });
+        column_configs.push(ColumnConfig {
+            name: ColumnConfig::QUALITY.to_string(),
+            r#type: Some(Ty::Int),
+            alias: None,
+            transform: None,
+            is_primary_key: false,
+        });
+        match primary_key.as_str() {
+            ColumnConfig::ORIGINAL_TS => {
+                column_configs.push(ColumnConfig {
+                    name: ColumnConfig::ORIGINAL_TS.to_string(),
+                    r#type: Some(Ty::Timestamp),
+                    alias: Some(primary_key_alias.clone()),
+                    transform: None,
+                    is_primary_key: true,
+                });
+            }
+            ColumnConfig::RECEIVED_TS => {
+                column_configs.push(ColumnConfig {
+                    name: ColumnConfig::RECEIVED_TS.to_string(),
+                    r#type: Some(Ty::Timestamp),
+                    alias: Some(primary_key_alias.clone()),
+                    transform: None,
+                    is_primary_key: true,
+                });
+            }
+            _ => {
+                bail!("invalid primary key: {}", primary_key);
+            }
+        }
+
+        let table_config = TableConfig {
+            enabled: Some(1),
+            stable_prefix: None,
+            column_configs,
+            tag_configs: None,
+        };
+
+        Ok(table_config)
+    }
+
+    pub fn add_points(&mut self, points: Vec<DataSet>) -> anyhow::Result<()> {
+        let mut index: usize = 0;
         for p in points {
             let point_id = p.id;
             let point_type = p.r#type;
 
-            // point_config
-            let tbname = generate_tbname_from_pattern(&dsn.driver, &tbname_expr, point_id.as_str());
-            let stable = generate_stable_from_pattern(&stable_expr, &point_type);
             let value_type = point_type
                 .map(|t| {
-                    IpcDataType::from_str(t.as_str())
-                        .map_err(|_err| anyhow::anyhow!("invalid data type: {}", t))
+                    IpcDataType::from_str(t.as_str()).map_err(|_err| {
+                        anyhow::anyhow!("failed to convert point type: {} to IpcDataType", t)
+                    })
                 })
                 .transpose()?;
-            let point_config = PointConfig {
-                row_index: index,
-                code: tbname,
-                stable: Some(stable),
-                tag_values: None,
-                value_type,
-            };
+
+            // point_config
+            let point_config =
+                self.build_point_config(index, point_id.clone(), value_type.clone())?;
             self.point_config_map.insert(point_id.clone(), point_config);
 
             // table_config
-            let mut column_configs = vec![];
-            column_configs.push(ColumnConfig {
-                name: ColumnConfig::VALUE.to_string(),
-                r#type: None,
-                alias: Some(String::from("val")),
-                transform: None,
-                is_primary_key: false,
-            });
-            column_configs.push(ColumnConfig {
-                name: ColumnConfig::QUALITY.to_string(),
-                r#type: Some(Ty::Int),
-                alias: None,
-                transform: None,
-                is_primary_key: false,
-            });
-            match primary_key.as_str() {
-                ColumnConfig::ORIGINAL_TS => {
-                    column_configs.push(ColumnConfig {
-                        name: ColumnConfig::ORIGINAL_TS.to_string(),
-                        r#type: Some(Ty::Timestamp),
-                        alias: Some(primary_key_alias.clone()),
-                        transform: None,
-                        is_primary_key: true,
-                    });
-                }
-                ColumnConfig::RECEIVED_TS => {
-                    column_configs.push(ColumnConfig {
-                        name: ColumnConfig::RECEIVED_TS.to_string(),
-                        r#type: Some(Ty::Timestamp),
-                        alias: Some(primary_key_alias.clone()),
-                        transform: None,
-                        is_primary_key: true,
-                    });
-                }
-                _ => {
-                    bail!("invalid primary key: {}", primary_key);
-                }
-            }
-
-            let table_config = TableConfig {
-                enabled: Some(1),
-                stable_prefix: None,
-                column_configs,
-                tag_configs: None,
-            };
+            let table_config = self.build_table_config(value_type.clone())?;
             self.table_config_map.insert(point_id.clone(), table_config);
 
             index += 1;
@@ -297,7 +336,8 @@ mod model_config_tests {
 
         // when
         let mut config = OpcModelConfig::new();
-        config.add_points(points, &dsn).unwrap();
+        config.set_point_model_config(OpcPointModelConfig::from_dsn(&dsn).unwrap());
+        config.add_points(points).unwrap();
 
         // then
         assert_eq!(config.point_config_map.len(), 2);
@@ -713,6 +753,21 @@ fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Col
             }
         });
 
+    let value_type = header
+        .get_column("type")
+        .and_then(|col| row.get(col.index))
+        .and_then(|val| {
+            if val.is_empty() {
+                None
+            } else {
+                let val_type = IpcDataType::from_str(val)
+                    .map(|val_type| val_type.ty())
+                    .map_err(|_err| anyhow::anyhow!("invalid column data type: {}", val));
+                Some(val_type)
+            }
+        })
+        .transpose()?;
+
     let value_transform = header
         .get_column("value_transform")
         .and_then(|col| row.get(col.index))
@@ -748,7 +803,7 @@ fn parse_value_col(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Col
 
     Ok(ColumnConfig {
         name: ColumnConfig::VALUE.to_string(),
-        r#type: None,
+        r#type: value_type,
         alias: value_name,
         transform: value_transform,
         is_primary_key: false,
@@ -1023,7 +1078,7 @@ mod table_config_tests {
     }
 }
 
-#[derive(Clone, Deserialize, Debug, Serialize)]
+#[derive(Clone, Deserialize, Debug, Serialize, PartialEq)]
 pub struct ColumnConfig {
     pub name: String, // original_ts / received_ts / value / quality
     pub r#type: Option<Ty>,

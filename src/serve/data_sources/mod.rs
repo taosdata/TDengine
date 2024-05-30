@@ -600,7 +600,7 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_csv_valid_impl(query.dsn),
+        is_opc_csv_valid_impl(query.dsn),
     )
     .await;
 
@@ -620,9 +620,9 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
     }
 }
 
-async fn is_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
+async fn is_opc_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
-    plugins::runners::opc::config::csv::CsvParser::is_csv_valid(&dsn).await
+    plugins::runners::opc::config::csv::CsvParser::is_valid(&dsn).await
 }
 
 #[get("/ds/in/download/pi_default_config")]

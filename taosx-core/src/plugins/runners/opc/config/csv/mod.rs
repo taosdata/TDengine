@@ -27,7 +27,7 @@ pub struct CsvParser {
 }
 
 impl CsvParser {
-    pub async fn is_csv_valid(dsn: &Dsn) -> anyhow::Result<()> {
+    pub async fn is_valid(dsn: &Dsn) -> anyhow::Result<()> {
         let csv_config_files = OPCConfig::parse_csv_config_file(dsn).ok_or(anyhow::anyhow!(
             "csv_config_file not found in the dsn: {}",
             dsn.to_string()
@@ -36,7 +36,31 @@ impl CsvParser {
             bail!("csv_config_file is empty in the dsn: {}", dsn.to_string());
         }
 
-        Self::from_dsn(dsn).await?;
+        // check stable, stable is required
+        let parser = Self::from_dsn(dsn).await?;
+        for (point_id, point_config) in parser.model_config.point_config_map {
+            point_config.stable.ok_or(anyhow::anyhow!(
+                "stable is required for point_id: {}",
+                point_id
+            ))?;
+        }
+        // check ts_col/ received_ts_col
+        for (point_id, table_config) in parser.model_config.table_config_map {
+            let mut has_primary_key = false;
+            for col_config in table_config.column_configs {
+                if col_config.is_primary_key == true {
+                    has_primary_key = true;
+                    break;
+                }
+            }
+            if has_primary_key == false {
+                bail!(
+                    "ts_col or received_ts_col is required for point_id: {}",
+                    point_id
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -337,8 +361,22 @@ mod tests {
     async fn test_error_name() {
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@../tests/opc/opcda-name-error.csv").unwrap();
-        let csv_parser = CsvParser::from_dsn(&dsn).await;
-        assert!(csv_parser.is_err());
-        println!("error: {:?}", csv_parser.err().unwrap().to_string());
+        let csv_parser = CsvParser::from_dsn(&dsn).await.unwrap();
+
+        let point_config_map = &csv_parser.model_config.point_config_map;
+
+        assert_eq!(3, point_config_map.len());
+
+        let point_id = "root.parent.temperature";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_temperature");
+
+        let point_id = "root.parent.pressure";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_pressure");
+
+        let point_id = "root.parent.current";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_custom_current");
     }
 }

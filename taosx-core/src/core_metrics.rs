@@ -71,6 +71,7 @@ pub struct CommonMetrics {
     pub total_execute_time: AtomicU64,
     pub total_written_rows: AtomicU64,
     pub total_written_points: AtomicU64,
+
     #[serde(skip)]
     pub last_persist_time: LastPersistTime,
     pub execute_time: AtomicU64,
@@ -335,7 +336,7 @@ pub async fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMet
             insert_metrics(task_id, metrics.clone()).await;
             Some(metrics)
         } else {
-            tracing::warn!("no metrics found for task {}", task_id);
+            tracing::debug!("no metrics found for task {}", task_id);
             None
         }
     }
@@ -613,32 +614,8 @@ mod tests {
         );
     }
 
-    /// This test case is to verify that the metrics can be loaded from persistence.
-    #[test]
-    fn test_load_metrics() {
-        let task_dir = get_data_dir().join("tasks").join("1024");
-        std::fs::create_dir_all(&task_dir).unwrap();
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1024, None);
-        legacy_to_taos_metrics
-            .read_concurrency
-            .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
-
-        {
-            let db = MetricsStore::new("1024");
-            db.set(legacy_to_taos_metrics.to_json().as_str()).unwrap();
-        }
-        let metrics = load_metrics::<LegacyToTaosMetrics>("1024").unwrap();
-        assert_eq!(
-            metrics
-                .read_concurrency
-                .load(std::sync::atomic::Ordering::SeqCst),
-            10
-        );
-    }
-
-    /// This test case is to verify that the metrics can be saved to persistence and cleared.
     #[tokio::test]
-    async fn test_save_and_clear_metrics() {
+    async fn test_save_load_and_clear_metrics() {
         let task_dir = get_data_dir().join("tasks").join("1024");
         std::fs::create_dir_all(&task_dir).unwrap();
         let db = MetricsStore::new("1024");

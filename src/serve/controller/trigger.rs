@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use itertools::Itertools;
@@ -10,6 +10,20 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use thiserror::Error;
 use utoipa::*;
+
+pub const DEFAULT_REPEAT_INTERVAL: OnceLock<Duration> = OnceLock::new();
+const DEFAULT_REPEAT_INTERVAL_FALLBACK: Duration = Duration::from_secs(5);
+
+pub fn init_repeat_interval(dur: Duration) {
+    let _ = DEFAULT_REPEAT_INTERVAL.set(dur);
+}
+
+pub fn repeat_interval() -> Duration {
+    DEFAULT_REPEAT_INTERVAL
+        .get()
+        .map(Clone::clone)
+        .unwrap_or_else(|| DEFAULT_REPEAT_INTERVAL_FALLBACK)
+}
 
 /// How to resume a task.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
@@ -338,17 +352,15 @@ impl Strategy {
         } else {
             match self.resume {
                 ResumeStrategy::Always => {
-                    Schedule::Repeated(self.interval.unwrap_or_else(|| Duration::from_secs(5)))
+                    Schedule::Repeated(self.interval.unwrap_or_else(repeat_interval))
                 }
                 ResumeStrategy::Never => Schedule::Oneshot,
-                ResumeStrategy::Once => Schedule::RepeatedLimit(
-                    self.interval.unwrap_or_else(|| Duration::from_secs(5)),
-                    1,
-                ),
-                ResumeStrategy::Retries(num) => Schedule::RepeatedLimit(
-                    self.interval.unwrap_or_else(|| Duration::from_secs(5)),
-                    num,
-                ),
+                ResumeStrategy::Once => {
+                    Schedule::RepeatedLimit(self.interval.unwrap_or_else(repeat_interval), 1)
+                }
+                ResumeStrategy::Retries(num) => {
+                    Schedule::RepeatedLimit(self.interval.unwrap_or_else(repeat_interval), num)
+                }
             }
         }
     }

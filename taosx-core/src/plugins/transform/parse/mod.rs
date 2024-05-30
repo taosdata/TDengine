@@ -4,6 +4,7 @@ use self::cast::Cast;
 use self::json::Json;
 use self::regex::Regex;
 use self::split::Split;
+use self::udt::Udt;
 
 use super::TransformExt;
 
@@ -29,6 +30,7 @@ pub mod cast;
 mod json;
 mod regex;
 mod split;
+mod udt;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -40,6 +42,8 @@ pub enum ParseError {
     UnsupportedJsonValue(serde_json::Value),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
+    #[error(transparent)]
+    UdtError(#[from] rhai::EvalAltResult),
     #[error(transparent)]
     RegexError(#[from] regex::RegexError),
     #[error(transparent)]
@@ -106,15 +110,16 @@ pub enum FieldParser {
     Cast(Cast),
     Alias { alias: String },
     Split(Split),
+    Udt(Udt),
     Json(Json),
 }
 
 impl Parse for FieldParser {
     fn num_rows_will_be_changed(&self) -> bool {
-        if let FieldParser::Json(json) = self {
-            json.num_rows_will_be_changed()
-        } else {
-            false
+        match self {
+            FieldParser::Json(json) => json.num_rows_will_be_changed(),
+            FieldParser::Udt(udt) => udt.num_rows_will_be_changed(),
+            _ => false,
         }
     }
 
@@ -131,16 +136,17 @@ impl Parse for FieldParser {
         field: &Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), ParseError> {
-        // dbg!(&self, &field, array);
         match self {
             FieldParser::Json(json) => json.parse_array(field, array),
+            FieldParser::Split(split) => split.parse_array(field, array),
+            FieldParser::Udt(udt) => udt.parse_array(field, array),
             FieldParser::Cast(cast) => cast.parse_array(field, array),
             FieldParser::Regex(regex) => regex.parse_array(field, array),
+
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
             }
-            FieldParser::Split(split) => split.parse_array(field, array),
         }
     }
 }
@@ -161,17 +167,41 @@ impl std::ops::Deref for ParserImpl {
     }
 }
 
+fn duplicate_rows(data_array: &Arc<dyn Array>, indices: &[usize]) -> Arc<dyn Array> {
+    let mut duplicated_data_array: Vec<Arc<dyn Array>> = Vec::with_capacity(indices.len());
+    for i in indices {
+        // 获取 data_array 中第i个数据
+        // let value = data_array.value(*i);
+        let value = data_array.slice(*i, 1);
+        // value 转为 dyn Array
+        duplicated_data_array.push(value);
+    }
+    let duplicated_data_array = duplicated_data_array
+        .iter()
+        .map(|a| a.as_ref())
+        .collect::<Vec<_>>();
+
+    arrow::compute::concat(&duplicated_data_array).unwrap()
+}
+
 impl TransformExt for ParserImpl {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
         if self.is_empty() {
             return Ok(records.clone());
         }
+        // dbg!("before parser------");
+        // dbg!(records);
+
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 
         let mut old_fields = vec![];
         let mut fields = vec![];
         let mut columns = vec![];
+
+        let mut multi_fields = vec![];
+        let mut multi_columns = vec![];
+        let mut multi_indices = None;
 
         for field in schema.fields() {
             let name = field.name();
@@ -184,40 +214,74 @@ impl TransformExt for ParserImpl {
                         error,
                     }
                 })?;
-                // dbg!(&batch);
-                debug_assert!(indices.is_none(), "Indices not supported currently");
-                for field in batch.schema().fields() {
-                    fields.push(field.clone());
-                    let array = batch.column_by_name(field.name()).unwrap();
-                    columns.push(array.clone());
+                if parser.num_rows_will_be_changed() {
+                    for field in batch.schema().fields() {
+                        multi_fields.push(field.clone());
+                        let array = batch.column_by_name(field.name()).unwrap();
+                        multi_columns.push(array.clone());
+                    }
+                    multi_indices = indices;
+                } else {
+                    for field in batch.schema().fields() {
+                        fields.push(field.clone());
+                        let array = batch.column_by_name(field.name()).unwrap();
+                        columns.push(array.clone());
+                    }
                 }
             } else {
                 old_fields.push(field);
             }
         }
 
-        let (fields, columns): (Vec<_>, Vec<_>) = old_fields
+        let (rfields, rcolumns): (Vec<_>, Vec<_>) = old_fields
             .iter()
             .map(|f| f.name().clone())
             .chain(fields.iter().map(|f| f.name().clone()))
+            .chain(multi_fields.iter().map(|f| f.name().clone()))
             .unique()
             .map(|name| {
-                if let Some((idx, field)) =
-                    fields.iter().find_position(|field| name == *field.name())
-                {
-                    (field.clone(), columns[idx].clone())
+                if multi_indices.is_some() {
+                    if let Some((idx, field)) =
+                        multi_fields.iter().find_position(|f| name == *f.name())
+                    {
+                        (field.clone(), multi_columns[idx].clone())
+                    } else if let Some((idx, field)) =
+                        fields.iter().find_position(|f| name == *f.name())
+                    {
+                        (
+                            field.clone(),
+                            duplicate_rows(&columns[idx], multi_indices.as_ref().unwrap()),
+                        )
+                    } else {
+                        (
+                            schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
+                            duplicate_rows(
+                                records.column_by_name(&name).unwrap(),
+                                multi_indices.as_ref().unwrap(),
+                            ),
+                        )
+                    }
                 } else {
-                    (
-                        schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
-                        records.column_by_name(&name).unwrap().clone(),
-                    )
+                    if let Some((idx, field)) = fields.iter().find_position(|f| name == *f.name()) {
+                        (field.clone(), columns[idx].clone())
+                    } else {
+                        // dbg!(&name);
+                        (
+                            schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
+                            records.column_by_name(&name).unwrap().clone(),
+                        )
+                    }
                 }
             })
             .unzip();
-        let schema = Schema::new_with_metadata(fields, metadata);
-        // tracing::info!("parsed schema: {schema:?}");
-        let batch = RecordBatch::try_new(Arc::new(schema), columns)?;
-        // tracing::info!("parsed records: {batch:?}");
+
+        let rschema = Schema::new_with_metadata(rfields, metadata);
+
+        let batch = RecordBatch::try_new(Arc::new(rschema), rcolumns)?;
+
+        // dbg!("after parser------");
+        // dbg!(&batch);
+
         Ok(batch)
     }
 }

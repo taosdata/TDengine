@@ -37,6 +37,25 @@ pub struct DataSet {
     pub format: Option<String>,
 }
 
+impl PartialEq for DataSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl DataSet {
+    pub fn new(id: impl Into<String>) -> Self {
+        DataSet {
+            id: id.into(),
+            name: None,
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OptionSet {
     pub name: String,

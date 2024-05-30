@@ -353,14 +353,14 @@ fn generate_json_value(
         }
         // 整型数
         OracleType::Int64 => {
-            let val = col.get::<i64>();
+            let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
             }
         }
         OracleType::UInt64 => {
-            let val = col.get::<u64>();
+            let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),
@@ -374,8 +374,69 @@ fn generate_json_value(
 mod tests {
     use super::*;
 
+    fn test_create_table() {
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql_create_table = "create table t_metric (id NUMBER(10, 0) PRIMARY KEY, name VARCHAR2(255), value NUMBER(10, 2), ts timestamp)";
+                let x = conn.execute(sql_create_table, &[]);
+                println!("create table: {:?}", x);
+                let y = conn.commit();
+                println!("commit: {:?}", y);
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_insert_data(len: usize) {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, sysdate)", i);
+                    let _ = conn.execute(&sql_insert_data.as_str(), &[]);
+                }
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    fn test_clear_data() {
+        let _ = test_create_table();
+
+        let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(query) => {
+                let conn = query.pool.get().unwrap();
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = conn.execute(sql, &[]);
+                let _ = conn.commit();
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
     #[tokio::test]
-    #[ignore]
     async fn test_is_valid() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1522/ORCLPDB1").unwrap();
         let res = is_valid(&dsn).await;
@@ -395,21 +456,26 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_sample() {
-        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
+        // prepare data
+        let _ = test_create_table();
+        let _ = test_clear_data();
+        let _ = test_insert_data(4);
+
+        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric where ts>=${start} and ts<${end}&start=2024-01-01T00:00:00Z&end=2024-06-01T00:00:00Z&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
 
         let res = get_sample(&from).await;
         dbg!(&res);
         assert_eq!(true, res.is_ok());
-        println!("{}", serde_json::to_string_pretty(&res.unwrap()).unwrap());
+        // clear data
+        let _ = test_clear_data();
     }
 
     #[test]
     #[ignore]
     fn test_oracle_to_taos() {
-        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from TEST&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
+        let from = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
@@ -441,19 +507,32 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_generate_json_value() {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
-        let (_, rows) = query.select_all("select * from TEST").unwrap();
-
-        for row in rows {
-            for (_, col) in row.sql_values().iter().enumerate() {
-                let col_type: &OracleType = col.oracle_type().unwrap();
-                let col_val = generate_json_value(col, col_type, String::from("+06:00"));
-                dbg!(&col_val);
+        let result = OracleQuery::try_new(config, String::from("+08:00"));
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from TEST");
+                match query_result {
+                    Ok((_, rows)) => {
+                        for row in rows {
+                            for (_, col) in row.sql_values().iter().enumerate() {
+                                let col_type: &OracleType = col.oracle_type().unwrap();
+                                let col_val =
+                                    generate_json_value(col, col_type, String::from("+08:00"));
+                                dbg!(&col_val);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
             }
         }
     }

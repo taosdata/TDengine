@@ -63,26 +63,59 @@ impl KafkaConnectConfig {
     }
 
     fn parse_ssl_ca(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None)
-            .map_err(|err| anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string()))
+        let ca = dsn.get("ca");
+        if ca.is_none() || ca.unwrap().is_empty() {
+            return Ok(None);
+        } else {
+            let ca = ca.unwrap();
+            if ca.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
+                    anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
+                })
+            } else {
+                Ok(Some(ca.to_string()))
+            }
+        }
     }
 
     fn parse_ssl_cert(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
-            anyhow::anyhow!(
-                "failed to read client certificate config, cause: {}",
-                err.to_string()
-            )
-        })
+        let cert = dsn.get("cert");
+        if cert.is_none() || cert.unwrap().is_empty() {
+            return Ok(None);
+        } else {
+            let cert = cert.unwrap();
+            if cert.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to read client certificate config, cause: {}",
+                        err.to_string()
+                    )
+                })
+            } else {
+                Ok(Some(cert.to_string()))
+            }
+        }
     }
 
     fn parse_ssl_cert_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(|err| {
-            anyhow::anyhow!(
-                "failed to read client key config, cause: {}",
-                err.to_string()
-            )
-        })
+        let cert_key = dsn.get("cert_key");
+        if cert_key.is_none() || cert_key.unwrap().is_empty() {
+            return Ok(None);
+        } else {
+            let cert_key = cert_key.unwrap();
+            if cert_key.starts_with('@') {
+                get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(
+                    |err| {
+                        anyhow::anyhow!(
+                            "failed to read client key config, cause: {}",
+                            err.to_string()
+                        )
+                    },
+                )
+            } else {
+                Ok(Some(cert_key.to_string()))
+            }
+        }
     }
 
     /// use `sasl_mechanism` to determine whether to use sasl

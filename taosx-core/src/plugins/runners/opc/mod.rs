@@ -1,12 +1,13 @@
 use std::fmt::Display;
+use std::fs::File;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_ipc::types::OptionSet;
+use taos::{AsyncTBuilder, Dsn, DsnError, TaosBuilder};
+use taosx_ipc::prelude::IpcDataType;
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -14,10 +15,13 @@ pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use taosx_ipc::types::OptionSet;
+
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::point_updater::PointsUpdater;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
@@ -27,6 +31,7 @@ use crate::{
 use super::get_data_dir;
 
 pub mod config;
+mod point_updater;
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -39,6 +44,7 @@ const EXE: &'static str = {
 };
 const LOG_FILE: &str = "opc.log";
 
+/// taosx-opc executable path
 fn exe_path() -> anyhow::Result<PathBuf> {
     let path = super::get_plugin_dir("opc").join(EXE);
     if !path.exists() {
@@ -47,6 +53,7 @@ fn exe_path() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
+/// taosx-opc version
 pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     let path = exe_path()?;
     let output = std::process::Command::new(&path).arg("version").output()?;
@@ -57,6 +64,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
+/// OPC dataIn task
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
 pub async fn opc_to_taos(
     mut from: Dsn,
@@ -98,37 +106,12 @@ pub async fn opc_to_taos(
 
     let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
 
-    let toml = toml::to_string(&config)?;
-    let mut config_file = NamedTempFile::new()?;
-    write!(config_file, "{}", &toml)?;
-    let config_path = config_file.path().to_path_buf();
-    let temp_path = config_file.into_temp_path();
-    tracing::info!(
-        "opc_to_taos using opc config file {} \n{}",
-        config_path.display(),
-        toml
-    );
-
-    // save the temporary file to task dir
-    if let Some(task_id) = task_id {
-        let path = get_data_dir().join("tasks").join(task_id.to_string());
-        fs::create_dir_all(&path).unwrap();
-        let path = path.join(format!(
-            "{}-{}-{}.{}",
-            task_id,
-            "opc",
-            chrono::Local::now().format("%Y%m%d%H%M"),
-            "toml"
-        ));
-        let _ = fs::copy(&config_path, path);
-    }
-
+    // create IPC handler
     let connector = match config.opc_type {
         OpcType::OPCUA => Some("opc_ua"),
         OpcType::OPCDA => Some("opc_da"),
         OpcType::FAKE => None,
     };
-
     let mut ipc_handler = build_ipc(
         &config.report.remote,
         None,
@@ -144,28 +127,79 @@ pub async fn opc_to_taos(
         notify,
     )
     .await?;
-
     let port_pool = port_pool.clone();
-    let mut command = tokio::process::Command::new(exe_path()?);
 
+    // create log file: opc.log
     let mut log_path = super::get_log_dir("");
     fs::create_dir_all(&log_path)?;
-    tracing::info!("log path created: {}", &log_path.display());
+    tracing::info!("log dir created: {}", &log_path.display());
     log_path.push(LOG_FILE);
-    tracing::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file path: {}", &log_path.display());
     let log_keep_days = get_log_keep_days();
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
+    // save the temporary file to task dir
+    // if let Some(task_id) = task_id {
+    //     let path = get_data_dir().join("tasks").join(task_id.to_string());
+    //     fs::create_dir_all(&path).unwrap();
+    //     let path = path.join(format!(
+    //         "{}-{}-{}.{}",
+    //         task_id,
+    //         "opc",
+    //         chrono::Local::now().format("%Y%m%d%H%M"),
+    //         "toml"
+    //     ));
+    //     let _ = fs::copy(&config_path, path);
+    // }
+
+    // OPCConfig -> collect.toml
+    let config_dir = get_data_dir()
+        .join("tasks")
+        .join(format!("{}", task_id.unwrap_or(-1)));
+    fs::create_dir_all(&config_dir).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to create config dir: {}, cause: {}",
+            config_dir.display(),
+            err.to_string()
+        )
+    })?;
+
+    let config_file_path = config_dir.join("collect.toml");
+    let mut config_file = File::create(&config_file_path)?;
+    let toml = toml::to_string(&config)?;
+    write!(config_file, "{}", &toml)?;
+
+    // execute taosx-opc collect
+    tracing::info!(
+        "execute: taosx-opc collect, opc config: {}\n{}",
+        config_file_path.display(),
+        toml
+    );
+    let mut command = tokio::process::Command::new(exe_path()?);
     let child = command
         .arg("collect")
-        .arg(format!("--conf={}", &config_path.display()))
+        .arg("--conf")
+        .arg(&config_file_path)
         .kill_on_drop(true)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
-
     send_sub_process_info(child.id(), task_id, config.opc_type.to_string().as_str());
+
+    // start points updating task
+    let pu_cancel_token = CancellationToken::new();
+    let token = pu_cancel_token.clone();
+    let cloned_opc_config = config.clone();
+    tokio::spawn(async move {
+        let mut updater = PointsUpdater::from_opc_config(
+            cloned_opc_config,
+            config_file_path.display().to_string(),
+            token,
+        );
+        updater.run().await;
+    });
+
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
@@ -192,6 +226,7 @@ pub async fn opc_to_taos(
         Ok::<(), std::io::Error>(())
     });
 
+    // wait for child process exit
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
@@ -202,7 +237,7 @@ pub async fn opc_to_taos(
                     let _ = ipc_handler.close().await;
                     tracing::info!("All IPC handlers have been finished");
                 });
-                let _ = temp_path.close();
+                // let _ = temp_path.close();
                 certificate.map(|f| f.close());
                 private_file.map(|f| f.close());
                 auth_certificate.map(|f| f.close());
@@ -210,6 +245,9 @@ pub async fn opc_to_taos(
 
                 tracing::info!("Release IPC port");
                 port_pool.put(ipc_port).await;
+
+                // cancel points updater task
+                pu_cancel_token.cancel();
             };
         }
         tokio::select! {
@@ -344,7 +382,7 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
 }
 */
 
-pub fn csv_string_record_from_iter<'a, I>(iter: I) -> String
+fn csv_string_record_from_iter<'a, I>(iter: I) -> String
 where
     I: IntoIterator<Item = String>,
 {
@@ -403,14 +441,18 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
-pub fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<String>) -> String {
+fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<IpcDataType>) -> String {
     let mut stable = stable_expr.clone();
     if stable_expr.contains(".") {
         stable = stable.replace(".", "_");
     }
 
     if let Some(t) = value_type {
-        stable = stable.replace("{type}", t.as_str());
+        stable = match t {
+            IpcDataType::VarChar(_len) => stable.replace("{type}", "varchar"),
+            IpcDataType::NChar(_len) => stable.replace("{type}", "nchar"),
+            _ => stable.replace("{type}", &t.sql_repr().replace(" ", "_")),
+        };
     }
 
     stable
@@ -440,22 +482,46 @@ fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
     }
 }
 
+/// 获取 opc 点位
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let mut from: Dsn = req.from.parse()?;
-
-    let certificate = get_temp_file(&mut from, "certificate");
-    let private_key = get_temp_file(&mut from, "private_key");
-    let auth_certificate = get_temp_file(&mut from, "auth_certificate");
-    let auth_private_key = get_temp_file(&mut from, "auth_private_key");
+    let from: Dsn = req.from.parse().map_err(|err: DsnError| {
+        anyhow::anyhow!(
+            "failed to parse dsn: {}, cause: {}",
+            req.from,
+            err.to_string()
+        )
+    })?;
 
     if req.categories.is_empty() {
         anyhow::bail!("categories is empty");
     }
 
+    opc_datasets_impl(from).await
+}
+
+async fn opc_datasets_impl(mut from: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let certificate = get_temp_file(&mut from, "certificate");
+    let private_key = get_temp_file(&mut from, "private_key");
+    let auth_certificate = get_temp_file(&mut from, "auth_certificate");
+    let auth_private_key = get_temp_file(&mut from, "auth_private_key");
+
     let csv_config_file = OPCConfig::parse_csv_config_file(&from);
     let opc_points = match csv_config_file {
-        Some(_file) => opc_datasets_by_csv(&from).await?,
-        None => opc_datasets_by_command(&from).await?,
+        // 解析 csv 文件中的点位
+        Some(_file_paths) => {
+            let parser = CsvParser::from_dsn(&from).await.map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to parse csv_config_file, cause: {}",
+                    err.to_string()
+                )
+            })?;
+            opc_datasets_by_csv(&parser).await?
+        }
+        // 通过 taosx-opc points 命令获取点位
+        None => {
+            let config = OPCConfig::from_dsn_point_mode(&from)?;
+            opc_datasets_by_command(&config).await?
+        }
     };
 
     certificate.map(|f| f.close());
@@ -466,8 +532,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     Ok(opc_points)
 }
 
-async fn opc_datasets_by_csv(dsn: &Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let parser = CsvParser::from_dsn(dsn).await?;
+async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>> {
     let model_config = parser.get_model_config();
 
     let mut datasets = vec![];
@@ -505,8 +570,7 @@ async fn opc_datasets_by_csv(dsn: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     Ok(datasets)
 }
 
-async fn opc_datasets_by_command(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let config = OPCConfig::from_dsn_point_mode(from)?;
+async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataSet>> {
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -515,7 +579,7 @@ async fn opc_datasets_by_command(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     let temp_path = config_file.into_temp_path();
 
     tracing::info!(
-        "opc_datasets Using opc config file {} \n{}",
+        "execute: taosx-opc points, opc config: {}\n{}",
         config_path.display(),
         toml
     );
@@ -563,6 +627,7 @@ async fn opc_datasets_by_command(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     Ok(res)
 }
 
+/// 连通性检查
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(windows))]
     if dsn.driver == "opcda" {
@@ -589,7 +654,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let res = validate_opc(c).await;
+            let res = is_valid_impl(c).await;
             res.unwrap_or_else(|err| {
                 DataSourceValidation::invalid(
                     "opc".to_string(),
@@ -612,10 +677,16 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     r
 }
 
-async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
+async fn is_valid_impl(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+
+    tracing::info!(
+        "execute: taosx-opc check, opc config: {}\n{}",
+        config_file.path().display(),
+        toml
+    );
 
     // startup the connector
     let opc_exe_path = exe_path()?;
@@ -625,20 +696,19 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
         .arg("--conf")
         .arg(config_file.path())
         .stdout(std::process::Stdio::inherit())
-        // .stderr(std::process::Stdio::piped())
         .output()
         .await
-        .with_context(|| format!("failed to execute opc: {:?}", opc_exe_path.as_path()))?;
+        .with_context(|| format!("failed to execute: {:?}", opc_exe_path.as_path()))?;
 
     if output.status.success() {
-        let mut result: DataSourceValidation = serde_json::from_slice(&output.stdout)
-            .with_context(|| {
-                format!(
-                    "Deserialize opc validation result error: {}",
-                    String::from_utf8_lossy(&output.stdout)
+        let mut result: DataSourceValidation =
+            serde_json::from_slice(&output.stdout).map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to deserialize opc validation result: {}, cause: {}",
+                    String::from_utf8_lossy(&output.stdout),
+                    err.to_string(),
                 )
             })?;
-
         result.data_source = "opc".to_string();
         Ok(result)
     } else {
@@ -719,6 +789,19 @@ mod tests {
         drop(wtr);
         let line = String::from_utf8(writer).unwrap().trim().to_string();
         dbg!(&line);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_opc_datasets_by_command() {
+        std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
+        std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
+
+        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
+        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+        let res = opc_datasets_by_command(&config).await.unwrap();
+
+        dbg!(res);
     }
 }
 

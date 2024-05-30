@@ -1414,7 +1414,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 match res {
                     Err(err) => {
                         metrics.add_failed_batches(1);
-                        error!(trace.id = %data_trace_id, "Writing batch {} error: {err:#}", data_trace_id);
+                        error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
                         let ack = LushAck {
                             code: 0,
                             message: Some(err.to_string()),

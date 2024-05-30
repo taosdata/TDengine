@@ -3,7 +3,7 @@ use taos::Dsn;
 
 use crate::get_data_dir;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpConfig {
     pub enable: bool,
     pub path: Option<String>,

@@ -326,6 +326,7 @@ async fn get_all_points(
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
     let mut from = from.into_dsn()?;
+
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {

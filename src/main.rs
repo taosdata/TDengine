@@ -2,6 +2,7 @@ use std::backtrace::Backtrace;
 use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
+use tracing::debug;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use anyhow::Result;
@@ -34,11 +35,13 @@ use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
 };
-#[cfg(feature = "tikv-jemallocator")]
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
 
 use crate::serve::monitor;
+
+
+#[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
+compile_error!("Only one allocator can be specified");
+
 #[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -54,11 +57,12 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-",
+        " (core-",
         build::PKG_VERSION,
-        if build::IS_DEBUG { " debug " } else { " " },
+        if build::IS_DEBUG { " debug" } else { "" },
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -67,11 +71,12 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-dirty-",
+        " (core-dirty-",
         build::PKG_VERSION,
-        if build::IS_DEBUG { " debug " } else { " " },
+        if build::IS_DEBUG { " debug" } else { "" },
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -617,13 +622,10 @@ fn main() -> Result<()> {
             let addr = serve.get_listen_address();
             let port = addr.split(':').last().unwrap();
             let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
-            let (
-                agent_integration_channel,
-                agent_rpc_channel,
-                agent_spawn_sender,
-                scheduler_notifier,
-            ) = scheduler_rt.block_on(serve.channels());
+            let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
+                scheduler_rt.block_on(serve.channels());
 
+            debug!("Starting scheduler");
             let scheduler = scheduler_rt
                 .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
@@ -632,16 +634,13 @@ fn main() -> Result<()> {
             // let api_rt = build_runtime(worker_threads)?;
             let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
 
+            debug!("Starting controller");
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
             let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-            let grpc_handle = grpc_rt.spawn(serve_api.grpc(
-                ctl.clone(),
-                agent_rpc_channel,
-                agent_spawn_sender,
-                monitor.clone(),
-            ));
+            let grpc_handle =
+                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle, monitor).await

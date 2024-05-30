@@ -1,3 +1,4 @@
+use std::cmp;
 use std::{
     any::Any,
     cell::Cell,
@@ -46,15 +47,18 @@ use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
 use faststr::FastStr;
-use futures_util::StreamExt;
 use linked_hash_map::LinkedHashMap;
+use futures_util::{Sink, Stream, StreamExt};
 use rhai::{Dynamic, Engine, Scope};
 use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
-    Itertools, RawBlock, Taos, TaosPool, Ty, Value,
+    Itertools, Taos, TaosPool, Ty, Value,
 };
+use tokio::sync::{Mutex, Notify, OnceCell};
+use tonic::{codec::CompressionEncoding, transport::Channel};
+use tracing::{debug, error, info, instrument};
 
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 use taosx_ipc::{
@@ -65,13 +69,38 @@ use tokio::sync::{Mutex, Notify, OnceCell};
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::runners::opc::config::model::TableConfig;
+use crate::runners::opc::config::model::TagConfig;
+use crate::runners::opc::config::points::UpdateMode;
+use crate::utils::breakpoints::breakpoints_set;
+use crate::utils::trace::create_data_trace_id;
+use crate::utils::trace::create_stream_trace_id;
+use crate::utils::trace::get_data_trace_id_str;
+use crate::utils::trace::set_data_trace_id_for_current_span;
+use crate::utils::trace::RequestID;
+use crate::ConnectorLicense;
+use crate::{
+    core_metrics::get_metrics_arc_from_i64,
+    core_metrics::{CoreMetrics, TaskMetrics},
+    plugins::runners::opc::config::model::ColumnConfig,
+    plugins::transform::WrittenMethod,
+    runners::opc::config::OPCConfig,
+    sink::flat::{
+        ipc_flat_stream_worker_concurrent, ipc_flat_stream_worker_vgroup,
+        ipc_flat_stream_worker_vgroup_sequential,
+    },
+    utils::trace::get_stream_id_u64,
+    utils::{get_main_version_from_server_version, get_server_version},
+};
+
 use super::super::AGENT_COMPRESSION;
 use super::*;
 
 use self::{
-    ipc_metric::IpcMetrics,
     lush::{LushModelConfig, TableTagCache},
     transform::parse::ParserImpl,
+    flat::{flat_write_with_raw_block, flat_write_with_sql},
+    ipc_metric::IpcMetrics,
 };
 use crate::plugins::transform::parse::cast;
 
@@ -1250,7 +1279,7 @@ fn transform_by_name(
     let col_index = schema.index_of(col_name).unwrap();
     let col_type = schema.field(col_index).data_type();
 
-    let mut values = Vec::with_capacity(rows);
+    let mut values: Vec<Dynamic> = Vec::with_capacity(rows);
     for row_index in 0..rows {
         let point_id = columns[id_col_index]
             .as_any()
@@ -1259,165 +1288,168 @@ fn transform_by_name(
             .value(row_index);
 
         let expression = get_transform_exprssion_by_id(point_id, &transform_map);
-        if expression.is_none() {
-            values.push(Dynamic::UNIT);
-            continue;
-        }
-        let (name, expr) = expression.unwrap();
-        let mut scope = Scope::new();
-        match col_type {
-            DataType::Boolean => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BooleanArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Int8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Int64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Int64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt8Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::UInt64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<UInt64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float16 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float16Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_f64());
-            }
-            DataType::Float32 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float32Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value as f64);
-            }
-            DataType::Float64 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<Float64Array>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Binary => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
-            }
-            DataType::Utf8 => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value.to_string());
-            }
-            DataType::Timestamp(TimeUnit::Millisecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMillisecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Microsecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampMicrosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-                let value = columns[col_index]
-                    .as_any()
-                    .downcast_ref::<TimestampNanosecondArray>()
-                    .unwrap()
-                    .value(row_index);
-                scope.set_or_push(name, value);
-            }
-            dt => {
-                tracing::warn!(
-                    "unsupported data type: {}, expression scope not set",
-                    dt.clone()
-                )
-            }
-        }
 
-        let engine = Engine::new();
-        let engine = Arc::new(engine);
-        let ast = engine.compile_expression(&expr)?;
-        let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
-            Ok(v) => v,
-            Err(_) => rhai::Dynamic::UNIT,
-        };
-        values.push(new_value);
+        match expression {
+            Some((name, expr)) => {
+                let mut scope = Scope::new();
+                match col_type {
+                    DataType::Boolean => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Int8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Int64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt8Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::UInt64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<UInt64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float16 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float16Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_f64());
+                    }
+                    DataType::Float32 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float32Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value as f64);
+                    }
+                    DataType::Float64 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<Float64Array>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Binary => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<BinaryArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
+                    }
+                    DataType::Utf8 => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value.to_string());
+                    }
+                    DataType::Timestamp(TimeUnit::Millisecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                        let value = columns[col_index]
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap()
+                            .value(row_index);
+                        scope.set_or_push(name, value);
+                    }
+                    dt => {
+                        tracing::warn!(
+                            "unsupported data type: {}, expression scope not set",
+                            dt.clone()
+                        )
+                    }
+                }
+                let engine = Arc::new(Engine::new());
+                let ast = engine.compile_expression(&expr)?;
+                let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
+                    Ok(v) => v,
+                    Err(_) => rhai::Dynamic::UNIT,
+                };
+                values.push(new_value);
+            }
+            None => {
+                // no transform expression for this point_id, use raw value
+                let value = to_dynamic_value(record, col_type, col_index, row_index)?;
+                values.push(value);
+            }
+        }
     }
 
     let mut is_none = true;
@@ -1441,6 +1473,7 @@ fn transform_by_name(
     let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
         "failed to transform Vec<Dynamic> to ArrayRef"
     ))?;
+
     arrow::compute::cast(&array, col_type).map_err(|err| {
         anyhow::anyhow!(
             "failed to cast transformed array to dataType: {}, cause: {:?}",
@@ -1448,6 +1481,157 @@ fn transform_by_name(
             err
         )
     })
+}
+fn to_dynamic_value(
+    record_batch: &RecordBatch,
+    col_type: &DataType,
+    col_index: usize,
+    row_index: usize,
+) -> anyhow::Result<Dynamic> {
+    let columns = record_batch.columns();
+    let value: Dynamic = match col_type {
+        DataType::Boolean => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Int8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Int64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::UInt64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float16 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float16Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_f64())
+        }
+        DataType::Float32 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value as f64)
+        }
+        DataType::Float64 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Binary => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<BinaryArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(String::from_utf8_lossy(value).to_string())
+        }
+        DataType::Utf8 => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value.to_string())
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .unwrap()
+                .value(row_index);
+            Dynamic::from(value)
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+            let value = columns[col_index]
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .unwrap()
+                .value(row_index);
+            rhai::Dynamic::from(value)
+        }
+        dt => {
+            unimplemented!("unsupported data type: {}", dt.clone())
+        }
+    };
+
+    Ok(value)
 }
 
 fn get_transform_exprssion_by_id(
@@ -1704,6 +1888,10 @@ async fn consume_point_record(
 ) -> anyhow::Result<usize> {
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
+    let point_model_config = config.get_point_model_config();
+    let mut point_config_map = config.point_config_map.clone();
+    let mut table_config_map = config.table_config_map.clone();
+
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id.as_u64());
     for message in record.records() {
@@ -1735,9 +1923,6 @@ async fn consume_point_record(
         let status_index = schema.index_of("status")?;
         let status_column_view = cv_vec.get(status_index).unwrap();
 
-        let point_config_map = &config.point_config_map;
-        let table_config_map = &config.table_config_map;
-
         // stable: Vec<insert_sql, sql length overflow?, value_column_type, modify_message>
         let mut stable_insert_map: HashMap<String, Vec<SqlInsertion>> = HashMap::new();
         // child_table_name: create_sql
@@ -1755,18 +1940,58 @@ async fn consume_point_record(
             // point_config
             let point_config = point_config_map.get(&point_id);
             if point_config.is_none() {
-                tracing::warn!("cannot get point_config with point_id: {}", point_id);
-                continue;
+                let point_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            let index = point_config_map.len();
+
+                            let point_config = config.build_point_config(
+                                index,
+                                point_id.clone(),
+                                Some(value_raw_type.clone()),
+                            )?;
+                            Some(point_config)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+
+                match point_config {
+                    None => {
+                        tracing::trace!("cannot get point_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(point_config) => {
+                        point_config_map.insert(point_id.clone(), point_config);
+                    }
+                }
             }
-            let point_config = point_config.unwrap();
+            let point_config = point_config_map.get(&point_id).unwrap();
 
             // table_config
             let table_config = table_config_map.get(&point_id);
             if table_config.is_none() {
-                tracing::trace!("cannot get table_config with point_id: {}", point_id);
-                continue;
+                let table_config = match point_model_config.clone() {
+                    None => None,
+                    Some(point_model_config) => match point_model_config.update_mode {
+                        UpdateMode::Append | UpdateMode::Update => {
+                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
+                        }
+                        UpdateMode::None => None,
+                    },
+                };
+                match table_config {
+                    None => {
+                        tracing::trace!("cannot get table_config with point_id: {}", point_id);
+                        continue;
+                    }
+                    Some(table_config) => {
+                        table_config_map.insert(point_id.clone(), table_config);
+                    }
+                }
             }
-            let table_config = table_config.unwrap();
+            let table_config = table_config_map.get(&point_id).unwrap();
 
             // stable_name
             let stable_name = stable_name(
@@ -1788,7 +2013,7 @@ async fn consume_point_record(
             let point_insertion = PointInsertion::from_table_config(&table_config, &value_raw_type);
 
             let mut value_column_name = "value";
-            let mut value_column_length = 128;
+            let mut value_column_length = 0;
             let mut values = String::new();
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &point_insertion.columns {
@@ -1831,7 +2056,7 @@ async fn consume_point_record(
                         .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
                     value_column_name = temp_alias;
-                    value_column_length = value_column.len();
+                    value_column_length = cmp::max(value_column.len(), value_column_length);
                 } else if temp_name == "quality" {
                     values.push_str(
                         format!(
@@ -1955,6 +2180,7 @@ async fn consume_point_record(
                 });
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
             } else {
+                // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
                 let sql_vec = sql_vec.unwrap();
 
                 for index in 0..sql_vec.len() {
@@ -1971,6 +2197,21 @@ async fn consume_point_record(
                             sql_insertion.overflow = true;
                             continue;
                         } else {
+                            // 不同点位入同一张表的情况，需要合并column_configs
+                            let exist_column_configs =
+                                &mut sql_insertion.point_insertion.column_configs;
+                            let column_configs = &table_config.column_configs;
+                            for column_config in column_configs {
+                                if !exist_column_configs.contains(column_config) {
+                                    exist_column_configs.push(column_config.clone());
+                                }
+                            }
+                            // 需要更新 modify.value_column_length
+                            let exist_value_column_length =
+                                sql_insertion.modify.value_column_length;
+                            sql_insertion.modify.value_column_length =
+                                cmp::max(exist_value_column_length, value_column_length);
+
                             sql_insertion.sql.push_str(sql_suffix.as_str());
                             insert_done = true;
                         }
@@ -2021,7 +2262,7 @@ async fn consume_point_record(
                         if break_err.is_err() {
                             break_err.context("Point message sql error")?;
                         }
-                        break;
+                        break 'outer;
                     }
                     let sql_res = taos
                         .as_ref()
@@ -2040,7 +2281,7 @@ async fn consume_point_record(
                             // TODO: points is wrong
                             metrics.add_written_points(n as u64);
                             points += n;
-                            break;
+                            break 'outer;
                         }
                         Err(err) => {
                             let errstr = format!("{err:#}");
@@ -2051,8 +2292,7 @@ async fn consume_point_record(
                             );
 
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                                // stable not exists
-                                // should be some
+                                // 超级表或子表不存在, 创建超级表
                                 let value_column_config = sql_insertion
                                     .point_insertion
                                     .value_column_config
@@ -2099,16 +2339,17 @@ async fn consume_point_record(
                                             let err_str = err.to_string();
                                             if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
-                                                retry += 1;
                                                 break_err = Err(err);
-                                                continue;
                                             } else {
                                                 tracing::error!("create stable sql error: {err:#}");
                                             }
+                                            retry += 1;
+                                            continue 'outer;
                                         }
                                     }
                                 }
-                                // batch create child table
+
+                                // 创建子表
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut child_table_counts_vec = Vec::<u32>::new();
                                 let mut sql_prefix = "CREATE TABLE".to_string();
@@ -2167,11 +2408,10 @@ async fn consume_point_record(
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
                                 // Illegal number of columns or tags, alter to add columns or tag
                                 for column_config in &sql_insertion.point_insertion.column_configs {
-                                    let mut need_add = true;
-                                    let column_name = get_real_column_name(column_config);
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
                                     let desc = match desc {
+                                        Ok(desc) => desc,
                                         Err(err) => {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
@@ -2191,20 +2431,15 @@ async fn consume_point_record(
                                                 }
                                             }
                                         }
-                                        Ok(desc) => desc,
                                     };
-
-                                    desc.into_iter().for_each(|column_meta| {
-                                        if column_name == column_meta.field() {
-                                            need_add = false;
-                                        }
-                                    });
-
+                                    // 增加 column
+                                    let column_real_name = get_real_column_name(column_config);
+                                    let need_add = desc
+                                        .into_iter()
+                                        .all(|column_meta| column_real_name != column_meta.field());
                                     if need_add {
-                                        let column_real_name = get_real_column_name(column_config);
                                         if column_config.r#type.is_none() {
-                                            // shouldn't happen if normal
-                                            // encounter when rename value column
+                                            // shouldn't happen if normal, encounter when rename value column
                                             tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                             break 'outer;
                                         }
@@ -2245,7 +2480,7 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
-
+                                // 增加 tag
                                 if let Some(tag_configs) =
                                     &sql_insertion.point_insertion.tag_configs
                                 {
@@ -2294,6 +2529,8 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0x2653]") {
                                 // column or tag length not enough
                                 let desc = taos
@@ -2362,9 +2599,6 @@ async fn consume_point_record(
                                             sql_insertion.modify.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
-                                        // taos.as_ref().unwrap().exec(sql).await.context(
-                                        //     "Modify column length error while writing point stream",
-                                        // )?;
                                         taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
                                             .await
                                             .context(
@@ -2372,13 +2606,16 @@ async fn consume_point_record(
                                             )?;
                                     }
                                 }
+                                retry += 1;
+                                continue 'outer;
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
                                 retry += 1;
+                                continue 'outer;
                             } else {
                                 metrics.add_failed_sqls(1);
                                 Err(err)?;
-                                break;
+                                break 'outer;
                             }
                             break_err = Err(err);
                         }
@@ -2401,6 +2638,11 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
+/// Write flat message to TDengine.
+///
+/// # Arguments
+///
+/// - `count` will be increased by the number of rows written. Note that the number of rows written may be less than the number of rows in the message.
 #[framed]
 #[instrument(skip_all, fields(writer.count = count, trace.id = %data_trace_id))]
 async fn consume_flat_record(
@@ -2413,7 +2655,6 @@ async fn consume_flat_record(
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    // let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id.as_u64());
@@ -2446,443 +2687,19 @@ async fn consume_flat_record(
                     .await?;
                     metrics.add_processed_rows(num_rows as u64);
                     continue;
-                }
-                for records in message {
-                    if records.records.num_rows() == 0 {
-                        continue;
-                    }
-                    metrics.add_processed_rows(records.records.num_rows() as u64);
-                    if records.records.column(0).null_count() > 0 {
-                        bail!("Timestamp field contains null or invalid values");
-                    }
-                    tracing::debug!("Write records with rows {}", records.records.num_rows());
-                    let views = taosx_ipc::stream::reader::record_batch_to_column_view(
-                        &records.records,
+                } else {
+                    *count += flat_write_with_raw_block(
+                        pool,
+                        taos,
+                        &mut max_lengths,
+                        parser,
                         target_precision,
-                    );
-                    // dbg!(&views);
-                    let schema = records.records.schema();
-                    let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
-
-                    // replace dot in table_name
-                    let table_name = records
-                        .opts
-                        .canonical_table_name(records.table.name.as_str());
-
-                    let mut raw = RawBlock::from_views(&views, target_precision);
-                    raw.with_field_names(&columns)
-                        .with_table_name(table_name.clone());
-
-                    let mut write_retries = 0;
-                    loop {
-                        let var_views = views
-                            .iter()
-                            .zip(&columns)
-                            .filter(|(v, _)| v.as_ty().is_var_type())
-                            .map(|(view, name)| (name, view.as_ty(), view.max_variable_length()))
-                            .collect_vec();
-                        if var_views.len() > 0 {
-                            for (name, ty, length) in var_views {
-                                if let Some(max) = max_lengths.get(*name) {
-                                    if *max >= length {
-                                        continue;
-                                    }
-                                }
-                                loop {
-                                    let res = taos.as_ref().unwrap().describe(&table_name).await;
-                                    match res {
-                                        Ok(desc) => {
-                                            if let Some(col) = desc.iter().find(|f| {
-                                                f.ty().is_var_type() && f.field() == name.as_str()
-                                            }) {
-                                                // debug_assert!(ty == col.ty());
-                                                if col.length() < length {
-                                                    let table = records
-                                                        .table
-                                                        .using
-                                                        .as_deref()
-                                                        .unwrap_or(&table_name);
-                                                    let sql = format!(
-                                                        "alter table `{table}` modify column `{}` {}({})",
-                                                        name,
-                                                        ty,
-                                                        length
-                                                    );
-                                                    taos.as_ref()
-                                                        .unwrap()
-                                                        .exec_with_req_id(&sql, req_id.next())
-                                                        .await?;
-                                                    max_lengths.insert(name.to_string(), length);
-                                                    continue;
-                                                }
-                                            }
-                                            break;
-                                        }
-                                        Err(err) => {
-                                            let code: i32 = err.code().into();
-                                            if code == 0xE001
-                                                || code == 0xE002
-                                                || code == 0xE003
-                                                || code == 0x000B
-                                            {
-                                                tokio::time::sleep(Duration::from_secs(2)).await;
-                                                taos.replace(pool.get().await?);
-                                                continue;
-                                            }
-                                            // dbg!(&err);
-                                            if let Some(sql) = records.stable_sql() {
-                                                tracing::debug!("flat message stable sql : {sql}");
-                                                match taos
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .exec_with_req_id(&sql, req_id.next())
-                                                    .await
-                                                {
-                                                    Ok(_) => {
-                                                        metrics.add_created_stables(1);
-                                                    }
-                                                    Err(err) => {
-                                                        let code: i32 = err.code().into();
-                                                        // STable already exists
-                                                        if code != 0x0360 {
-                                                            Err(err)?;
-                                                        }
-                                                    }
-                                                }
-                                                let sql = records.table_sql();
-
-                                                loop {
-                                                    match taos
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .exec_with_req_id(&sql, req_id.next())
-                                                        .await
-                                                    {
-                                                        Ok(_n) => {
-                                                            metrics.add_created_tables(1);
-                                                        }
-                                                        Err(err) => {
-                                                            if err.to_string().contains("[0x2605]")
-                                                            {
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let desc = taos
-                                                                    .as_ref()
-                                                                    .unwrap()
-                                                                    .describe(table)
-                                                                    .await
-                                                                    .unwrap();
-                                                                for f in desc.iter().filter(|f| {
-                                                                    f.is_tag()
-                                                                        && f.ty().is_var_type()
-                                                                }) {
-                                                                    let sql = format!(
-                                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                                        f.field(),
-                                                                        f.ty(),
-                                                                        f.length() * 2
-                                                                    );
-                                                                    let _ = taos
-                                                                        .as_ref()
-                                                                        .unwrap()
-                                                                        .exec_with_req_id(
-                                                                            &sql,
-                                                                            req_id.next(),
-                                                                        )
-                                                                        .await;
-                                                                    continue;
-                                                                }
-                                                            } else if err
-                                                                .to_string()
-                                                                .contains("[0x260D]")
-                                                            {
-                                                                // Tags number not matched
-                                                                // add Tag
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let tags =
-                                                                    records.tag_meta().unwrap();
-                                                                for tag_meta in tags {
-                                                                    let mut need_add = true;
-                                                                    let res = taos
-                                                                        .as_ref()
-                                                                        .unwrap()
-                                                                        .describe(table)
-                                                                        .await
-                                                                        .unwrap();
-                                                                    res.into_iter().for_each(
-                                                                        |tag_added| {
-                                                                            if tag_added.is_tag()
-                                                                                && tag_added.field()
-                                                                                    == tag_meta
-                                                                                        .field()
-                                                                            {
-                                                                                need_add = false;
-                                                                            }
-                                                                        },
-                                                                    );
-                                                                    if need_add {
-                                                                        let add_tag_sql = format!(
-                                                                            "alter table `{table}` add tag `{}` {}",
-                                                                            tag_meta.field(),
-                                                                            parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
-                                                                        );
-                                                                        tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                        taos.as_ref()
-                                                                            .unwrap()
-                                                                            .exec_with_req_id(
-                                                                                add_tag_sql,
-                                                                                req_id.next(),
-                                                                            )
-                                                                            .await
-                                                                            .unwrap();
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                Err(err)?;
-                                                            }
-                                                        }
-                                                    }
-                                                    break;
-                                                }
-                                                //.inspect_err(|err| tracing::warn!("{}", err))?
-                                            } else {
-                                                let sql = records.table_sql();
-                                                match taos
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .exec_with_req_id(&sql, req_id.next())
-                                                    .await
-                                                {
-                                                    Ok(_) => {
-                                                        metrics.add_created_tables(1);
-                                                    }
-                                                    Err(err) => {
-                                                        let code: i32 = err.code().into();
-                                                        match code {
-                                                            0xE001 | 0xE002 | 0xE003 | 0x000B => {
-                                                                taos.replace(pool.get().await?);
-                                                                continue;
-                                                            }
-                                                            _ => Err(err)?,
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if let Err(err) = taos
-                            .as_ref()
-                            .unwrap()
-                            .write_raw_block_with_req_id(&raw, req_id.next())
-                            .await
-                        {
-                            let code = err.code();
-                            let errno: i32 = code.into();
-                            let err_str = err.to_string();
-                            write_retries += 1;
-                            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                                tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
-                                metrics.add_failed_raw_blocks(1);
-                                metrics.add_failed_rows(raw.nrows() as u64);
-                                metrics.add_failed_points(
-                                    (raw.nrows() * raw.column_views().len()) as u64,
-                                );
-                                Err(err)?;
-                                break;
-                            }
-                            if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
-                                if let Some(sql) = records.stable_sql() {
-                                    // dbg!(&sql);
-                                    match taos
-                                        .as_ref()
-                                        .unwrap()
-                                        .exec_with_req_id(&sql, req_id.next())
-                                        .await
-                                    {
-                                        Ok(_n) => {
-                                            metrics.add_created_stables(1);
-                                        }
-                                        Err(err) => {
-                                            let code: i32 = err.code().into();
-                                            let err_str = err.to_string();
-                                            if err_str.contains("0x032C") {
-                                                // Object is creating
-                                                tracing::warn!(
-                                                    "error code [0x032C] encountered, ignore"
-                                                );
-                                                continue;
-                                            } else if matches!(
-                                                code,
-                                                0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
-                                            ) {
-                                                tracing::debug!(
-                                                    "error encountered, ignore: {err:#}",
-                                                );
-                                            } else if code != 0x0360 {
-                                                tracing::error!(
-                                                    sql,
-                                                    "create stable error: {err:#}"
-                                                );
-                                                anyhow::bail!("create stable sql err: {}", err_str);
-                                            }
-                                        }
-                                    }
-
-                                    let sql = records.table_sql();
-
-                                    loop {
-                                        match taos
-                                            .as_ref()
-                                            .unwrap()
-                                            .exec_with_req_id(&sql, req_id.next())
-                                            .await
-                                        {
-                                            Ok(_n) => {
-                                                metrics.add_created_tables(1);
-                                            }
-                                            Err(err) => {
-                                                if err.to_string().contains("[0x2605]") {
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
-                                                    let desc = taos
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .describe(table)
-                                                        .await
-                                                        .unwrap();
-                                                    for f in desc.iter().filter(|f| {
-                                                        f.is_tag() && f.ty().is_var_type()
-                                                    }) {
-                                                        let sql = format!(
-                                                            "alter table `{table}` modify tag `{}` {}({})",
-                                                            f.field(),
-                                                            f.ty(),
-                                                            f.length() * 2
-                                                        );
-                                                        taos.as_ref().unwrap().exec(&sql).await?;
-                                                        continue;
-                                                    }
-                                                } else {
-                                                    Err(err)?;
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    }
-                                    //.inspect_err(|err| tracing::warn!("{}", err))?
-                                } else {
-                                    let sql = records.table_sql();
-                                    match taos
-                                        .as_ref()
-                                        .unwrap()
-                                        .exec_with_req_id(&sql, req_id.next())
-                                        .await
-                                    {
-                                        Ok(_n) => {
-                                            metrics.add_created_tables(1);
-                                        }
-                                        Err(err) => return Err(err)?,
-                                    }
-                                }
-
-                                continue;
-                            } else if err_str.contains("[0x2605]") {
-                                // container length is too short.
-                                let desc =
-                                    taos.as_ref().unwrap().describe(&table_name).await.unwrap();
-                                let table = records.table.using.as_deref().unwrap_or(&table_name);
-                                for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
-                                {
-                                    let sql = format!(
-                                        "alter table `{table}` modify column `{}` {}({})",
-                                        f.field(),
-                                        f.ty(),
-                                        f.length() * 2
-                                    );
-                                    taos.as_ref()
-                                        .unwrap()
-                                        .exec_with_req_id(&sql, req_id.next())
-                                        .await?;
-                                }
-                            } else if err_str.contains("[0x0118]") {
-                                // Code([0x0118] Unknown or common error)
-                                // column or tag not exists
-                                let mut index = 0;
-                                while index < columns.len() {
-                                    // let column_view = views.get(index).unwrap();
-                                    let column_name = columns.get(index).unwrap().as_str();
-                                    let desc = taos.as_ref().unwrap().describe(&table_name).await?;
-                                    let mut need_add = true;
-                                    desc.into_iter().for_each(|column_meta| {
-                                        if column_meta.field() == column_name {
-                                            need_add = false;
-                                        }
-                                    });
-                                    if need_add {
-                                        let ipc_data_type =
-                                            parser.get_ipcdatatype_from_parser(column_name);
-                                        if ipc_data_type.is_none() {
-                                            anyhow::bail!(
-                                                "column name {column_name} not config in parser"
-                                            );
-                                        }
-                                        let sql = format!(
-                                            "alter table `{}` add column `{}` {}",
-                                            records
-                                                .table
-                                                .using
-                                                .as_ref()
-                                                .unwrap_or(&table_name.to_string()),
-                                            &column_name,
-                                            ipc_data_type.unwrap(),
-                                        );
-                                        tracing::info!("alter table column sql: {}", sql);
-                                        taos.as_ref()
-                                            .unwrap()
-                                            .exec_with_req_id(&sql, req_id.next())
-                                            .await?;
-                                    }
-                                    index += 1;
-                                }
-                            } else if errno == 0xE001
-                                || errno == 0xE002
-                                || errno == 0xE003
-                                || errno == 0x000B
-                            {
-                                tokio::time::sleep(Duration::from_secs(2)).await;
-                                taos.replace(pool.get().await?);
-                                continue;
-                            } else {
-                                error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
-                                metrics.add_failed_raw_blocks(1);
-                                metrics.add_failed_rows(raw.nrows() as u64);
-                                metrics.add_failed_points(
-                                    (raw.nrows() * raw.column_views().len()) as u64,
-                                );
-                                Err(err)?;
-                                break;
-                            }
-                            continue;
-                        } else {
-                            *count += raw.nrows();
-                            metrics.add_written_raw_blocks(1);
-                            metrics.add_written_rows(raw.nrows() as u64);
-                            metrics.add_written_points(
-                                (raw.nrows() * raw.column_views().len()) as u64,
-                            );
-                            break;
-                        }
-                    }
+                        &req_id,
+                        message,
+                        metrics,
+                    )
+                    .await?;
+                    metrics.add_processed_rows(num_rows as u64);
                 }
             }
         }
@@ -3126,10 +2943,10 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
 
 #[framed]
 #[instrument(skip_all)]
-async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
+async fn ipc_flat_stream_worker(
     pool: &TaosPool,
-    ipc_reader: IpcReader<R>,
-    mut ipc_ack_writer: AckWriter<W>,
+    stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
+    sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
     parser: Option<&Parser>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
@@ -3137,82 +2954,102 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     stream_trace_id: TraceStreamId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    let mut count = 0;
-    let mut batches: u32 = 0;
-    let mut stream = ipc_reader.into_stream();
-    // let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
-    //     tracing::warn!("Receive IPC item error: {err:#}");
-    // });
-    let mut taos = Some(pool.get().await?);
-    while let Some(record) = stream.try_next().await? {
-        metrics.add_received_batches(1);
-        let data_trace_id = stream_trace_id.with_data_id(batches);
-        let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-        })
-        .unwrap();
-        debug!(
-            num.rows = record.num_rows(),
-            "Writing batch {data_trace_id}"
-        );
-        let last = count;
-        if let Err(err) = consume_flat_record(
-            pool,
-            &mut taos,
-            &record,
-            &mut count,
-            parser.unwrap(),
-            target_precision,
-            data_trace_id,
-            metrics,
-        )
-        .await
-        {
-            metrics.add_failed_batches(1);
-            error!("Writing batch {batches} error: {err:#}");
-            let written = count - last;
-            let _ = ipc_ack_writer.ack(LushAck {
-                code: 0,
-                message: Some(err.to_string()),
-                context: Some(
-                    json!({
-                        "stream": "flat",
-                        "written":  written,
-                    })
-                    .to_string(),
-                ),
-            });
-            if ipc_error_strategy.will_stop() {
-                Err(err).context("write batch error")?;
-            } else if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
-                Err(err).context("write batch error")?;
-            }
-        } else {
-            metrics.add_processed_batches(1);
-            let _ = ipc_ack_writer
-                .ack(LushAck {
-                    code: 0,
-                    message: None,
-                    context: Some(
-                        json!({
-                            "stream": "flat",
-                            "written":  count - last,
-                        })
-                        .to_string(),
-                    ),
-                })
-                .context("write ack error");
+    let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
+    tokio::pin!(stream);
+
+    match parser.global().written_method() {
+        WrittenMethod::Concurrent => {
+            return ipc_flat_stream_worker_concurrent(
+                pool,
+                stream,
+                sink,
+                parser,
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                stream_trace_id,
+                metrics_arc,
+            )
+            .await;
         }
-        tracing::debug!(
-            trace.id = %data_trace_id,
-            batch_id = batches,
-            "IPC write batch finished"
-        );
-        batches += 1;
+        WrittenMethod::VgroupConcurrent => {
+            return ipc_flat_stream_worker_vgroup(
+                pool,
+                stream,
+                sink,
+                parser,
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                stream_trace_id,
+                metrics_arc,
+            )
+            .await
+        }
+        WrittenMethod::VgroupSequential => {
+            return ipc_flat_stream_worker_vgroup_sequential(
+                pool,
+                stream,
+                sink,
+                parser,
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                stream_trace_id,
+                metrics_arc,
+            )
+            .await
+        }
+        WrittenMethod::Sequential => {
+            return ipc_flat_stream_worker_vgroup_sequential(
+                pool,
+                stream,
+                sink,
+                parser,
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                stream_trace_id,
+                metrics_arc,
+            )
+            .await
+        }
     }
-    // may not reached when the task was stopped by user forcely
-    info!("IPC processing done, written totally {count} records");
-    Ok(())
+}
+
+#[framed]
+#[instrument(skip_all)]
+async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
+    pool: &TaosPool,
+    ipc_reader: IpcReader<R>,
+    ipc_ack_writer: AckWriter<W>,
+    parser: Option<&Parser>,
+    _license: Option<&ConnectorLicense>,
+    _transferred: Option<&Transferred>,
+    target_precision: taos::Precision,
+    notifier: crate::TaskNotifySender,
+    ipc_error_strategy: IpcErrorStrategy,
+    stream_trace_id: TraceStreamId,
+    metrics_arc: Arc<CoreMetrics>,
+) -> anyhow::Result<()> {
+    let stream = ipc_reader.into_stream();
+    let sink = futures_util::sink::unfold(ipc_ack_writer, |mut ack_writer, ack| async move {
+        ack_writer.ack(ack)?;
+        Ok(ack_writer)
+    });
+
+    ipc_flat_stream_worker(
+        pool,
+        stream,
+        sink,
+        parser,
+        target_precision,
+        notifier,
+        ipc_error_strategy,
+        stream_trace_id,
+        metrics_arc.ipc(),
+    )
+    .await
 }
 
 pub fn generate_alter_sql_diff_desc(
@@ -3336,7 +3173,7 @@ impl From<Option<&str>> for IpcErrorStrategy {
 
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
-async fn ipc_process<R: Read + Send + 'static, W: Write>(
+async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
@@ -3668,7 +3505,9 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
-                    parser.expect("Parser is required in flat"),
+                    parser.ok_or_else(|| {
+                        anyhow::format_err!("Parser should be set with flat stream")
+                    })?,
                     self.target_precision,
                     data_trace_id,
                     metrics,
@@ -4096,9 +3935,69 @@ pub async fn listen_tcp_socket(
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[instrument(skip_all, parent = & span)]
+pub async fn channel_based_transformer(
+    target: TaosPool,
+    cancel: CancellationToken,
+    parser: Option<Parser>,
+    connector: Option<&'static str>,
+    span: Span,
+    task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
+) -> anyhow::Result<(
+    flume::Sender<Result<Box<dyn IpcMessage>, ArrowError>>,
+    flume::Receiver<LushAck>,
+)> {
+    let taos = target.get().await?;
+    let target_precision = get_current_precision(&taos).await?;
+    let (msg_tx, msg_rx) = flume::bounded(32);
+    let (ack_tx, ack_rx) = flume::unbounded();
+
+    let stream = msg_rx.into_stream();
+    let sink = futures_util::sink::unfold(ack_tx, |ack_tx, ack| async move {
+        ack_tx
+            .send_async(ack)
+            .await
+            .map_err(|err| ArrowError::MemoryError(format!("ACK channel error: {err:#}")))?;
+        Ok(ack_tx)
+    });
+
+    let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
+
+    tokio::spawn(
+        async move {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::info!("IPC stream cancelled");
+                }
+                _ = async {
+                    ipc_flat_stream_worker(
+                        &target,
+                        stream,
+                        sink,
+                        parser.as_ref(),
+                        target_precision,
+                        notifier,
+                        ipc_error_strategy,
+                        0,
+                        get_metrics_arc_from_i64(task_id).await,
+                    )
+                    .await
+                    .in_current_span()
+                } => {}
+            }
+        }
+        .in_current_span(),
+    );
+    Ok((msg_tx, ack_rx))
+}
+
+#[test]
+fn test_get_ts_from_sql() {
+    let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
+    let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
+    let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
+    let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
 
     #[test]
     fn test_group_by_super_table_name() {

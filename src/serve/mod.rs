@@ -2,14 +2,17 @@ use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
+    get,
     middleware::Compat,
     web::{resource, Data, PayloadConfig, ServiceConfig},
-    App, HttpServer,
+    App, HttpResponse, HttpServer, Responder,
 };
 use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Socket, Type};
+use std::net::SocketAddr;
 use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
@@ -98,6 +101,9 @@ pub(super) struct Cli {
     #[clap(flatten)]
     #[serde(skip)]
     pub verbose: Option<Verbosity<InfoLevel>>,
+
+    #[clap(long, env = "REPEAT_INTERVAL")]
+    pub repeat_interval: Option<u64>,
 }
 
 impl Cli {
@@ -160,7 +166,31 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(download_files)
             .service(upload_files)
             .service(metrics::profile)
-            .service(filemeta);
+            .service(filemeta)
+            .service(health);
+    }
+}
+
+#[get("/health")]
+async fn health() -> impl Responder {
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None);
+    match socket {
+        Ok(socket) => {
+            let socket_addr = SocketAddr::from(([0, 0, 0, 0], 6055));
+            let bind_result = socket.bind(&socket_addr.into());
+            match bind_result {
+                Ok(_) => {
+                    return HttpResponse::InternalServerError()
+                        .json("The 6055 port provided to the agent is not listening");
+                }
+                Err(_) => {
+                    return HttpResponse::Ok().json("ok");
+                }
+            }
+        }
+        Err(_) => {
+            return HttpResponse::InternalServerError().json("socket error");
+        }
     }
 }
 
@@ -190,6 +220,10 @@ impl Cli {
         scheduler: TaskScheduler,
         max_activities_per_entity: usize,
     ) -> Result<TaskControllerRef> {
+        if let Some(interval) = self.repeat_interval {
+            let dur = Duration::from_secs(interval);
+            controller::trigger::init_repeat_interval(dur);
+        }
         let database_url = self.get_database_url();
         let controller =
             TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
