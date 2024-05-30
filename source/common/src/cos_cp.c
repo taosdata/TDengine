@@ -20,7 +20,7 @@ int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {
 }
 
 void cos_cp_close(TdFilePtr fd) { taosCloseFile(&fd); }
-void cos_cp_remove(char const* filepath) { taosRemoveFile(filepath); }
+void cos_cp_remove(char const* filepath) { (void)taosRemoveFile(filepath); }
 
 static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
   int32_t      code = 0;
@@ -380,7 +380,7 @@ void cos_cp_get_undo_parts(SCheckpoint* checkpoint, int* part_num, SCheckpointPa
 
 void cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag, uint64_t crc64) {
   checkpoint->parts[part_index].completed = 1;
-  strncpy(checkpoint->parts[part_index].etag, etag, 128);
+  strncpy(checkpoint->parts[part_index].etag, etag, 127);
   checkpoint->parts[part_index].crc64 = crc64;
 }
 
