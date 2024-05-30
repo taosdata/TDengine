@@ -141,6 +141,7 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
 
 _exit:
   if (code) {
+    tsdbSnapRAWReadFileSetCloseReader(reader);
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
   return code;
@@ -546,7 +547,7 @@ static int32_t tsdbSnapRAWWriteTimeSeriesData(STsdbSnapRAWWriter* writer, STsdbD
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char*   encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);

@@ -212,6 +212,11 @@ _exit:
   return code;
 }
 
+static int32_t tsdbCommitCloseReader(SCommitter2 *committer) {
+  TARRAY2_CLEAR(committer->sttReaderArray, tsdbSttFileReaderClose);
+  return 0;
+}
+
 static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -256,13 +261,17 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
 
 _exit:
   if (code) {
+    tsdbCommitCloseReader(committer);
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
   }
   return code;
 }
 
-static int32_t tsdbCommitCloseReader(SCommitter2 *committer) {
-  TARRAY2_CLEAR(committer->sttReaderArray, tsdbSttFileReaderClose);
+static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
+  tsdbIterMergerClose(&committer->tombIterMerger);
+  tsdbIterMergerClose(&committer->dataIterMerger);
+  TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
+  TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
   return 0;
 }
 
@@ -336,17 +345,10 @@ static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
 
 _exit:
   if (code) {
+    tsdbCommitCloseIter(committer);
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
   }
   return code;
-}
-
-static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
-  tsdbIterMergerClose(&committer->tombIterMerger);
-  tsdbIterMergerClose(&committer->dataIterMerger);
-  TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
-  TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
-  return 0;
 }
 
 static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
