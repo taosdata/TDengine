@@ -209,7 +209,7 @@ impl TransformExt for ParserImpl {
                         error,
                     }
                 })?;
-                if parser.num_rows_will_be_changed() {
+                if indices.is_some() {
                     for field in batch.schema().fields() {
                         multi_fields.push(field.clone());
                         let array = batch.column_by_name(field.name()).unwrap();
