@@ -123,9 +123,9 @@ impl ConnectorLicense {
         let expire_time = chrono::DateTime::from_timestamp(self.expire as _, 0)?;
         let now = chrono::Utc::now();
         if expire_time > now || self.expire < 0 {
-            return None;
+            None
         } else {
-            return Some(chrono::Duration::seconds((now - expire_time).num_seconds()));
+            Some(now - expire_time)
         }
     }
 }
