@@ -1076,6 +1076,19 @@ static void cliSendCb(uv_write_t* req, int status) {
   uv_read_start((uv_stream_t*)pConn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
 
+static void cliSendBatch_shareConnCb(uv_write_t* req, int status) {
+  SCliConn* conn = req->data;
+  SCliThrd* thrd = conn->hostThrd;
+  if (status != 0) {
+    tDebug("%s conn %p failed to send batch msg, reason:%s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(status));
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
+      cliHandleExcept(conn);
+    }
+    return;
+  }
+  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  taosMemoryFree(req);
+}
 void cliSendBatch_shareConn(SCliConn* pConn) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
@@ -1132,7 +1145,7 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
   req->data = pConn;
   tDebug("%s conn %p start to send batch msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, size,
          totalLen);
-  uv_write(req, (uv_stream_t*)pConn->stream, wb, size, cliSendBatchCb);
+  uv_write(req, (uv_stream_t*)pConn->stream, wb, size, cliSendBatch_shareConnCb);
   taosMemoryFree(wb);
 }
 void cliSendBatch(SCliConn* pConn) {
