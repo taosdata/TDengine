@@ -1186,7 +1186,7 @@ void cliSend(SCliConn* pConn) {
   if (status != 0) {
     tGError("%s conn %p failed to send msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
             uv_err_name(status));
-    cliHandleExcept(pConn);
+    cliHandleExcept(pConn, -1);
   }
   return;
 _RETURN:
@@ -1305,7 +1305,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
     tDebug("%s conn %p failed to send batch msg, batch size:%d, msgLen:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn,
            p->wLen, p->batchSize, uv_err_name(status));
 
-    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn);
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn, -1);
 
     cliHandleBatchReq(nxtBatch, thrd);
   } else {
