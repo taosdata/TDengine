@@ -770,7 +770,7 @@ impl SuperTableConfig {
         })
     }
 
-    /// 从超级表的配置中获取需要做 transfrom 的列（目前仅支持“映射”类型的 transfrom）
+    /// 从超级表的配置中获取需要做 transform 的列（目前仅支持“映射”类型的 transform）
     fn get_map_transform(&self) -> Option<Map> {
         let mut map: LinkedHashMap<String, FieldValue> = LinkedHashMap::new();
         for row in &self.schema {
