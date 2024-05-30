@@ -948,7 +948,8 @@ int32_t doRemoveFromCache(SSHashObj* pSinkTableMap, uint64_t groupId, const char
   }
 
   int32_t code = tSimpleHashRemove(pSinkTableMap, &groupId, sizeof(groupId));
-  tqDebug("s-task:%s remove cached table meta for groupId:%"PRId64, id, groupId);
+  tqDebug("s-task:%s remove cached table meta for groupId:%" PRId64, id, groupId);
+  return code;
 }
 
 int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock, SStreamTask* pTask,
