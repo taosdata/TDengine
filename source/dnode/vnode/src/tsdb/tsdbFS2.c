@@ -22,9 +22,6 @@
 
 extern void remove_file(const char *fname);
 
-#define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
-#define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
-
 typedef struct STFileHashEntry {
   struct STFileHashEntry *next;
   char                    fname[TSDB_FILENAME_LEN];
@@ -290,10 +287,8 @@ static int32_t commit_edit(STFileSystem *fs) {
   current_fname(fs->tsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
-  } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   } else {
-    ASSERT(0);
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
   int32_t code;
@@ -324,11 +319,8 @@ static int32_t abort_edit(STFileSystem *fs) {
 
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_C);
-  } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   } else {
-    tsdbError("vgId:%d %s failed since invalid etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
-    ASSERT(0);
+    current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   }
 
   int32_t code;
@@ -767,9 +759,12 @@ extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
-  TARRAY2(int64_t) channelArr = {0};
+  SArray       *channelArray = taosArrayInit(0, sizeof(SVAChannelID));
+  if (channelArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  taosThreadMutexLock(&pTsdb->mutex);
 
   // disable
   pTsdb->bgTaskDisabled = true;
@@ -777,20 +772,23 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) {
-      TARRAY2_APPEND(&channelArr, fset->bgTaskChannel);
-      fset->bgTaskChannel = 0;
+    if (fset->channelOpened) {
+      taosArrayPush(channelArray, &fset->channel);
+      fset->channel = (SVAChannelID){0};
+      fset->mergeScheduled = false;
+      tsdbFSSetBlockCommit(fset, false);
+      fset->channelOpened = false;
     }
-    fset->mergeScheduled = false;
-    tsdbFSSetBlockCommit(fset, false);
   }
 
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  taosThreadMutexUnlock(&pTsdb->mutex);
 
   // destroy all channels
-  int64_t channel;
-  TARRAY2_FOREACH(&channelArr, channel) { vnodeAChannelDestroy(vnodeAsyncHandle[1], channel, true); }
-  TARRAY2_DESTROY(&channelArr, NULL);
+  for (int32_t i = 0; i < taosArrayGetSize(channelArray); i++) {
+    SVAChannelID *channel = taosArrayGet(channelArray, i);
+    vnodeAChannelDestroy(channel, true);
+  }
+  taosArrayDestroy(channelArray);
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
@@ -832,15 +830,10 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
 
-  switch (etype) {
-    case TSDB_FEDIT_COMMIT:
-      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
-      break;
-    case TSDB_FEDIT_MERGE:
-      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
-      break;
-    default:
-      ASSERT(0);
+  if (etype == TSDB_FEDIT_COMMIT) {
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
+  } else {
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   }
 
   tsem_wait(&fs->canEdit);
@@ -932,8 +925,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         arg->tsdb = fs->tsdb;
         arg->fid = fset->fid;
 
-        code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg,
-                           NULL);
+        code = vnodeAsync(&fset->channel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree, arg, NULL);
         TSDB_CHECK_CODE(code, lino, _exit);
         fset->mergeScheduled = true;
       }
@@ -943,33 +935,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
       } else {
         tsdbFSSetBlockCommit(fset, false);
       }
-    }
-  }
-
-  // clear empty level and fset
-  int32_t i = 0;
-  while (i < TARRAY2_SIZE(fs->fSetArr)) {
-    STFileSet *fset = TARRAY2_GET(fs->fSetArr, i);
-
-    int32_t j = 0;
-    while (j < TARRAY2_SIZE(fset->lvlArr)) {
-      SSttLvl *lvl = TARRAY2_GET(fset->lvlArr, j);
-
-      if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
-        TARRAY2_REMOVE(fset->lvlArr, j, tsdbSttLvlClear);
-      } else {
-        j++;
-      }
-    }
-
-    if (tsdbTFileSetIsEmpty(fset)) {
-      if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) {
-        vnodeAChannelDestroy(vnodeAsyncHandle[1], fset->bgTaskChannel, false);
-        fset->bgTaskChannel = 0;
-      }
-      TARRAY2_REMOVE(fs->fSetArr, i, tsdbTFileSetClear);
-    } else {
-      i++;
     }
   }
 
@@ -1211,3 +1176,47 @@ _out:
 }
 
 int32_t tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr) { return tsdbTFileSetRangeArrayDestroy(fsrArr); }
+
+int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
+  int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
+
+  tsdbFSGetFSet(tsdb->pFS, fid, fset);
+  if (sttTrigger == 1 && (*fset)) {
+    for (;;) {
+      if ((*fset)->taskRunning) {
+        (*fset)->numWaitTask++;
+
+        taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
+
+        tsdbFSGetFSet(tsdb->pFS, fid, fset);
+        ASSERT(fset != NULL);
+
+        (*fset)->numWaitTask--;
+        ASSERT((*fset)->numWaitTask >= 0);
+      } else {
+        (*fset)->taskRunning = true;
+        break;
+      }
+    }
+    tsdbInfo("vgId:%d begin task on file set:%d", TD_VID(tsdb->pVnode), fid);
+  }
+
+  return 0;
+}
+
+int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid) {
+  int16_t sttTrigger = tsdb->pVnode->config.sttTrigger;
+  if (sttTrigger == 1) {
+    STFileSet *fset = NULL;
+    tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+    if (fset != NULL && fset->taskRunning) {
+      fset->taskRunning = false;
+      if (fset->numWaitTask > 0) {
+        taosThreadCondSignal(&fset->beginTask);
+      }
+      tsdbInfo("vgId:%d finish task on file set:%d", TD_VID(tsdb->pVnode), fid);
+    }
+  }
+
+  return 0;
+}

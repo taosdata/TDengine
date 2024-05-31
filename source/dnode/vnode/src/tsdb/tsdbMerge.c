@@ -593,5 +593,6 @@ _exit:
     exit(EXIT_FAILURE);
   }
   tsdbTFileSetClear(&merger->fset);
+  taosMemoryFree(arg);
   return code;
 }

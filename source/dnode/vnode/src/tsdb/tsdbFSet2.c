@@ -456,13 +456,14 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // background task queue
-  fset[0]->bgTaskChannel = 0;
-  fset[0]->mergeScheduled = false;
+  taosThreadCondInit(&(*fset)->beginTask, NULL);
+  (*fset)->taskRunning = false;
+  (*fset)->numWaitTask = 0;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);
-  fset[0]->numWaitCommit = 0;
-  fset[0]->blockCommit = false;
+  (*fset)->numWaitCommit = 0;
+  (*fset)->blockCommit = false;
 
   return 0;
 }
@@ -598,21 +599,19 @@ int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr) {
   return 0;
 }
 
-int32_t tsdbTFileSetClear(STFileSet **fset) {
-  if (!fset[0]) return 0;
+void tsdbTFileSetClear(STFileSet **fset) {
+  if (fset && *fset) {
+    for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if ((*fset)->farr[ftype] == NULL) continue;
+      tsdbTFileObjUnref((*fset)->farr[ftype]);
+    }
 
-  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    if (fset[0]->farr[ftype] == NULL) continue;
-    tsdbTFileObjUnref(fset[0]->farr[ftype]);
+    TARRAY2_DESTROY((*fset)->lvlArr, tsdbSttLvlClear);
+
+    taosThreadCondDestroy(&(*fset)->beginTask);
+    taosThreadCondDestroy(&(*fset)->canCommit);
+    taosMemoryFreeClear(*fset);
   }
-
-  TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlClear);
-
-  taosThreadCondDestroy(&fset[0]->canCommit);
-  taosMemoryFree(fset[0]);
-  fset[0] = NULL;
-
-  return 0;
 }
 
 int32_t tsdbTFileSetRemove(STFileSet *fset) {
@@ -665,6 +664,12 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
 }
 
 int32_t tsdbTFileSetOpenChannel(STFileSet *fset) {
-  if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) return 0;
-  return vnodeAChannelInit(vnodeAsyncHandle[1], &fset->bgTaskChannel);
+  int32_t code;
+  if (!fset->channelOpened) {
+    if ((code = vnodeAChannelInit(2, &fset->channel))) {
+      return code;
+    }
+    fset->channelOpened = true;
+  }
+  return 0;
 }

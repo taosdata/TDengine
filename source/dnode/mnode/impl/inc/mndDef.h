@@ -180,7 +180,7 @@ typedef struct {
   tmsg_t        originRpcType;
   char          dbname[TSDB_TABLE_FNAME_LEN];
   char          stbname[TSDB_TABLE_FNAME_LEN];
-  int32_t       arbGroupId;
+  SHashObj*     arbGroupIds;
   int32_t       startFunc;
   int32_t       stopFunc;
   int32_t       paramLen;
@@ -255,6 +255,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
+  int8_t  acked;
 } SArbAssignedLeader;
 
 typedef struct {

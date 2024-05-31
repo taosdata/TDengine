@@ -33,6 +33,8 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
                                size_t label_key_count, const char **label_keys) {
   int r = 0;
   taos_metric_t *self = (taos_metric_t *)taos_malloc(sizeof(taos_metric_t));
+  if (self == NULL) return NULL;
+  memset(self, 0, sizeof(taos_metric_t));
   self->type = metric_type;
   int len = strlen(name) + 1;
   self->name = taos_malloc(len);
@@ -79,6 +81,7 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   r = pthread_rwlock_init(self->rwlock, NULL);
   if (r) {
     TAOS_LOG(TAOS_PTHREAD_RWLOCK_INIT_ERROR);
+    taos_free(self);
     return NULL;
   }
   return self;
@@ -91,9 +94,11 @@ int taos_metric_destroy(taos_metric_t *self) {
   int r = 0;
   int ret = 0;
 
-  r = taos_map_destroy(self->samples);
-  self->samples = NULL;
-  if (r) ret = r;
+  if(self->samples != NULL){
+    r = taos_map_destroy(self->samples);
+    self->samples = NULL;
+    if (r) ret = r;
+  }
 
   r = taos_metric_formatter_destroy(self->formatter);
   self->formatter = NULL;
@@ -152,8 +157,7 @@ taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const 
   return NULL;
 
   // Get l_value
-  r = taos_metric_formatter_load_l_value(self->formatter, self->name, NULL, self->label_key_count, self->label_keys,
-                                         label_values);
+  r = taos_metric_formatter_load_l_value(self->formatter, self->name, NULL, self->label_key_count, self->label_keys, label_values);
   if (r) {
     TAOS_METRIC_SAMPLE_FROM_LABELS_HANDLE_UNLOCK();
   }
@@ -170,10 +174,12 @@ taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const 
     sample = taos_metric_sample_new(self->type, l_value, 0.0);
     r = taos_map_set(self->samples, l_value, sample);
     if (r) {
+      taos_free((void *)l_value);
       TAOS_METRIC_SAMPLE_FROM_LABELS_HANDLE_UNLOCK();
     }
   }
-  pthread_rwlock_unlock(self->rwlock);
+  r = pthread_rwlock_unlock(self->rwlock);
+  if (r) TAOS_LOG(TAOS_PTHREAD_RWLOCK_UNLOCK_ERROR); 
   taos_free((void *)l_value);
   return sample;
 }

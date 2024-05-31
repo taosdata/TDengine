@@ -562,13 +562,16 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   int64_t id[2] = {pTask->id.streamId, pTask->id.taskId};
-  if (tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn) < 0) {
-    stError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
-    return -1;
+
+  code = tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s task meta save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
+  } else {
+    stDebug("s-task:%s task meta save to disk", pTask->id.idStr);
   }
 
   taosMemoryFree(buf);
-  return 0;
+  return code;
 }
 
 int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {

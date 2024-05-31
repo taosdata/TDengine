@@ -15,6 +15,30 @@ class TDTestCase:
         #tdSql.init(conn.cursor())
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def interp_on_empty_table(self):
+        dbname = "db"
+        tbname = "t"        
+
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+
+        tdSql.execute(f'''create table if not exists {dbname}.{tbname} (ts timestamp, k int)''')
+
+        tdLog.printNoPrefix("==========step2:interp query on empty table")
+
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(prev)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(next)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(linear)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select _irowts, interp(k),k from {dbname}.{tbname} partition by k range(now()-1h, now()) every(1m) fill(value, 2)")        
+        tdSql.checkRows(0)
+    
     def run(self):
         dbname = "db"
         tbname = "tb"
@@ -5658,6 +5682,7 @@ class TDTestCase:
         tdSql.checkData(0,  0, '2023-08-06 23:59:00')
         tdSql.checkData(0,  1, None)
 
+        self.interp_on_empty_table()
 
 
     def stop(self):
