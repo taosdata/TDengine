@@ -107,7 +107,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
 
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
-  pTask->info.triggerParam = triggerParam;
+  pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
   pTask->status.pSM = streamCreateStateMachine(pTask);

@@ -558,11 +558,6 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
   return 0;
 }
 
-static void freeCheckpointCandEntry(void *param) {
-  SCheckpointCandEntry *pEntry = param;
-  taosMemoryFreeClear(pEntry->pName);
-}
-
 static void freeTaskList(void* param) {
   SArray** pList = (SArray **)param;
   taosArrayDestroy(*pList);
@@ -575,9 +570,7 @@ void mndInitExecInfo() {
   execInfo.pTaskList = taosArrayInit(4, sizeof(STaskId));
   execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.transMgmt.pWaitingList = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
 
-  taosHashSetFreeFp(execInfo.transMgmt.pWaitingList, freeCheckpointCandEntry);
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
 }

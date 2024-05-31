@@ -505,7 +505,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tSerializeSUseDbRspImp(pEncoder, &pTask->outputInfo.shuffleDispatcher.dbInfo) < 0) return -1;
     if (tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
-  if (tEncodeI64(pEncoder, pTask->info.triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->info.delaySchedParam) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->subtableWithoutMd5) < 0) return -1;
   if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
@@ -588,7 +588,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDeserializeSUseDbRspImp(pDecoder, &pTask->outputInfo.shuffleDispatcher.dbInfo) < 0) return -1;
     if (tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
-  if (tDecodeI64(pDecoder, &pTask->info.triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->info.delaySchedParam) < 0) return -1;
   if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
     if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
   }

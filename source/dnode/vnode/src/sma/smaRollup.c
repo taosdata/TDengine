@@ -244,7 +244,7 @@ static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTask
   SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask && *ppTask) {
     pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
-    pItem->fetchResultVer = (*ppTask)->info.triggerParam;
+    pItem->fetchResultVer = (*ppTask)->info.delaySchedParam;
   }
   streamMetaRUnLock(pMeta);
 }
@@ -1289,7 +1289,7 @@ _checkpoint:
 
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
-          pTask->info.triggerParam = pItem->fetchResultVer;
+          pTask->info.delaySchedParam = pItem->fetchResultVer;
           pTask->info.taskLevel = TASK_LEVEL_SMA;
 
           if (!checkpointBuilt) {

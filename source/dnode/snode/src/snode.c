@@ -62,14 +62,14 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
             " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->streamTaskId.taskId, pTask->info.triggerParam);
+            (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
     sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam);
+            (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
   }
   return 0;
 }

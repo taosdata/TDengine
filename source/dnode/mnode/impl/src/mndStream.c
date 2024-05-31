@@ -45,7 +45,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
 
-static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
+static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -112,7 +112,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_DROP_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_REQ_CHKPT, mndProcessStreamReqCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
@@ -141,7 +141,6 @@ void mndCleanupStream(SMnode *pMnode) {
   taosArrayDestroy(execInfo.pTaskList);
   taosHashCleanup(execInfo.pTaskMap);
   taosHashCleanup(execInfo.transMgmt.pDBTrans);
-  taosHashCleanup(execInfo.transMgmt.pWaitingList);
   taosHashCleanup(execInfo.pTransferStateStreams);
   taosThreadMutexDestroy(&execInfo.lock);
   mDebug("mnd stream exec info cleanup");
@@ -967,7 +966,6 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
 
   bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHECKPOINT_NAME, lock);
   if (conflict) {
-    mndAddtoCheckpointWaitingList(pStream, checkpointId);
     mWarn("checkpoint conflict with other trans in %s, ignore the checkpoint for stream:%s %" PRIx64, pStream->sourceDb,
           pStream->name, pStream->uid);
     return -1;
@@ -1131,7 +1129,7 @@ static int32_t streamWaitComparFn(const void* p1, const void* p2) {
   return pInt1->duration > pInt2->duration? -1:1;
 }
 
-static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
+static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   void       *pIter = NULL;

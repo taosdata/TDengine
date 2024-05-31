@@ -227,28 +227,6 @@ void clearBufferedDispatchMsg(SStreamTask* pTask) {
   pMsgInfo->dispatchMsgType = 0;
 }
 
-int32_t streamTaskBuildAndSendTriggerMsg(SStreamTask* pTask, const SStreamDataBlock* pData, int32_t dstTaskId,
-                                         int32_t vgId, SEpSet* pEpset) {
-  SStreamDispatchReq* pReq = taosMemoryCalloc(1, sizeof(SStreamDispatchReq));
-
-  int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
-  int32_t code = tInitStreamDispatchReq(pReq, pTask, pData->srcVgId, numOfBlocks, dstTaskId, pData->type);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  for (int32_t i = 0; i < numOfBlocks; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
-    code = streamAddBlockIntoDispatchMsg(pDataBlock, pReq);
-    if (code != TSDB_CODE_SUCCESS) {
-      destroyDispatchMsg(pReq, 1);
-      return code;
-    }
-  }
-
-  return doSendDispatchMsg(pTask, pReq, vgId, pEpset);
-}
-
 static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pData) {
   int32_t code = 0;
   int32_t numOfBlocks = taosArrayGetSize(pData->blocks);

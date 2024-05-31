@@ -304,7 +304,7 @@ typedef struct SSTaskBasicInfo {
   int32_t totalLevel;
   int8_t  taskLevel;
   int8_t  fillHistory;   // is fill history task or not
-  int64_t triggerParam;  // in msec
+  int64_t delaySchedParam;  // in msec
 } SSTaskBasicInfo;
 
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
