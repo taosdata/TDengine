@@ -166,26 +166,21 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                 }
 
                 // Check active-active license
-                match from_conn
+                let expire= from_conn
                         .query_one::<_, String>("select `expire` from information_schema.ins_grants_full where grant_name='active_active'")
                         .await
-                        .context("Failed to check active-active license in data source")? {
-                    Some(expire) => {
-                        let ok = if expire == "unlimited" {
-                            true
-                        } else {
-                            chrono::NaiveDateTime::parse_from_str(&expire, "%Y-%m-%d %H:%M:%S")
-                                .map(|expire| expire > chrono::Utc::now().naive_utc())
-                                .unwrap_or(false)
-                        };
-                        tracing::debug!(ok, expire, "active-active license check in target");
-                        if !ok {
-                            return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire} in source, please contact the TDengine customer success team for further assistance.")));
-                        }
-                    }
-                    None => {
-                        return Ok(LicenseKind::Edition(anyhow!("You source enterprise edition has no active-active license, please contact the TDengine customer success team for further assistance.")));
-                    }
+                        .context("Failed to check active-active license in data source")?
+                        .ok_or_else(|| anyhow!("You enterprise edition has no active-active license"))?;
+                let ok = if expire == "unlimited" {
+                    true
+                } else {
+                    chrono::NaiveDateTime::parse_from_str(&expire, "%Y-%m-%d %H:%M:%S")
+                        .map(|expire| expire > chrono::Utc::now().naive_utc())
+                        .unwrap_or(false)
+                };
+                tracing::debug!(ok, expire, "active-active license check");
+                if !ok {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")));
                 }
 
                 // Check enterprise license
@@ -199,26 +194,21 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                 }
 
                 // Check active-active license
-                match conn
+                let expire= conn
                         .query_one::<_, String>("select `expire` from information_schema.ins_grants_full where grant_name='active_active'")
                         .await
-                        .context("Failed to check active-active license in data target")? {
-                    Some(expire) => {
-                        let ok = if expire == "unlimited" {
-                            true
-                        } else {
-                            chrono::NaiveDateTime::parse_from_str(&expire, "%Y-%m-%d %H:%M:%S")
-                                .map(|expire| expire > chrono::Utc::now().naive_utc())
-                                .unwrap_or(false)
-                        };
-                        tracing::debug!(ok, expire, "active-active license check in target");
-                        if !ok {
-                            return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire} in target, please contact the TDengine customer success team for further assistance.")));
-                        }
-                    }
-                    None => {
-                        return Ok(LicenseKind::Edition(anyhow!("You target enterprise edition has no active-active license, please contact the TDengine customer success team for further assistance.")));
-                    }
+                        .context("Failed to check active-active license in data source")?
+                        .ok_or_else(|| anyhow!("You enterprise edition has no active-active license"))?;
+                let ok = if expire == "unlimited" {
+                    true
+                } else {
+                    chrono::NaiveDateTime::parse_from_str(&expire, "%Y-%m-%d %H:%M:%S")
+                        .map(|expire| expire > chrono::Utc::now().naive_utc())
+                        .unwrap_or(false)
+                };
+                tracing::debug!(ok, expire, "active-active license check");
+                if !ok {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")));
                 }
             }
             // to.subject.take();
