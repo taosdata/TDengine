@@ -6486,6 +6486,11 @@ int32_t tSerializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdat
     if (tEncodeI64(&encoder, pGroup->version) < 0) return -1;
   }
 
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    if (tEncodeI8(&encoder, pGroup->assignedLeader.acked) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -6518,8 +6523,18 @@ int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpd
     group.assignedLeader.token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
     if (tDecodeCStrTo(&decoder, group.assignedLeader.token) < 0) return -1;
     if (tDecodeI64(&decoder, &group.version) < 0) return -1;
+    group.assignedLeader.acked = false;
+
     taosArrayPush(updateArray, &group);
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < sz; i++) {
+      SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
+      if (tDecodeI8(&decoder, &pGroup->assignedLeader.acked) < 0) return -1;
+    }
+  }
+
   pReq->updateArray = updateArray;
 
   tEndDecode(&decoder);

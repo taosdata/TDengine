@@ -101,6 +101,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
  */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
+int64_t mndGetRoleTimeMs(SMnode *pMnode);
+
 /**
  * @brief Process the rpc, sync request.
  *
