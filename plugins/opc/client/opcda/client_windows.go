@@ -146,10 +146,13 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 				close(c.finishChan)
 				return
 			case data := <-c.changeChan:
+				c.logger.Info("opcda collect change collect points")
 				for _, tag := range data.remove {
+					c.logger.Info("opcda remove tag:", tag)
 					c.conn.Remove(tag)
 				}
 				for _, tag := range data.add {
+					c.logger.Info("opcda add tag:", tag)
 					err := c.conn.Add(tag)
 					if err != nil {
 						c.logger.WithError(err).WithField("tag", tag).Error("opcda add tag error")
@@ -318,6 +321,7 @@ type changeData struct {
 }
 
 func (c *DAClient) ChangeCollectConfig(conf config.CollectConfig) {
+	c.logger.Info("opcda start to change collect config")
 	// compare tags
 	tags := c.tags
 	oldTagsMap := make(map[string]struct{}, len(c.tags))

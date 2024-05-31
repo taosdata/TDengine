@@ -65,6 +65,7 @@ impl<'a> LicenseValidator<'a> {
     }
 
     /// Validate the connector license and the enterprise license.
+    #[instrument(skip_all, fields(source = %mask_dsn(&self.from), sink = %mask_dsn(&self.to)))]
     pub async fn validate_connector(&self) -> Result<LicenseKind> {
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         {
@@ -132,10 +133,28 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
         ("tmq" | "taos", "tmq" | "taos") => {
             let mut from = from.clone();
             from.subject.take();
-            let from_builder = TaosBuilder::from_dsn(&from)?;
-            let from_conn = from_builder.build().await?;
+            let from_builder = TaosBuilder::from_dsn(&from)
+                .with_context(|| format!("Source: {}", mask_dsn(&from)))?;
+            let from_conn = from_builder
+                .build()
+                .await
+                .with_context(|| format!("Source: {}", mask_dsn(&from)))?;
+            let to_builder = TaosBuilder::from_dsn(to)?;
+            let mut conn = to_builder
+                .build()
+                .await
+                .context("Target connection failed")?;
 
             if from.driver == "tmq" && from.get("replica").is_some() && !is_cloud(&from) {
+                let _version = semver::Version::parse(
+                    &from_builder
+                        .server_version()
+                        .await
+                        .with_context(|| format!("Target: {}", mask_dsn(to)))?
+                        .split('.')
+                        .take(3)
+                        .join("."),
+                )?;
                 // Check enterprise license
                 let edition = from_builder
                     .get_edition()
@@ -143,7 +162,7 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                     .context("Failed to check active-active license in data source")?
                     .assert_enterprise_edition();
                 if let Err(err) = edition {
-                    return Ok(LicenseKind::Edition(anyhow!("Active-Active feature requires enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active feature requires source enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
                 }
 
                 // Check active-active license
@@ -163,11 +182,36 @@ async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<LicenseKind
                 if !ok {
                     return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")));
                 }
-            }
 
+                // Check enterprise license
+                let edition = to_builder
+                    .get_edition()
+                    .await
+                    .context("Failed to check active-active license in data target")?
+                    .assert_enterprise_edition();
+                if let Err(err) = edition {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active feature requires target enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                }
+
+                // Check active-active license
+                let expire= conn
+                        .query_one::<_, String>("select `expire` from information_schema.ins_grants_full where grant_name='active_active'")
+                        .await
+                        .context("Failed to check active-active license in data source")?
+                        .ok_or_else(|| anyhow!("You enterprise edition has no active-active license"))?;
+                let ok = if expire == "unlimited" {
+                    true
+                } else {
+                    chrono::NaiveDateTime::parse_from_str(&expire, "%Y-%m-%d %H:%M:%S")
+                        .map(|expire| expire > chrono::Utc::now().naive_utc())
+                        .unwrap_or(false)
+                };
+                tracing::debug!(ok, expire, "active-active license check");
+                if !ok {
+                    return Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")));
+                }
+            }
             // to.subject.take();
-            let to_builder = TaosBuilder::from_dsn(to)?;
-            let mut conn = to_builder.build().await?;
             if let Err(err) = to_builder.ping(&mut conn).await {
                 if *err.code().deref() == 0x0388 {
                     let subject = to.subject.as_deref().unwrap_or("unknown");
@@ -272,13 +316,27 @@ async fn validate_connector_license(
 
     let mut from = from.clone();
     from.subject.take();
+
     if let Ok(source_builder) = TaosBuilder::from_dsn(&from) {
-        let source_version = source_builder.server_version().await?;
-        let source_version = semver::Version::parse(&source_version.split('.').take(3).join("."))?;
+        let source_version = semver::Version::parse(
+            &source_builder
+                .server_version()
+                .await
+                .with_context(|| format!("Source: {}", mask_dsn(&from)))?
+                .split('.')
+                .take(3)
+                .join("."),
+        )?;
 
-        let target_version = builder.server_version().await?;
-        let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-
+        let target_version = semver::Version::parse(
+            &builder
+                .server_version()
+                .await
+                .with_context(|| format!("Target: {}", mask_dsn(to)))?
+                .split('.')
+                .take(3)
+                .join("."),
+        )?;
         if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }

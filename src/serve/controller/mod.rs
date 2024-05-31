@@ -406,6 +406,13 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .execute(pool)
                 .await?;
         }
+        "suspended" => {
+            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())

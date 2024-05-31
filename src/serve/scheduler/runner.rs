@@ -158,7 +158,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
                 TaskNotify::Error(message) => TaskActivity::error(task_id, message),
                 TaskNotify::Warn(message) => TaskActivity::warn(task_id, message),
                 TaskNotify::Info(message) => TaskActivity::running(task_id, message),
-                _ => unreachable!(),
+                _ => break,
             };
             global_sender.send_task_activity(activity);
         }
@@ -872,7 +872,13 @@ impl TaskJob {
             jid: Uuid,
         ) {
             // Check license for each 8 hours.
-            let mut interval = tokio::time::interval(Duration::from_secs(60 * 60 * 8));
+            let license_tracker_interval_seconds =
+                std::env::var("LICENSE_TRACKER_INTERVAL_SECONDS")
+                    .unwrap_or_else(|_| "3600".to_string())
+                    .parse::<u64>()
+                    .unwrap_or(3600);
+            let mut interval =
+                tokio::time::interval(Duration::from_secs(license_tracker_interval_seconds));
 
             let (from, to) = (
                 license_tracker_state.task.from.parse().unwrap(),
@@ -886,7 +892,7 @@ impl TaskJob {
                         break;
                     }
                     _ = interval.tick() => {
-                        match validator.validate_connector().await {
+                        match validator.validate_connector().in_current_span().await {
                         // match anyhow::Ok(LicenseKind::Edition(anyhow::anyhow!("Community"))) {
                             Ok(kind) => {
                                 if let Err(err) = kind.ok() {
@@ -1345,129 +1351,148 @@ impl TaskJob {
                 }
             });
         } else {
-            tokio::spawn(async move {
-                global.send_task_activity(TaskActivity::started(opts.task.id, jid));
-                let runs = opts.runs.load(Ordering::Relaxed);
-                tracing::debug!(
-                    "spawned new run_task, task.id={} task.rid={}",
-                    task_id,
-                    runs
-                );
-                let span = tracing::info_span!(
-                    "run_task",
-                    task.id = opts.task.id,
-                    task.jid = %jid,
-                    task.rid = runs,
-                    task.agent = opts.task.via
-                );
-
-                // let license_tracker_cancellation_token = opts.cancellation.clone();
-                let license_tracker_cancellation_token = opts.cancellation.child_token();
-
-                let drop_guard = license_tracker_cancellation_token.clone().drop_guard();
-                let license_tracker_state = opts.clone();
-                let license_tracker_global = global.clone();
-                tokio::spawn(
-                    license_tracker(
-                        license_tracker_cancellation_token,
-                        license_tracker_state,
-                        license_tracker_global,
+            tokio::spawn(
+                async move {
+                    global.send_task_activity(TaskActivity::started(opts.task.id, jid));
+                    let runs = opts.runs.load(Ordering::Relaxed);
+                    tracing::debug!(
+                        "spawned new run_task, task.id={} task.rid={}",
                         task_id,
-                        jid,
-                    )
-                    .instrument(span.clone()),
-                );
-                let future = run_task(&global, &opts, &jid).instrument(span);
+                        runs
+                    );
+                    let span = tracing::info_span!(
+                        "run_task",
+                        task.id = opts.task.id,
+                        task.jid = %jid,
+                        task.rid = runs,
+                        task.agent = opts.task.via
+                    );
 
-                let stop_condition = opts.stop_condition.clone();
-                let last_state = opts.last_state.clone();
+                    let state = opts;
+                    let mut opts = state.clone();
+                    opts.cancellation = opts.cancellation.child_token();
 
-                let handler = move |result| async move {
-                    info!("task finished");
+                    // let license_tracker_cancellation_token = opts.cancellation.clone();
+                    let license_tracker_cancellation_token = opts.cancellation.clone();
 
-                    if let Err(err) = &result {
-                        error!(error = %err, backtrace = ?err);
-                    }
-                    let should_stop = stop_condition.should_stop_with(&result);
-                    match result {
-                        Ok(_) => {
-                            last_state.write().await.replace(LastState::Done);
+                    let drop_guard = license_tracker_cancellation_token.clone().drop_guard();
+                    let license_tracker_state = opts.clone();
+                    let license_tracker_global = global.clone();
+                    let license_tracker_task = tokio::spawn(
+                        license_tracker(
+                            license_tracker_cancellation_token,
+                            license_tracker_state,
+                            license_tracker_global,
+                            task_id,
+                            jid,
+                        )
+                        .instrument(span.clone()),
+                    );
+                    let future = run_task(&global, &opts, &jid).instrument(span.clone());
+
+                    let stop_condition = opts.stop_condition.clone();
+                    let last_state = opts.last_state.clone();
+                    let span_handler = span.clone();
+                    let handler = move |result| async move {
+                        let _ = span_handler.enter();
+
+                        if let Err(err) = &result {
+                            error!(error = %err, backtrace = ?err, "task error");
+                        } else {
+                            info!("task finished");
                         }
-                        Err(err) => {
-                            last_state.write().await.replace(LastState::Error(err));
-                        }
-                    }
-                    should_stop
-                };
-
-                let mut should_stop = tokio::select! {
-                    _ = opts.cancellation.cancelled() => {
-                        tracing::info!("task cancelled");
-                        opts.last_state.write().await.replace(LastState::Stopped);
-                        true
-                    }
-                    result = future => {
-                        handler(result).await
-                    }
-                };
-
-                if !should_stop {
-                    should_stop = opts.stop_condition.should_stop();
-                }
-                let state_guard: tokio::sync::RwLockReadGuard<'_, Option<LastState>> =
-                    opts.last_state.read().await;
-                let state = state_guard.as_ref().expect("task should have a last state");
-                match state {
-                    LastState::Done => match opts.operator.operator() {
-                        Operator::Suspend => {
-                            global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
-                            opts.state.write().await.stopped();
-                        }
-                        Operator::Stop => {
-                            global.send_task_activity(TaskActivity::stopped(opts.task.id));
-                            opts.state.write().await.stopped();
-                        }
-                        Operator::Run => {
-                            if should_stop {
-                                global
-                                    .send_task_activity(TaskActivity::completed(opts.task.id, jid));
-                                opts.state.write().await.completed();
-                            } else {
-                                global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
-                                opts.state.write().await.ticked();
+                        let should_stop = stop_condition.should_stop_with(&result);
+                        match result {
+                            Ok(_) => {
+                                last_state.write().await.replace(LastState::Done);
+                            }
+                            Err(err) => {
+                                last_state.write().await.replace(LastState::Error(err));
                             }
                         }
-                    },
-                    LastState::Stopped => match opts.operator.operator() {
-                        Operator::Suspend => {
-                            global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
-                            opts.state.write().await.stopped();
+                        should_stop
+                    };
+
+                    let _ = span.enter();
+                    let mut should_stop = tokio::select! {
+                        _ = state.cancellation.cancelled() => {
+                            tracing::info!("task cancelled");
+                            opts.last_state.write().await.replace(LastState::Stopped);
+                            true
                         }
-                        _ => {
-                            global.send_task_activity(TaskActivity::stopped(opts.task.id));
-                            opts.state.write().await.stopped();
+                        _ = license_tracker_task => {
+                            opts.last_state.write().await.replace(LastState::Stopped);
+                            // only triggered when license error
+                            true
                         }
-                    },
-                    LastState::Error(err) => {
-                        if should_stop {
-                            global.send_task_activity(TaskActivity::failed(
-                                opts.task.id,
-                                format!("{err:#}"),
-                            ));
-                            opts.state.write().await.fail(&err);
-                        } else {
-                            global.send_task_activity(TaskActivity::interrupted(
-                                opts.task.id,
-                                format!("{err:#}"),
-                            ));
-                            opts.state.write().await.interrupted();
+                        result = future => {
+                            handler(result).await
+                        }
+                    };
+
+                    if !should_stop {
+                        should_stop = opts.stop_condition.should_stop();
+                    }
+                    let state_guard = opts.last_state.read().await;
+                    let state = state_guard.as_ref().expect("task should have a last state");
+                    match state {
+                        LastState::Done => match opts.operator.operator() {
+                            Operator::Suspend => {
+                                global
+                                    .send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                                opts.state.write().await.stopped();
+                            }
+                            Operator::Stop => {
+                                global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                                opts.state.write().await.stopped();
+                            }
+                            Operator::Run => {
+                                if should_stop {
+                                    global.send_task_activity(TaskActivity::completed(
+                                        opts.task.id,
+                                        jid,
+                                    ));
+                                    opts.state.write().await.completed();
+                                } else {
+                                    global
+                                        .send_task_activity(TaskActivity::tick(opts.task.id, jid));
+                                    opts.state.write().await.ticked();
+                                }
+                            }
+                        },
+                        LastState::Stopped => match opts.operator.operator() {
+                            Operator::Suspend => {
+                                global
+                                    .send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                                opts.state.write().await.stopped();
+                            }
+                            _ => {
+                                global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                                opts.state.write().await.stopped();
+                            }
+                        },
+                        LastState::Error(err) => {
+                            if should_stop {
+                                global.send_task_activity(TaskActivity::failed(
+                                    opts.task.id,
+                                    format!("{err:#}"),
+                                ));
+                                opts.state.write().await.fail(&err);
+                            } else {
+                                global.send_task_activity(TaskActivity::interrupted(
+                                    opts.task.id,
+                                    format!("{err:#}"),
+                                ));
+                                opts.state.write().await.interrupted();
+                            }
                         }
                     }
+                    opts.runs.fetch_add(1, Ordering::Release);
+                    let _ = tx.send(should_stop);
+                    drop(drop_guard);
                 }
-                opts.runs.fetch_add(1, Ordering::Release);
-                let _ = tx.send(should_stop);
-                drop(drop_guard);
-            });
+                .in_current_span(),
+            );
         }
         self.task.last_waiter.lock().await.replace(rx);
     }
@@ -1520,14 +1545,18 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let task_name = task.task.name.clone();
-    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name).await;
+    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name)
+        .in_current_span()
+        .await;
     let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
     if metrics.is_some() {
-        auto_save_task_metrics(task_id, stop_save_metrics_signal).await;
+        auto_save_task_metrics(task_id, stop_save_metrics_signal)
+            .in_current_span()
+            .await;
     }
-    opts.spawn().await;
+    opts.spawn().in_current_span().await;
 
-    let completed = opts.wait().await;
+    let completed = opts.wait().in_current_span().await;
     match completed {
         Some(LastState::Done) => {
             tracing::info!("task completed");
@@ -1545,6 +1574,8 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
         }
     }
     if metrics.is_some() {
-        save_task_metrics_finally(task.task.id).await;
+        save_task_metrics_finally(task.task.id)
+            .in_current_span()
+            .await;
     }
 }
