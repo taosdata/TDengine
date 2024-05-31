@@ -73,12 +73,6 @@ pub enum ParseError {
 /// ```
 ///
 pub trait Parse {
-    /// The parser will remove or append some rows to the record batch.
-    fn num_rows_will_be_changed(&self) -> bool;
-
-    /// The parser will spread one field to many.
-    fn num_columns_will_be_changed(&self) -> bool;
-
     /// Parse an array into a record batch, returns the original array indices and the final record batch as a tuple.
     fn parse_array(
         &self,
@@ -86,18 +80,12 @@ pub trait Parse {
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), ParseError>;
 
-    /// A parser is scala means its rows and columns number will not be changed by parser.
-    fn is_scala(&self) -> bool {
-        !self.num_columns_will_be_changed() && !self.num_columns_will_be_changed()
-    }
-
     /// Parse the array to new array without rows/columns changed, returns a tuple with field and array data.
     fn parse_scalar(
         &self,
         field: &Field,
         array: &ArrayRef,
     ) -> Result<(Field, ArrayRef), ParseError> {
-        debug_assert!(self.is_scala());
         self.parse_array(field, array)
             .map(|(batch, _)| (batch.schema().field(0).clone(), batch.column(0).clone()))
     }
@@ -115,22 +103,6 @@ pub(super) enum FieldParser {
 }
 
 impl Parse for FieldParser {
-    fn num_rows_will_be_changed(&self) -> bool {
-        match self {
-            FieldParser::Json(json) => json.num_rows_will_be_changed(),
-            FieldParser::Udt(udt) => udt.num_rows_will_be_changed(),
-            _ => false,
-        }
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        if let FieldParser::Json(json) = self {
-            json.num_columns_will_be_changed()
-        } else {
-            false
-        }
-    }
-
     fn parse_array(
         &self,
         field: &Field,

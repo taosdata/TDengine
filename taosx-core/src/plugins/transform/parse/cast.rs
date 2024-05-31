@@ -66,14 +66,6 @@ impl FromStr for Cast {
 }
 
 impl Parse for Cast {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        false
-    }
-
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,
@@ -84,10 +76,6 @@ impl Parse for Cast {
         let schema = Schema::new(vec![field]);
         let batch = RecordBatch::try_new(Arc::new(schema), vec![array])?;
         Ok((batch, None))
-    }
-
-    fn is_scala(&self) -> bool {
-        true
     }
 
     fn parse_scalar(
