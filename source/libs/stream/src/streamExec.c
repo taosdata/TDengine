@@ -597,10 +597,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-      if (pTask->pMeta->vgId == 2) {
-//        taosSsleep(20);
-      }
-
       streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
     }

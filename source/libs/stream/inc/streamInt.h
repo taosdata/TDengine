@@ -61,6 +61,7 @@ struct SActiveCheckpointInfo {
   bool          dispatchTrigger;
   SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
   SArray*       pReadyMsgList;   // SArray<SStreamChkptReadyInfo*>
+  int8_t        allUpstreamTriggerRecv;
 
   int32_t       checkCounter;
   tmr_h         pCheckTmr;

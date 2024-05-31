@@ -626,6 +626,7 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
   SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
   if (pInfo != NULL) {
     pInfo->dataAllowed = false;
+    int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
   }
 }
 
@@ -633,6 +634,8 @@ void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
   SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
   if (pInfo != NULL) {
     pInfo->dataAllowed = true;
+    int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    ASSERT(t >= 0);
   }
 }
 
@@ -1006,6 +1009,7 @@ void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;  // clear the checkpoint id
   pInfo->failedId = 0;
   pInfo->transId = 0;
+  pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
 
   taosArrayClear(pInfo->pReadyMsgList);

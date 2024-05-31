@@ -559,7 +559,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   }
 
   if (pTask->chkInfo.pActiveInfo->dispatchTrigger) {
-    stDebug("s-task:%s already send checkpoint trigger, not dispatch anymore", id);
+    stDebug("s-task:%s already send checkpoint-trigger, no longer dispatch any other data", id);
     atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
@@ -874,29 +874,18 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
           req.upstreamNodeId);
 
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+
   taosThreadMutexLock(&pActiveInfo->lock);
+  taosArrayPush(pActiveInfo->pReadyMsgList, &info);
 
-  bool recved = false;
-  int32_t size = taosArrayGetSize(pActiveInfo->pReadyMsgList);
-  for (int32_t i = 0; i < size; ++i) {
-    SStreamChkptReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
-    if (p->nodeId == req.upstreamNodeId) {
-      if (p->checkpointId == req.checkpointId) {
-        stWarn("s-task:%s repeatly recv checkpoint-source msg from task:0x%x vgId:%d, checkpointId:%" PRId64 ", ignore",
-               pTask->id.idStr, p->upStreamTaskId, p->nodeId, p->checkpointId);
-      } else {
-        stError("s-task:%s checkpointId:%" PRId64 " not completed, new checkpointId:%" PRId64 " recv",
-                pTask->id.idStr, p->checkpointId, checkpointId);
-        ASSERT(0); // failed to handle it
-      }
-
-      recved = true;
-      break;
-    }
-  }
-
-  if (!recved) {
-    taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+  int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
+  int32_t total = streamTaskGetNumOfUpstream(pTask);
+  if (numOfRecv == total) {
+    stDebug("s-task:%s recv checkpoint-trigger from all upstream, continue", pTask->id.idStr);
+    pActiveInfo->allUpstreamTriggerRecv = 1;
+  } else {
+    ASSERT(numOfRecv <= total);
+    stDebug("s-task:%s %d/%d checkpoint-trigger recv", pTask->id.idStr, numOfRecv, total);
   }
 
   taosThreadMutexUnlock(&pActiveInfo->lock);
@@ -1175,7 +1164,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         // This task has received the checkpoint req from the upstream task, from which all the messages should be
         // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-          atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
           streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
@@ -1186,11 +1174,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
       }
     }
   }
-
-  // disable the data from upstream tasks
-//  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
-//    status = TASK_INPUT_STATUS__BLOCKED;
-//  }
 
   {
     // do send response with the input status

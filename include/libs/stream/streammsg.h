@@ -187,6 +187,7 @@ typedef struct SCheckpointTriggerRsp {
   int32_t  upstreamTaskId;
   int32_t  taskId;
   int32_t  transId;
+  int32_t  rspCode;
 } SCheckpointTriggerRsp;
 
 typedef struct {

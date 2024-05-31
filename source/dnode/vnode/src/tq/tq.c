@@ -1241,6 +1241,15 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+
+  SRetrieveChkptTriggerReq* pReq = (SRetrieveChkptTriggerReq*) pMsg->pCont;
+  if (!vnodeIsRoleLeader(pTq->pVnode)) {
+    tqError("vgId:%d not leader, ignore the retrieve checkpoint-trigger msg from 0x%x", vgId,
+            (int32_t)pReq->downstreamTaskId);
+    return TSDB_CODE_STREAM_NOT_LEADER;
+  }
+
   return tqStreamTaskProcessRetrieveTriggerReq(pTq->pStreamMeta, pMsg);
 }
 
