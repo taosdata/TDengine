@@ -11,9 +11,16 @@
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
       > -->
-        <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" :disabled="$COMMUNITY">{{
           $t("taosagents.createnewagent")
         }}</el-button>
+      </el-tooltip>
       </div>
     </div>
 
@@ -169,6 +176,7 @@
             size="mini"
             @click="edit(scope.row, scope.$index)"
             icon="el-icon-edit"
+            :disabled="$COMMUNITY"
           ></el-button>
           <!-- <el-button
             plain
@@ -187,6 +195,7 @@
             size="mini"
             @click="del(scope.row)"
             icon="el-icon-delete"
+            :disabled="$COMMUNITY"
           ></el-button>
         </template>
       </el-table-column>
@@ -558,33 +567,35 @@ export default {
       }
     },
     async expandChange(row, expandedRows) {
-      console.log('expandedRows',expandedRows);
-      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
-      if (row.id == this.expandRowKeys[0]) {
-        this.expandRowKeys = [];
-        return;
-      }
-      this.agentActivities = [];
-      let res = await getAgentActivities(row.id);
-      this.expandRowKeys = [row.id];
-      if (res && res.code && res.code != 0) {
-        Message({
-          type: "error",
-          message: res && res.message,
+      if (!this.$COMMUNITY) {
+        console.log('expandedRows',expandedRows);
+        this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+        if (row.id == this.expandRowKeys[0]) {
+          this.expandRowKeys = [];
+          return;
+        }
+        this.agentActivities = [];
+        let res = await getAgentActivities(row.id);
+        this.expandRowKeys = [row.id];
+        if (res && res.code && res.code != 0) {
+          Message({
+            type: "error",
+            message: res && res.message,
+          });
+          return;
+        }
+        this.refresh();
+        let activitList = res.map((item) => {
+          if (item.status == "failed") {
+            item.context = item.context.message;
+          }
+          if (typeof item.context == "object") {
+            item.context = null;
+          }
+          return item;
         });
-        return;
+        this.agentActivities = activitList;
       }
-      this.refresh();
-      let activitList = res.map((item) => {
-        if (item.status == "failed") {
-          item.context = item.context.message;
-        }
-        if (typeof item.context == "object") {
-          item.context = null;
-        }
-        return item;
-      });
-      this.agentActivities = activitList;
     },
     getLevelStyle(level) {
       let style = "";
@@ -692,10 +703,11 @@ export default {
   .el-button {
     border: 1px solid transparent;
     background: transparent;
-    color: #4259ce;
+    // color: #4259ce;
     font-size: 14px;
     &:hover {
-      background: #fff;
+      // background: #fff;
+      color: #4259ce;
       border: 1px solid #4259ce;
     }
   }

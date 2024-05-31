@@ -150,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
                 "/api/-/verification-code",
                 web::post().to(check_verification_code),
             )
+            .route("/api/-/taosd-info", web::post().to(report_taosd_info))
             .route("/api/-/isbinding", web::to(check_binding))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .service(web::redirect("/docs", "/docs/"))
@@ -350,6 +351,15 @@ struct VerificationReqBody {
     verification_code: Option<String>,
     captcha: Option<String>,
     lang: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaosdInfoBody {
+    phone_email: Option<String>,
+    lang: Option<String>,
+    taosd_version: Option<String>,
+    cluster_id: Option<String>,
 }
 
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
@@ -385,15 +395,14 @@ async fn send_verification_code(
         return HttpResponse::Ok().json(R::<()>::fail(400, "captchaInputError".to_string()));
     }
 
-    let cloud_open_api_send_verification_code = format!(
-        "{}/trial/verification-code",
-        args.cloud_open_api.as_ref().unwrap()
-    );
-
+    let lang_code = match params.lang.as_deref() {
+        Some("zh") => "zh_CN",
+        _ => "en_US",
+    };
     let result = verification::send_verification_code_with_cloud_open_api(
-        &cloud_open_api_send_verification_code,
+        args.cloud_open_api.clone(),
         str_phone_email,
-        params.lang.as_deref(),
+        lang_code,
     )
     .await;
 
@@ -403,10 +412,10 @@ async fn send_verification_code(
             code,
             "post cloud api error".to_string(),
         )),
-        Err(err) =>{
+        Err(err) => {
             log::error!("Failed to send verification code: {:?}", err);
             HttpResponse::Ok().json(R::<Option<()>>::fail(501, err.to_string()))
-        } 
+        }
     }
 }
 
@@ -432,9 +441,57 @@ async fn check_verification_code(
             PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
         let server = args.profile.cluster.as_deref().unwrap();
         verification::record_binding_phone_email(server, str_phone_email, &binding_record_file);
+
+        let lang_code = match body.lang.as_deref() {
+            Some("zh") => "zh_CN",
+            _ => "en_US",
+        };
+
+        let report_result = verification::report_verification_status_to_cloud(
+            args.cloud_open_api.clone(),
+            str_phone_email,
+            str_verification_code,
+            lang_code,
+            body.name.as_ref().unwrap(),
+        )
+        .await;
+        if report_result.is_err() {
+            log::error!(
+                "Failed to upload verification status to cloud: {:?}",
+                report_result.err()
+            );
+        }
     }
 
     HttpResponse::Ok().json(R::success(result))
+}
+
+// restapi: 上报 taosd 信息
+async fn report_taosd_info(
+    args: web::Data<Args>,
+    body: web::Json<TaosdInfoBody>,
+) -> impl Responder {
+    let lang_code = match body.lang.as_deref() {
+        Some("zh") => "zh_CN",
+        _ => "en_US",
+    };
+
+    let report_result = verification::report_taosd_info_to_cloud(
+        args.cloud_open_api.clone(),
+        body.phone_email.as_ref().unwrap(),
+        lang_code,
+        body.cluster_id.as_ref().unwrap(),
+        body.taosd_version.as_ref().unwrap(),
+    )
+    .await;
+    if report_result.is_err() {
+        log::error!(
+            "Failed to report taosd info to cloud: {:?}",
+            report_result.err()
+        );
+    }
+
+    HttpResponse::Ok().json(R::success(""))
 }
 
 #[post("/rest/sql")]
@@ -724,11 +781,11 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     const_format::concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-",
+        " (core-",
         build::PKG_VERSION,
-        " ",
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -737,11 +794,11 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     const_format::concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-dirty-",
+        " (core-dirty-",
         build::PKG_VERSION,
-        " ",
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME

@@ -1,6 +1,7 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
 use lazy_static::lazy_static;
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
@@ -94,15 +95,22 @@ struct RequestBodySendVerificationCode {
 }
 
 #[derive(Deserialize, Debug)]
-struct ResponseSendVerificationCode {
+struct ResponseCloudOpenApi {
     code: u32,
-    msg: Option<String>,
+}
+
+// 如果配置了url，则使用配置的url，否则根据语言选择默认的url
+fn get_url_prefix(url_config: Option<String>, lang: &str) -> String {
+    url_config.unwrap_or_else(|| match lang {
+        "zh_CN" => "https://cloud.taosdata.com/openapi".to_string(),
+        _ => "https://cloud.tdengine.com/openapi".to_string(),
+    })
 }
 
 pub async fn send_verification_code_with_cloud_open_api(
-    url: &str,
+    url_config: Option<String>,
     phone_email: &str,
-    lang: Option<&str>,
+    lang: &str,
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
@@ -110,41 +118,61 @@ pub async fn send_verification_code_with_cloud_open_api(
         Some(_) => email = phone_email,
         None => phone = phone_email,
     }
-    let lang_code = match lang {
-        Some("zh") => "zh_CN",
-        _ => "en_US",
-    };
+
+    let mut url = get_url_prefix(url_config, lang);
+    url.push_str("/trial/verification-code");
 
     let duration = 10_u8;
-    let nonce = rand::random::<u64>() % 1000000000;
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
+
     let code = generate_verification_code(phone_email.to_string());
     let string_to_sign = format!(
-        "code={}&duration={}&email={}&language={}&phone={}&nonce={}&ts={}",
-        code, duration, email, lang_code, phone, nonce, ts
+        "code={}&duration={}&email={}&language={}&phone={}",
+        code, duration, email, lang, phone
     );
-    let sign = sign_string(&string_to_sign);
-    // log::debug!("send_verification_code_with_cloud_open_api: [{}] sign: [{}]", string_to_sign, sign);
 
     let body = RequestBodySendVerificationCode {
         phone: phone.to_string(),
         email: email.to_string(),
         code,
         duration: 10,
-        language: lang_code.to_string(),
+        language: lang.to_string(),
     };
     let json_body = serde_json::to_string(&body)?;
-    // log::debug!("send_verification_code === url: {}", url);
-    log::debug!("send_verification_code json_body: {}", json_body);
+    log::debug!("json_body: {}", json_body);
 
+    let response = request_cloud(url, Method::POST, json_body, string_to_sign)
+        .await?
+        .json::<ResponseCloudOpenApi>()
+        .await?;
+
+    Ok(response.code)
+}
+
+async fn request_cloud(
+    url: String,
+    method: Method,
+    json_body: String,
+    params_to_sign: String,
+) -> anyhow::Result<reqwest::Response> {
+    let nonce = rand::random::<u64>() % 1000000000;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+
+    let string_to_sign = format!("{}&nonce={}&ts={}", params_to_sign, nonce, ts);
+    let sign = sign_string(&string_to_sign);
+
+    log::debug!("post url: {}, request body:{}", url, json_body);
+
+    // 连接超时时间为30秒，请求超时时间为60秒
     let http_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .build()?;
+
     let response = http_client
-        .post(url)
+        .request(method, &url)
         .header(
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),
@@ -155,11 +183,137 @@ pub async fn send_verification_code_with_cloud_open_api(
         .header("Sign", sign)
         .body(json_body)
         .send()
-        .await?
-        .json::<ResponseSendVerificationCode>()
         .await?;
-
     log::debug!("response: {:?}", response);
+
+    Ok(response)
+}
+
+fn get_explore_version() -> String {
+    // let mut version = "unknown".to_string();
+    // let metadata = MetadataCommand::new().exec().unwrap();
+    // for package in metadata.packages {
+    //     if package.name == "taos-explorer" {
+    //         version = package.version.to_string();
+    //         break;
+    //     }
+    // }
+    // version
+    "1.6.1".to_string()
+}
+
+#[derive(Serialize, Debug)]
+struct RequestBodyReportVerificationStatus {
+    phone: String,
+    email: String,
+    code: String,
+    name: String,
+    #[serde(rename = "taosdVersion")]
+    taosd_version: String,
+    #[serde(rename = "explorerVersion")]
+    explorer_version: String,
+}
+
+// 上报验证状态到云端
+pub async fn report_verification_status_to_cloud(
+    url_config: Option<String>,
+    phone_email: &str,
+    code: &str,
+    lang: &str,
+    name: &str,
+) -> anyhow::Result<u32> {
+    let mut phone = "";
+    let mut email = "";
+    match phone_email.find("@") {
+        Some(_) => email = phone_email,
+        None => phone = phone_email,
+    }
+
+    let mut url = get_url_prefix(url_config, lang);
+    url.push_str("/trial/verification-result");
+
+    let explorer_version = get_explore_version();
+    let string_to_sign = format!(
+        "code={}&email={}&explorerVersion={}&name={}&phone={}&taosdVersion=",
+        code, email, explorer_version, name, phone
+    );
+    log::debug!("string_to_sign: {}", string_to_sign);
+
+    let body = RequestBodyReportVerificationStatus {
+        phone: phone.to_string(),
+        email: email.to_string(),
+        code: code.to_string(),
+        name: name.to_string(),
+        taosd_version: "".to_string(),
+        explorer_version,
+    };
+    let json_body = serde_json::to_string(&body)?;
+    log::debug!("json_body: {}", json_body);
+
+    let response = request_cloud(url, Method::POST, json_body, string_to_sign)
+        .await?
+        .json::<ResponseCloudOpenApi>()
+        .await?;
+    log::debug!(
+        "report_verification_status_to_cloud success: {}",
+        response.code
+    );
+
+    Ok(response.code)
+}
+
+#[derive(Serialize, Debug)]
+struct RequestBodyTaosdInfo {
+    phone: String,
+    email: String,
+    #[serde(rename = "taosdVersion")]
+    taosd_version: String,
+    #[serde(rename = "instanceId")]
+    cluster_id: String,
+}
+
+// 上报连接的 taosd 信息到云端
+pub async fn report_taosd_info_to_cloud(
+    url_config: Option<String>,
+    phone_email: &str,
+    lang: &str,
+    cluster_id: &str,
+    taosd_version: &str,
+) -> anyhow::Result<u32> {
+    let mut phone = "";
+    let mut email = "";
+    match phone_email.find("@") {
+        Some(_) => email = phone_email,
+        None => phone = phone_email,
+    }
+
+    let mut url = get_url_prefix(url_config, lang);
+    url.push_str("/trial/verification-result");
+
+    let string_to_sign = format!(
+        "email={}&instanceId={}&phone={}&taosdVersion={}",
+        email, cluster_id, phone, taosd_version
+    );
+    log::debug!("string_to_sign: {}", string_to_sign);
+
+    let body = RequestBodyTaosdInfo {
+        phone: phone.to_string(),
+        email: email.to_string(),
+        taosd_version: taosd_version.to_string(),
+        cluster_id: cluster_id.to_string(),
+    };
+    let json_body = serde_json::to_string(&body)?;
+    log::debug!("json_body: {}", json_body);
+
+    let response = request_cloud(url, Method::PUT, json_body, string_to_sign)
+        .await?
+        .json::<ResponseCloudOpenApi>()
+        .await?;
+    log::debug!(
+        "report_verification_status_to_cloud success: {}",
+        response.code
+    );
+
     Ok(response.code)
 }
 
@@ -246,18 +400,31 @@ mod tests {
         let result = sign_string(input);
         // println!("============result: {}", result);
         assert_eq!(result, expected);
-
-        // test email
-        // let input = "15801381212@163.com";
-        // let expected = "bc16f1f1a1157efa3c2c0481adeabef083eeb3f8626c39d575fc7256ef8edabb";
-        // let result = sign_string(input);
-        // assert_eq!(result, expected);
     }
 
     fn prepare_test_file(filename: &PathBuf) {
         let content = "localhost:8080|15801381212|eac0aedab66250c36d517fa9401a8c415efc26afe8f95b2b70619918dbcf4d6c\nlocalhost:6060|15801381212@163.com|bc16f1f1a1157efa3c2c0481adeabef083eeb3f8626c39d575fc7256ef8edabb\n";
         std::fs::write(filename, content).unwrap();
     }
+
+    // #[test]
+    // fn test_report_verification_status_to_cloud() {
+    //     let phone_email = "15801381212";
+    //     let code = "1234";
+    //     let lang = "zh_CN";
+    //     let taosd_version = "2.0.0";
+    //     println!("========report_verification_status_to_cloud");
+    //     report_verification_status_to_cloud(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), phone_email, code.to_string(), lang, taosd_version.to_string());
+    // }
+
+    // #[tokio::test]
+    // async fn test_send_verification_code_with_cloud_open_api() {
+    //     let phone = "13466397075";
+    //     let email = "37376532@qq.com";
+    //     let lang = "zh_CN";
+    //     send_verification_code_with_cloud_open_api(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), phone, lang).await.unwrap();
+    //     send_verification_code_with_cloud_open_api(Some("https://pre.ali.cloud.taosdata.com/openapi".to_string()), email, lang).await.unwrap();
+    // }
 
     #[test]
     fn test_check_phone_email_verified() {

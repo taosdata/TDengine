@@ -3,7 +3,7 @@ import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
 import { StaticTemplatePath, IsAliyun } from '@/const';
 import { Loading } from 'element-ui';
-import { parsinginZone, decrypt } from "@/utils/index";
+import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
 
@@ -32,6 +32,7 @@ const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
+const opcGroupShowValue = 'csv_config_file'
 const authenticationField = uuid();
 export const datasetsField = uuid();
 let currentType = '';
@@ -748,10 +749,13 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         description: description ?? short_description,
         field: handleField(name),
         // if: collapsible ? data => data[valueField] : true,
-        if: currentData => {
+        if: (currentData, originalData) => {
+          const datasetsData = originalData[datasetsField];
           if (collapsible) return currentData[valueField];
-          if (!currentData.table) return true;
-          if (currentData.mode == historianSynchronizeMode) {
+          // if (!currentData.table) return true;
+          if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
+            return !['update_interval', 'update_mode'].includes(name)
+          } else if (currentData.mode == historianSynchronizeMode) {
             if (currentData.table == historianLiveTable) {
               return ['mode','table','tags','retrieveInterval'].includes(name)
             } else {
@@ -779,6 +783,14 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       //     return !!conflict;
       //   };
       // }
+
+      // postgres/mysql 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
+        paramConfig.disabled = (a,b,c,isEdit) => {
+          return isEdit;
+        };
+      }
+
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
@@ -1118,10 +1130,14 @@ function getGroupsQuery(groups, query) {
         } else {
           const field = getOriginField(k);
           if (TimeFormats.includes(k)) {
-            let value = parsinginZone(groups[key][k])
-            groups[key][k] = value
+            let value = groups[key][k]
+            if (typeof groups[key][k] == 'object') {
+              value = formatTime(groups[key][k])
+            }
+            query.push(field + '=' + getQueryParamValue(value));
+          } else {
+            query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
-          query.push(field + '=' + getQueryParamValue(groups[key][k]));
         }
       }
     }
@@ -1154,6 +1170,7 @@ function getDatasetsQuery(datasets, allData, query) {
       }
       query.push(tabValue + '=' + true);
     } else {
+      if (!checkValue(datasets[tabValue])) return; 
       query.push(tabValue + '=' + getQueryParamValue(datasets[tabValue]));
     }
   } else {

@@ -1,10 +1,17 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
+      <el-button plain type="primary" @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable || $COMMUNITY" style="font-size:14px;">
         {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="add" size="small" icon="el-icon-plus" style="font-size:14px;" :disabled="$COMMUNITY">{{ $t('taosuser.addreplication') }}</el-button>
+      </el-tooltip>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="60" prop="id">
@@ -110,7 +117,7 @@
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
-          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary">{{
+          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary" :loading="requesting">{{
             $t("confirm") }}</el-button>
         </el-col>
       </el-row>
@@ -158,7 +165,8 @@ export default {
         ],
       },
       topicList: [],
-      parsinginZone
+      parsinginZone,
+      requesting: false,
     };
   },
   computed: {
@@ -214,7 +222,9 @@ export default {
       this.getReplication();
     },
     async addReplication() {
+      console.log('8888888');
       try {
+        this.requesting = true;
         let id = localStorage.getItem("local_clusterID");
         let params = {
           labels: [
@@ -227,14 +237,17 @@ export default {
         };
         let res = await addReplicationData(id, params);
         console.log(res);
+        this.requesting = false;
         if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
           this.$error(res.message);
           return;
         }
         Message.success(this.$t('createSucc'));
+        this.requesting = false;
         this.getReplication();
         this.dialog = false;
       } catch (err) {
+        this.requesting = false;
         console.error(err);
         this.$error(err?.message);
       }

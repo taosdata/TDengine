@@ -46,7 +46,9 @@ export function createTableReq(payload) {
     });
   } else {
     return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`${name} (${columns.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
-    'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")});`).catch(err => {
+    'NCHAR('+`${item.ncharLength}`+')':item.type} ${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
+    ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
+    ${item.primaryKey ? ' PRIMARY KEY': ''}`).join(",")});`).catch(err => {
       
       return Promise.reject(err);
     });
@@ -108,7 +110,7 @@ export function handleColumnData(data) {
     result.name = item.field;
     result.field = item.field;
     // 此处不展示标签，在表格详细信息中进行展示
-    if (item.note) {
+    if (item.note && item.note !== 'PRIMARY KEY') {
       result.typeName = "tag";
     } else {
       result.typeName = "column";
@@ -117,6 +119,10 @@ export function handleColumnData(data) {
     result.dataType = handleBinaryType(item.type, item.length);
     result["node-key"] = result.name + result.dataType;
     result.leaf = true;
+    result.encode = item.encode;
+    result.compress = item.compress;
+    result.level = item.level;
+    result.note = item.note;
     res.push(result);
   });
   return res;
@@ -143,7 +149,7 @@ export function getTableStructReq(payload) {
         if (item.note == "TAG") {
           tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {
-          columns.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY', type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         }
       }
       return {

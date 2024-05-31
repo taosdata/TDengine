@@ -32,7 +32,8 @@
           <span>
             <span>{{ labelText }}</span>
             <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <i class="el-icon-info"></i>
+              <!-- <i class="el-icon-info"></i> -->
+              <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>
         </el-tooltip>
@@ -331,7 +332,10 @@ export default {
     },
 
     isEdit() {
-      return this.sourceParent.isEdit;
+      return this.sourceParent.isEditable;
+    },
+    isCopyable() {
+      return this.sourceParent.isCopyable;
     },
     timeFormats() {
       return TimeFormats;
@@ -350,7 +354,8 @@ export default {
         return this.config.disabled(
           this.data,
           this.sourceParent.sourceForm.data,
-          this.sourceParent.currentDefinition
+          this.sourceParent.currentDefinition,
+          this.isEdit && !this.isCopyable
         );
       }
       if (typeof this.config.disabled === "string") {
@@ -391,19 +396,20 @@ export default {
       let groupsData = getGroupsObj(this.sourceParent.sourceForm.data);
       switch (type) {
         case "taos":
-          this.date1 = new Date(groupsData?.start) ?? 0;
-          this.date2 = new Date(groupsData?.end) ?? 0;
+        case "postgres":
+        case "mysql":
+        case "oracle":
+          this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
+          this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;
         case "avevaHistorian":
-        case "mysql":
-        case "postgres":
-          this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
-          this.date2 = new Date(groupsData?.endDateTime) ?? 0;
+          this.date1 = groupsData?.beginDateTime ? new Date(groupsData?.beginDateTime) : 0;
+          this.date2 = groupsData?.endDateTime ? new Date(groupsData?.endDateTime) : 0;
           break;
         case "influxdb":
         case "opentsdb":
-          this.date1 = new Date(groupsData?.beginTime) ?? 0;
-          this.date2 = new Date(groupsData?.endTime) ?? 0;
+          this.date1 = groupsData?.beginTime ? new Date(groupsData?.beginTime) : 0;
+          this.date2 = groupsData?.endTime ? new Date(groupsData?.endTime) : 0;
           break;
         case "pibackfill": 
           this.date1 = new Date(groupsData?.BackfillStartTime) ?? 0;

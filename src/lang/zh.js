@@ -19,6 +19,7 @@ const DocsUrl =
   (localStorage.getItem("local_language")?.includes("zh")
     ? "/docs"
     : "/docs-en");
+const IS_COMMUNITY = process.env.VUE_APP_COMMUNITY && process.env.VUE_APP_COMMUNITY == 'community'
 export default {
   //通用部分
   expression: "表达式",
@@ -32,7 +33,7 @@ export default {
   pInName: "请输入名称",
   generateToken: "生成令牌",
   configure: "配置",
-  urlPart: "/docs",
+  urlPart: IS_COMMUNITY ? "https://docs.taosdata.com": "/docs",
   disbleagent: "不启用代理",
   enableagent: "启用代理",
   database: "数据库",
@@ -41,7 +42,7 @@ export default {
   agent: "代理",
   changepwdtip: "密码修改成功，请重新登录",
   systemTitle: "TDengine 管理系统",
-  copyright: " Copyright 2023 北京涛思数据科技有限公司",
+  copyright: "Copyright 2024 北京涛思数据科技有限公司",
   sqlPreview: "SQL 预览",
   download: "下载",
   uploadcsv: "CSV 文件上传",
@@ -154,7 +155,7 @@ export default {
   clusterInfo: "集群信息",
   clusterName: "集群名称",
   document: "文档",
-  docsUrl: "/docs/",
+  docsUrl: IS_COMMUNITY ? "https://docs.taosdata.com/": "/docs/",
   discord: "意见反馈",
   hour: "时",
   formatWrong: "格式错误",
@@ -193,6 +194,10 @@ export default {
   minutes: '分',
   seconds: '秒',
   milliseconds: '毫秒',
+  microseconds: '微秒',
+  nanoseconds: '纳秒',
+  communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
+  communityDemoDataTip: '当前列表仅为示例数据',
   statuses: {
     created: "已创建",
     queued: "排队中",
@@ -226,7 +231,7 @@ export default {
   updateContent: '发现新版本，点击"更新"获取,请在刷新前注意保存当前页面数据',
   contact: '联系',
   close: '关闭',
-  communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版。',
+  communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理，无视图等诸多高级功能。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版和云服务。',
   dontDisturbMe: '7天内不再提醒',
   plan: {
     pricePlan: "价格方案",
@@ -322,7 +327,6 @@ export default {
     updateTime: "更新时间：",
     refresh: "刷新",
     check: "检查连通性",
-    communityCheckTip: "仅企业版可用,了解更多请访问",
     resume: "调度策略",
     resumeTip:
       "表示任务中断后的调度策略,有以下可选项：\n\n- *never*: 表示从不重新调度。\n- *once*: 表示仅在 taosX 服务异常中断后启动一次，任务状态为 running|cancelled 时允许启动。在服务运行过程中的异常，不重新调度。\n- *always*: 当 taosX 服务启动后，对于任务状态为 running|failed|cancelled|interrupted 的任务，总是重新启动。在 taosX 服务运行过程中，当任务出现错误时，总是重新执行。",
@@ -698,6 +702,17 @@ export default {
       "当前查询无输入输出限制，可能导致查询时间长、资源消耗高、结果集过大等问题，如必要可添加主键时间范围、过滤条件、LIMIT/SLIMIT等限制条件进行优化",
     startTime: "请输入开始时间",
     endTime: "请输入结束时间",
+    category: "类别",
+    name: "名称",
+    type: "类型",
+    stable_name: "超级表名称",
+    table_name: "表名",
+    create_time: "创建时间",
+    columns: "列数量",
+    tags: "标签数量",
+    encode: "编码方法",
+    compress: "压缩算法",
+    level: "压缩级别"
   },
   sql: {
     analysis: "分析",
@@ -885,7 +900,9 @@ export default {
     nameError: "名称中不允许有特殊字符，长度为 4~32",
     demoData: "示例数据",
     demoDataText: "预先创建了一个包含一亿个数据点的数据库",
-    title: '注册使用',
+    titleTip: '为了提供更好的技术支持，请您在使用 TDeninge 图形化管理系统前先行注册',
+    title: 'TDengine 管理系统',
+    name: '姓名',
     phone: '手机号',
     email: '邮箱',
     verificationCode: '验证码',
@@ -893,10 +910,11 @@ export default {
     regetVerificationCode: '重新获取验证码',
     imageVerificationCode: '图形验证码',
     signin: '提交',
+    nameTips: "请输入姓名，最多 80 个字符",
     phoneTips: "请输入手机号，只支持中国大陆手机号码",
     emailTips: "请输入邮箱",
     verificationCodeTips: "请输入验证码",
-    requirement: "首次使用，需使用手机号注册。注册过程必须保证 explorer 可连接互联网，否则无法注册成功。注册成功后，可内网使用，无需再连接互联网。后续登录，请使用数据库用户名密码登录。",
+    requirement: "注册过程必须保证 explorer 可连接互联网，否则无法注册成功。注册成功后，可内网使用，无需再连接互联网。后续登录，请使用数据库用户名密码登录。",
     errors: {
       "verificationCodeNone": "您还未获取验证码，请重新获取验证码",
       "verificationCodeError": "验证码错误，请重新输入",
@@ -1182,31 +1200,36 @@ export default {
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      extractdesc: `<strong>taosX 目前支持 2 种规则解析原始消息体</strong>：<br/>
+      extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
-      更详细解析规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/example-code.rhai" download>示例代码<a>进行参考。<br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#12-解析" target="_blank">企业版文档<a>。</span>`,
       filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
       2. <strong>字符串类型</strong>：支持函数 <em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em> 等，例如 c.starts_with("taos")，可判断字段<em>c</em>是否以<em>taos</em>为前缀。<br/>
       3. <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
-      可使用 && 或 || 组合多个判断表达式，更详细过滤规则请访问<a href="/docs/enterprise/datain/transformation#filter">企业版文档<a>。`,
+      可使用 && 或 || 组合多个判断表达式。<span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细过滤规则请访问<a href="/docs/enterprise/datain/transformer/#3-过滤" target="_blank">企业版文档<a>。</span>`,
       expressiondesc: `<strong>taosX 支持映射表达式，将解析、提取、拆分的字段映射到目标超级表中</strong>：<br/>
       1. <strong>value</strong>：常量，例如 <em>1</em>、<em>"taos"</em>；<br/>
       2. <strong>expr</strong>：数学计算表达式，例如将摄氏度转为华氏度数值，可使用表达式 <em>centigrade * 1.8 + 32</em>；<br/>
       3. <strong>format</strong>：字符串格式化，使用占位符 <em>$\{\}</em> 来引用字段，例如 <em>$\{year\}-$\{month\}-$\{day\}</em> 可以格式为日期。<br/>
-      更详细映射规则请访问<a href="/docs/enterprise/datain/transformation#mapping">企业版文档<a>。`,
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细映射规则请访问<a href="/docs/enterprise/datain/transformer/#4-映射" target="_blank">企业版文档<a>。</span>`,
       subextractdesc: `<strong>taosX 目前支持以下 2 种规则</strong>：<br/>
       1. <strong>Split</strong>: 将一个字段分割为多个，需指定参数<strong>分隔符</strong>和<strong>拆分数量</strong>。例如字段<em>c</em>拆分为 2 个字段后，字段名为 <em>c_0</em>、<em>c_1</em>。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取 3 个字段 y、m 和 d。<br/>
-      更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformation#regex">企业版文档<a>。`,
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformer/#2-提取或拆分" target="_blank">企业版文档<a>。</span>`,
       uploadexe: "请上传csv文件并执行下一步操作",
+      extractrule: {
+        nofield: "未指定提取列名",
+        norule: "未指定解析规则",
+      },
       sp: "请选则目标超级表",
       septip: "请输入分隔符",
       sepntip: "请输入分隔符个数",
       csvtip: "自定义列数必须等于csv列数",
       identified: "1. 识别的列",
-      preview:'预览',
+      preview:'查看点位列表',
       previewmore:'预览结果',
       more:'更多',
       viewmore:'查看更多',
@@ -1240,7 +1263,9 @@ export default {
       defaultValuePlaceholder: "默认值",
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
       defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
-      jsonExtractTip: 'JSON 提取表达式编辑器'
+      jsonExtractTip: 'JSON 提取表达式编辑器',
+      udtTip: 'UDT 编辑',
+      uploadCode: "上传代码"
     },
     pi: {
       confirmOverwriteConfigFile: "请确认是否覆盖已有配置文件?",
@@ -1390,7 +1415,7 @@ export default {
   },
   dataOut: {
     connectorTip:
-      "使用您选择的编程语言<a target='_blank' href='/docs/taos-sql/select/'>使用SQL</a>查询数据。",
+      `使用您选择的编程语言<a target='_blank' href='${IS_COMMUNITY ? "https://docs.taosdata.com": "/docs"}/taos-sql/select/'>使用SQL</a>查询数据。`,
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
     subscriptions: "数据订阅",

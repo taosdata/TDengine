@@ -1,11 +1,10 @@
 <template>
 <div class="box-check-connectivity">
   <el-tooltip
-    placement="top" effect="light" :open-delay="0"
+    placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
   >
     <template slot="content">
-      <div>{{ $t('dataIn.communityCheckTip') }}</div>
-      <a :href="`http://docs.${urlPart}.com/enterprise`" target="_blank">{{ `http://docs.${urlPart}.com/enterprise`}}</a>
+      <span v-html="$t('communityTip')"></span>
     </template>
     <el-button
       :loading="checkLoading"
@@ -52,8 +51,8 @@ export default {
     isEdit() {
       return this.sourceParent.isEditable;
     },
-    urlPart() {
-      return this.$i18n.locale.includes('en') ? "tdengine" : "taosdata";
+    url() {
+      return this.$i18n.locale.includes('en') ? "https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer" : "https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer";
     },
   },
   watch: {

@@ -31,7 +31,7 @@
     </section>
     <section v-else-if="active == 3" class="mt20">
       <p v-dompurify-html="$t('docs.taosxAgent.3')"></p>
-      <pre v-highlight><code>endpoint="{{ taoxAddress }}"
+      <pre v-highlight><code style="text-wrap: wrap;word-wrap:break-word">endpoint="{{ taoxAddress }}"
 token="{{ token }}"</code></pre>
       <p v-dompurify-html="$t('docs.taosxAgent.6',agentAddress)"></p>
     </section>
@@ -127,7 +127,6 @@ token="{{ token }}"</code></pre>
 
 <script>
 import 'github-markdown-css/github-markdown-light.css';
-import { OfficialSite } from '@/const';
 import {
   addNewAgent,
   editAgent,
@@ -187,8 +186,11 @@ export default {
     agentList() {
       return this.$store.state.app.agentLists.filter(item => item.id !== this.agent?.id);
     },
+    urlPart() {
+      return this.$i18n.locale.includes('en') ?"https://tdengine.com": "https://taosdata.com";
+    },
     downloadUrl() {
-      const assetsUrl = OfficialSite + '/assets-download/3.0/taosx-agent-'+localStorage.getItem('agent_version')+'-';
+      const assetsUrl = this.urlPart + '/assets-download/3.0/taosx-agent-'+localStorage.getItem('agent_version')+'-';
       return {
         linuxDL: assetsUrl + 'linux-x64.tar.gz',
         windowDL: assetsUrl + 'windows-x64-installer.exe'

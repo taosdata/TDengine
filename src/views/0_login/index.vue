@@ -1,7 +1,7 @@
 <template>
   <div class="login" v-loading="pageLoading">
 
-    <section class="content">
+    <section :class="['content', {'content-reginster': !registered}]">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -37,7 +37,7 @@
               <span>{{ $t("login.password") }}</span>
             </p>
             <el-form-item label prop="password">
-              <el-input v-model="dynamicValidateForm.password" type="password" @keyup.enter.native="submitForm('dynamicValidateForm')" ></el-input>
+              <el-input v-model="dynamicValidateForm.password" type="password" show-password @keyup.enter.native="submitForm('dynamicValidateForm')" ></el-input>
             </el-form-item>
           </div>
 
@@ -46,13 +46,24 @@
               $t("login.signin") }}</el-button>
           </el-form-item>
         </el-form>
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
       <div class="login-content reginster-box" v-else>
         <div class="login-title">
           <span class="dynamic-title">{{ $t("register.title") }}</span>
+          <span class="activate-tip">{{ $t("register.titleTip") }}</span>
         </div>
         <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
           class="demo-dynamic">
+          
+          <div style="margin-bottom: 20px">
+            <p class="lable-form">
+              <span>{{ $t("register.name") }}</span>
+            </p>
+            <el-form-item prop="name" label>
+              <el-input ref="name" :placeholder="$t('register.nameTips')" v-model="registerValidateForm.name"></el-input>
+            </el-form-item>
+          </div>
           <div style="margin-bottom: 20px">
             <p class="lable-form">
               <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
@@ -87,7 +98,7 @@
           :title="$t('register.requirement')"
           type="warning">
         </el-alert>
-
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
       
     </section>
@@ -118,7 +129,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha } from "@/api/explorer/login";
+import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha, reportTaosdInfo } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
 import Vue from 'vue'
 
@@ -197,6 +208,7 @@ export default {
       encryptedPwd: "",
       buttonTextOfGetVerificationCode: this.$t("register.getVerificationCode"),
       registerValidateForm: {
+        name: "",
         phone_email: "",
         verification_code: "",
       },
@@ -216,6 +228,14 @@ export default {
         ]
       },
       registerFormRules: {
+        name: [
+          {
+            required: true,
+            max: 80,
+            message: this.$t("register.nameTips"),
+            trigger: "change",
+          },
+        ],
         verification_code: [
           {
             required: true,
@@ -236,6 +256,13 @@ export default {
   computed: {
     isLocaleLanguageEn() {
       return this.$i18n.locale.includes('en')
+    },
+    locallanguage(){
+      if(this.$i18n.locale=='zh'){
+        return 'EN'
+      }else{
+        return '中'
+      }
     }
   },
   methods: {
@@ -258,7 +285,8 @@ export default {
         let res=await sendSQLReq(`select id from information_schema.ins_cluster;`)
         if(res&&res.data){
           let id = res.data.flat(Infinity).toString();
-            localStorage.setItem("local_clusterID", id);
+          localStorage.setItem("local_clusterID", id);
+          return id;
         }
       } catch (error) {
         localStorage.removeItem("TDengine-Token");
@@ -269,7 +297,7 @@ export default {
       try {
         let res = await sendSQLReq('select server_version()')
         if (res?.code == 0) {
-          localStorage.setItem('serverVersion',res.data[0])
+          return res.data[0][0];
         }
       } catch (error) {
         console.log(error);
@@ -301,8 +329,22 @@ export default {
 
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
-          await this.getClusterID();
           await this.getUserAuthority();
+
+          const [cluster_id, taosd_version] = await Promise.all([this.getClusterID(), this.getVersion()]);
+          const phone_email = sessionStorage.getItem("registerKey");
+          const lang = localStorage.getItem('local_language') || '';
+          if (phone_email) {
+            reportTaosdInfo({
+              phone_email,
+              lang,
+              cluster_id,
+              taosd_version,
+            }).finally(() => {
+              sessionStorage.removeItem("registerKey");
+            });
+          }
+
         } else {
           this.loading = false;
           if (res && res.code == 11) {
@@ -312,6 +354,7 @@ export default {
           }
         }
       } catch (error) {
+        console.log('error',error);
         this.$error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
@@ -364,7 +407,7 @@ export default {
             });
             if (
               result.length > 0 &&
-              ["official", "trial"].includes(result[0].version)
+              ["official", "trial", "community"].includes(result[0].version)
             ) {
               this.$router.push({
                 path: "/explorer",
@@ -414,7 +457,7 @@ export default {
         }
       } else {
         // 校验邮箱
-        if (!(this.checkPhone(this.registerValidateForm.phone_email) || this.checkEmail(this.registerValidateForm.phone_email))) {
+        if (!this.checkEmail(this.registerValidateForm.phone_email)) {
           this.$error(this.$t('register.emailTips'));
           return;
         }
@@ -477,12 +520,16 @@ export default {
           this.pageLoading = true;
           // 提交注册接口
           this.registerValidateForm.ts = this.ts;
+          this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
+
           const result = await getVerificationResult(this.registerValidateForm)
           if (result && result.code == 0) {
             switch (result.data) {
               case 'pass':
                 // 如果校验通过，则注册成功 切换到登陆框
                 this.registered = true;
+                sessionStorage.setItem('registerKey', this.registerValidateForm.phone_email);
+
                 setTimeout(() => {
                   this.pageLoading = false;
                   this.$message.success(this.$t('register.success.registerSuccess'));
@@ -503,6 +550,15 @@ export default {
           return false;
         }
       });
+    },
+    switchLanguage() {
+      if(this.$i18n.locale=='zh'){
+        this.$i18n.locale='en'
+        localStorage.setItem("local_language", "en");
+      }else{
+        this.$i18n.locale='zh'
+        localStorage.setItem("local_language", "zh");
+      }
     },
   },
   async created() {
@@ -652,12 +708,18 @@ export default {
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      position: relative;
 
       .dynamic-title {
-        width: 500px;
+        width: 100%;
         overflow: hidden;
         display: block;
         text-overflow: ellipsis;
+      }
+
+      .activate-tip {
+        color: #909399;
+        font-size: 14px !important;
       }
 
       .login-title {
@@ -672,10 +734,13 @@ export default {
       }
     }
     .reginster-box {
-      height: 550px;
+      height: 700px;
+      width: 680px;
     }
   }
-
+  .content-reginster {
+    padding: 60px calc(50vw - 600px);
+  }
   // .plans {
   //   height: 500px;
   // }
@@ -829,6 +894,25 @@ export default {
     span {
       color: #909399;
     }
+  }
+
+  .language {
+    margin-top: 4px;
+    margin-right:20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4d6992;
+    border-radius: 50%;
+    color: #4d6992;
+    display: flex;
+    justify-content: center;
+    position: absolute;
+    top: 20px;
+    right: 10px;
   }
 }
 </style>

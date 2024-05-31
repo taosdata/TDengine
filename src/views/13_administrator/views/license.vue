@@ -3,6 +3,7 @@
     <div class="flexEnd">
       <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
@@ -10,7 +11,7 @@
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
+      <el-button plain type="primary" @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
         $t("taosuser.activationLicense")
       }}</el-button>
     </div>
@@ -209,6 +210,8 @@ export default {
       advancedTableData: [],
       parsinginZone,
       version_no_later_than_3230: false,
+      version_greater_than_3300: false,
+      version_greater_than_3301: false,
     };
   },
   computed: {
@@ -251,9 +254,15 @@ export default {
   methods: {
     handlecActiveCodeShow() {
       let version = localStorage.getItem("agent_version");
-      let [a, b, c] = version.split(".");
+      let [a, b, c, d] = version.split(".");
       if (a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3)) {
         this.version_no_later_than_3230 = false;
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3)){
+          this.version_greater_than_3300 = true;
+        }
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b >= 3 && c >0 ) || (a == 3 && b >= 3 && c >=0 && d > 0)){
+          this.version_greater_than_3301 = true;
+        }
       } else {
         this.version_no_later_than_3230 = true;
       }
@@ -314,16 +323,29 @@ export default {
               );
             });
  
-            this.tableData = array
+            let allData = array
               .filter((item) => item.limits.indexOf("{") == 0)
               .map((data) => {
                 return {
                   ...JSON.parse(data.limits),
-                  type: data.display_name,
+                  type: data.display_name || data.grant_name,
+                  grant: data.grant_name,
                   expire_time: data.expireTime,
                 };
               })
-              .filter(v => v.type != '');
+            // 3.3.0.0 之前不显示 mysql、postgres、oracle
+            this.tableData = allData
+            .filter(v => !['mysql', 'postgres', 'oracle', '__future_datain__'].includes(v.grant));
+
+            // 3.3.0.0 之后增加 mysql、postgres
+            if (this.version_greater_than_3300) {
+              this.tableData = allData
+                .filter(v => !['oracle'].includes(v.grant));
+            } 
+            // 3.3.0.1 之后增加 oracle
+            if (this.version_greater_than_3301){
+              this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
+            } 
             this.advancedTableData = array
               .filter((item) => item.limits.indexOf("{") == -1)
             console.log("this.tableData", this.tableData, this.advancedTableData);

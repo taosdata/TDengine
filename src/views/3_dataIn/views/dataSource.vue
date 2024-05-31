@@ -5,12 +5,14 @@
       <div class="flexEnd">
         <el-button
           @click="refresh"
+          plain
+          type="primary"
           size="small"
           icon="el-icon-refresh"
           :disabled="requestIng || $COMMUNITY"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
+        <el-button @click="addDbSource" size="small" icon="el-icon-plus" plain  type="primary">{{
           $t("datasource.addsource")
         }}</el-button>
       </div>
@@ -174,8 +176,8 @@
               size="mini"
               style="font-size: 12px; color: #4d6992"
               :disabled="
-                scope.row.status.toLowerCase() == 'failed' ||
-                scope.row.status.toLowerCase() == 'cancelled'
+                scope.row.status.toLowerCase() == 'cancelled' ||
+                $COMMUNITY
               "
               >{{ $t("view") }}</el-button
             >
@@ -371,6 +373,15 @@
     <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
     </div>
+    <el-alert
+      v-if="$COMMUNITY"
+      class="my-alert"
+      style="margin-top: 8px"
+      type="warning"
+      :description="$t('communityDemoDataTip')"
+      :closable="true"
+      center
+    />
   </div>
 </template>
 <script>
@@ -528,7 +539,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if(data.from_detail.id=='avevaHistorian' || data.from_detail.id=='mysql' || data.from_detail.id=='postgres'){
+        if(this.$store.state.app.supportSQL){
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
           this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
         }
@@ -960,10 +971,11 @@ export default {
   .el-button {
     border: 1px solid transparent;
     background: transparent;
-    color: #4259ce;
+    // color: #4259ce;
     font-size: 14px;
     &:hover {
-      background: #fff;
+      // background: #fff;
+      color: #4259ce;
       border: 1px solid #4259ce;
     }
   }
@@ -993,6 +1005,9 @@ export default {
 }
 .err-circle {
   animation: circle 1s infinite;
+}
+.my-alert ::v-deep.el-alert .el-alert__description  {
+  font-size: 14px;
 }
 @keyframes circle {
   0% {
