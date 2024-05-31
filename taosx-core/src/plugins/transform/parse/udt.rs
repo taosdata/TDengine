@@ -231,16 +231,6 @@ impl Udt {
 }
 
 impl Parse for Udt {
-    // 行数可能修改
-    fn num_rows_will_be_changed(&self) -> bool {
-        true
-    }
-
-    // 列数可能修改
-    fn num_columns_will_be_changed(&self) -> bool {
-        true
-    }
-
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,

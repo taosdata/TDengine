@@ -101,14 +101,6 @@ pub struct RegexError {
 }
 
 impl Parse for Regex {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        !self.keep && self.regex.capture_names().filter_map(|v| v).count() == 1
-    }
-
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,

@@ -91,14 +91,6 @@ impl FromStr for Json {
 }
 
 impl Parse for Json {
-    fn num_rows_will_be_changed(&self) -> bool {
-        true
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        true
-    }
-
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,
