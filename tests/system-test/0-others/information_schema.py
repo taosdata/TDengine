@@ -336,7 +336,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[1])
             index += 1
         tdSql.checkEqual(True, index > 0)
-                    
+
         tdSql.query(f'show encryptions')
         result = tdSql.queryResult
         index = 0
@@ -344,7 +344,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[1])
             index += 1
         tdSql.checkEqual(True, index > 0)
-        
+
         # loaded/sm4
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create encrypt_key \'12345678\'')
@@ -357,7 +357,7 @@ class TDTestCase:
             tdSql.checkEqual(True, result[i][1] in key_status_list[3])
             index += 1
         tdSql.checkEqual(True, index > 0)
-                    
+
         tdSql.query(f'show encryptions')
         result = tdSql.queryResult
         index = 0

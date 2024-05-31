@@ -2361,12 +2361,19 @@ typedef struct {
 } SMArbUpdateGroupMember;
 
 typedef struct {
-  int32_t                vgId;
-  int64_t                dbUid;
-  SMArbUpdateGroupMember members[2];
-  int8_t                 isSync;
-  SMArbUpdateGroupMember assignedLeader;
-  int64_t                version;
+  int32_t dnodeId;
+  char*   token;
+  int8_t  acked;
+} SMArbUpdateGroupAssigned;
+
+typedef struct {
+  int32_t                  vgId;
+  int64_t                  dbUid;
+  SMArbUpdateGroupMember   members[2];
+  int8_t                   isSync;
+  int8_t                   assignedAcked;
+  SMArbUpdateGroupAssigned assignedLeader;
+  int64_t                  version;
 } SMArbUpdateGroup;
 
 typedef struct {
