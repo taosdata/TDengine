@@ -1911,13 +1911,13 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
 
   if (pOptions != NULL) {
     SColumnOptions* pOption = (SColumnOptions*)pOptions;
-    if (pOption->bPrimaryKey == false || pOption->commentNull == true) {
+    if (pOption->bPrimaryKey == false && pOption->commentNull == true) {
       if (strlen(pOption->compress) != 0 || strlen(pOption->compressLevel) || strlen(pOption->encode) != 0) {
         pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
       } else {
-        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                "not support alter column with option except compress");
-        return NULL;
+        // pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+        //                                         "not support alter column with option except compress");
+        // return NULL;
       }
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
