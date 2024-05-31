@@ -36,7 +36,7 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
-int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
+int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
   int32_t nCols = pWp->nCols;
   int32_t ver = pWp->version;
   if (add) {
@@ -45,7 +45,7 @@ int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
 
     SColCmpr *pCol = p + nCols;
     pCol->id = pSchema->colId;
-    pCol->alg = createDefaultColCmprByType(pSchema->type);
+    pCol->alg = compress;
     pWp->nCols = nCols + 1;
     pWp->version = ver;
     pWp->pColCmpr = p;
@@ -1523,21 +1523,12 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         (void)tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
       }
       SSchema *pCol = &pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1];
-      if (pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
-        
-        // if (pAlterTbReq->colCmpr.nCols != pSchema->nCols) {
-        //   terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
-        //   goto _err;
-        // }
-        // updataTableColCmpr(&entry.colCmpr, pCol, 1);
-        // freeColCmpr = true;
-        // ASSERT(entry.colCmpr.nCols == pSchema->nCols);
-      } else {
-        updataTableColCmpr(&entry.colCmpr, pCol, 1);
-        freeColCmpr = true;
-        ASSERT(entry.colCmpr.nCols == pSchema->nCols);
-        break;
-      }
+      uint32_t compress = pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ? createDefaultColCmprByType(pCol->type)
+                                                                             : pAlterTbReq->compress;
+      updataTableColCmpr(&entry.colCmpr, pCol, 1, compress);
+      freeColCmpr = true;
+      ASSERT(entry.colCmpr.nCols == pSchema->nCols);
+      break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
         terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
@@ -1572,7 +1563,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, hasPrimayKey);
       }
 
-      updataTableColCmpr(&entry.colCmpr, &tScheam, 0);
+      updataTableColCmpr(&entry.colCmpr, &tScheam, 0, 0);
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
