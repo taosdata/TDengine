@@ -768,6 +768,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
   bool            hasNext = false;
   int32_t         code = TSDB_CODE_SUCCESS;
+  pBlock->info.dataLoad = false;
 
   int64_t st = taosGetTimestampUs();
 
