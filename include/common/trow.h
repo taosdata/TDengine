@@ -289,7 +289,6 @@ int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValT
  */
 
 static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
-  pBuilder->rowType = pBuilder->rowType;
   pBuilder->sver = sver;
 }
 int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
