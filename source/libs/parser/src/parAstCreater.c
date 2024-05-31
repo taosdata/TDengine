@@ -1901,20 +1901,30 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
   if (!checkColumnName(pCxt, pColName)) {
     return NULL;
   }
+
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;
+  pStmt->pColOptions = (SColumnOptions*)pOptions;
 
-  // if pOptions is NULL, it means that the column has no options
   if (pOptions != NULL) {
     SColumnOptions* pOption = (SColumnOptions*)pOptions;
-    if (strlen(pOption->compress) != 0 || strlen(pOption->compressLevel) || strlen(pOption->encode) != 0) {
-      pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
+    if (pOption->bPrimaryKey == false || pOption->commentNull == true) {
+      if (strlen(pOption->compress) != 0 || strlen(pOption->compressLevel) || strlen(pOption->encode) != 0) {
+        pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
+      } else {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "not support alter column with option except compress");
+        return NULL;
+      }
+    } else {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "not support alter column with option except compress");
+      return NULL;
     }
   }
-  pStmt->pColOptions = (SColumnOptions*)pOptions;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
