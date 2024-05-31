@@ -436,13 +436,13 @@ class TDTestCase:
         tdSql.execute(f"use db")
         tdSql.execute(f"create table db.st(ts timestamp, ibv bigint, ubv bigint unsigned) tags(area int)")
         # insert t1 data
-        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,9223372036854775801,18446744073709551611)")
-        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,8223372036854775801,17446744073709551611)")
-        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,7223372036854775801,16446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now + 1s,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now + 2s,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now + 3s,7223372036854775801,16446744073709551611)")
         # insert t2 data
-        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,9223372036854775801,18446744073709551611)")
-        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,8223372036854775801,17446744073709551611)")
-        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,7223372036854775801,16446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now + 1s,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now + 2s,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now + 3s,7223372036854775801,16446744073709551611)")
         
         # check single table answer
         tdSql.query(f"select avg(ibv), avg(ubv) from db.t1")
