@@ -1427,7 +1427,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
   }
 
-  removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  if (IS_FINAL_INTERVAL_OP(pOperator) && !pInfo->destHasPrimaryKey) {
+    removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  }
   if (IS_FINAL_INTERVAL_OP(pOperator)) {
     closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval,
                               pInfo->pPullDataMap, pInfo->pUpdatedMap, pInfo->pDelWins, pOperator);
@@ -2845,7 +2847,9 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   closeSessionWindow(pAggSup->pResultRows, &pInfo->twAggSup, pInfo->pStUpdated);
   closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs);
   copyUpdateResult(&pInfo->pStUpdated, pInfo->pUpdated, sessionKeyCompareAsc);
-  removeSessionDeleteResults(pInfo->pStDeleted, pInfo->pUpdated);
+  if (!pInfo->destHasPrimaryKey) {
+    removeSessionDeleteResults(pInfo->pStDeleted, pInfo->pUpdated);
+  }
   if (pInfo->isHistoryOp) {
     getMaxTsWins(pInfo->pUpdated, pInfo->historyWins);
   }
@@ -4131,7 +4135,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
   }
   pOperator->status = OP_RES_TO_RETURN;
-  removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  if (!pInfo->destHasPrimaryKey) {
+    removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  }
   closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL,
                             pInfo->pUpdatedMap, pInfo->pDelWins, pOperator);
   if (pInfo->destHasPrimaryKey && IS_NORMAL_INTERVAL_OP(pOperator)) {
