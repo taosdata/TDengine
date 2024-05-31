@@ -7251,11 +7251,14 @@ int tDecodeSVCreateTbBatchReq(SDecoder *pCoder, SVCreateTbBatchReq *pReq) {
   return 0;
 }
 
-void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq) {
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq *pReq) {
   for (int32_t iReq = 0; iReq < pReq->nReqs; iReq++) {
-    SVCreateTbReq* pCreateReq = pReq->pReqs + iReq;
+    SVCreateTbReq *pCreateReq = pReq->pReqs + iReq;
+    taosMemoryFreeClear(pCreateReq->sql);
+    taosMemoryFreeClear(pCreateReq->comment);
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       taosArrayDestroy(pCreateReq->ctb.tagName);
+      pCreateReq->ctb.tagName = NULL;
     }
   }
 }

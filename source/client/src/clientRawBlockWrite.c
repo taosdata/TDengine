@@ -375,14 +375,7 @@ static cJSON* processCreateTable(SMqMetaRsp* metaRsp) {
 
 _exit:
   uDebug("create table return, sql json:%s", cJSON_PrintUnformatted(pJson));
-  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-    pCreateReq = req.pReqs + iReq;
-    taosMemoryFreeClear(pCreateReq->comment);
-    taosMemoryFreeClear(pCreateReq->sql);
-    if (pCreateReq->type == TSDB_CHILD_TABLE) {
-      taosArrayDestroy(pCreateReq->ctb.tagName);
-    }
-  }
+  tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
   return pJson;
 }
@@ -1021,15 +1014,9 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = pRequest->code;
 
-  end:
-  uDebug(LOG_ID_TAG" create table return, msg:%s", LOG_ID_VALUE, tstrerror(code));
-  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-    pCreateReq = req.pReqs + iReq;
-    taosMemoryFreeClear(pCreateReq->comment);
-    if (pCreateReq->type == TSDB_CHILD_TABLE) {
-      taosArrayDestroy(pCreateReq->ctb.tagName);
-    }
-  }
+end:
+  uDebug(LOG_ID_TAG " create table return, msg:%s", LOG_ID_VALUE, tstrerror(code));
+  tDeleteSVCreateTbBatchReq(&req);
 
   taosHashCleanup(pVgroupHashmap);
   destroyRequest(pRequest);
