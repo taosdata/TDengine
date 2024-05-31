@@ -1828,7 +1828,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
       SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
       pCmpr->id = pSchema->colId;
-      pCmpr->alg = createDefaultColCmprByType(pSchema->type);
+      pCmpr->alg = pField->compress;
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
       SField *pField = taosArrayGet(pFields, i);
