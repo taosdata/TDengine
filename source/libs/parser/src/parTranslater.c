@@ -8202,9 +8202,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       // TAOS_FIELD        field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       strcpy(field.name, pStmt->colName);
       if (pStmt->pColOptions != NULL) {
-        if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-        if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
-        if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+        if (!checkColumnEncodeOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->encode))
+          return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+        if (!checkColumnCompressOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->compress))
+          return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
+        if (!checkColumnLevelOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->compressLevel))
+          return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
         int32_t code = setColCompressByOption(pStmt->dataType.type, columnEncodeVal(pStmt->pColOptions->encode),
                                               columnCompressVal(pStmt->pColOptions->compress),
                                               columnLevelVal(pStmt->pColOptions->compressLevel), false,
@@ -13049,6 +13052,7 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
       return buildAddColReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       return buildDropColReq(pCxt, pStmt, pTableMeta, pReq);
