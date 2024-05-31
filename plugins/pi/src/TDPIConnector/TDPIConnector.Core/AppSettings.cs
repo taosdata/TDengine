@@ -1,34 +1,40 @@
 ﻿using log4net;
+using log4net.Config;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 using Tomlyn;
 
 namespace TDPIConnector.Core
 {
     public static class AppSettings
     {
-        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         public class TomlConfig {
             public string LogLevel { get; set; }
-            public int MaxWaitLen { get; set; } = 1000;
-            public int UpdateInterval { get; set; } = 1000;
+            public int MaxWaitLen { get; set; } = 10000;
+            public int BackfillBatchSize { get; set; } = 10000;
+            public int UpdateInterval { get; set; } = 10;
+            public int BackfillConcurrencyCounts { get; set; } = 20;
             public int MaxBackfillRangeDays { get; set; } = 1; // uit: Minutes
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }
             public int PIDataPipesInstances { get; set; } = 1;
-            public int AFDataPipesInstances { get; set; } = 10;
+            public int AFDataPipesInstances { get; set; } = 50;
             public string IPCStream { get; set; }
             public string SQLAPI { get; set; }
-            public string AFTreeTagName { get; set; } = "location";
+            public string AFTreeTagName { get; set; } = "path";
             public int HttpMaxRetryTimes { get; set; } = 3;
             public string TDDataBase { get; set; } = "pi";
             public List<string> TemplateForPIPoint { get; set; } = new List<string>();
             public List<string> TemplateForAFElement { get; set; } = new List<string>();
             public List<string> PointList { get; set; }
+            public List<string> ElementList { get; set; } = new List<string>();
+            public List<string> ElementIDList { get; set; } = new List<string>();
 
             // not support
             public string PIServerUser { get; set; }
@@ -36,6 +42,10 @@ namespace TDPIConnector.Core
             public string PIServerDomain { get; internal set; }
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
+            public bool ForBackfill { get; set; } = false;
+            public bool OnlyTestConnector { get; set; } = false;
+            public bool TemplateEventStart { get; set; } = true;
+            public string TaskID { get; set; } = "0";
             public DateTimeOffset BackfillStartTime { get; set; } = DateTimeOffset.MinValue;
             public DateTimeOffset BackfillEndTime { get; set; } = DateTimeOffset.MaxValue;
 
@@ -52,6 +62,7 @@ namespace TDPIConnector.Core
                 sb.AppendLine($"AFDataPipesInstances={AFDataPipesInstances}");
                 sb.AppendLine($"IPCStream={IPCStream}");
                 sb.AppendLine($"SQLAPI={SQLAPI}");
+                sb.AppendLine($"ForBackfill={ForBackfill}");
                 sb.AppendLine($"FromTDengineLastTime={FromTDengineLastTime}");
                 sb.AppendLine($"ToTDengineFirstTime={ToTDengineFirstTime}");
                 sb.AppendLine($"BackfillStartTime={BackfillStartTime}");
@@ -68,7 +79,26 @@ namespace TDPIConnector.Core
                 }
                 if (PointList != null && PointList.Any())
                 {
-                    sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                    if (ElementIDList.Count() <= 10)
+                    {
+                        sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"PointList count: {ElementIDList.Count()}");
+                    }
+                    
+                }
+                if (ElementIDList != null && ElementIDList.Any())
+                {
+                    if (ElementIDList.Count() <= 10)
+                    {
+                        sb.AppendLine($"ElementIDList={string.Join(", ", ElementIDList)}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"ElementIDList count: {ElementIDList.Count()}");
+                    }
                 }
                 return sb.ToString();
             }
@@ -96,49 +126,12 @@ namespace TDPIConnector.Core
                     return propertyName;
                 };
                 tomlConfig = Toml.ToModel<TomlConfig>(fileData, null, tomlOption);
-                log.Info($"toml file: {tomlConfig.ConfigString()}");
             }
 
             if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
             {
                 tomlConfig.PIServerDomain = null;
             }
-            if (tomlConfigFile == null || tomlConfigFile == "")
-            {
-                TaosXEnabled = false;
-                tomlConfig.UpdateInterval = GetIntegerFromAppSettings("UpdateInterval");
-                tomlConfig.PISystemName = GetStringFromAppSettings("PISystemName");
-                tomlConfig.PIServerName = GetStringFromAppSettings("PIServerName");
-                tomlConfig.PIServerUser = GetStringFromAppSettings("PIServerUser");
-                tomlConfig.PIServerDomain = GetStringFromAppSettings("PIServerDomain");
-                if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
-                {
-                    tomlConfig.PIServerDomain = null;
-                }
-                tomlConfig.PIServerPassword = GetStringFromAppSettings("PIServerPassword");
-                tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
-                tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
-                tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays", 1);
-                tomlConfig.TDDataBase = GetStringFromAppSettings("TDEnginePIDatabase");
-
-                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
-                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
-                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
-                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
-                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
-
-                try
-                {
-                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
-                    tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
-                    tomlConfig.TemplateForAFElement = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates2.csv").Distinct().ToList();
-                }
-                catch (Exception)
-                {
-                    //throw;
-                }
-            } 
 
             TDEnginePITablesPrefix = GetStringFromAppSettings("TDEnginePITablesPrefix");
             if (TDEnginePITablesPrefix == null)
@@ -158,12 +151,25 @@ namespace TDPIConnector.Core
                 TDEnginePITablesPrefix = string.Empty;
             }
 
+            string logFileNamme = "taosx-pi";
+            if (tomlConfig.ForBackfill)
+            {
+                logFileNamme += ".backfill";
+            }
+            logFileNamme += "." + tomlConfig.TaskID;
+
+            var path = AppDomain.CurrentDomain.BaseDirectory;
+            GlobalContext.Properties["applicationName"] = logFileNamme;
+            GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
+            XmlConfigurator.Configure(new System.IO.FileInfo($"{path}log4net.config"));
+
+            log.Info($"toml config Path: {tomlConfigFile}");
+            log.Info($"toml file: \n{tomlConfig.ConfigString()}");
             if (!string.IsNullOrEmpty(tomlConfig.LogLevel)) {
                 log4net.Repository.ILoggerRepository repository = log4net.LogManager.GetRepository();
                 log4net.Repository.Hierarchy.Hierarchy hier = (log4net.Repository.Hierarchy.Hierarchy)repository;
                 hier.Root.Level = hier.LevelMap[tomlConfig.LogLevel];
                 ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).RaiseConfigurationChanged(EventArgs.Empty);
-
                 log.Info($"Reset log level to {tomlConfig.LogLevel}.");
             }
         }
@@ -180,8 +186,6 @@ namespace TDPIConnector.Core
         public static bool WebMonitoringEventsEnabled { get; private set; }
         public static int BackfillQuitWait { get; internal set; }
         public static int MaxEventCountObserverFetchOnce { get; internal set; }
-
-        public static bool TaosXEnabled { get; private set; } = true;
         public static TomlConfig tomlConfig { get; private set; }
 
         private static string GetStringFromAppSettings(string propertyName)

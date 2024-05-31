@@ -36,14 +36,11 @@ use taosx_core::{
     set_env_plugins_home_dir,
 };
 
+use crate::serve::monitor;
+
 #[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
 compile_error!("Only one allocator can be specified");
 
-#[cfg(feature = "tikv-jemallocator")]
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-use crate::serve::monitor;
 #[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -285,7 +282,7 @@ impl Args {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
                 if let Some(matches) = matches.subcommand_matches("serve") {
-                    macro_rules! tak_or_not {
+                    macro_rules! take_or_not {
                         ($f:ident) => {
                             match matches.value_source(stringify!($f)) {
                                 Some(ValueSource::DefaultValue) | None => {}
@@ -295,11 +292,11 @@ impl Args {
                             }
                         };
                     }
-                    tak_or_not!(listen);
-                    tak_or_not!(grpc);
-                    tak_or_not!(database_url);
-                    tak_or_not!(secret_prefix);
-                    tak_or_not!(do_not_resume);
+                    take_or_not!(listen);
+                    take_or_not!(grpc);
+                    take_or_not!(database_url);
+                    take_or_not!(secret_prefix);
+                    take_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
             }
@@ -401,7 +398,7 @@ async fn init_tracing_layers(
                 .add_directive("tokio_tungstenite=warn".parse()?)
                 .add_directive("mio=warn".parse()?)
                 .add_directive("h2=warn".parse()?)
-                .add_directive("sqlx::query=warn".parse()?)
+                .add_directive("sqlx=warn".parse()?)
                 .add_directive("hyper=warn".parse()?)
                 .add_directive("reqwest=warn".parse()?)
         } else {
@@ -493,7 +490,7 @@ async fn init_tracing_layers(
                     .add_directive("actix_http=info".parse()?)
                     .add_directive("tokio_tungstenite=info".parse()?)
                     .add_directive("mio=info".parse()?)
-                    .add_directive("h2=info".parse()?),
+                    .add_directive("h2=warn".parse()?),
             );
         layered.with(telemetry).try_init()?;
     } else {
@@ -624,9 +621,12 @@ fn main() -> Result<()> {
             let addr = serve.get_listen_address();
             let port = addr.split(':').last().unwrap();
             let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
-            debug!("Prepare channels");
-            let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
-                scheduler_rt.block_on(serve.channels());
+            let (
+                agent_integration_channel,
+                agent_rpc_channel,
+                agent_spawn_sender,
+                scheduler_notifier,
+            ) = scheduler_rt.block_on(serve.channels());
 
             debug!("Starting scheduler");
             let scheduler = scheduler_rt
@@ -642,11 +642,12 @@ fn main() -> Result<()> {
             let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-
-            debug!("Starting gRPC server");
-            let grpc_handle =
-                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
-            debug!("Starting REST API server");
+            let grpc_handle = grpc_rt.spawn(serve_api.grpc(
+                ctl.clone(),
+                agent_rpc_channel,
+                agent_spawn_sender,
+                monitor.clone(),
+            ));
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle, monitor).await

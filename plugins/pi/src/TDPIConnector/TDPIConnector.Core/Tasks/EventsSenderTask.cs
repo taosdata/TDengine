@@ -1,5 +1,6 @@
 ﻿using log4net;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TDPIConnector.TDEngine.Exceptions;
 
@@ -39,7 +40,8 @@ namespace TDPIConnector.Core.Tasks
                     }
                     finally
                     {
-                        await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
+                        Thread.Sleep(AppSettings.tomlConfig.UpdateInterval);
+                        // await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
                     }
                 }
                 log.Info("Process datapipe, Event sender stop.");

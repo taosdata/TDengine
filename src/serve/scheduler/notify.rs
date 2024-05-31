@@ -1,4 +1,18 @@
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Weak},
+    time::Duration,
+};
+
 use crate::serve::{controller::TaskActivity, scheduler::SchedulerNotify};
+use itertools::Itertools;
+use taosx_core::{
+    sink::lush::{self, TableTagCache},
+    DataSet,
+};
+use thiserror::Error;
+use tokio::sync::{Mutex, Notify, RwLock};
 
 use super::{
     runner::{GlobalState, MultiIndexTaskJobMapRef},
@@ -15,6 +29,7 @@ pub async fn notify_by_job_id(
     global: &GlobalState,
     job_id: &Uuid,
     job_state: &JobNotification,
+    lush_table_cache: &Arc<RwLock<HashMap<i64, Arc<TableTagCache>>>>,
 ) -> Option<Result<()>> {
     let task_id = { tasks.read().await.get_by_job_id(&job_id).map(|j| j.task_id) }?;
 
@@ -50,6 +65,14 @@ pub async fn notify_by_job_id(
                             global.agent_runtime.remove_task(task_id).await;
                         }
                     }
+                }
+            });
+            // TODO： 只对 PI 任务执行下面的代码
+            let lush_table_cache = lush_table_cache.clone();
+            tokio::task::spawn(async move {
+                let mut lush_table_cache = lush_table_cache.write().await;
+                if let Some(cache) = lush_table_cache.remove(&task_id) {
+                    info!("Removed lush_table_cache task.id={:?}", task_id);
                 }
             });
         }

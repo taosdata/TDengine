@@ -68,6 +68,13 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Abbreviation : string.Empty;
             }
         }
+        public string UomName
+        {
+            get
+            {
+                return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Name : string.Empty;
+            }
+        }
 
         public string ConfigurationItem
         {
@@ -85,6 +92,14 @@ namespace TDPIConnector.PI
                     return "";
                 }
                 return this.AFSDKObject.DataReference.Name;
+            }
+        }
+        public AFAttributeTemplatesWrapper childAttributes
+        {
+            get
+            {
+                if (this.AFSDKObject.AttributeTemplates == null) return null;
+                return new AFAttributeTemplatesWrapper(this.AFSDKObject.AttributeTemplates);
             }
         }
         public virtual string GetPath()
@@ -118,6 +133,21 @@ namespace TDPIConnector.PI
         public override int GetHashCode()
         {
             return this.AFSDKObject.GetHashCode();
+        }
+        public bool IsTDengineTag()
+        {
+            // || DataReference == "Formula"
+            if (DataReference == "Table Lookup" || DataReference == "String Builder"
+                || DataReference == "URI Builder")
+            {
+                return true;
+            }
+            return string.IsNullOrEmpty(DataReference);
+        }
+
+        public bool HasChild()
+        {
+            return AFSDKObject.HasChildren;
         }
     }
 }

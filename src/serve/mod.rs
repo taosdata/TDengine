@@ -31,6 +31,7 @@ use crate::serve::controller::agent::{
 };
 use crate::serve::middleware::TaosXRootSpanBuilder;
 
+use self::scheduler::agent::AgentSpawnSender;
 use self::{
     agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
     routes::cluster::get_cluster_connector_transferred,
@@ -145,6 +146,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_source_collection)
             .service(data_source_sample)
             .service(download_all_data_set_file)
+            .service(download_pi_default_config)
             .service(download_point_template_file)
             .service(check_point_file_valid)
             .service(init_download_file_task)
@@ -241,10 +243,16 @@ impl Cli {
 
     pub(super) async fn channels(
         &self,
-    ) -> (AgentIntegrationChannel, AgentRpcChannel, SchedulerNotifier) {
+    ) -> (
+        AgentIntegrationChannel,
+        AgentRpcChannel,
+        AgentSpawnSender,
+        SchedulerNotifier,
+    ) {
         let (agent_activity_sender, agent_activity_receiver) =
             tokio::sync::broadcast::channel(1024);
         let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
+        let (agent_spawn_sender, agent_spawn_receiver) = flume::bounded(0);
         let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
         let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
 
@@ -254,6 +262,7 @@ impl Cli {
             agent_activity_sender,
             agent_notify_receiver,
             weak_notify_sender,
+            agent_spawn_receiver,
         )
         .await;
         let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);
@@ -261,6 +270,7 @@ impl Cli {
         (
             agent_integration_channel,
             agent_rpc_channel,
+            agent_spawn_sender,
             scheduler_notify_sender,
         )
     }
@@ -446,6 +456,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        spawn_sender: AgentSpawnSender,
         monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
@@ -455,7 +466,7 @@ impl Cli {
         }
 
         flight
-            .serve_with_controller(controller, channel, monitor)
+            .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await?;
         Ok(())
     }

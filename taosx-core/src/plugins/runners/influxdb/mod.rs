@@ -101,6 +101,7 @@ pub async fn influxdb_to_taos(
         &to,
         Some("influxdb"),
         None,
+        None,
         &cancel,
         with_agent,
         transferred,

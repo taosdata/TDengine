@@ -11,10 +11,6 @@ using TDPIConnector.TDEngine.TaosxClient;
 namespace TDPIConnector.TDEngine
 {
     public class TDEngineProxyBuild  {
-        public static TDEngineProxy NewTDEngineClient(string hostname, int port, string username, string password, string token, string tablesPrefix)
-        {
-            return new TDEngineClient(false, hostname, port, username, password, token, tablesPrefix);
-        }
         public static TDEngineProxy NewTDEngineProxy(string ipcHost, string restHost, string tablesPrefix, int maxWaitLength)
         {
             return new TDEngineProxy(ipcHost, restHost, tablesPrefix, maxWaitLength);
@@ -79,9 +75,9 @@ namespace TDPIConnector.TDEngine
         {
             return null;
         }
-        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string elementName, string attriName, string value)
+        public virtual Task<TDEngineResponse> ChangeTagValueForAFElements(string db, string tbName, string attriName, string value)
         {
-            return taosxCommonClient.ChangeTagValueForAFElements(db, elementName, attriName, value);
+            return taosxCommonClient.ChangeTagValueForAFElements(db, tbName, attriName, value);
         }
         public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
@@ -100,11 +96,6 @@ namespace TDPIConnector.TDEngine
             }
         }
 
-        public virtual Task<TDEngineResponse> CreateDatabase(string dbName)
-        {
-            log.Info($"Create Database {dbName}, taosx skip.");
-            return Task.FromResult<TDEngineResponse>(null);
-        }
         public virtual Task<TDValue> GetLastPIValue(string database, string pointName)
         {
             return taosxCommonClient.GetLastPIValue(database, pointName);
@@ -119,18 +110,18 @@ namespace TDPIConnector.TDEngine
         {
             return taosxCommonClient.GetFirstPIValue(database, pointName);
         }
-        public virtual Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTableName, string tdColumnType)
+        public virtual Task<TDEngineResponse> CreateSuperTableForPIPoint(string database, string superTableName, string tdColumnType,
+            List<KeyValuePair<string, string>> tags, bool useAFDatabase)
         {
             lock (taosxClientsLock)
             {
-                var stableName = superTableName.ToTDEngineNamingPattern();
                 if (!taosxClients.ContainsKey(superTableName))
                 {
-                    var taosxClient = new TDEngineTaosxClient(hostname, port, database, stableName,
-                        tdColumnType, maxWaitLength);
-                    taosxClients.Add(stableName, taosxClient);
+                    var taosxClient = new TDEngineTaosxClient(hostname, port, database, superTableName,
+                        tdColumnType, tags, maxWaitLength, useAFDatabase);
+                    taosxClients.Add(superTableName, taosxClient);
                     taosxClient.Connect();
-                    log.Info($"create PIPoint superTable {stableName}:{tdColumnType}");
+                    log.Info($"create PIPoint superTable {superTableName}:{tdColumnType}");
                 }
             }
             return Task.FromResult<TDEngineResponse>(null);
@@ -144,7 +135,6 @@ namespace TDPIConnector.TDEngine
                 {
                     var columnNameTypes = new List<KeyValuePair<string, string>>();
                     var tags = new List<KeyValuePair<string, string>>();
-                    tags.Add(new KeyValuePair<string, string>($"element_id", "NCHAR(100)"));
                     foreach (var column in sTable.Columns)
                     {
                         if (column.IsTDengineTag())
@@ -172,7 +162,7 @@ namespace TDPIConnector.TDEngine
             {
                 var element = elements[i];
                 var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
+                tags.Add(new KeyValuePair<string, string>("element_id", element.ID));
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())
@@ -184,28 +174,27 @@ namespace TDPIConnector.TDEngine
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
 
-                string tdEngineTableName = GetFullTableName(element.Name).ToTDEngineNamingPattern();
-                string stableName = element.STableName.ToTDEngineNamingPattern();
-                
-                var taosxClient = getTaosxClient(stableName);
+                string tdEngineTableName = element.Name;
+               
+                var taosxClient = GetTaosxClient(element.STableName);
                 if (taosxClient != null)
                 {
                     taosxClient.AddAFElementTableTag(tdEngineTableName, tags);
                 }
                 else
                 {
-                    log.Error($"Create stable for AFElement failed, not found {stableName}");
+                    log.Error($"Create stable for AFElement failed, not found {element.STableName}");
                 }
             }
             initAFModeTables();
             return Task.CompletedTask;
         }
-        public virtual Task CreateTablesForAFElementsV2(string database, string superTableName, List<TDTable> elements)
+        public virtual Task CreateTablesForAFElementsV2(string superTableName, List<TDTable> elements)
         {
-            var taosxClient = getTaosxClient(superTableName.ToTDEngineNamingPattern());
+            var taosxClient = GetTaosxClient(superTableName);
             if (taosxClient == null)
             {
-                log.Error($"Create stable for AFElement failed, not found {superTableName}");
+                log.Error($"Create stable for AFElement(V2) failed, not found {superTableName}");
                 return null;
             }
 
@@ -213,46 +202,76 @@ namespace TDPIConnector.TDEngine
             {
                 var element = elements[i];
                 var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>("element_id", element.Id));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.ID));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name));
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())
                     {
-                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
+                        if (column.TagValue.Length > 100) {
+                            log.Debug($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
+                            column.TagValue = column.TagValue.Substring(0, 99);
+                        }
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue.Trim()));
                     }
                 }
                 tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories));
 
-                string tdEngineTableName = GetFullTableName(element.Name).ToTDEngineNamingPattern();
-                taosxClient.AddAFElementTableTag(tdEngineTableName, tags);
+                taosxClient.AddAFElementTableTag(element.ID, tags);
             }
             taosxClient.InitTables();
             return Task.CompletedTask;
+        }
+        public virtual void ArrowMsgQueueWait(string superTableName) {
+            var taosxClient = GetTaosxClient(superTableName);
+            if (taosxClient != null)
+            {
+                taosxClient.ArrowMsgQueueWait();
+            }
+            else
+            {
+                log.Error($"arrowMsgQueueWait failed, not found {superTableName}");
+            }
         }
         public virtual Task CreateTablesForPIPoints(string database, List<TDTable> piPoints)
         {
             for (int i = 0; i < piPoints.Count; i++)
             {
                 var piPoint = piPoints[i];
-                string tdEngineTableName = GetFullTableName(piPoint.Name).ToTDEngineNamingPattern();
-                var stableName = piPoint.STableName.ToTDEngineNamingPattern();
+                string tdEngineTableUniKey = piPoint.Name;
+   
+                var taosxClient = GetTaosxClient(piPoint.STableName);
+                var tags = new List<KeyValuePair<string, string>>();
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, piPoint.PointId.ToString()));
+                tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, piPoint.Name));
+                foreach (TDColumn column in piPoint.Columns)
+                {
+                    if (column.IsTDengineTag())
+                    {
+                        tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue));
+                    }
+                }
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, piPoint.Location));
+                if (taosxClient.useAFDatabase) {
+                    tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementsPathForPoint, piPoint.ElementPath));
+                }
 
-                var taosxClient = getTaosxClient(stableName);
                 if (taosxClient != null)
                 {
-                    taosxClient.AddPointTableTag(tdEngineTableName, piPoint.PointId);
+                    taosxClient.AddPointTableTag(tdEngineTableUniKey, tags);
                 }
                 else {
-                    log.Error($"Create stable for Point failed, not found {stableName}");
+                    log.Error($"Create stable for Point failed, not found {piPoint.STableName}");
                 }
             }
             initPointModeTables();
             return Task.CompletedTask;
         }
 
-        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string elementName, string startTime, string endTime)
+        public virtual Task<TDEngineResponse> DeleteByTimeRange(string database, string tbName, string startTime, string endTime)
         {
-            return taosxCommonClient.DeleteByTimeRange(database, elementName, startTime, endTime);
+            return taosxCommonClient.DeleteByTimeRange(database, tbName, startTime, endTime);
         }
 
         private void initPointModeTables()
@@ -292,21 +311,35 @@ namespace TDPIConnector.TDEngine
             return Task.FromResult<TDEngineResponse>(null);
         }
 
-        public virtual void InsertBackfillValuesForPI(string database, string superTable, string table, List<TDValue> values)
+        public virtual void InsertBackfillValuesForPI(string database, string superTable, string tableUniKey, List<TDValue> values)
         {
             if (values.Count == 0) return;
-            var taosxClient = getTaosxClient(superTable.ToTDEngineNamingPattern());
+            var taosxClient = GetTaosxClient(superTable);
             if (taosxClient != null)
             {
                 foreach (var record in values)
                 {
-                    taosxClient.AddPointValue(table, record);
+                    taosxClient.AddPointValue(tableUniKey, record);
                 }
             }
             else {
                 log.Error($"Insert PIPoint data failed! not found client, stable:{superTable}.");
             }
         }
+        public virtual Task<TDEngineResponse> InsertValueForPIPoints(string superTable, TDValue value)
+        {
+            var taosxClient = GetTaosxClient(superTable);
+            if (taosxClient != null)
+            {
+                taosxClient.AddPointValue(value.Name, value);
+            }
+            else
+            {
+                log.Error($"{superTable} TaosxClient not found!");
+            }
+            return Task.FromResult<TDEngineResponse>(null);
+        }
+
         public virtual Task<TDEngineResponse> InsertValuesForPIPoints(string database, Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
             foreach (var table in tables)
@@ -315,8 +348,8 @@ namespace TDPIConnector.TDEngine
                 {
                     foreach (var value in row.Value)
                     {
-                        var stableName = GetPIPointSTableNameByTDVType(value.ValueType).ToTDEngineNamingPattern();
-                        var taosxClient = getTaosxClient(stableName);
+                        var stableName = GetPIPointSTableNameByTDVType(value.ValueType);
+                        var taosxClient = GetTaosxClient(stableName);
                         if (taosxClient != null)
                         {
                             taosxClient.AddPointValue(value.Name, value);
@@ -329,11 +362,11 @@ namespace TDPIConnector.TDEngine
             }
             return Task.FromResult<TDEngineResponse>(null);
         }
-        public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, List<string> columnNames)
+        public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, in Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, in List<string> columnNames)
         {
             foreach (var tables in stables)
             {
-                var taosxClient = getTaosxClient(tables.Key.ToTDEngineNamingPattern());
+                var taosxClient = GetTaosxClient(tables.Key);
                 if (null != taosxClient) {
                     taosxClient.AddTablesValue(tables.Value);
                 } else {
@@ -343,11 +376,13 @@ namespace TDPIConnector.TDEngine
             }
             return Task.FromResult<TDEngineResponse>(null);
         }
-        private TDEngineTaosxClient getTaosxClient(string superTableName) {
+
+        public TDEngineTaosxClient GetTaosxClient(string superTableName) {
             lock (taosxClientsLock) {
-                if (taosxClients.ContainsKey(superTableName))
+                var stbName = superTableName.ToTDEngineNamingPattern();
+                if (taosxClients.ContainsKey(stbName))
                 {
-                    return taosxClients[superTableName];
+                    return taosxClients[stbName];
                 }
                 else
                 {

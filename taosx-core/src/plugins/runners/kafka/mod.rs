@@ -94,6 +94,7 @@ pub async fn kafka_to_taos(
         &to,
         Some(KAFKA_ID),
         None,
+        None,
         &cancel,
         with_agent,
         transferred,

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context;
 use futures::TryStreamExt;
@@ -23,7 +24,6 @@ use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
-use runners::pi::pi_datasets;
 pub use runners::pi::pi_to_taos;
 pub use runners::{
     get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
@@ -75,10 +75,11 @@ impl std::ops::Deref for Parser {
     }
 }
 
+use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
 
 mod config;
-mod expr;
+pub(crate) mod expr;
 mod raw_data;
 pub mod runners;
 mod service;
@@ -108,7 +109,8 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
@@ -126,7 +128,8 @@ pub async fn build_ipc(
             pool,
             socket,
             // sender,
-            config,
+            opc_model_config,
+            lush_model_config,
             cancel.clone(),
             with_agent,
             parser,
@@ -139,9 +142,14 @@ pub async fn build_ipc(
         .in_current_span()
         .await?
     } else {
-        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap(), config)
-            .in_current_span()
-            .await?
+        sink::listen_tcp_socket_with_agent(
+            socket,
+            cancel.clone(),
+            with_agent.unwrap(),
+            opc_model_config,
+        )
+        .in_current_span()
+        .await?
     };
     Ok(ipc)
 }
@@ -184,10 +192,6 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             topics.extend(databases);
             return Ok(topics);
         }
-        "pi" | "pibackfill" => {
-            // pi
-            return pi_datasets(data).await;
-        }
         "opc" | "opcua" | "opcda" => {
             // opc
             return opc_datasets(data).await;
@@ -219,8 +223,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "mqtt" => runners::mqtt::is_valid(&dsn).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
                 "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
-                "pi" => runners::pi::is_pi_valid(&dsn).await,
-                "pibackfill" => runners::pi::is_pi_backfill_valid(&dsn).await,
+                "pi" | "pibackfill" => runners::pi::is_pi_valid(&dsn).await,
                 "taos" => crate::taoz::is_taos_valid(&dsn).await,
                 "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
                 "csv" => crate::csv::is_csv_valid(&dsn).await,
@@ -248,4 +251,19 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
             "get sample from data source is unsupported"
         )),
     }
+}
+
+pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
+    async fn query_data_source_inner(request: QueryDataSourceReq) -> anyhow::Result<String> {
+        let dsn = request.from.clone().into_dsn()?;
+        match dsn.driver.as_str() {
+            "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
+            _ => unimplemented!(),
+        }
+    }
+
+    let timeout = Duration::from_secs(5 * 59);
+    tokio::time::timeout(timeout, query_data_source_inner(request))
+        .await
+        .map_err(|err| anyhow::anyhow!("query data source timeout, cause: {:?}", err))?
 }

@@ -52,7 +52,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
             
                 Dictionary<string, IArrowArray> fieldArrays = new Dictionary<string, IArrowArray>();
                 fieldArrays.Add("ts", messageBuilder.tsArrowArray.Build());
-                fieldArrays.Add(TaosxConstants.TABLENAME, messageBuilder.tableNameArrowArray.Build());
+                if (messageBuilder.mode == PIDataMode.PointMode)
+                {
+                    fieldArrays.Add(TaosxConstants.POINTNAME, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+                else {
+                    fieldArrays.Add(TaosxConstants.ELEMENTID, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+
                 foreach (var valarray in messageBuilder.valArrowArrayList)
                 {
                     fieldArrays.Add(valarray.Key, valarray.Value.Build());
@@ -171,31 +178,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             ArrowBuffer.BitmapBuilder nullBitmap = new ArrowBuffer.BitmapBuilder();
             if (msgType == MessageType.Children)
             {
-                if (messageBuilder.mode == PIDataMode.PointMode)
-                {
-                    int length = messageBuilder.pointIds.Count;
-
-                    var arrays = new StringArray.Builder[2];
-                    arrays[0] = new StringArray.Builder();
-                    arrays[1] = new StringArray.Builder();
-                    if (length > 0)
-                    {
-                        foreach (var tb in messageBuilder.pointIds)
-                        {
-                            arrays[0].Append(tb.Key);
-                            arrays[1].Append(tb.Value.ToString());
-                        }
-
-                        for (int i = 0; i < length; i++)
-                        {
-                            nullBitmap.Append(true);
-                        }
-                        Array = new StructArray(type, length, arrays.Select(array => array.Build()), nullBitmap.Build());
-                        return;
-                    }
-                    return;
-                }
-                else if (messageBuilder.mode == PIDataMode.AFElementMode && messageBuilder.tagVals.Count > 0)
+                if (messageBuilder.tagVals.Count > 0) // messageBuilder.mode == PIDataMode.AFElementMode && 
                 {
                     int length = messageBuilder.tagVals.Count;
                     int tagNum = messageBuilder.tagStruct.Fields.Count;
@@ -208,7 +191,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         foreach (var tb in messageBuilder.tagVals)
                         {
                             Dictionary<string, string> unsortTag = new Dictionary<string, string>();
-                            unsortTag.Add(TaosxConstants.TABLENAME, tb.Key);
                             foreach (var tag in tb.Value)
                             {
                                 unsortTag.Add(tag.Key, tag.Value);

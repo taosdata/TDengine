@@ -9,7 +9,7 @@ use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
+use tracing::{instrument, Span};
 
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
@@ -59,6 +59,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
+#[instrument(skip_all)]
 pub async fn mqtt_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -110,6 +111,7 @@ pub async fn mqtt_to_taos(
         parser,
         &to,
         Some("mqtt"),
+        None,
         None,
         &cancel,
         with_agent,

@@ -118,6 +118,7 @@ pub async fn opc_to_taos(
         &to,
         connector,
         config.get_model_config().cloned(),
+        None,
         &cancel,
         with_agent,
         transferred,

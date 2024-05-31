@@ -8,7 +8,12 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{borrow::Cow, ops::Range, str::FromStr, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    ops::Range,
+    str::FromStr,
+    sync::Arc,
+};
 
 use arrow::{
     array::{Array, BinaryArray, StringArray},
@@ -43,19 +48,18 @@ use self::{
     parse::{FieldParser, ParserImpl},
 };
 
-mod select;
+pub(crate) mod select;
 
 // mod json;
 pub mod constants;
 
-mod parse;
+pub mod parse;
 
-mod filter;
+pub(crate) mod filter;
 
-mod map;
-
-mod modeler;
-mod mutate;
+pub(crate) mod map;
+pub(crate) mod modeler;
+pub(crate) mod mutate;
 pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -996,6 +1000,15 @@ impl FromStr for Parser {
 }
 
 impl Parser {
+    pub fn new(parse: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+        Self {
+            global: Arc::new(TableOptions::default()),
+            parse,
+            mutate: mutate,
+            model: model,
+        }
+    }
+
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
         let payload = self.parse.as_ref()?.get("payload");
         if payload.is_none() {
@@ -1061,7 +1074,6 @@ impl Parser {
         let batches = vec![batch];
         let batch = &batches[0];
         // tracing::info!("Parse message {:?}", batch);
-
         fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
             batches
                 .iter()
@@ -1345,6 +1357,20 @@ pub enum WrittenMethod {
     Sequential,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum NullValues {
+    #[default]
+    Null,
+    Skip,
+}
+
+impl NullValues {
+    pub fn skip(&self) -> bool {
+        matches!(self, Self::Skip)
+    }
+}
+
 impl FromStr for WrittenMethod {
     type Err = Error;
 
@@ -1356,6 +1382,18 @@ impl FromStr for WrittenMethod {
             "vgroup_sequential" => Ok(Self::VgroupSequential),
             "sequential" => Ok(Self::Sequential),
             _ => Err(Error::InvalidWrittenMethod(s.to_string())),
+        }
+    }
+}
+
+impl FromStr for NullValues {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "null" => Ok(Self::Null),
+            "skip" => Ok(Self::Skip),
+            _ => Err(Error::InvalidNullValues(s.to_string())),
         }
     }
 }
@@ -1395,6 +1433,9 @@ pub struct TableOptions {
     written_concurrent: Option<usize>,
 
     workers_per_vgroup: Option<usize>,
+
+    /// How to deal with null values.
+    null_values: Option<NullValues>,
 }
 
 impl Default for TableOptions {
@@ -1406,6 +1447,7 @@ impl Default for TableOptions {
             written_method: None,
             written_concurrent: None,
             workers_per_vgroup: None,
+            null_values: None,
         }
     }
 }
@@ -1442,6 +1484,15 @@ impl TableOptions {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(4)
+        })
+    }
+
+    pub fn null_values(&self) -> NullValues {
+        self.null_values.unwrap_or_else(|| {
+            std::env::var("TAOSX_NULL_VALUES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_default()
         })
     }
 
@@ -1494,6 +1545,7 @@ impl ArrowFieldExt for Field {
         }
     }
 }
+
 impl MessageArrowRecords {
     pub fn schema(&self) -> Describe {
         let schema = self.records.schema();
@@ -1710,6 +1762,7 @@ impl MessageArrowRecords {
         let col_values = crate::utils::sql::sql_values_from_record_batch(
             &self.records,
             precision,
+            // TODO: with field names in values.
             with_field_names,
         )
         .expect("Sql values should be recognizable");
@@ -1723,7 +1776,9 @@ impl MessageArrowRecords {
                 }
                 let using = self.table.using.as_ref().unwrap();
 
-                if with_field_names {
+                // TODO: with field name in tags.
+                if true {
+                    // with_field_names
                     let names = self
                         .table
                         .tags
@@ -1774,8 +1829,31 @@ impl MessageArrowRecords {
             .collect()
     }
 
+    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
+        if self.records.num_rows() == 0 {
+            return vec![];
+        }
+
+        let primary_key_null_count = self.records.column(0).null_count();
+        if primary_key_null_count == self.records.num_rows() {
+            return vec![];
+        }
+        let tbname = self.opts.canonical_table_name(self.table.name.as_str());
+        // panic on ArrowError
+        crate::utils::sql::sql_values_from_record_batch_skip_null(
+            tbname.borrow(),
+            &self.records,
+            target_precision,
+        )
+        .expect("Sql values should be recognizable")
+    }
+
     pub fn stable_name(&self) -> Option<&str> {
         self.table.using.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn table_name(&self) -> &str {
+        self.table.name.as_str()
     }
 
     pub fn max_var_length(&self, field: &str) -> Option<usize> {
@@ -1896,6 +1974,8 @@ pub trait TransformExt {
 pub enum Error {
     #[error("Invalid written method: {0}")]
     InvalidWrittenMethod(String),
+    #[error("Invalid null values strategy: {0}")]
+    InvalidNullValues(String),
     #[error(transparent)]
     EvalError(#[from] expr::EvalError),
     #[error("Template {0:?} error: {1:#}")]

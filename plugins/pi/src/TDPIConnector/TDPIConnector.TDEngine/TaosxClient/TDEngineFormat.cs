@@ -6,18 +6,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
     {
         public static string PointValColomn()
         {
-            return $"val";
+            return $"value";
         }
         public static string PointStatusColomn()
         {
             return $"status";
         }
 
-        public static string AFValColomn(string name)
+        public static string AFValColomn(in string name)
         {
-            return $"{name}_val";
+            return name;
         }
-        public static string AFStatusColomn(string name)
+        public static string AFStatusColomn(in string name)
         {
             return $"{name}_status";
         }
@@ -31,5 +31,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public const string RECORDS = "__records__";
         public const string TABLENAME = "__table_name__";
         public const string LOCATIONTAG = "location";
+        public const string POINTID = "point_id";
+        public const string ELEMENTID = "element_id";
+        public const string POINTNAME = "point_name";
+        public const string ELEMENTNAME = "element_name";
     }
 }

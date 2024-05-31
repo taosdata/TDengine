@@ -1,5 +1,5 @@
 [workspace]
-members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics"]
+members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics", "crates/arrow-compute-ext"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
@@ -9,19 +9,23 @@ shadow-rs = { version = "0.26.0" }
 clap = { version = "4.4.7", features = ["default", "derive"] }
 
 regex = { version = "1.9" }
-arrow = { version = "50.0.0", features = ["chrono-tz"] }
+arrow = { version = "50.0.0", features = ["chrono-tz", "ipc_compression"] }
 arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
+arrow-compute-ext = { path = "crates/arrow-compute-ext" }
+faststr = { version = "0.2.19", features = ["serde"] }
+rayon = { version = "1" }
 parquet = "50.0.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
 metrics-tracing-context = "0.15.0"
 tonic = "0.10"
+zerocopy = { version = "0.7.34", features = ["derive"] }
 
-taos = { version = "0.11.19", default-features = false, features = [
+taos = { version = "0.11.23", default-features = false, features = [
     "ws",
     "deadpool",
 ] }
-taos-query = { version = "0.11.19", default-features = false, features = [
+taos-query = { version = "0.11.23", default-features = false, features = [
     "deadpool",
 ] }
 
@@ -49,6 +53,8 @@ rust-version = { workspace = true }
 anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
+faststr = { workspace = true }
+zerocopy = { workspace = true }
 
 shadow-rs = { workspace = true }
 strum = { version = "0.25", features = ["derive"] }
@@ -130,7 +136,7 @@ const_format = "0.2.30"
 metrics = { workspace = true }
 metrics-util = { workspace = true }
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
-  "push-gateway",
+    "push-gateway",
 ] }
 metrics-tracing-context = { workspace = true }
 sysinfo = { workspace = true }
@@ -174,7 +180,7 @@ md5 = "0.7.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
-taosx-metrics = { path = "./taosx-metrics"}
+taosx-metrics = { path = "./taosx-metrics" }
 gethostname = "0.4.3"
 prettytable = "0.10.0"
 

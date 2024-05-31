@@ -4,7 +4,7 @@ using TDPIConnector.PI;
 
 namespace TDPIConnector.Core
 {
-    internal class ElementModeObserver : IObserver<AFDataPipeEventWrapper>
+    public class ElementModeObserver : IObserver<AFDataPipeEventWrapper>
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);  
         public event EventHandler<Exception> OnAFEventReceivedFailure = delegate { };

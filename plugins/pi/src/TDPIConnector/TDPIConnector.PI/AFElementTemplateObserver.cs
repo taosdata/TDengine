@@ -1,7 +1,7 @@
-﻿using System;
+﻿using log4net;
+using System;
 using System.Collections.Generic;
 using OSIsoft.AF;
-using log4net;
 
 namespace TDPIConnector.PI
 {
@@ -48,13 +48,17 @@ namespace TDPIConnector.PI
                 if (observeSet.Contains(template.Name))
                 {
                     log.Info($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
-                    elementTemplateEventHandle(template);
+                    // elementTemplateEventHandle(template);
                 }
             }
             else if (e.Identity == AFIdentity.Element)
             {
                 // var element = AFElement.FindElement(piSystem, e.ID);
                 log.Debug($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
+                if (e.Action == AFChangeAction.SubObjectAdd) {
+                    var element = piSystemManager.GetElementsById(e.ID);
+                    log.Debug($"Object Changed: add a new element. {e.ParentID} {element.Name} {element.ID}");
+                }
             }
             else
             {

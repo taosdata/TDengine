@@ -12,16 +12,24 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
+use tracing::{instrument, Instrument, Span};
 use utoipa::*;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::dsv::DataSourceValidation;
-use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::{dsv::DataSourceValidation, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{
+    plugins::transform::sample::DsSampleIn,
+    runners::pi::{
+        parse_query_datasource_params,
+        transform::{PIElementModelConfig, PIPointModelConfig},
+    },
+};
 
 mod definition;
+mod query;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -336,10 +344,10 @@ pub(super) async fn data_source_is_valid(
 
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
-
+    let span = Span::current();
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_datasource_valid_impl(controller, query),
+        is_datasource_valid_impl(controller, query).instrument(span),
     )
     .await;
     match result {
@@ -615,4 +623,85 @@ pub(super) async fn check_point_file_valid(query: Query<DsnAgentQuery>) -> impl 
 async fn is_opc_csv_valid_impl(dsn: String) -> anyhow::Result<()> {
     let dsn = dsn.into_dsn()?;
     plugins::runners::opc::config::csv::CsvParser::is_valid(&dsn).await
+}
+
+#[get("/ds/in/download/pi_default_config")]
+pub(super) async fn download_pi_default_config(
+    controller: Data<TaskControllerRef>,
+    params: Query<GetPIDefaultConfigParams>,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    match get_pi_default_config(controller, params).await {
+        Ok(file_name) => Ok(file_name),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetPIDefaultConfigParams {
+    from: String,
+    via: Option<i64>,
+    task_id: Option<i64>,
+    update: Option<bool>,
+}
+
+#[instrument(skip_all)]
+pub async fn get_pi_default_config(
+    controller: Data<TaskControllerRef>,
+    params: Query<GetPIDefaultConfigParams>,
+) -> anyhow::Result<String> {
+    let params = params.into_inner();
+    tracing::debug!("params: {:?}", params);
+    let update = params.update.unwrap_or(false);
+    let file_name = match params.task_id {
+        Some(task_id) => format!("./files/pi2td_task_{}.csv", task_id),
+        None => format!(
+            "./files/pi2td_{}.csv",
+            chrono::Local::now().format("%y%m%d%H%M")
+        ),
+    };
+    let exists = std::path::Path::new(file_name.as_str()).exists();
+    if params.task_id.is_none() || !exists || update {
+        let dsn = params.from.clone().into_dsn()?;
+        let (mode, pattern, pattern_type) = parse_query_datasource_params(&dsn);
+        tracing::debug!(?mode, ?pattern, ?pattern_type);
+        let mut args = vec![mode.to_string(), pattern.to_string()];
+        if !pattern_type.is_empty() {
+            args.push(pattern_type.to_string());
+        }
+
+        let req = QueryDataSourceReq {
+            from: params.from.clone(),
+            args,
+        };
+        let pi_data =
+            query::query_data_source(req, params.via, Some(controller.into_inner().as_ref()))
+                .await?;
+        let config_data: String = match mode {
+            "-pp" => {
+                let config = PIPointModelConfig::from_json(pi_data.as_str(), false).unwrap();
+                config.to_string()
+            }
+            "-px" => {
+                let config = PIPointModelConfig::from_json(pi_data.as_str(), true).unwrap();
+                config.to_string()
+            }
+            "-pt" => {
+                let config = PIElementModelConfig::from_json(pi_data.as_str()).unwrap();
+                config.to_string()
+            }
+            _ => unimplemented!(),
+        };
+        // 保存原始 json 数据
+        std::fs::write(file_name.as_str().replace(".csv", ".json"), pi_data).unwrap();
+        // 保存配置文件
+        std::fs::write(file_name.as_str(), config_data).unwrap();
+    }
+
+    return Ok(file_name);
 }

@@ -325,18 +325,12 @@ async fn get_all_points(
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
-    tracing::debug!(
-        "get_all_points: from: {}, via: {:?}, categories: {}",
-        from,
-        via,
-        categories
-    );
     let mut from = from.into_dsn()?;
 
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {
-            pattern = Some(String::from("*"));
+            pattern = None;
         }
         _ => {
             pattern = Some(String::from(".*"));
@@ -364,7 +358,7 @@ async fn get_all_points(
         Ok(data) => {
             let point_count = data.len();
             let data = match from.driver.as_str() {
-                "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
+                "pi" | "pibackfill" => data[0].id.clone(), // 临时使用 data.id 存放连接器所有返回数据
                 "opcda" => {
                     let mut result = get_opcda_csv_header(&lang, false);
 
@@ -408,10 +402,7 @@ async fn get_all_points(
             };
             Ok((data, point_count))
         }
-        Err(err) => {
-            tracing::error!("get_all_points error: {:?}", err);
-            Err(err)
-        }
+        Err(err) => Err(err),
     }
 }
 

@@ -1,14 +1,15 @@
 ﻿using log4net;
-using Microsoft.Owin.Hosting;
 using System;
 using System.Text;
 using System.Collections.Generic;
 using TDPIConnector.Core.Monitoring;
+using TDPIConnector.Core.ScanPiInfo;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
-using System.Threading.Tasks;
+using System.Threading;
 using TDPIConnector.TDEngine.Models;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core
 {
@@ -20,18 +21,18 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PointModeObserver pointModeObserver;
         private ElementModeObserver elementModeObserver;
-        private IDisposable webApp;
         private IMonitoringService monitoringService;
         private PointModeTask pointModeTask;
         private ElementModeTask elementModeTask;
         private StandByModeTask standByModeTask;
         private TablesCreator tablesCreator;
+
+        public Initializer initializer { get; private set; }
+
         private List<TDTable> piPoints;
-        private Dictionary<string, AFElementWrapper> elements;
+        private ConcurrentDictionary<string, AFElementWrapper> elements;
         private EventsSender eventsSender;
         private EventsSenderTask eventsSenderTask;
-        private Task backfillPIPointsTask;
-        private Task backfillAFElementsTask;
         BackfillManager backfillManager;
 
         public AppService()
@@ -49,8 +50,6 @@ namespace TDPIConnector.Core
             }
             try
             {
-                //ConfigureMonitoring();
-
                 if (piServerManager != null)
                 {
                     piServerManager.Connect();
@@ -69,106 +68,59 @@ namespace TDPIConnector.Core
 
         public void InitializeTaosConnections()
         {
-            if (!AppSettings.TaosXEnabled)
-            {
-                tdEngineProxy = TDEngineProxyBuild.NewTDEngineClient(AppSettings.TDEngineHost,
-                    AppSettings.TDEnginePort,
-                    AppSettings.TDEngineUsername,
-                    AppSettings.TDEnginePassword,
-                    AppSettings.TDEngineToken,
-                    AppSettings.TDEnginePITablesPrefix
-                    );
-            }
-            else {
-                tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
-                    AppSettings.tomlConfig.SQLAPI,
-                    AppSettings.TDEnginePITablesPrefix,
-                    AppSettings.tomlConfig.MaxWaitLen
-                    );
-            }
+            tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
+                AppSettings.tomlConfig.SQLAPI,
+                AppSettings.TDEnginePITablesPrefix,
+                AppSettings.tomlConfig.MaxWaitLen
+                );
+
             StaticConfig.Default
                 .SetAFTreeTagName(AppSettings.tomlConfig.AFTreeTagName)
                 .SetPITablesPrefix(AppSettings.TDEnginePITablesPrefix)
                 .SetMaxWaitLen(AppSettings.tomlConfig.MaxWaitLen)
                 .SetTDDatabase(AppSettings.tomlConfig.TDDataBase)
-                .SetHttpMaxTryTimes(AppSettings.tomlConfig.HttpMaxRetryTimes);
+                .SetHttpMaxTryTimes(AppSettings.tomlConfig.HttpMaxRetryTimes)
+                .SetBackfill(AppSettings.tomlConfig.ForBackfill);
 
-            try
-            {
-                tdEngineProxy.VerifyLicenseCompability();
-            }
-            catch (Exception e)
-            {
-                log.Fatal("panic: error starting the application.", e);
-                throw e;
-            }
-            ConfigureMonitoringTDEngine();
             try
             {
                 tdEngineProxy.Connect();
             }
             catch (Exception e)
             {
-                log.Fatal("panic: error starting the application. Connect TDEngine failed!", e);
+                log.Fatal("panic: error starting the application. Connect Agent failed!", e);
                 throw e;
             }
         }
         public void InitializeConnections() {
-            //InitMonitoring();
             InitializePIConnections();
             InitializeTaosConnections();
             InitObserver();
         }
-        private void InitMonitoring() {
-            monitoringService = Container.Resolve<IMonitoringService>();
-            monitoringService.Enabled = AppSettings.WebMonitoringEventsEnabled;
-        }
+
         private void InitObserver()
         {
             this.eventsSender = new EventsSender(this.tdEngineProxy);
             this.pointModeObserver = new PointModeObserver(eventsSender);
             this.elementModeObserver = new ElementModeObserver(eventsSender);
-
-            // eventsSender.OnPIEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastPIEvent(dpEventList);
-            // eventsSender.OnAFEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastAFEvent(dpEventList);
-            // eventsSender.OnPIEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishPIEvent(dpEvent);
-            // eventsSender.OnAFEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishAFEvent(dpEvent);
-            // pointModeObserver.OnPIEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-            // elementModeObserver.OnAFEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-        }
-        private void ConfigureMonitoring()
-        {
-            piServerManager.OnConnectSuccess += (sender, piConnectionInfo) => monitoringService.PublishPIConnectionStatus(piConnectionInfo);
-            piServerManager.OnConnectFailure += (sender, ex) => monitoringService.PublishPIException(ex);
-        }
-        private void ConfigureMonitoringTDEngine()
-        {
-            tdEngineProxy.OnHttpResponseReceived += (sender, httpResponse) => monitoringService.PublishTDEngineHttpResponse(httpResponse);
-            tdEngineProxy.OnServerVersionReceived += (sender, version) => monitoringService.PublishTDEngineServerVersion(version);
-            tdEngineProxy.OnExceptionThrown += (sender, ex) => monitoringService.PublishTDException(ex);
         }
         public async void Start()
         {
-            //startWebService();
+            TDEngineClient.OnlyTestConnector = AppSettings.tomlConfig.OnlyTestConnector;
+
             InitializeConnections();
+            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
+            eventsSender.SetBackfill(backfillManager);
 
             this.tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
-            try
-            {
-                await tablesCreator.CreateDatabase(AppSettings.tomlConfig.TDDataBase);
-                log.Info("TDengine database has been created,taosx will skip.");
-            }
-            catch (Exception e)
-            {
-                log.Fatal("Error creating TDengine database.", e);
-                throw e;
-            }
+            this.initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
 
             if (piServerManager != null)
             {
                 try
                 {
-                    piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
+                    piPoints = await tablesCreator.GetPIPointTables(AppSettings.tomlConfig.TDDataBase);
+                    // piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     log.Info($"TDengine PI Point tables ({this.piPoints.Count}) has been created.");
                 }
                 catch (Exception e)
@@ -178,40 +130,55 @@ namespace TDPIConnector.Core
                 }
             }
 
+            if (!AppSettings.tomlConfig.ForBackfill && AppSettings.tomlConfig.TemplateEventStart)
+            {
+                StartTemplateObserve();
+            }
+
             if (piSystemManager != null && !string.IsNullOrEmpty(AppSettings.tomlConfig.AFDatabaseName))
             {
                 try
                 {
-                    elements = await tablesCreator.CreateAFElementTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
-                    if (elements == null)
-                    {
-                        log.Info($"No any AF Elements template found.");
-                    }
-                    else {
-                        log.Info($"TDengine AF Elements tables ({this.elements.Count}) has been created.");
-                    }
+                    await initializer.InitAFModeTask(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                 }
                 catch (Exception e)
                 {
                     log.Fatal($"Error creating AF Element tables on TDengine.", e);
                     throw e;
                 }
+                log.Info("InitAFModeTask finished.");
             }
 
-            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
-            eventsSender.SetBackfill(backfillManager);
-            if ((this.piPoints != null && this.piPoints.Count > 0) || (this.elements != null && this.elements.Count > 0))
+            if ((this.piPoints != null && this.piPoints.Count > 0))
             {
                 StartDataPipe();
                 StartBackfill();
-                StartTemplateObserve();
                 this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 this.standByModeTask.Start();
                 log.Info("Started");
             }
-            else
+        }
+        public void Wait() {
+            if (AppSettings.tomlConfig.ForBackfill)
             {
-                log.Info("No PI Points or AF Elements found.");
+                backfillManager.GetBackfill().WaitTask();
+                log.Info("PI Connector finished backfill task and will quit.");
+            }
+            else {
+                backfillManager.GetBackfill().StopAddTask();
+                while (true)
+                {
+                    var str = Console.ReadLine();
+                    if (str == "quit")
+                    {
+                        log.Info("TD PI Connector quit.");
+                        break;
+                    }
+                    else
+                    {
+                        Thread.Sleep(5000);
+                    }
+                }
             }
         }
         private void StartTemplateObserve()
@@ -227,7 +194,7 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager,
+            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager, this.initializer,
                AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement);
             afElementTemplateObserver.Observe(elementTemplateEventHandle);
         }
@@ -239,19 +206,6 @@ namespace TDPIConnector.Core
                 ReStartDataPipe();
             }
         }
-        private void startWebService() {
-            try
-            {
-                webApp = WebApp.Start<WebStartup>(url: $"{AppSettings.WebBaseUrl}:{AppSettings.WebBasePort}");
-                log.Info("Web application has started.");
-            }
-            catch (Exception e)
-            {
-                log.Fatal("Error starting the web application.", e);
-                throw e;
-            }
-        }
-
         public void StartBackfill()
         {
             try
@@ -272,12 +226,10 @@ namespace TDPIConnector.Core
         private void BackfillData()
         {
             var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
-            this.backfillPIPointsTask = null;
-            this.backfillAFElementsTask = null;
             if (this.piPoints != null && this.piPoints.Count > 0)
-                this.backfillPIPointsTask = backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
+                backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
             if (this.elements != null && this.elements.Count > 0)
-                this.backfillAFElementsTask = backfillManager.BackfillAFElementsFromService(AppSettings.tomlConfig.TDDataBase, elements, backfillStartLimit);
+                backfillManager.BackfillAFElementsFromService(AppSettings.tomlConfig.TDDataBase, elements, backfillStartLimit);
         }
 
         public void StartDataPipe()
@@ -290,7 +242,7 @@ namespace TDPIConnector.Core
 
             if (this.elements != null && this.elements.Count > 0)
             {
-                this.elementModeTask = new ElementModeTask(piSystemManager, monitoringService, elementModeObserver, elements);
+                this.elementModeTask = new ElementModeTask(piSystemManager, elementModeObserver, elements);
                 this.elementModeTask.Start();
             }
 
@@ -335,7 +287,6 @@ namespace TDPIConnector.Core
                 piSystemManager.Dispose();
             }
             tdEngineProxy.Dispose();
-            webApp.Dispose();
         }
         public void ReStartDataPipe()
         {
@@ -350,16 +301,16 @@ namespace TDPIConnector.Core
             StartBackfill();
             log.Debug("Checking PI Data Archive connection: SUCCESS");
         }
-        public void PrintPIInfo(string pointFilter) {
+        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
             //startWebService();
             //InitMonitoring();
             try {
                 InitializePIConnections();
                 var scanner = new PIInfoScanner(piServerManager, piSystemManager);
-                string info = scanner.GetInfo(pointFilter);
+                string info = scanner.GetInfo(scanMode, filter, filterMode);
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
-                log.Info(info);
+                log.Debug(info);
             } catch (Exception e)
             {
                 Console.WriteLine(e.Message);

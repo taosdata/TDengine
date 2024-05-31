@@ -1,15 +1,18 @@
-use std::sync::Arc;
+use std::pin::Pin;
+use std::sync::{Arc, Weak};
+use std::time::Duration;
 use std::{collections::HashMap, fmt::Debug};
 
 use anyhow::bail;
 use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::DataSet;
+use taosx_core::{DataSet, PutFileReq};
 use tokio::{
     runtime::Handle,
     sync::{broadcast::error::RecvError, RwLock},
 };
+use utoipa::openapi::path;
 use uuid::Uuid;
 
 use crate::serve::controller::agent::Activity;
@@ -24,6 +27,16 @@ pub type AgentActionsSender = tokio::sync::broadcast::Sender<(AgentId, AgentActi
 pub type AgentActionsReceiver = tokio::sync::broadcast::Receiver<(AgentId, AgentAction)>;
 pub type AgentNotifySender = tokio::sync::broadcast::Sender<AgentNotify>;
 pub type AgentNotifyReceiver = tokio::sync::broadcast::Receiver<AgentNotify>;
+type SpawnedFuture =
+    Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + 'static>>;
+pub type AgentSpawnSender = flume::Sender<(
+    SpawnedFuture,
+    tokio::sync::oneshot::Sender<anyhow::Result<()>>,
+)>;
+pub type AgentSpawnReceiver = flume::Receiver<(
+    SpawnedFuture,
+    tokio::sync::oneshot::Sender<anyhow::Result<()>>,
+)>;
 
 #[derive(Debug, Clone, Default)]
 pub enum AgentState {
@@ -87,7 +100,18 @@ pub struct AgentWorker {
     agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>>,
     agent_tasks_sender: Arc<RwLock<MultiIndexAgentTaskMap>>,
     agent_activity_sender: AgentActionsSender,
+    weak_spawn_receiver: Weak<AgentSpawnReceiver>,
+    task_set: Arc<tokio::task::JoinSet<()>>,
     // agent_notify_receiver: tokio::sync::mpsc::Receiver<(AgentId, AgentAction)>,
+}
+
+macro_rules! check_agent_exists {
+    ($self:expr, $agent_id:expr) => {{
+        let agent_states = $self.agent_states.read().await;
+        if !agent_states.contains_key(&$agent_id) {
+            return Err(anyhow::anyhow!("Agent not found: {}", $agent_id));
+        }
+    }};
 }
 
 impl AgentWorker {
@@ -95,16 +119,41 @@ impl AgentWorker {
         agent_activity_sender: AgentActionsSender,
         agent_notify_receiver: AgentNotifyReceiver,
         scheduler_notify_sender: NotifySender,
+        agent_spawn_receiver: AgentSpawnReceiver,
     ) -> Self {
         let agent_tasks_sender = Arc::new(RwLock::new(MultiIndexAgentTaskMap::default()));
         let agent_tasks_sender_clone = agent_tasks_sender.clone();
+
+        let agent_spawn_receiver = Arc::new(agent_spawn_receiver);
+        let weak_spawn_receiver = Arc::downgrade(&agent_spawn_receiver);
+
+        let mut task_set = tokio::task::JoinSet::new();
+        task_set.spawn(async move {
+            tokio::pin!(agent_spawn_receiver);
+            loop {
+                match agent_spawn_receiver.recv_async().await {
+                    Ok((future, notifier)) => {
+                        tokio::spawn(async move {
+                            let res = future.await;
+                            if let Err(err) = notifier.send(res) {
+                                tracing::warn!("Error sending spawn result: {:?}", err);
+                            }
+                        });
+                    }
+                    Err(_) => {
+                        tracing::info!("Agent spawned task receiver closed");
+                        break;
+                    }
+                }
+            }
+        });
 
         let agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>> = Default::default();
         let agent_states_cloned = agent_states.clone();
 
         let agent_activity_sender_clone = agent_activity_sender.clone();
 
-        tokio::spawn(async move {
+        task_set.spawn(async move {
             tokio::pin!(agent_notify_receiver);
             loop {
                 match agent_notify_receiver.recv().await {
@@ -271,6 +320,8 @@ impl AgentWorker {
             agent_states,
             agent_tasks_sender,
             agent_activity_sender,
+            weak_spawn_receiver,
+            task_set: Arc::new(task_set),
             // agent_notify_receiver,
         }
     }
@@ -344,12 +395,7 @@ impl AgentWorker {
         agent_id: i64,
         req: taosx_core::DataSetsReq,
     ) -> anyhow::Result<Vec<DataSet>> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
@@ -373,12 +419,7 @@ impl AgentWorker {
         agent_id: i64,
         dsn: String,
     ) -> anyhow::Result<DataSourceValidation> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
@@ -399,13 +440,7 @@ impl AgentWorker {
         agent_id: i64,
         dsn: String,
     ) -> anyhow::Result<DsSampleIn> {
-        {
-            let states = self.agent_states.read().await;
-            if !states.contains_key(&agent_id) {
-                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
-            }
-        }
-
+        check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
             .agent_activity_sender
@@ -439,5 +474,94 @@ impl AgentWorker {
             .write()
             .await
             .remove_by_task_id(&task_id);
+    }
+
+    /// Put file to agent.
+    ///
+    /// Arguments:
+    /// - `agent_id`: Agent id.
+    /// - `path`: File path including file name relative to $DATA_HOME.
+    /// - `data`: File data.
+    pub(crate) async fn put_file_to_agent(
+        &self,
+        agent_id: i64,
+        path: &str,
+        data: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        check_agent_exists!(self, agent_id);
+        let (sender, receiver) = flume::bounded(1);
+        let req = PutFileReq {
+            path: path.to_string(),
+            data,
+        };
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::PutFile(req, sender)))
+        {
+            bail!("failed to send PutFile action, cause: {:?}", err);
+        }
+        let timeout = Duration::from_secs(20);
+        match tokio::time::timeout(timeout, receiver.recv_async()).await {
+            Ok(result) => match result {
+                Ok(res) => match res {
+                    Ok(path) => {
+                        tracing::info!("PutFile success: {}", path);
+                        Ok(())
+                    }
+                    Err(err) => Err(anyhow::anyhow!("failed to PutFile, cause: {:#}", err)),
+                },
+                Err(err) => Err(anyhow::anyhow!(
+                    "failed to get PutFile response, cause: {:#}",
+                    err
+                )),
+            },
+            Err(_) => Err(anyhow::anyhow!("PutFile timed out 20s")),
+        }
+    }
+
+    pub(crate) async fn query_data_source(
+        &self,
+        agent_id: i64,
+        req: taosx_core::QueryDataSourceReq,
+    ) -> anyhow::Result<String> {
+        check_agent_exists!(self, agent_id);
+        let (sender, receiver) = flume::bounded(1);
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::QueryDataSource(req, sender)))
+        {
+            bail!("failed to send PutFile action, cause: {:?}", err);
+        }
+        let timeout = Duration::from_secs(5 * 60);
+        match tokio::time::timeout(timeout, receiver.recv_async()).await {
+            Ok(result) => match result {
+                Ok(res) => match res {
+                    Ok(output) => Ok(output),
+                    Err(err) => Err(anyhow::anyhow!(
+                        "failed to QueryDataSource, cause: {:#}",
+                        err
+                    )),
+                },
+                Err(err) => Err(anyhow::anyhow!(
+                    "failed to get QueryDataSource response, cause: {:#}",
+                    err
+                )),
+            },
+            Err(_) => Err(anyhow::anyhow!("QueryDataSource timed out 3m")),
+        }
+    }
+}
+
+impl Drop for AgentWorker {
+    fn drop(&mut self) {
+        if let Some(receiver) = self.weak_spawn_receiver.upgrade() {
+            tracing::info!(
+                spawn.sender = receiver.sender_count(),
+                spawn.len = receiver.len(),
+                "Dropping agent worker"
+            );
+            let _ = receiver.drain();
+        }
+        // self.task_set.shutdown();
     }
 }

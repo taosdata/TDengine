@@ -8,6 +8,7 @@ pub mod constants;
 pub mod files;
 pub mod interval;
 pub mod license;
+pub mod log_cache;
 pub mod metrics_db;
 pub mod monitor;
 pub mod port_pool;

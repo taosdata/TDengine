@@ -200,9 +200,7 @@ fn handle_lush_message<R: Read, W: Write>(
                             if let Some(table_name) = table_name {
                                 if let Err(err) = stmt.set_tbname(table_name) {
                                     tracing::warn!("table name `{}` error {err}", table_name);
-                                    if let Some(tb) =
-                                        record.meta_sql(Some(String::from(table_name)))
-                                    {
+                                    if let Some(tb) = record.meta_sql(Some(table_name)) {
                                         info!("sql: {tb}");
                                         // taos.exec_sync(&tb).unwrap();
                                         taos.exec_sync(&tb)?;

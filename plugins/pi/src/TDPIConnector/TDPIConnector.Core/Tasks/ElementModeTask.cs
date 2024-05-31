@@ -1,20 +1,19 @@
 ﻿using log4net;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using TDPIConnector.Core.Monitoring;
+using OSIsoft.AF.Asset;
 using TDPIConnector.PI;
 using TDPIConnector.PI.Exceptions;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core.Tasks
 {
-    class ElementModeTask
+    public class ElementModeTask
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-        private readonly IMonitoringService monitoringService;
-        private readonly Dictionary<string, AFElementWrapper> elements;
+        private readonly ConcurrentDictionary<string, AFElementWrapper> elements;
         private readonly Task task;
         private readonly PISystemManager piSystemManager;
         private AFDataPipeManager afDataPipeWrapper;
@@ -22,13 +21,11 @@ namespace TDPIConnector.Core.Tasks
         private Semaphore semSignup = new Semaphore(0, 1);
 
         public ElementModeTask(PISystemManager piSystemManager,
-            IMonitoringService monitoringService,
             ElementModeObserver elementModeObserver,
-            Dictionary<string, AFElementWrapper> elements)
+            ConcurrentDictionary<string, AFElementWrapper> elements)
         {
             stopTaskRequested = false;
             this.piSystemManager = piSystemManager;
-            this.monitoringService = monitoringService;
             this.elements = elements;
 
             this.task = new Task(async () =>
@@ -42,33 +39,65 @@ namespace TDPIConnector.Core.Tasks
                     log.Error("Error Occured when AF Element AddSignups.", e);
                     stopTaskRequested = true;
                 }
+                log.Info($"Process datapipe, AF Element Mode observer end. element count:{this.elements.Count()}.");
                 semSignup.Release();
-                while (!stopTaskRequested)
+                StartEventsObserver();
+            });
+        }
+        public void SignUpBatchAttributes(string templateName, ref System.Collections.Generic.List<AFAttribute> attributes)
+        {
+            try
+            {
+                afDataPipeWrapper.AddSignupAttributes(ref templateName, ref attributes);
+            }
+            catch (Exception e) {
+                log.Error($"SignUp failed! Will retry one by one! {e.Message}");
+                afDataPipeWrapper.RetrySignUpBatchAttributes(ref templateName, ref attributes);
+            }
+        }
+        private void StartEventsObserver() {
+            while (!stopTaskRequested)
+            {
+                if (!StandbyManager.Instance.PIConnectionError)
                 {
-                    if (!StandbyManager.Instance.PIConnectionError)
+                    try
                     {
-                        try
+                        afDataPipeWrapper.GetObserverEvents();
+                        // Task.Delay(AppSettings.tomlConfig.UpdateInterval);
+                        Thread.Sleep(AppSettings.tomlConfig.UpdateInterval);
+                    }
+                    catch (Exception ex)
+                    {
+                        // this.monitoringService.PublishPIException(ex);
+                        if (ex is PIServerConnectionException)
                         {
-                            afDataPipeWrapper.GetObserverEvents();
-                            await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
-
+                            log.Warn("PI Data Archive not available.");
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            // this.monitoringService.PublishPIException(ex);
-                            if (ex is PIServerConnectionException)
-                            {
-                                log.Warn("PI Data Archive not available.");
-                            }
-                            else
-                            {
-                                log.Error("Error retrieving updates from element mode.", ex);
-                            }
+                            log.Error("Error retrieving updates from element mode.", ex);
                         }
                     }
                 }
-            });
+            }
         }
+
+        public ElementModeTask(PISystemManager piSystemManager,
+            ElementModeObserver elementModeObserver)
+        {
+            stopTaskRequested = false;
+            this.piSystemManager = piSystemManager;
+
+            log.Info("Process datapipe, AF Element Mode observer startting...");
+            this.task = new Task(async () =>
+            {
+                this.afDataPipeWrapper = this.piSystemManager.InitSignuper(elementModeObserver, AppSettings.tomlConfig.AFDataPipesInstances);
+
+                StartEventsObserver();
+            });
+            semSignup.Release();
+        }
+
 
         public void Start()
         {

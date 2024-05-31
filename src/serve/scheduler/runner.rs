@@ -218,6 +218,19 @@ impl AgentRuntimeRef {
         }
     }
 
+    pub(crate) async fn query_data_source(
+        &self,
+        agent_id: i64,
+        req: taosx_core::QueryDataSourceReq,
+    ) -> anyhow::Result<String> {
+        match self {
+            Self::Server(rt) => rt.query_data_source(agent_id, req).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
     pub async fn check(&self, agent_id: i64, req: String) -> anyhow::Result<DataSourceValidation> {
         match self {
             Self::Server(rt) => rt.check(agent_id, req).await,
@@ -230,6 +243,20 @@ impl AgentRuntimeRef {
     pub async fn get_sample(&self, agent_id: i64, dsn: String) -> anyhow::Result<DsSampleIn> {
         match self {
             Self::Server(rt) => rt.get_sample(agent_id, dsn).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
+    pub async fn put_file_to_agent(
+        &self,
+        agent_id: i64,
+        path: &str,
+        content: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        match self {
+            Self::Server(rt) => rt.put_file_to_agent(agent_id, path, content).await,
             Self::Client(_) => {
                 bail!("not implemented")
             }
@@ -604,7 +631,10 @@ impl TaskState {
         let strategy = if let Some(v) = task.trigger.as_ref() {
             v
         } else {
-            if task.from.starts_with("csv") {
+            if task.from.starts_with("csv")
+                || task.from.starts_with("pi://")
+                || task.from.starts_with("pibackfill://")
+            {
                 local_strategy = local_strategy.never_resume();
             }
             &local_strategy
@@ -1243,7 +1273,11 @@ impl TaskJob {
                                         }
                                     },
                                     "failed" => {
-                                        tracing::error!("task failed: {}", activity.activity);
+                                        tracing::error!(
+                                            is_cron_job,
+                                            "task failed: {}",
+                                            activity.activity
+                                        );
                                         if is_cron_job {
                                             activity.status = "interrupted".to_string();
                                             global.send_task_activity(activity);
@@ -1254,11 +1288,21 @@ impl TaskJob {
                                         let should_stop =
                                             state.stop_condition.should_stop_with(&result);
                                         if should_stop {
+                                            tracing::warn!(
+                                                should_stop,
+                                                "task failed: {}",
+                                                activity.activity
+                                            );
                                             global.send_task_activity(activity.clone());
                                             state.state.write().await.fail(activity.activity);
                                             break Ok(AgentTaskState::Failed);
                                         } else {
                                             activity.status = "interrupted".to_string();
+                                            tracing::warn!(
+                                                should_stop,
+                                                "task interrupted: {}",
+                                                activity.activity
+                                            );
                                             global.send_task_activity(activity);
                                             state.state.write().await.interrupted();
                                             break Ok(AgentTaskState::Interrupted);

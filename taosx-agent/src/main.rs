@@ -388,7 +388,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         ret = Err(err);
                         break;
                     } else {
-                        tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
+                        tracing::error!("Connection closed. Retry in 5 seconds");
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
                             ret = Err(err);
@@ -657,7 +657,8 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         cfg_if::cfg_if! {
             if #[cfg(windows)] {
-               let ansi = true;
+                // Windows powershell or cmd not support ansi color.
+               let ansi = false;
             } else {
                let ansi = true;
             }

@@ -11,7 +11,7 @@ namespace TDPIConnector.PI
     public class AFAttributeWrapper
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-        internal AFAttribute AFSDKObject { get; private set; }
+        public AFAttribute AFSDKObject { get; private set; }
         internal AFAttributeWrapper(AFAttribute attribute)
         {
             this.AFSDKObject = attribute;
@@ -49,7 +49,7 @@ namespace TDPIConnector.PI
                 }
                 catch (Exception e)
                 {
-                    log.Warn($"Not Found Point, {e.Message}");
+                    log.Debug($"Not Found Point, {e.Message}");
                     return null;
                 }
             }
@@ -138,6 +138,14 @@ namespace TDPIConnector.PI
                 return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Abbreviation : null;
             }
         }
+        public string UomName
+        {
+            get
+            {
+
+                return this.AFSDKObject.DefaultUOM != null ? this.AFSDKObject.DefaultUOM.Name : null;
+            }
+        }
         public Type Type
         {
             get
@@ -158,6 +166,14 @@ namespace TDPIConnector.PI
             {
                 if (this.AFSDKObject.DataReference == null) return "";
                 return this.AFSDKObject.DataReference.Name;
+            }
+        }
+        public AFAttributesWrapper childAttributes
+        {
+            get
+            {
+                if (this.AFSDKObject.Attributes == null) return null;
+                return new AFAttributesWrapper(this.AFSDKObject.Attributes);
             }
         }
         public virtual string GetPath()
@@ -199,6 +215,11 @@ namespace TDPIConnector.PI
                 return null;
             }
             return new AFValueWrapper(value);
+        }
+        public string GetValueString()
+        {
+            AFValue value = AFSDKObject.GetValue();
+            return Convert.ToString(value.Value);
         }
         public string ToStringWithUOM()
         {
@@ -246,6 +267,31 @@ namespace TDPIConnector.PI
             {
                 if (AFSDKObject.PIPoint == null)
                     ;// do noting, just for exception
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        public bool HasChild()
+        {
+            return AFSDKObject.HasChildren;
+        }
+        public AFAttributeWrapper Parent
+        {
+            get
+            {
+                return new AFAttributeWrapper(AFSDKObject.Parent);
+            }
+        }
+        public bool IsChild()
+        {
+            try
+            {
+                if (AFSDKObject.Parent == null)
+                    return false;// do noting, just for exception
             }
             catch (Exception e)
             {

@@ -86,6 +86,33 @@ pub struct SampleResponse {
     pub res: Response<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PutFileReq {
+    pub path: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PutFileResp {
+    pub req_id: u64,
+    pub path: String,
+    pub res: Response<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceReq {
+    /// from DSN
+    pub from: String,
+    /// 启动参数
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceResp {
+    pub req_id: u64,
+    pub output: Response<String>,
+}
+
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fail<T> {
@@ -186,7 +213,9 @@ pub enum RespAction {
     ListOk(ListResponse),
     CheckOk(CheckResponse),
     SampleOk(SampleResponse),
+    PutFileOk(PutFileResp),
     AgentActivity(Activity),
     TaskActivity(Activity),
     Metrics(MetricsEvents),
+    QueryDataSourceOk(QueryDataSourceResp),
 }

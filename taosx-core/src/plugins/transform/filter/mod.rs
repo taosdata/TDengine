@@ -5,12 +5,18 @@ use thiserror::Error;
 
 use super::TransformExt;
 
-mod expr;
+pub(crate) mod expr;
 mod r#match;
 
 /// TODO(@Yuanpai Zhang): implement map transform.
 #[derive(Debug, Clone, Serialize)]
 pub struct Filter(Vec<FilterImpl>);
+
+impl Filter {
+    pub fn new(filters: Vec<FilterImpl>) -> Self {
+        Self(filters)
+    }
+}
 
 impl TransformExt for Filter {
     fn transform_record_batch(

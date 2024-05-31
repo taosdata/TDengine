@@ -19,9 +19,13 @@ use std::{
     path::PathBuf,
     pin::Pin,
     sync::{atomic::Ordering, Arc},
+    time::Duration,
 };
 use taos::IntoDsn;
-use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
+use taosx_core::{
+    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
+    PutFileResp, QueryDataSourceResp,
+};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
@@ -46,13 +50,13 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use taosx_metrics::MetricsEvents;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
     monitor::Monitor,
-    scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
+    scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender, AgentSpawnSender},
 };
 
 mod put;
@@ -76,7 +80,6 @@ impl AgentRpcChannel {
 
 type ConnectionId = u64;
 
-#[derive(Clone)]
 pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
     notify_sender: AgentNotifySender,
@@ -86,6 +89,7 @@ pub(super) struct FlightServiceImpl {
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
     string_senders: Arc<RwLock<LinkedHashMap<u64, StringSender>>>,
+    spawn_sender: AgentSpawnSender,
     monitor: Monitor,
 }
 
@@ -108,12 +112,15 @@ async fn action_to_arrow(
                 task.id = id,
                 task.jid = %jid,
                 task.rid = rid,
-                "Send stop action"
+                "Send run action"
             );
             let task = controller.get(id).await?;
             if let Some(mut task) = task {
                 // handle dsn(from) params contains file(@)
-                modify_task_dsn_params(&mut task.task).await?;
+                if let Err(err) = modify_task_dsn_params(&mut task.task).await {
+                    tracing::error!(task.id = id, "Failed to modify task dsn params: {err:#}");
+                    return Err(err);
+                }
                 #[derive(Serialize)]
                 struct TaskInAgent {
                     #[serde(flatten)]
@@ -234,9 +241,8 @@ async fn action_to_arrow(
 
             let datasets_senders = datasets_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = datasets_senders.write().await;
-
-                receiver.insert(req_id, sender);
+                let mut senders = datasets_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
@@ -256,9 +262,8 @@ async fn action_to_arrow(
 
             let dsv_senders = dsv_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = dsv_senders.write().await;
-
-                receiver.insert(req_id, sender);
+                let mut senders = dsv_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
@@ -278,8 +283,55 @@ async fn action_to_arrow(
 
             let string_senders = string_senders.clone();
             tokio::spawn(async move {
-                let mut receiver = string_senders.write().await;
-                receiver.insert(req_id, sender);
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::PutFile(put_file_req, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &put_file_req,
+                )
+                .unwrap()]));
+            let action: ArrayRef =
+                Arc::new(StringArray::from_iter_values(["put-file".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+            let string_senders = string_senders.clone();
+            tokio::spawn(async move {
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::QueryDataSource(query_data_source_req, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &query_data_source_req,
+                )
+                .unwrap()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([
+                "query-data-source".to_string()
+            ]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+            let string_senders = string_senders.clone();
+            tokio::spawn(async move {
+                let mut senders = string_senders.write().await;
+                senders.insert(req_id, sender);
             });
             return Ok(Some(batch));
         }
@@ -523,6 +575,7 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
+        let addr = req.remote_addr();
         let (meta, _extension, req) = req.into_parts();
 
         let task_id = meta
@@ -542,11 +595,16 @@ impl FlightService for FlightServiceImpl {
             task_id,
             req,
             self.notify_sender.clone(),
-        );
+            addr,
+            TraceStreamId::from_hex(stream_trace_id),
+            self.spawn_sender.clone(),
+        )
+        .await
+        .map_err(|err| Status::unavailable(err.to_string()))?;
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result(String::from(stream_trace_id))
+                .into_flight_put_result()
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
         )))
@@ -736,6 +794,53 @@ impl FlightService for FlightServiceImpl {
                                                     agent = agent_id,
                                                     req_id = req_id,
                                                     "get sample request id has no receiver"
+                                                );
+                                            }
+                                        });
+                                    }
+                                    "put-file" => {
+                                        let resp: PutFileResp = serde_json::from_str(&context).unwrap();
+                                        let string_senders = string_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) = string_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    error!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "Send PutFileResp failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                error!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "PutFileResp has no receiver"
+                                                );
+                                            }
+
+                                        });
+                                    }
+                                    "query-data-source" => {
+                                        let resp: QueryDataSourceResp = serde_json::from_str(&context).unwrap();
+                                        let string_senders = string_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) = string_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.output).await {
+                                                    error!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "Send QueryDataSourceResp failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                error!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "QueryDataSourceResp has no receiver"
                                                 );
                                             }
                                         });
@@ -982,12 +1087,16 @@ use crate::serve::controller::StringSender;
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_ipc::types::SampleResponse;
 
+#[instrument(skip(task))]
 async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let mut dsn = task.from.clone().into_dsn()?;
+    tracing::debug!("Dsn before modify: {:?}", dsn);
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
         let new_value = if k == "csv_config_file" {
             encode_csv_config_file(v.clone())?
+        } else if k == "transform_config_file" {
+            String::new()
         } else if v.contains("@") {
             get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
         } else {
@@ -1050,6 +1159,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        spawn_sender: AgentSpawnSender,
         monitor: Monitor,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
@@ -1064,6 +1174,7 @@ impl RpcConfig {
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
             monitor,
+            spawn_sender,
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
@@ -1073,6 +1184,8 @@ impl RpcConfig {
         if let Some(tcp) = self.tcp {
             Server::builder()
                 .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
                 .add_service(flight_service.clone())
                 .serve_with_shutdown(tcp, async {
                     let _ = tokio::signal::ctrl_c().await;
@@ -1087,6 +1200,8 @@ impl RpcConfig {
             // let service = FlightServiceImpl { controller };
             Server::builder()
                 .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
                 .add_service(flight_service)
                 .serve_with_incoming_shutdown(stream, async {
                     let _ = tokio::signal::ctrl_c().await;
