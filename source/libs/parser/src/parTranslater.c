@@ -12899,8 +12899,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->bytes = calcTypeBytes(pStmt->dataType);
   if (pStmt->pColOptions != NULL) {
     if (!checkColumnEncodeOrSetDefault(pReq->type, pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
-    if (!checkColumnCompressOrSetDefault(pReq->type, pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
-    if (!checkColumnLevelOrSetDefault(pReq->type, pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    if (!checkColumnCompressOrSetDefault(pReq->type, pStmt->pColOptions->compress))
+      return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
+    if (!checkColumnLevelOrSetDefault(pReq->type, pStmt->pColOptions->compressLevel))
+      return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
     int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                          columnCompressVal(pStmt->pColOptions->compress),
                                          columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
