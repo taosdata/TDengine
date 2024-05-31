@@ -114,20 +114,24 @@ static int32_t execCommand(char* command){
 void stopRsync() {
   int32_t code =
 #ifdef WINDOWS
-  system("taskkill /f /im rsync.exe");
+      system("taskkill /f /im rsync.exe");
 #else
-  system("pkill rsync");
+      system("pkill rsync");
 #endif
-  if(code != 0){
-    uError("[rsync] stop rsync server failed,"ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
-    return;
+
+  if (code != 0) {
+    uError("[rsync] stop rsync server failed," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
+  } else {
+    uDebug("[rsync] stop rsync server successful");
   }
-  uDebug("[rsync] stop rsync server successful");
+
+  taosMsleep(500); // sleep 500 ms to wait for the completion of kill operation.
 }
 
 void startRsync() {
-  if(taosMulMkDir(tsCheckpointBackupDir) != 0){
-    uError("[rsync] build checkpoint backup dir failed, dir:%s,"ERRNO_ERR_FORMAT, tsCheckpointBackupDir, ERRNO_ERR_DATA);
+  if (taosMulMkDir(tsCheckpointBackupDir) != 0) {
+    uError("[rsync] build checkpoint backup dir failed, path:%s," ERRNO_ERR_FORMAT, tsCheckpointBackupDir,
+           ERRNO_ERR_DATA);
     return;
   }
 
@@ -137,7 +141,7 @@ void startRsync() {
   snprintf(confDir, PATH_MAX, "%srsync.conf", tsCheckpointBackupDir);
 
   int32_t code = generateConfigFile(confDir);
-  if(code != 0){
+  if (code != 0) {
     return;
   }
 
@@ -145,12 +149,12 @@ void startRsync() {
   snprintf(cmd, PATH_MAX, "rsync --daemon --port=%d --config=%s", tsRsyncPort, confDir);
   // start rsync service to backup checkpoint
   code = system(cmd);
-  if(code != 0){
-    uError("[rsync] start server failed, code:%d,"ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
-    return;
+  if (code != 0) {
+    uError("[rsync] start server failed, code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
+  } else {
+    uDebug("[rsync] start server successful");
   }
 
-  uDebug("[rsync] start server successful");
 }
 
 int32_t uploadByRsync(const char* id, const char* path) {
