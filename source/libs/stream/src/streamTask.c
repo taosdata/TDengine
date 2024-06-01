@@ -984,7 +984,8 @@ SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo() {
   taosThreadMutexInit(&pInfo->lock, NULL);
 
   pInfo->pDispatchTriggerList = taosArrayInit(4, sizeof(STaskTriggerSendInfo));
-  pInfo->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
+  pInfo->pReadyMsgList = taosArrayInit(4, sizeof(STaskCheckpointReadyInfo));
+  pInfo->pCheckpointReadyRecvList = taosArrayInit(4, sizeof(STaskCheckpointReadyRecvInfo));
   return pInfo;
 }
 
@@ -996,6 +997,7 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosThreadMutexDestroy(&pInfo->lock);
   pInfo->pDispatchTriggerList = taosArrayDestroy(pInfo->pDispatchTriggerList);
   pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
+  pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
 
   if (pInfo->pCheckTmr != NULL) {
     taosTmrStop(pInfo->pCheckTmr);
@@ -1014,4 +1016,5 @@ void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
 
   taosArrayClear(pInfo->pReadyMsgList);
   taosArrayClear(pInfo->pDispatchTriggerList);
+  taosArrayClear(pInfo->pCheckpointReadyRecvList);
 }

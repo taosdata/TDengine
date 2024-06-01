@@ -753,7 +753,7 @@ tmr_h   streamTimerGetInstance();
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTriggerRsp* pRsp);
-int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
+int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int32_t downstreamNodeId, int32_t downstreamTaskId);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg);
 int32_t streamAlignTransferState(SStreamTask* pTask);

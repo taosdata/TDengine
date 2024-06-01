@@ -60,9 +60,9 @@ struct SActiveCheckpointInfo {
   int64_t       failedId;
   bool          dispatchTrigger;
   SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;   // SArray<SStreamChkptReadyInfo*>
+  SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
   int8_t        allUpstreamTriggerRecv;
-
+  SArray*       pCheckpointReadyRecvList;   // SArray<STaskCheckpointReadyRecvInfo>
   int32_t       checkCounter;
   tmr_h         pCheckTmr;
 };
@@ -97,14 +97,14 @@ struct STokenBucket {
 };
 
 typedef struct {
-  int32_t upStreamTaskId;
+  int32_t upstreamTaskId;
   SEpSet  upstreamNodeEpset;
   int32_t nodeId;
   SRpcMsg msg;
   int64_t recvTs;
   int32_t transId;
   int64_t checkpointId;
-} SStreamChkptReadyInfo;
+} STaskCheckpointReadyInfo;
 
 typedef struct {
   int64_t sendTs;
@@ -113,6 +113,15 @@ typedef struct {
   int32_t nodeId;
   int32_t taskId;
 } STaskTriggerSendInfo;
+
+typedef struct {
+  int64_t streamId;
+  int64_t recvTs;
+  int32_t downstreamNodeId;
+  int32_t downstreamTaskId;
+  int64_t checkpointId;
+  int32_t transId;
+} STaskCheckpointReadyRecvInfo;
 
 struct SStreamQueue {
   STaosQueue* pQueue;
@@ -202,6 +211,9 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
+
+int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, SStreamTask* pTask, int32_t upstreamNodeId,
+                                int32_t upstreamTaskId, int32_t childId, SEpSet* pEpset, int64_t checkpointId);
 
 typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 
