@@ -62,7 +62,7 @@ struct SActiveCheckpointInfo {
   SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
   SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
   int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;   // SArray<STaskCheckpointReadyRecvInfo>
+  SArray*       pCheckpointReadyRecvList;   // SArray<STaskDownstreamReadyInfo>
   int32_t       checkCounter;
   tmr_h         pCheckTmr;
 };
@@ -100,10 +100,11 @@ typedef struct {
   int32_t upstreamTaskId;
   SEpSet  upstreamNodeEpset;
   int32_t nodeId;
-  SRpcMsg msg;
-  int64_t recvTs;
   int32_t transId;
+  SRpcMsg msg;
   int64_t checkpointId;
+  int64_t recvTs;
+  int32_t sendToUpstream;
 } STaskCheckpointReadyInfo;
 
 typedef struct {
@@ -121,7 +122,7 @@ typedef struct {
   int32_t downstreamTaskId;
   int64_t checkpointId;
   int32_t transId;
-} STaskCheckpointReadyRecvInfo;
+} STaskDownstreamReadyInfo;
 
 struct SStreamQueue {
   STaosQueue* pQueue;

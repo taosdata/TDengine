@@ -334,12 +334,19 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int32_t downstreamNo
   bool        received = false;
   int32_t     total = streamTaskGetNumOfDownstream(pTask);
 
+  // only one task in this stream
+  if (total == 0 && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pInfo->activeId, pInfo->transId);
+    taosThreadMutexUnlock(&pInfo->lock);
+    return 0;
+  }
+
   taosThreadMutexLock(&pInfo->lock);
 
   // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
   int32_t size = taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
   for (int32_t i = 0; i < size; ++i) {
-    STaskCheckpointReadyRecvInfo* p = taosArrayGet(pInfo->pCheckpointReadyRecvList, i);
+    STaskDownstreamReadyInfo* p = taosArrayGet(pInfo->pCheckpointReadyRecvList, i);
     if (p->downstreamTaskId == downstreamTaskId) {
       received = true;
       break;
@@ -350,12 +357,12 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int32_t downstreamNo
     stDebug("s-task:%s already recv checkpoint-ready msg from downstream:0x%x, %d/%d downstream not ready", id,
             downstreamTaskId, (int32_t)(total - taosArrayGetSize(pInfo->pCheckpointReadyRecvList)), total);
   } else {
-    STaskCheckpointReadyRecvInfo info = {.recvTs = taosGetTimestampMs(),
-                                         .downstreamTaskId = downstreamTaskId,
-                                         .checkpointId = pInfo->activeId,
-                                         .transId = pInfo->transId,
-                                         .streamId = pTask->id.streamId,
-                                         .downstreamNodeId = downstreamNodeId};
+    STaskDownstreamReadyInfo info = {.recvTs = taosGetTimestampMs(),
+                                     .downstreamTaskId = downstreamTaskId,
+                                     .checkpointId = pInfo->activeId,
+                                     .transId = pInfo->transId,
+                                     .streamId = pTask->id.streamId,
+                                     .downstreamNodeId = downstreamNodeId};
     taosArrayPush(pInfo->pCheckpointReadyRecvList, &info);
   }
 
