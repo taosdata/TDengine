@@ -8720,6 +8720,10 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (tEncodeI8(pEncoder, pReq->type) < 0) return -1;
       if (tEncodeI8(pEncoder, pReq->flags) < 0) return -1;
       if (tEncodeI32v(pEncoder, pReq->bytes) < 0) return -1;
+      if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
+        if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
+      }
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
@@ -8784,6 +8788,10 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       if (tDecodeI8(pDecoder, &pReq->type) < 0) return -1;
       if (tDecodeI8(pDecoder, &pReq->flags) < 0) return -1;
       if (tDecodeI32v(pDecoder, &pReq->bytes) < 0) return -1;
+      if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
+        if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
+      }
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
@@ -10875,8 +10883,25 @@ int32_t taosHashUpdateJsonTemplate(SHashObj *pHashJsonTemplate, const char *src,
       terrno = TSDB_CODE_TEMPLATE_NOT_EXIST;
       return -1;
     }
+
     SJsonTemplate *pTemplateOld = taosArrayGet(templateArray, templateId - 1);
     ASSERT(pTemplateOld != NULL);
+    if (!pTemplateOld->isValidate) {
+      terrno = TSDB_CODE_TEMPLATE_ALREADY_DROPPED;
+      return -1;
+    }
+    int32_t valiedateTemplateNum = 0;
+    for (int i = 0; i < taosArrayGetSize(templateArray); i++) {
+      SJsonTemplate *pTemplate = taosArrayGet(templateArray, i);
+      if (pTemplate->isValidate) {
+        valiedateTemplateNum++;
+      }
+    }
+    ASSERT(valiedateTemplateNum > 0);
+    if (valiedateTemplateNum == 1) {
+      terrno = TSDB_CODE_TEMPLATE_ONLY_ONE;
+      return -1;
+    }
     pTemplateOld->isValidate = false;
   }
   return 0;

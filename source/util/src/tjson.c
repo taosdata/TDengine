@@ -986,13 +986,13 @@ int32_t checkJsonTemplate(SJson *pJson){
 int32_t checkJsonTemplateString(const char *jsonTemplate){
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == strlen(jsonTemplate)) {
-    return TSDB_CODE_TSC_INVALID_JSON;
+    return TSDB_CODE_INVALID_JSON_FORMAT;
   }
   cJSON *root = cJSON_Parse(jsonTemplate);
   if (root == NULL){
     return TSDB_CODE_INVALID_JSON_FORMAT;
   }
-  if (root->type != cJSON_Object){
+  if (root->type != cJSON_Object || root->child == NULL){
     code = TSDB_CODE_TEMPLATE_MUST_BE_OBJECT;
     goto END;
   }

@@ -423,7 +423,7 @@ static int32_t decodeJsonBlock(SColumnInfoData* pColumnInfoData, int32_t numOfRo
     pColumnInfoData->varmeta.offset[i + numOfRow1] = pColumnInfoData->varmeta.length + *offset;
     char* dataTmp = *dataAlloc + *offset;
     *dataTmp = TSDB_DATA_TYPE_BINARY;
-    varDataSetLen(dataTmp + 1, strLen);
+    varDataSetLen(dataTmp + 1, strLen - 1);
     memcpy(varDataVal(dataTmp + 1), decodeStr, strLen - 1);
     *offset += (strLen + VARSTR_HEADER_SIZE);
     taosMemoryFree(decodeStr);

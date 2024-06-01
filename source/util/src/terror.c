@@ -770,11 +770,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_NOT_EXIST,            "Template not exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ARRAY_ONLY_ONE_TYPE,  "The data element in the template can only be of one type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_VALUE_INVALIDATE,     "Template value can only be a string, with a value range in \"string/long/double/boolean\"")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_TOO_LONG,             "Template value too long than 4096")   // 4096 = TSDB_MAX_JSON_TEMPLATE_LEN - 1
-TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_MUST_BE_OBJECT,       "Template must be json object")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_MUST_BE_OBJECT,       "Template must be non empty json object")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ALREADY_EXIST,        "Template already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_JSON_COL_TEMPLATE_NEEDED,      "Invalid json template params")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_NUM_EXCEED_LIMIT,     "Json template num exceed int32_max")
 TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_TO_AVRO_ERROR,        "Json template to avro schema error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ALREADY_DROPPED,      "Json template was already dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_TEMPLATE_ONLY_ONE,             "There is only one template, cannot dropped")
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
@@ -833,7 +835,7 @@ const char* tstrerror(int32_t err) {
     }
   }
 
-  return "";
+  return "Unknown error";
 }
 
 const char* terrstr() { return tstrerror(terrno); }

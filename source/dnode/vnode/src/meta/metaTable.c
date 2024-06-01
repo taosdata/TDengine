@@ -416,13 +416,13 @@ static int32_t deleteColumnJsonTemplateCache(SMeta *pMeta, int64_t uid, col_id_t
     return 0;
   }
   metaInfo("delete column json template cache, cid:%d uid:%"PRId64, cid, uid);
-  ASSERT(taosHashGetSize(tableHash) != 0);
-  ASSERT(taosHashGet(tableHash, &cid, sizeof(cid)) != NULL);
-  return taosHashRemove(tableHash, &cid, sizeof(cid));
+  ASSERT(taosHashGetSize(*(SHashObj**)tableHash) != 0);
+  ASSERT(taosHashGet(*(SHashObj**)tableHash, &cid, sizeof(cid)) != NULL);
+  return taosHashRemove(*(SHashObj**)tableHash, &cid, sizeof(cid));
 }
 
 static int32_t deleteTableJsonTemplateCache(SMeta *pMeta, int64_t uid){
-  if (pMeta->pTableJsonTemplate == NULL || taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid))) {
+  if (pMeta->pTableJsonTemplate == NULL || taosHashGet(pMeta->pTableJsonTemplate, &uid, sizeof(uid)) == NULL) {
     return 0;
   }
   metaInfo("delete table json template cache, uid:%"PRId64, uid);
@@ -1826,6 +1826,15 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         hasPrimayKey = pSchema->pSchema[1].flags & COL_IS_KEY ? true : false;
       }
 
+      if(pColumn->type == TSDB_DATA_TYPE_JSON) {
+        ASSERT(entry.pHashJsonTemplate != NULL);
+        taosHashRemove(entry.pHashJsonTemplate, &pColumn->colId, sizeof(pColumn->colId));
+        metaInfo("normal table drop json template for column:%s, id:%d", pColumn->name, pColumn->colId);
+        if (deleteColumnJsonTemplateCache(pMeta, entry.uid, pColumn->colId) != 0) {
+          goto _err;
+        }
+      }
+
       memcpy(&tScheam, pColumn, sizeof(SSchema));
       pSchema->version++;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
@@ -1844,14 +1853,6 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
       updataTableColCmpr(&entry.colCmpr, &tScheam, 0);
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
-      if(pAlterTbReq->type == TSDB_DATA_TYPE_JSON) {
-        ASSERT(entry.pHashJsonTemplate != NULL);
-        taosHashRemove(entry.pHashJsonTemplate, &pColumn->colId, sizeof(pColumn->colId));
-        metaInfo("normal table drop json template for column:%s, id:%d", pColumn->name, pColumn->colId);
-        if (deleteColumnJsonTemplateCache(pMeta, entry.uid, pColumn->colId) != 0) {
-          goto _err;
-        }
-      }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {

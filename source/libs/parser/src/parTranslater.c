@@ -7216,8 +7216,10 @@ static int32_t checkColumnOptions(SNodeList* pList) {
       return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
     if (!checkColumnLevelOrSetDefault(pCol->dataType.type, ((SColumnOptions*)pCol->pOptions)->compressLevel))
       return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
-    if (pCol->dataType.type == TSDB_DATA_TYPE_JSON && strlen(((SColumnOptions*)pCol->pOptions)->jsonTemplate) == 0)
-      return TSDB_CODE_JSON_COL_TEMPLATE_NEEDED;
+    if (pCol->dataType.type != TSDB_DATA_TYPE_JSON && strlen(((SColumnOptions*)pCol->pOptions)->jsonTemplate) > 0)
+      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+//    if (pCol->dataType.type == TSDB_DATA_TYPE_JSON && strlen(((SColumnOptions*)pCol->pOptions)->jsonTemplate) == 0)
+//      return TSDB_CODE_JSON_COL_TEMPLATE_NEEDED;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -12882,7 +12884,9 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
+  if (pSchema->type == TSDB_DATA_TYPE_JSON && strlen(pStmt->pColOptions->jsonTemplate) != 0){
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
   if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
   if (!checkColumnLevel(pStmt->pColOptions->compressLevel)) return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;

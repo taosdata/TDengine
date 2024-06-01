@@ -1444,28 +1444,26 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
   cJSON* avro = NULL;
   char*  tempalteStr = NULL;
   uint8_t* encodeData = NULL;
+  SAvroSchema* avroSchema = NULL;
   cJSON* root = cJSON_Parse(jsonString);
   if (root == NULL) {
     msg = "invalid json data, parse json error";
     goto END;
   }
 
-  if (!cJSON_IsObject(root)) {
-    msg = "json value should be an object";
-    goto END;
-  }
-  jsonT = transformJson2JsonTemplate(root);
-  tempalteStr = cJSON_PrintUnformatted(jsonT);
-
-//  avro = transformJsonTemplate2AvroRecord(jsonT);
+  if (cJSON_IsObject(root)) {
+    jsonT = transformJson2JsonTemplate(root);
+    tempalteStr = cJSON_PrintUnformatted(jsonT);
+    //  avro = transformJsonTemplate2AvroRecord(jsonT);
 //  char * avroJson = cJSON_PrintUnformatted(avro);
 
-  ASSERT(jsonTemplate != NULL);
-  SJsonTemplateHashValue* data = (SJsonTemplateHashValue*)taosHashGet(jsonTemplate, &colId, sizeof(col_id_t));
-  char md5[64] = {0};
-  generateMd5(tempalteStr, strlen(tempalteStr), md5);
-  SAvroSchema* avroSchema = (SAvroSchema*)taosHashGet(data->pJsonTemplateAvro, md5, strlen(md5));
+    ASSERT(jsonTemplate != NULL);
+    SJsonTemplateHashValue* data = (SJsonTemplateHashValue*)taosHashGet(jsonTemplate, &colId, sizeof(col_id_t));
+    char md5[64] = {0};
+    generateMd5(tempalteStr, strlen(tempalteStr), md5);
+    avroSchema = (SAvroSchema*)taosHashGet(data->pJsonTemplateAvro, md5, strlen(md5));
 //  uDebug("encodejson jsonTemplate key:%s, str:%s, %s", md5, tempalteStr, avroJson);
+  }
 
   encodeData = (uint8_t*)taosMemoryMalloc(*len + 2*INT_BYTES);
   if (NULL == encodeData) {
@@ -1488,7 +1486,6 @@ static int32_t encodeJson(SInsertParseContext* pCxt, col_id_t colId, uint8_t** p
     *len += bytes;
     uDebug("encodejson json template id:%d, %s", avroSchema->templateId, jsonString);
   }
-
 
   *pData = encodeData;
   encodeData = NULL;

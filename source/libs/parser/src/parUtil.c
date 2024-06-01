@@ -23,7 +23,7 @@
 
 const void* nullPointer = NULL;
 
-static char* getSyntaxErrFormat(int32_t errCode) {
+static const char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PAR_SYNTAX_ERROR:
       return "syntax error near \"%s\"";
@@ -216,7 +216,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_TSMA_NAME_TOO_LONG:
       return "Tsma name too long";
     default:
-      return "Unknown error";
+      return tstrerror(errCode);
   }
 }
 
