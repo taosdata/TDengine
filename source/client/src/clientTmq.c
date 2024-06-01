@@ -2710,7 +2710,6 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pParam);
   return 0;
 }
 
