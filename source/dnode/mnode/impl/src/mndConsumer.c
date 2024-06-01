@@ -662,7 +662,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
-  if(mndAcquireConsumer(pMnode, subscribe->consumerId) == NULL && taosArrayGetSize(subscribe->topicNames) == 0){
+  if(mndAcquireConsumer(pMnode, subscribe.consumerId) == NULL && taosArrayGetSize(subscribe.topicNames) == 0){
     goto _over;
   }
 
