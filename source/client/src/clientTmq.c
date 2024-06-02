@@ -2582,7 +2582,6 @@ void askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   if (sendInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pReq);
-    taosMemoryFree(pParam);
     goto FAIL;
   }
 
