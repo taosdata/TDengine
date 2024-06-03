@@ -625,7 +625,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     code = fillVgroupDataCxt(pTbCtx, pVgCxt, false, false);
   }
 
-  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 1000) {
+  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
     code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
     taosArrayClear(pVgCxt->pData->aSubmitTbData);
   }
