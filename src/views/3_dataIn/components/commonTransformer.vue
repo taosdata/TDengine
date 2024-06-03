@@ -195,7 +195,11 @@
                 icon="el-icon-PREVIEW"
                 @click="submitParse"
                 style="display: flex"
-                :disabled="msgForm.msgbody == '' || $COMMUNITY"
+                :disabled="
+                  msgForm.msgbody == '' || 
+                  ((parseruleForm.type == 'udt' || parseruleForm.type == 'regex') && parseruleForm.expression == '') || 
+                  $COMMUNITY
+                  "
               ></el-button>
             </el-tooltip>
           </el-form>
@@ -1013,7 +1017,8 @@ export default {
     handleSuccessUdt(_, file, fileList) {
       const reader = new FileReader();
       const _this = this;
-    
+      this.parseruleForm.expression = "";
+      
       reader.onload = function(e) {
         const contents = e.target.result;
         _this.parseruleForm.expression += contents + "\n";
