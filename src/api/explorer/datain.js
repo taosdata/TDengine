@@ -170,7 +170,9 @@ export async function refreshTask(id) {
         for (let i = 0; i < categories.length; i++) {
             if (data.params[categories[i].category]) {
                 dsConfig.datasets.value = categories[i].category
-                mergeTaskDetailParams(categories[i].params, data.params);
+                if (categories[i].params) {
+                    mergeTaskDetailParams(categories[i].params, data.params);
+                }
                 break;
             }
         }
