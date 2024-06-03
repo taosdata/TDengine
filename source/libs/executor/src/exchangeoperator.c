@@ -96,6 +96,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         goto _error;
       }
 
+      tmemory_barrier();
       SRetrieveTableRsp*     pRsp = pDataInfo->pRsp;
       SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
 
@@ -431,6 +432,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  tmemory_barrier();
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   code = tsem_post(&pExchangeInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
