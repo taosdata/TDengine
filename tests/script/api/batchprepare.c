@@ -231,9 +231,9 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {
-  .precision = TIME_PRECISION_MICRO,
+  .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
@@ -256,7 +256,7 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = 26,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
@@ -264,11 +264,11 @@ CaseCtrl gCaseCtrl = {
 #endif
 
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
-  .printCreateTblSql = false,
+  .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
   .printVerbose = false,
@@ -456,9 +456,6 @@ void generateInsertSQL(BindData *data) {
           case TSDB_DATA_TYPE_UBIGINT:
             len += sprintf(data->sql + len, "tubigdata");
             break;
-          case TSDB_DATA_TYPE_GEOMETRY:
-            len += sprintf(data->sql + len, "tgeometrydata");
-            break;
           default:
             printf("!!!invalid tag type:%d", data->pTags[c].buffer_type);
             exit(1);
@@ -526,9 +523,6 @@ void generateInsertSQL(BindData *data) {
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           len += sprintf(data->sql + len, "ubigdata");
-          break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          len += sprintf(data->sql + len, "tgeometrydata");
           break;
         default:
           printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
@@ -643,9 +637,6 @@ int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       return sprintf(data->sql + len, "ubigdata");
-      break;
-    case TSDB_DATA_TYPE_GEOMETRY:
-      len += sprintf(data->sql + len, "tgeometrydata");
       break;
     default:
       printf("!!!invalid col type:%d", type);
@@ -777,7 +768,7 @@ void generateColDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
         *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
         if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
          || *dataType == TSDB_DATA_TYPE_BLOB || *dataType == TSDB_DATA_TYPE_MEDIUMBLOB
-         || *dataType == TSDB_DATA_TYPE_VARBINARY) {
+         || *dataType == TSDB_DATA_TYPE_VARBINARY || *dataType == TSDB_DATA_TYPE_GEOMETRY) {
           continue;
         }
 
@@ -806,7 +797,7 @@ void generateTagDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
         *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
         if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
          || *dataType == TSDB_DATA_TYPE_BLOB || *dataType == TSDB_DATA_TYPE_MEDIUMBLOB
-         || *dataType == TSDB_DATA_TYPE_VARBINARY) {
+         || *dataType == TSDB_DATA_TYPE_VARBINARY || *dataType == TSDB_DATA_TYPE_GEOMETRY) {
           continue;
         }
 
@@ -2556,9 +2547,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "ubigdata bigint unsigned");
           break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "geometrydata geometry(%d)", gVarCharSize);
-          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2617,9 +2605,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "tubigdata bigint unsigned");
           break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "tgeometrydata geometry(%d)", gVarCharSize);
-          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2677,9 +2662,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "%d", rand() % 128);
-          break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "'geo%d'", rand() % 128);
           break;
         default:
           printf("invalid col type:%d", colList[c]);
