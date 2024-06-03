@@ -39,7 +39,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
-            string colomnType, List<KeyValuePair<string, string>> tags, int maxWaitLength, bool useAFDatabase) {
+            string tdColomnType, List<KeyValuePair<string, string>> tags, int maxWaitLength, bool useAFDatabase) {
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
@@ -55,13 +55,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             builder.tsArrowArray = new TimestampArray.Builder();
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
-            builder.valArrowArrayList.Add(TDEngineTableFormat.PointValColomn(), new StringArray.Builder());
-            builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new StringArray.Builder());
+            TDValueType tdType = TDTypeV1Converter.ToTDType(tdColomnType);
+            builder.valArrowArrayList.Add(TDEngineTableFormat.PointValColomn(), new ColumnValueBuilder(tdType));
+            builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new Int32Array.Builder());
 
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, "NCHAR(100)"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointValColomn(), colomnType));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointStatusColomn(), "INT"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>("ts", TDValueType.Timestamp));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.POINTNAME, TDValueType.String));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointValColomn(), tdType));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointStatusColomn(), TDValueType.Int));
 
             this.hostname = hostname;
             this.port = port;
@@ -81,7 +82,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "NCHAR(40)") };
+            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "VARCHAR(64)") };
             builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "NCHAR(100)"));
             builder.tagNames.AddRange(tags);
             builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, "String"));
@@ -90,13 +91,17 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
 
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "NCHAR(100)"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>("ts", TDValueType.Timestamp));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.ELEMENTID, TDValueType.String));
             foreach (var column in columnNameTypes) {
-                builder.valArrowArrayList.Add(TDEngineTableFormat.AFValColomn(column.Key), new StringArray.Builder());
-                builder.statusArrowArrayList.Add(TDEngineTableFormat.AFStatusColomn(column.Key), new StringArray.Builder());
-                builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.AFValColomn(column.Key), $"{column.Value}"));
-                builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.AFStatusColomn(column.Key), "INT"));
+                string columnType = column.Value;
+                TDValueType tdType = TDTypeV1Converter.ToTDType(columnType);
+                string tdColName = TDEngineTableFormat.AFValColomn(column.Key);
+                string tdStatusColName = TDEngineTableFormat.AFStatusColomn(column.Key);
+                builder.valArrowArrayList.Add(tdColName, new ColumnValueBuilder(tdType));
+                builder.statusArrowArrayList.Add(tdStatusColName, new Int32Array.Builder());
+                builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdColName, tdType));
+                builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdStatusColName, TDValueType.Int));
             }
             this.hostname = hostname;
             this.port = port;
@@ -202,13 +207,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 builder.tsArrowArray.Append(record.Timestamp);
                 if (record.Quality == 0)
                 {
-                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append($"{record.ValueString}");
-                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append("0");
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(record.Value);
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(0);
                 }
                 else
                 {
                     builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
-                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality);
                 }
                 if (builder.tsArrowArray.Length > maxWaitLength)
                 {
@@ -226,7 +231,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             foreach (var table in tables)
             {
-                Dictionary<string, string> valDic = new Dictionary<string, string> { };
+                Dictionary<string, TDValue> valDic = new Dictionary<string, TDValue> { };
                 Dictionary<string, int> statusDic = new Dictionary<string, int> { };
                 foreach (var row in table.Value)
                 {
@@ -241,7 +246,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         var colValName = TDEngineTableFormat.AFValColomn(in columnName);
                         if (valDic.ContainsKey(colValName))
                         {
-                            if (valDic[colValName] != value.ValueString)
+                            if (valDic[colValName] != value)
                             {
                                 log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
                             }
@@ -249,7 +254,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         }
                         if (value.Quality == 0)
                         {
-                            valDic.Add(colValName, value.ValueString);
+                            valDic.Add(colValName, value);
                             statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), 0);
                         }
                         else
@@ -266,7 +271,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         {
                             if (valDic.ContainsKey(objRow.Key))
                             {
-                                objRow.Value.Append(valDic[objRow.Key]);
+                                TDValue value = valDic[objRow.Key];
+                                objRow.Value.Append(value.Value);
                             }
                             else
                             {
@@ -277,7 +283,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         {
                             if (statusDic.ContainsKey(objRow.Key))
                             {
-                                objRow.Value.Append(statusDic[objRow.Key].ToString());
+                                objRow.Value.Append(statusDic[objRow.Key]);
                             }
                             else
                             {

@@ -1,5 +1,6 @@
 ﻿using log4net;
 using System;
+using TDPIConnector.TDEngine.Models;
 using IpcDataType = System.String;
 
 namespace TDPIConnector.TDEngine.TaosxClient
@@ -7,66 +8,76 @@ namespace TDPIConnector.TDEngine.TaosxClient
     public class TDTypeV1Converter
     {
         public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-        internal static IpcDataType ToIpcType(string pointType)
+        /// <summary>
+        /// 字符串表示的 TD 类型转换为 TDValueType。
+        /// 字符串表示的 TD 类型一定来自 PI 类型转换为 TD 类型的结果，参考：TDPIConnector.Core.Conversions.Converter
+        /// </summary>
+        internal static TDValueType ToTDType(string tdType)
         {
-            switch (pointType)
+            switch (tdType)
             {
                 case "INT":
-                    return IpcDataTypes.Int32Type;
-                case "INT8":
-                    return IpcDataTypes.Int8Type;
-                case "INT16":
-                    return IpcDataTypes.Int16Type;
-                case "INT32":
-                    return IpcDataTypes.Int32Type;
-                case "INT64":
-                    return IpcDataTypes.Int64Type;
+                    return TDValueType.Int;
+                case "BIGINT":
+                    return TDValueType.BigInt;
                 case "NCHAR(100)":
-                    return IpcDataTypes.VarCharType;
+                    return TDValueType.String;
                 case "FLOAT":
-                    return IpcDataTypes.Float32Type;
+                    return TDValueType.Float;
+                case "DOUBLE":
+                    return TDValueType.Double;
                 case "TIMESTAMP":
-                    return IpcDataTypes.TimestampType;
-
-
-                case "Float16":
-                    return "FLOAT";
-                case "Float32":
-                    return "FLOAT";
-                case "Float64":
-                    return "DOUBLE";
-                case "String":
-                    return "NCHAR(100)";
-                case "Timestamp":
-                    return "TIMESTAMP";
+                    return TDValueType.Timestamp;
             }
-            log.Fatal($"PointType not found.{pointType}");
-            throw new Exception("PointType not found.");
+            log.Fatal($"PointType not supported:{tdType}");
+            throw new Exception($"Can't convert to TDValueType: {tdType}");
         }
 
-        internal static Apache.Arrow.Types.IArrowType ToArrowType(string pointType)
-        {
-            switch (pointType)
-            {
-                case "INT":
+        internal static Apache.Arrow.Types.IArrowType ToArrowType(TDValueType tdType) {
+            switch (tdType) { 
+                case TDValueType.Int:
                     return Apache.Arrow.Types.Int32Type.Default;
-                case "INT8":
-                    return Apache.Arrow.Types.Int8Type.Default;
-                case "INT16":
-                    return Apache.Arrow.Types.Int16Type.Default;
-                case "INT32":
-                    return Apache.Arrow.Types.Int32Type.Default;
-                case "INT64":
+                case TDValueType.BigInt:
                     return Apache.Arrow.Types.Int64Type.Default;
-                case "NCHAR(100)":
+                case TDValueType.String:
                     return Apache.Arrow.Types.StringType.Default;
-                case "FLOAT":
+                case TDValueType.Float:
                     return Apache.Arrow.Types.FloatType.Default;
-                case "TIMESTAMP":
+                case TDValueType.Double:
+                    return Apache.Arrow.Types.DoubleType.Default;
+                case TDValueType.Timestamp:
                     return Apache.Arrow.Types.TimestampType.Default;
+                case TDValueType.Boolean:
+                    return Apache.Arrow.Types.BooleanType.Default;
+                case TDValueType.None:
+                    return Apache.Arrow.Types.NullType.Default;
+                default:
+                    log.Fatal($"TDValueType not supported:{tdType}");
+                    throw new Exception($"Can't convert to ArrowType: {tdType}");
+
             }
-            log.Fatal($"PointType not found.{pointType}");
-            throw new Exception("PointType not found.");
+        }
+
+        internal static IpcDataType ToIpcType(TDValueType tdType) {
+            switch (tdType) { 
+                case TDValueType.Int:
+                    return IpcDataTypes.Int32Type;
+                case TDValueType.BigInt:
+                    return IpcDataTypes.Int64Type;
+                case TDValueType.String:
+                    return IpcDataTypes.VarCharType;
+                case TDValueType.Float:
+                    return IpcDataTypes.Float32Type;
+                case TDValueType.Double:
+                    return IpcDataTypes.Float64Type;
+                case TDValueType.Timestamp:
+                    return IpcDataTypes.TimestampType;
+                case TDValueType.Boolean:
+                    return IpcDataTypes.BoolType;
+                default:
+                    log.Fatal($"TDValueType not supported:{tdType}");
+                    throw new Exception($"Can't convert to IpcType: {tdType}");
+            }
         }
     }
 

@@ -7,6 +7,7 @@ using System.Linq;
 using Apache.Arrow.Types;
 using System.Collections;
 using IpcDataType = System.String;
+using TDPIConnector.TDEngine.Models;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
@@ -26,12 +27,168 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
     }
 
+    /// <summary>
+    ///  暂存各种类型的数据，用于构建ArrowArray
+    /// </summary>
+    public class ColumnValueBuilder {
+        public TDValueType ValueType { get; set; }
+        public object ArrowArray;
+        public ColumnValueBuilder(TDValueType valueType) {
+            ValueType = valueType;
+            switch (valueType)
+            {
+                case TDValueType.String:
+                    ArrowArray = new StringArray.Builder();
+                    break;
+                case TDValueType.Int:
+                    ArrowArray = new Int32Array.Builder();
+                    break;
+                case TDValueType.BigInt:
+                    ArrowArray = new Int64Array.Builder();
+                    break;
+                case TDValueType.Float:
+                    ArrowArray = new FloatArray.Builder();
+                    break;
+                case TDValueType.Double:
+                    ArrowArray = new DoubleArray.Builder();
+                    break;
+                case TDValueType.Timestamp:
+                    ArrowArray = new TimestampArray.Builder();
+                    break;
+                case TDValueType.Boolean:
+                    ArrowArray = new BooleanArray.Builder();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+        public void Append(TDValueType valueType, object value) { 
+            if (valueType != ValueType)
+            {
+                throw new Exception("ValueType not match");
+            }
+            Append(value);
+        }
+
+        public void Append(object value) {
+            switch (ValueType) {
+                case TDValueType.Int:
+                    if (value != null)
+                    {
+                        ((Int32Array.Builder)ArrowArray).Append((int)value);
+                    }
+                    else {
+                        ((Int32Array.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+                case TDValueType.BigInt:
+                    if (value != null)
+                    {
+                        ((Int64Array.Builder)ArrowArray).Append((long)value);
+                    }
+                    else {
+                        ((Int64Array.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+                case TDValueType.Float:
+                    if (value != null)
+                    {
+                        ((FloatArray.Builder)ArrowArray).Append((float)value);
+                    }
+                    else {
+                        ((FloatArray.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+                case TDValueType.Double:
+                    if (value != null)
+                    {
+                        ((DoubleArray.Builder)ArrowArray).Append((double)value);
+                    }
+                    else {
+                        ((DoubleArray.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+                case TDValueType.Timestamp:
+                    if (value != null)
+                    {
+                        ((TimestampArray.Builder)ArrowArray).Append((DateTime)value);
+                    }
+                    else {
+                        ((TimestampArray.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+                case TDValueType.Boolean:
+                    if (value != null)
+                    {
+                        ((BooleanArray.Builder)ArrowArray).Append((bool)value);
+                    }
+                    else {
+                        ((BooleanArray.Builder)ArrowArray).Append(null);
+                    }
+                    break;
+            }
+        }
+
+        public void Clear() {
+            switch (ValueType) {
+                case TDValueType.String:
+                    ((StringArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Int:
+                    ((Int32Array.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.BigInt:
+                    ((Int64Array.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Float:
+                    ((FloatArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Double:
+                    ((DoubleArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Timestamp:
+                    ((TimestampArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Boolean:
+                    ((BooleanArray.Builder)ArrowArray).Clear();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+        public IArrowArray Build()
+        {
+            switch (ValueType)
+            {
+                case TDValueType.String:
+                    return ((StringArray.Builder)ArrowArray).Build();
+                case TDValueType.Int:
+                    return ((Int32Array.Builder)ArrowArray).Build();
+                case TDValueType.BigInt:
+                    return ((Int64Array.Builder)ArrowArray).Build();
+                case TDValueType.Float:
+                    return ((FloatArray.Builder)ArrowArray).Build();
+                case TDValueType.Double:
+                    return ((DoubleArray.Builder)ArrowArray).Build();
+                case TDValueType.Timestamp:
+                    return ((TimestampArray.Builder)ArrowArray).Build();
+                case TDValueType.Boolean:
+                    return ((BooleanArray.Builder)ArrowArray).Build();
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+    }
+
     public class MessageBuilder
     {
         public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        public List<KeyValuePair<string, string>> columnNameTypes
-            = new List<KeyValuePair<string, string>>();
+        public List<KeyValuePair<string, TDValueType>> columnNameTypes
+            = new List<KeyValuePair<string, TDValueType>>();
         public List<KeyValuePair<string, string>> tagNames;
         public StructType recordType { get; set; }
         public StructType tableType { get; set; }
@@ -43,10 +200,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public StringArray.Builder tableUniqKeyArrowArray;
         public TimestampArray.Builder tsArrowArray;
 
-        public Dictionary<string, StringArray.Builder> valArrowArrayList
-            = new Dictionary<string, StringArray.Builder>();
-        public Dictionary<string, StringArray.Builder> statusArrowArrayList
-            = new Dictionary<string, StringArray.Builder>();
+        public Dictionary<string, Int32Array.Builder> statusArrowArrayList
+            = new Dictionary<string, Int32Array.Builder>();
+
+        public Dictionary<string, ColumnValueBuilder> valArrowArrayList;
 
         // pointId is table tag for PI mode 
         // public Dictionary<string, int> pointIds
@@ -213,21 +370,24 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void initSchema()
         {
             log.Info($"Stable:{stableName},Init schema");
+            // 用于生成 Metadata.Init 中的数据列
             var colIpcField = new List<IpcField>();
+            // lush 消息 __records__ 列的各字段
             var colField = new List<Field>();
             foreach (var column in columnNameTypes)
             {
-                colIpcField.Add(new IpcField(column.Key, true, TDArrowFormat.GetArrowDataType(column.Value), column.Value));
+                colIpcField.Add(new IpcField(column.Key, true, TDTypeV1Converter.ToArrowType(column.Value), TDTypeV1Converter.ToIpcType(column.Value)));
                 if (column.Key == "ts")
                 {
                     colField.Add(new Field(column.Key, TimestampType.Default, true));
                 }
                 else {
-                    colField.Add(new Field(column.Key, StringType.Default, true));
+                    colField.Add(new Field(column.Key, TDTypeV1Converter.ToArrowType(column.Value), true));
                 }
             }
-
+            // 用于生成 Metadata.Init 中的标签列
             var ipcTagField = new List<IpcField>();
+            // lush 消息 __tables__ 列的各字段
             var tagField = new List<Field>();
          
             foreach (var tag in tagNames)
