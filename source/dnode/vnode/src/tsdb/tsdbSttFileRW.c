@@ -896,7 +896,7 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   char fname[TSDB_FILENAME_LEN];
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
-  taosRemoveFile(fname);
+  (void)taosRemoveFile(fname);
   return 0;
 }
 

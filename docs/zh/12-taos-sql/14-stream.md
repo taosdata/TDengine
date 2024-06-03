@@ -190,7 +190,7 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
-1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
+1. 增量计算，即 IGNORE EXPIRED 0。
 
 2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 

@@ -56,7 +56,8 @@ int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record) {
 
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
     SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * idx, &tombBlock->buffers[i]);
-    tBufferGetI64(&br, &record->data[i]);
+    int32_t       code = tBufferGetI64(&br, &record->data[i]);
+    if (code) return code;
   }
   return 0;
 }
@@ -182,7 +183,8 @@ int32_t tStatisBlockPut(STbStatisBlock *block, SRowInfo *row, int32_t maxRecords
   if (block->numOfRecords > 0) {
     int64_t       lastUid;
     SBufferReader br = BUFFER_READER_INITIALIZER(sizeof(int64_t) * (block->numOfRecords - 1), &block->uids);
-    tBufferGetI64(&br, &lastUid);
+    int32_t       code = tBufferGetI64(&br, &lastUid);
+    if (code) return code;
 
     if (lastUid == row->uid) {
       return tStatisBlockUpdate(block, row);
