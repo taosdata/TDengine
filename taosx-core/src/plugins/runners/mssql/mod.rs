@@ -388,6 +388,7 @@ fn generate_json_value(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     async fn test_create_database() {
         let dsn = Dsn::from_str(

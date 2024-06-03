@@ -557,6 +557,7 @@ fn build_record_batch(
 mod tests {
     use super::*;
     use crate::runners::mssql::{config::connect::ConnectConfig, query::MssqlQuery};
+    use std::str::FromStr;
     use taos::Dsn;
 
     async fn test_create_database() {
