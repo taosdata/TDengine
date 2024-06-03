@@ -102,6 +102,15 @@ function mergeTaskDetailOptions(cfgOptions, data) {
     for (let key in cfgOptions) {
         if (data[key]) {
             cfgOptions[key].value = data[key];
+        } else if (data.params[key]) {
+            cfgOptions[key].value = data.params[key];
+        }
+    }
+
+    if (cfgOptions.endpoint && !cfgOptions.endpoint.value) {
+        cfgOptions.endpoint.value = `${data.host}:${data.port}`;
+        if (data.subject) {
+            cfgOptions.endpoint.value += `/${data.subject}`;
         }
     }
 }
@@ -118,21 +127,41 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
     }
 }
 
+function mergeAuthentication(cfgAuth, data) {
+    let auth_type = cfgAuth.value;
+    for (let i = 0; i < cfgAuth.alternatives.length; i++) {
+        let authentication = cfgAuth.alternatives[i];
+        if (authentication.name === auth_type) {
+            for (let key in authentication) {
+                if (authentication[key].display && data[key]) {
+                    authentication[key].value = data[key];
+                }
+            }
+        }
+    }
+}
+
 // 前端组装数据，不使用后端的 from_detail
 export async function refreshTask(id) {
     let taskDetail = await loadTaskDetail(id)
     let dsType = taskDetail.from_expand.id;
-    if (['pi', 'pibackfill'].indexOf(dsType) == -1) {
-        return taskDetail;
-    }
-    console.log("return the config in the front end");
+    // if (['pi', 'pibackfill'].indexOf(dsType) == -1) {
+    //     return taskDetail;
+    // }
+    // console.log("return the config in the front end");
 
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
     
     mergeTaskDetailOptions(dsConfig.options, data);
     mergeTaskDetailParams(dsConfig.advanced.params, data.params);
-    mergeTaskDetailParams(dsConfig.params, data.params);
+    if (dsConfig.params) {
+        mergeTaskDetailParams(dsConfig.params, data.params);
+    }
+    if (dsConfig.authentication) {
+        mergeAuthentication(dsConfig.authentication, data);
+    }
+    
     for (let i = 0; i < dsConfig.groups.length; i++) {
         mergeTaskDetailParams(dsConfig.groups[i].params, data.params);
     }

@@ -1927,13 +1927,17 @@ export function getDataSources(lang) {
         "name": "MQTT",
         "description": "MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use. It is ideal for connecting devices with limited resources, such as battery-powered devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is important, such as real-time control systems.\n\nMQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices from each other, and to scale up applications as needed.\n\nMQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms, and there are many open source and commercial implementations available.\n\ntaosX could subscribe data from MQTT broker by a connector plugin.\n\nCheck the help message in each part to see the details.\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
-            "display": "MQTT Server endpoint",
-            "description": "MQTT server endpoint. e.g: 127.0.0.1:1883\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n",
-            "placeholder": "127.0.0.1:1883",
-            "pattern": "^[0-9A-Za-z.\\-_]+:(?:[0-9]{1,5})$",
-            "patternMsg": "Input format error, please refer to: `host:port`, port range is 1-65535."
+            "display": "MQTT host",
+            "description": "MQTT server endpoint. e.g: 127.0.0.1\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "MQTT port",
+            "description": "MQTT server port",
+            "placeholder": "1883"
           }
         },
         "authentication": {
@@ -5523,13 +5527,17 @@ export function getDataSources(lang) {
         "name": "MQTT",
         "description": "MQTT 表示 Message Queuing Telemetry Transport （消息队列遥测传输）。它是一种轻量级的消息协议，易于实现和使用。它非常适合连接资源有限的设备，例如电池供电的设备或带宽较低的设备。MQTT也是实时控制系统等延迟重要的应用程序的不错选择。\n\nMQTT 通过使用发布/订阅模型来工作。这意味着设备可以将消息发布到主题，其他设备可以订阅这些主题以接收消息。这使得轻松将设备解耦，并根据需要扩展应用程序。\n\nMQTT 是物联网应用程序的流行选择。它得到了广泛的设备和平台支持，并提供许多开源和商业实现。\n\ntaosX 可以通过连接器插件从 MQTT 代理订阅数据。请查看每个部分的帮助消息以了解详细信息。\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
             "display": "MQTT 地址",
-            "description": "MQTT 服务器地址。如: “127.0.0.1:1883”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
-            "placeholder": "127.0.0.1:1883",
-            "pattern": "^[0-9A-Za-z.\\-_]+:(?:[0-9]{1,5})$",
-            "patternMsg": "输入格式有误，请按照格式 `host:port`，port 范围为 1-65535。"
+            "description": "MQTT 服务器地址。如: “127.0.0.1”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "MQTT 端口",
+            "description": "MQTT 服务器端口",
+            "placeholder": "1883"
           }
         },
         "authentication": {
