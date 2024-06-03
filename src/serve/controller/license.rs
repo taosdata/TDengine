@@ -93,7 +93,8 @@ impl<'a> LicenseValidator<'a> {
                     | taosx_core::runners::historian::AVEVA_HISTORIAN_ID
                     | taosx_core::runners::mysql::MYSQL_ID
                     | taosx_core::runners::postgres::POSTGRES_ID
-                    | taosx_core::runners::oracle::ORACLE_ID => {
+                    | taosx_core::runners::oracle::ORACLE_ID
+                    | taosx_core::runners::mssql::MSSQL_ID => {
                         validate_connector_license(self.from, self.to, self.pool)
                             .in_current_span()
                             .await
@@ -383,6 +384,7 @@ async fn validate_connector_license(
         taosx_core::runners::mysql::MYSQL_ID => "mysql",
         taosx_core::runners::postgres::POSTGRES_ID => "postgres",
         taosx_core::runners::oracle::ORACLE_ID => "oracle",
+        taosx_core::runners::mssql::MSSQL_ID => "mssql",
         connector => bail!("The current connector {connector} is not supported by license."),
     };
 

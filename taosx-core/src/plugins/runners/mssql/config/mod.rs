@@ -1,14 +1,15 @@
+use std::str::FromStr;
+
 use crate::plugins::config::AdvancedOptions;
-use crate::runners::postgres::config::connect::ConnectConfig;
+use crate::runners::mssql::config::connect::ConnectConfig;
 use anyhow::Ok;
 use chrono::{DateTime, Duration, FixedOffset, Utc};
-use std::str::FromStr;
 use taos::Dsn;
 
 pub mod connect;
 
 #[derive(Debug, Clone)]
-pub struct PostgresConfig {
+pub struct MssqlConfig {
     // task info
     pub task_id: Option<i64>,
     pub sub_task_id: Option<String>,
@@ -21,12 +22,12 @@ pub struct PostgresConfig {
     pub advanced: AdvancedOptions,
 }
 
-impl PostgresConfig {
+impl MssqlConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        if dsn.driver != "postgres" {
+        if dsn.driver != "mssql" {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
-        Ok(PostgresConfig {
+        Ok(MssqlConfig {
             task_id: Self::parse_task_id(dsn),
             sub_task_id: None,
             ipc_port: None,
@@ -267,10 +268,10 @@ impl TaskConfig {
         }
         if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("'{}{}'", start_tz.format("%H:%M:%S"), &self.time_zone);
-            let mut query_end = format!("{}", end_tz.format("%H:%M:%S"));
+            let mut query_end = format!("'{}'", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "00:00:00" || end_tz.date_naive() > start_tz.date_naive() {
-                query_end = String::from("24:00:00");
+            if query_end == "'00:00:00'" || end_tz.date_naive() > start_tz.date_naive() {
+                query_end = String::from("'24:00:00'");
             }
             query_end = format!("'{}{}'", query_end, &self.time_zone);
             sql = sql
@@ -297,6 +298,7 @@ impl TaskConfig {
         sql = sql.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
         sql = sql.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
         sql = sql.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
+        dbg!(&sql);
         anyhow::Ok(sql)
     }
 }
@@ -307,25 +309,25 @@ mod tests {
 
     #[test]
     fn test_parse_config_invalid_driver() {
-        let dsn = Dsn::from_str("postgresx://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
+        let dsn = Dsn::from_str("mssqlx://root:password@127.0.0.1:1433/test_taosx?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn);
+        let config = MssqlConfig::from_dsn(&dsn);
         dbg!(&config);
         assert!(config.is_err());
     }
 
     #[test]
     fn test_parse_config() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select * from table&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
             .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
         dbg!(&config);
-        assert_eq!(config.connect.host, "192.168.1.40");
-        assert_eq!(config.connect.port, 5432);
-        assert_eq!(config.connect.username, "postgres");
-        assert_eq!(config.connect.password, "tbase125!");
-        assert_eq!(config.connect.subject, "test_taosx");
-        assert_eq!(config.task.sql, "select * from public.t_metric");
+        assert_eq!(config.connect.host, "127.0.0.1");
+        assert_eq!(config.connect.port, 1433);
+        assert_eq!(config.connect.username, "root");
+        assert_eq!(config.connect.password, "password");
+        assert_eq!(config.connect.database, "test_taosx");
+        assert_eq!(config.task.sql, "select * from table");
         assert_eq!(
             config.task.start,
             "2021-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
@@ -334,42 +336,54 @@ mod tests {
             config.task.end,
             Some("2021-01-02T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
         );
+        assert_eq!(config.task.time_zone, "+00:00");
         assert_eq!(config.task.interval, Duration::try_days(1).unwrap());
         assert_eq!(config.task.delay, Duration::try_seconds(5).unwrap());
     }
 
     #[test]
+    fn test_parse_time_zone() {
+        // time_zone exists
+        let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select&time_zone=+02:00&start=2021-01-01T00:00:00Z")
+            .unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+02:00");
+
+        // time_zone doesn't exists, start exists
+        let dsn = Dsn::from_str(
+            "mssql://root:password@127.0.0.1:1433/test_taosx?sql=select&start=2021-01-01T00:00:00+03:00",
+        )
+        .unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+03:00");
+
+        // time_zone doesn't exists, start's time_zone is zero
+        let dsn = Dsn::from_str(
+            "mssql://root:password@127.0.0.1:1433/test_taosx?sql=select&start=2021-01-01T00:00:00Z",
+        )
+        .unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+00:00");
+    }
+
+    #[test]
     fn test_generate_sql() {
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        // with time zone
+        let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
-        assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
+        assert!(sql.contains("STR_TO_DATE('2021-01-01 00:00:00','%Y-%m-%d %H:%i:%s')"));
+        assert!(sql.contains("STR_TO_DATE('2021-01-02 06:00:00','%Y-%m-%d %H:%i:%s')"));
 
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_no_tz} and ts<${end_no_tz}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
+        // use {time} and cross days
+        let dsn = Dsn::from_str("mssql://root:password@127.0.0.1:1433/test_taosx?sql=select * from table_${Ymd} where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00Z&interval=1d&delay=0")
             .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn).unwrap();
+        let config = MssqlConfig::from_dsn(&dsn).unwrap();
         let sql = config.task.generate_sql().unwrap();
         dbg!(&sql);
-        assert!(sql.contains("'2021-01-01 00:00:00+00:00'"));
-        assert!(sql.contains("'2021-01-02 00:00:00+00:00'"));
-
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_date} and ts<${end_date}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
-            .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_sql().unwrap();
-        dbg!(&sql);
-        assert!(sql.contains("'2021-01-01'"));
-        assert!(sql.contains("'2021-01-02'"));
-
-        let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric where ts>=${start_time} and ts<${end_time}&start=2021-01-01T00:00:00Z&end=2021-01-02T00:00:00Z&interval=1d&delay=5")
-            .unwrap();
-        let config = PostgresConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_sql().unwrap();
-        dbg!(&sql);
-        assert!(sql.contains("'00:00:00+00:00'"));
-        assert!(sql.contains("'24:00:00+00:00'"));
+        assert!(sql.contains("STR_TO_DATE('00:00:00','%H:%i:%s')"));
+        assert!(sql.contains("<'24:00:00'"));
     }
 }

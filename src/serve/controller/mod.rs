@@ -2359,6 +2359,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
         include_ds_yaml!("oracle");
+        include_ds_yaml!("mssql");
         for ds in &mut def {
             ds.compute();
         }
@@ -2396,6 +2397,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
         include_ds_yaml!("oracle");
+        include_ds_yaml!("mssql");
         for ds in &mut def {
             ds.compute();
         }

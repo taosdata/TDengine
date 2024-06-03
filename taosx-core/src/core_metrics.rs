@@ -409,7 +409,8 @@ pub async fn init_task_metrics(
             | "csv"
             | runners::mysql::MYSQL_ID
             | runners::postgres::POSTGRES_ID
-            | runners::oracle::ORACLE_ID,
+            | runners::oracle::ORACLE_ID
+            | runners::mssql::MSSQL_ID,
             "taos",
         ) => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id).await;

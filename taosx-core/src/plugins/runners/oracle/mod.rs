@@ -319,7 +319,7 @@ fn generate_json_value(
             let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(format!("{:?}", val))),
+                Ok(val) => Ok(json!(format)),
             }
         }
         // 大文本

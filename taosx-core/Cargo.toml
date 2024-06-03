@@ -122,6 +122,8 @@ tiberius = { version = "0.12.2", default-features = false, features = [
     "tds73",
     "time",
     "winauth",
+    "bigdecimal",
+    "native-tls"
 ] }
 
 sled = "0.34.7"

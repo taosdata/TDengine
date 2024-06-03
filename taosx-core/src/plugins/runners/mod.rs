@@ -14,6 +14,7 @@ pub mod historian;
 pub mod influxdb;
 pub mod kafka;
 pub mod mqtt;
+pub mod mssql;
 pub mod mysql;
 pub mod opc;
 pub mod opentsdb;
