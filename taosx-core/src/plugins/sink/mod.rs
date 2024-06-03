@@ -46,7 +46,6 @@ use bytes::Bytes;
 use deadpool::managed::Timeouts;
 use faststr::FastStr;
 use futures_util::{Sink, Stream, StreamExt};
-use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
 use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
@@ -82,10 +81,7 @@ use self::{
     flat::{flat_write_with_raw_block, flat_write_with_sql},
     ipc_metric::IpcMetrics,
     lush::{LushModelConfig, TableTagCache},
-    transform::parse::ParserImpl,
 };
-use crate::plugins::transform::parse::cast;
-
 pub mod flat;
 pub mod ipc_metric;
 pub mod lush;
