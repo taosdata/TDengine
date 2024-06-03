@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -174,6 +173,7 @@ pub async fn mssql_to_taos(
         parser,
         &to,
         Some(MSSQL_ID),
+        None,
         None,
         &cancel,
         with_agent,
