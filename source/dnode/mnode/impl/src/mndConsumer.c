@@ -662,6 +662,14 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
+  if(taosArrayGetSize(subscribe.topicNames) == 0){
+    SMqConsumerObj *pConsumerTmp = mndAcquireConsumer(pMnode, subscribe.consumerId);
+    if(pConsumerTmp == NULL){
+      goto _over;
+    }
+    mndReleaseConsumer(pMnode, pConsumerTmp);
+  }
+
   code = checkAndSortTopic(pMnode, subscribe.topicNames);
   if(code != TSDB_CODE_SUCCESS){
     goto _over;
