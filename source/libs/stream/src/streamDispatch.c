@@ -623,28 +623,163 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-// this function is usually invoked by sink/agg task
-int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
-  SArray* pList = pTask->chkInfo.pActiveInfo->pReadyMsgList;
+int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
+                               int64_t checkpointId, SRpcMsg* pMsg) {
+  int32_t code = 0;
+  int32_t tlen = 0;
+  void*   buf = NULL;
 
-  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
+  SStreamCheckpointReadyMsg req = {0};
+  req.downstreamNodeId = pTask->pMeta->vgId;
+  req.downstreamTaskId = pTask->id.taskId;
+  req.streamId = pTask->id.streamId;
+  req.checkpointId = checkpointId;
+  req.childId = childId;
+  req.upstreamNodeId = upstreamNodeId;
+  req.upstreamTaskId = upstreamTaskId;
+
+  tEncodeSize(tEncodeStreamCheckpointReadyMsg, &req, tlen, code);
+  if (code < 0) {
+    return -1;
+  }
+
+  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((code = tEncodeStreamCheckpointReadyMsg(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    return code;
+  }
+  tEncoderClear(&encoder);
+
+  initRpcMsg(pMsg, TDMT_STREAM_TASK_CHECKPOINT_READY, buf, tlen + sizeof(SMsgHead));
+  return TSDB_CODE_SUCCESS;
+}
+
+static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
+  SStreamTask* pTask = param;
+  int32_t      vgId = pTask->pMeta->vgId;
+  const char*  id = pTask->id.idStr;
+
+  // check the status every 100ms
+  if (streamTaskShouldStop(pTask)) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s vgId:%d quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  if (++pActiveInfo->sendReadyCheckCounter < 100) {
+    taosTmrReset(checkpointReadyMsgSendMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pSendReadyMsgTmr);
+    return;
+  }
+
+  pActiveInfo->sendReadyCheckCounter = 0;
+  stDebug("s-task:%s in sending checkpoint-ready msg monitor timer", id);
+
+  taosThreadMutexLock(&pActiveInfo->lock);
+
+  SArray* pList = pActiveInfo->pReadyMsgList;
+  SArray* pNotRspList = taosArrayInit(4, sizeof(int32_t));
 
   int32_t num = taosArrayGetSize(pList);
   ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) == num);
 
   for (int32_t i = 0; i < num; ++i) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, i);
-    tmsgSendReq(&pInfo->upstreamNodeEpset, &pInfo->msg);
+    if (pInfo->sendCompleted == 1) {
+      continue;
+    }
 
-    stDebug("s-task:%s level:%d checkpoint ready msg sent to upstream:0x%x", pTask->id.idStr, pTask->info.taskLevel,
+    taosArrayPush(pNotRspList, &pInfo->upstreamTaskId);
+    stDebug("s-task:%s vgId:%d level:%d checkpoint-ready rsp from upstream:0x%x not confirmed yet", id, vgId,
+            pTask->info.taskLevel, pInfo->upstreamTaskId);
+  }
+
+  int32_t checkpointId = pActiveInfo->activeId;
+
+  int32_t notRsp = taosArrayGetSize(pNotRspList);
+  if (notRsp > 0) { // send checkpoint-ready msg again
+    for (int32_t i = 0; i < taosArrayGetSize(pNotRspList); ++i) {
+      int32_t taskId = *(int32_t*)taosArrayGet(pNotRspList, i);
+
+      for (int32_t j = 0; j < num; ++j) {
+        STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pList, j);
+        if (taskId == pReadyInfo->upstreamTaskId) { // send msg again
+
+          SRpcMsg msg = {0};
+          initCheckpointReadyMsg(pTask, pReadyInfo->upstreamNodeId, pReadyInfo->upstreamTaskId, pReadyInfo->childId,
+                                 checkpointId, &msg);
+          tmsgSendReq(&pReadyInfo->upstreamNodeEpset, &msg);
+          stDebug("s-task:%s level:%d checkpoint-ready msg sent to upstream:0x%x again", id, pTask->info.taskLevel,
+                  pReadyInfo->upstreamTaskId);
+        }
+      }
+    }
+
+    taosTmrReset(checkpointReadyMsgSendMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pSendReadyMsgTmr);
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+  } else {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug(
+        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), quit from timer and clear "
+        "checkpoint-ready msg, ref:%d",
+        id, vgId, ref);
+
+    streamClearChkptReadyMsg(pTask);
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+  }
+
+  taosArrayDestroy(pNotRspList);
+}
+
+// this function is usually invoked by sink/agg task
+int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+
+  const char* id = pTask->id.idStr;
+  SArray*     pList = pActiveInfo->pReadyMsgList;
+
+  taosThreadMutexLock(&pActiveInfo->lock);
+
+  int32_t num = taosArrayGetSize(pList);
+  ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) == num);
+
+  for (int32_t i = 0; i < num; ++i) {
+    STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, i);
+
+    SRpcMsg msg = {0};
+    initCheckpointReadyMsg(pTask, pInfo->upstreamNodeId, pInfo->upstreamTaskId, pInfo->childId, pInfo->checkpointId, &msg);
+    tmsgSendReq(&pInfo->upstreamNodeEpset, &msg);
+
+    stDebug("s-task:%s level:%d checkpoint-ready msg sent to upstream:0x%x", id, pTask->info.taskLevel,
             pInfo->upstreamTaskId);
   }
 
-  taosArrayClear(pList);
+  taosThreadMutexUnlock(&pActiveInfo->lock);
+  stDebug("s-task:%s level:%d checkpoint-ready msg sent to all %d upstreams", id, pTask->info.taskLevel, num);
 
-  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
-  stDebug("s-task:%s level:%d checkpoint ready msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
-          num);
+  // start to check if checkpoint ready msg has successfully received by upstream tasks.
+  pActiveInfo->pSendReadyMsgTmr = NULL;
+
+  int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("s-task:%s start checkpoint-trigger monitor in 10s, ref:%d ", pTask->id.idStr, ref);
+  streamMetaAcquireOneTask(pTask);
+
+  if (pActiveInfo->pSendReadyMsgTmr == NULL) {
+    pActiveInfo->pSendReadyMsgTmr = taosTmrStart(checkpointReadyMsgSendMonitorFn, 100, pTask, streamTimer);
+  } else {
+    taosTmrReset(checkpointReadyMsgSendMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pSendReadyMsgTmr);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -816,51 +951,17 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, SStreamTask* pTask, int32_t upstreamNodeId,
-                                  int32_t upstreamTaskId, int32_t childId, SEpSet* pEpset, int64_t checkpointId) {
-  int32_t code = 0;
-  int32_t tlen = 0;
-  void*   buf = NULL;
-
-  SStreamCheckpointReadyMsg req = {0};
-  req.downstreamNodeId = pTask->pMeta->vgId;
-  req.downstreamTaskId = pTask->id.taskId;
-  req.streamId = pTask->id.streamId;
-  req.checkpointId = checkpointId;
-  req.childId = childId;
-  req.upstreamNodeId = upstreamNodeId;
-  req.upstreamTaskId = upstreamTaskId;
-
-  tEncodeSize(tEncodeStreamCheckpointReadyMsg, &req, tlen, code);
-  if (code < 0) {
-    return -1;
-  }
-
-  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
-  if (buf == NULL) {
-    return -1;
-  }
-
-  ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamCheckpointReadyMsg(&encoder, &req)) < 0) {
-    rpcFreeCont(buf);
-    return code;
-  }
-  tEncoderClear(&encoder);
-
-  ASSERT(req.upstreamTaskId != 0);
+int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
+                                int32_t childId, SEpSet* pEpset, int64_t checkpointId) {
+  ASSERT(upstreamTaskId != 0);
 
   pReadyInfo->upstreamTaskId = upstreamTaskId;
   pReadyInfo->upstreamNodeEpset = *pEpset;
-  pReadyInfo->nodeId = req.upstreamNodeId;
+  pReadyInfo->upstreamNodeId = upstreamNodeId;
   pReadyInfo->recvTs = taosGetTimestampMs();
-  pReadyInfo->checkpointId = req.checkpointId;
+  pReadyInfo->checkpointId = checkpointId;
+  pReadyInfo->childId = childId;
 
-  initRpcMsg(&pReadyInfo->msg, TDMT_STREAM_TASK_CHECKPOINT_READY, buf, tlen + sizeof(SMsgHead));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -872,7 +973,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
 
   STaskCheckpointReadyInfo info = {0};
-  initCheckpointReadyInfo(&info, pTask, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
+  initCheckpointReadyInfo(&info, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
 
   stDebug("s-task:%s (level:%d) prepare checkpoint-ready msg to upstream s-task:0x%" PRIx64
           "-0x%x (vgId:%d) idx:%d",

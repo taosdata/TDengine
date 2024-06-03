@@ -19,6 +19,13 @@
 
 typedef struct SMStreamCheckpointReadyRspMsg {
   SMsgHead head;
+  int64_t streamId;
+  int32_t upstreamTaskId;
+  int32_t upstreamNodeId;
+  int32_t downstreamTaskId;
+  int32_t downstreamNodeId;
+  int64_t checkpointId;
+  int32_t transId;
 } SMStreamCheckpointReadyRspMsg;
 
 static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg);
@@ -486,21 +493,27 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, it may have been destroyed already", vgId, req.downstreamTaskId);
-    return code;
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint ready msg from task:0x%x (vgId:%d), handle it", vgId,
+  tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
           pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
 
-  streamProcessCheckpointReadyMsg(pTask, req.downstreamTaskId, req.downstreamNodeId);
+  streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
   streamMetaReleaseTask(pMeta, pTask);
 
   {  // send checkpoint ready rsp
-    SRpcMsg rsp = {.code = 0, .info = pMsg->info, .contLen = sizeof(SMStreamCheckpointReadyRspMsg)};
-    rsp.pCont = rpcMallocCont(rsp.contLen);
-    SMsgHead* pHead = rsp.pCont;
-    pHead->vgId = htonl(req.downstreamNodeId);
+    SMStreamCheckpointReadyRspMsg* pReadyRsp = rpcMallocCont(sizeof(SMStreamCheckpointReadyRspMsg));
 
+    pReadyRsp->upstreamTaskId = req.upstreamTaskId;
+    pReadyRsp->upstreamNodeId = req.upstreamNodeId;
+    pReadyRsp->downstreamTaskId = req.downstreamTaskId;
+    pReadyRsp->downstreamNodeId = req.downstreamNodeId;
+    pReadyRsp->checkpointId = req.checkpointId;
+    pReadyRsp->streamId = req.streamId;
+    pReadyRsp->head.vgId = htonl(req.downstreamNodeId);
+
+    SRpcMsg rsp = {.code = 0, .info = pMsg->info, .pCont = pReadyRsp, .contLen = sizeof(SMStreamCheckpointReadyRspMsg)};
     tmsgSendRsp(&rsp);
 
     pMsg->info.handle = NULL;  // disable auto rsp
@@ -1066,5 +1079,16 @@ int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return d
 int32_t tqStreamProcessReqCheckpointRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
 
 int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  return doProcessDummyRspMsg(pMeta, pMsg);
+  SMStreamCheckpointReadyRspMsg* pRsp = pMsg->pCont;
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->downstreamTaskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire task:0x%x when handling checkpoint-ready msg, it may have been dropped",
+            pRsp->downstreamNodeId, pRsp->downstreamTaskId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  streamTaskProcessCheckpointReadyRsp(pTask, pRsp->upstreamTaskId, pRsp->checkpointId);
+  streamMetaReleaseTask(pMeta, pTask);
+  return TSDB_CODE_SUCCESS;
 }

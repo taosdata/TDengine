@@ -1121,6 +1121,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
   if (pMeta == NULL) {
+    stError("invalid rid:%" PRId64 " failed to acquired stream-meta", rid);
     return;
   }
 
@@ -1341,8 +1342,8 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
-    stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
-           prevStage, stage, isLeader);
+    stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
+           pMeta->vgId, prevStage, stage, isLeader, pMeta->rid);
     streamMetaStartHb(pMeta);
   } else {
     stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,

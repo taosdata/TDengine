@@ -1229,6 +1229,15 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
 // downstream task has complete the stream task checkpoint procedure, let's start the handle the rsp by execute task
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+
+  SRetrieveChkptTriggerReq* pReq = (SRetrieveChkptTriggerReq*) pMsg->pCont;
+  if (!vnodeIsRoleLeader(pTq->pVnode)) {
+    tqError("vgId:%d not leader, ignore the retrieve checkpoint-trigger msg from 0x%x", vgId,
+            (int32_t)pReq->downstreamTaskId);
+    return TSDB_CODE_STREAM_NOT_LEADER;
+  }
+
   return tqStreamTaskProcessCheckpointReadyMsg(pTq->pStreamMeta, pMsg);
 }
 
