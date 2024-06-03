@@ -3395,8 +3395,231 @@ export function getDataSources(lang) {
             }
           ]
         }
+      },
+      {
+        "id": "mssql",
+        "type": "uri",
+        "name": "Microsoft SQL Server",
+        "description": "Microsoft SQL Server is a relational database management system developed by Microsoft Corporation. It has the advantages of easy use, good scalability, and high integration with related software.\n\nTDengine can efficiently read data from Microsoft SQL Server and write it to TDengine to achieve historical data migration or real-time data synchronization.\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "host",
+            "description": "The access address of SQL Server.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "port",
+            "description": "The port of SQL Server.",
+            "placeholder": "1433"
+          },
+          "subject": {
+            "required": true,
+            "display": "Database",
+            "description": "The name of the SQL Server database to connect to.",
+            "placeholder": "for example: db1"
+          }
+        },
+        "authentication": {
+          "display": "Authentication",
+          "description": "Authentication is the process of verifying the identity before granting access to SQL Server.",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "Username and Password",
+              "username": {
+                "required": true,
+                "display": "Username",
+                "placeholder": "username"
+              },
+              "password": {
+                "required": true,
+                "display": "Password",
+                "placeholder": "password"
+              }
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "Connection options",
+            "display_order": 1,
+            "short_description": "Other connection options.",
+            "description": "Other connection options.",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "instance_name",
+                "display": "Instance Name",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The name of the SQL Server instance.",
+                "description": "The name of the SQL Server instance.",
+                "placeholder": "for example: MSSQLSERVER"
+              },
+              {
+                "name": "application_name",
+                "display": "Application Name",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The name of the application.",
+                "description": "The name of the application.",
+                "placeholder": "for example: TDengine"
+              },
+              {
+                "name": "encryption",
+                "display": "Encryption",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "Off",
+                    "On",
+                    "NotSupported",
+                    "Required"
+                  ]
+                },
+                "short_description": "Set whether to encrypt the connection.",
+                "description": "Set whether to encrypt the connection.",
+                "placeholder": "Please select the type of encryption",
+                "value": "Off"
+              },
+              {
+                "name": "trust_cert",
+                "display": "Trust Certificate",
+                "hint": {
+                  "type": "bool"
+                },
+                "short_description": "Set whether to trust the server certificate.",
+                "description": "Set whether to trust the server certificate.",
+                "placeholder": "Please select whether to trust the server certificate",
+                "value": "false"
+              },
+              {
+                "name": "trust_cert_ca",
+                "display": "Trust Certificate CA",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "The certificate of the CA if you trust the server certificate.",
+                "description": "The certificate of the CA if you trust the server certificate.",
+                "placeholder": "Please upload the certificate of the CA"
+              }
+            ]
+          },
+          {
+            "name": "Data Collection",
+            "display_order": 2,
+            "short_description": "Data collection related configuration items.",
+            "description": "Data collection related configuration items.",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "sql",
+                "display": "SQL Template",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+              },
+              {
+                "name": "start",
+                "display": "Start Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "Start time for migrating data.",
+                "description": "Start time for migrating data.\n",
+                "required": true,
+                "placeholder": "for example: 2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "End Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.",
+                "description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.\n",
+                "required": false,
+                "placeholder": "for example: 2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "Query Interval",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
+                "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
+                "required": false,
+                "placeholder": "1d"
+              },
+              {
+                "name": "delay",
+                "display": "Delay",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
+                "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
+                "required": false,
+                "placeholder": "10s"
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "Advanced Options",
+          "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave these options as default to use the recommended settings.\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "Read Concurrency",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "Batch Size",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Data Mapping",
+          "required": true,
+          "description": "taosX could let users to specify the data model in the database, for example, the table name pattern and stable name pattern, field names as tags or field names as columns.\n",
+          "fields": [
+            {
+              "name": "DateTime",
+              "description": "The timestamp of the returned value.",
+              "type": "timestamp"
+            }
+          ]
+        }
       }
-
     ]
   } else {
     return [
@@ -6670,6 +6893,230 @@ export function getDataSources(lang) {
           ]
         },
         "groups": [
+          {
+            "name": "SQL 查询",
+            "display_order": 2,
+            "short_description": "数据采集相关配置项。",
+            "description": "数据采集相关配置项。",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "sql",
+                "display": "SQL 模板",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+              },
+              {
+                "name": "start",
+                "display": "起始时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "结束时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "查询间隔",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
+                "required": false,
+                "placeholder": "1d"
+              },
+              {
+                "name": "delay",
+                "display": "延迟时长",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
+                "required": false,
+                "placeholder": "10s"
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "最大读取并发数",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "数据映射",
+          "required": true,
+          "description": "taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等\n",
+          "fields": [
+            {
+              "name": "DateTime",
+              "description": "值对应的时间戳。",
+              "type": "timestamp"
+            }
+          ]
+        }
+      },
+      {
+        "id": "mssql",
+        "type": "uri",
+        "name": "Microsoft SQL Server",
+        "description": "Microsoft SQL Server 是一种关系型数据库管理系统，由 Microsoft 公司开发，具有使用方便可伸缩性好与相关软件集成程度高等优点。\n\nTDengine 可以高效地从 Microsoft SQL Server 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "服务地址",
+            "description": "SQL Server 的服务器地址",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "SQL Server 的端口",
+            "placeholder": "1433"
+          },
+          "subject": {
+            "required": true,
+            "display": "数据库",
+            "description": "SQL Server 数据库名称",
+            "placeholder": "示例: db1"
+          }
+        },
+        "authentication": {
+          "display": "认证",
+          "description": "使用用户名和密码访问 SQL Server 数据库",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "用户名密码访问",
+              "username": {
+                "required": true,
+                "display": "用户",
+                "placeholder": "username"
+              },
+              "password": {
+                "required": true,
+                "display": "密码",
+                "placeholder": "password"
+              }
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "连接选项",
+            "display_order": 1,
+            "short_description": "其他数据库连接选项。",
+            "description": "其他数据库连接选项。",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "instance_name",
+                "display": "实例名称",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "SQL Server 实例名称",
+                "description": "SQL Server 实例名称",
+                "placeholder": "示例: MSSQLSERVER"
+              },
+              {
+                "name": "application_name",
+                "display": "应用名称",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "设置应用程序名称，用于标识连接的应用程序。",
+                "description": "设置应用程序名称，用于标识连接的应用程序。",
+                "placeholder": "示例: TDengine"
+              },
+              {
+                "name": "encryption",
+                "display": "加密",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "Off",
+                    "On",
+                    "NotSupported",
+                    "Required"
+                  ]
+                },
+                "short_description": "设置是否使用加密连接。",
+                "description": "设置是否使用加密连接。",
+                "placeholder": "请选择加密方式",
+                "value": "Off"
+              },
+              {
+                "name": "trust_cert",
+                "display": "信任证书",
+                "hint": {
+                  "type": "bool"
+                },
+                "short_description": "设置是否信任服务器证书。",
+                "description": "设置是否信任服务器证书。",
+                "placeholder": "请选择是否信任证书",
+                "value": "false"
+              },
+              {
+                "name": "trust_cert_ca",
+                "display": "信任证书 CA",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "设置是否信任服务器证书 CA。",
+                "description": "设置是否信任服务器证书 CA。",
+                "placeholder": "如果信任请上传证书 CA"
+              }
+            ]
+          },
           {
             "name": "SQL 查询",
             "display_order": 2,
