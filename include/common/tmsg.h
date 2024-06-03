@@ -2755,6 +2755,7 @@ typedef struct {
   int32_t autoCommitInterval;
   int8_t  resetOffsetCfg;
   int8_t  enableReplay;
+  int8_t  enableBatchMeta;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2775,6 +2776,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
   tlen += taosEncodeFixedI8(buf, pReq->enableReplay);
+  tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
 
   return tlen;
 }
@@ -2799,6 +2801,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
+  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
   return buf;
 }
 
@@ -2987,6 +2990,7 @@ typedef struct {
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
@@ -3904,6 +3908,7 @@ typedef struct {
   STqOffsetVal reqOffset;
   int8_t       enableReplay;
   int8_t       sourceExcluded;
+  int8_t       enableBatchMeta;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -3988,6 +3993,20 @@ typedef struct {
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const void* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
 void    tDeleteSTaosxRsp(void* pRsp);
+
+typedef struct SMqBatchMetaRsp {
+  SMqRspHead   head;         // not serialize
+  STqOffsetVal rspOffset;
+  SArray*      batchMetaLen;
+  SArray*      batchMetaReq;
+  void*        pMetaBuff;    // not serialize
+  uint32_t     metaBuffLen;  // not serialize
+} SMqBatchMetaRsp;
+
+int32_t tEncodeMqBatchMetaRsp(SEncoder* pEncoder, const SMqBatchMetaRsp* pRsp);
+int32_t tDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead head;
