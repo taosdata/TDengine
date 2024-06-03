@@ -677,6 +677,14 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     goto _error;
   }
 
+  pInfo->twAggSup = (STimeWindowAggSupp){
+      .waterMark = pCountNode->window.watermark,
+      .calTrigger = pCountNode->window.triggerType,
+      .maxTs = INT64_MIN,
+      .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pCountNode->window, 0),
+  };
+
   pInfo->primaryTsIndex = ((SColumnNode*)pCountNode->window.pTspk)->slotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0,
                                 pTaskInfo->streamInfo.pState, sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle,
@@ -686,13 +694,6 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   }
   pInfo->streamAggSup.windowCount = pCountNode->windowCount;
   pInfo->streamAggSup.windowSliding = pCountNode->windowSliding;
-
-  pInfo->twAggSup = (STimeWindowAggSupp){
-      .waterMark = pCountNode->window.watermark,
-      .calTrigger = pCountNode->window.triggerType,
-      .maxTs = INT64_MIN,
-      .minTs = INT64_MAX,
-  };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
