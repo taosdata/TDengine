@@ -4921,18 +4921,36 @@ int32_t tSerializeSVKillCompactReq(void *buf, int32_t bufLen, SVKillCompactReq *
 }
 
 int32_t tDeserializeSVKillCompactReq(void *buf, int32_t bufLen, SVKillCompactReq *pReq) {
+  int32_t  code = 0;
   SDecoder decoder = {0};
+
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
+  if (tStartDecode(&decoder) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
 
-  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->compactId) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
+
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
+
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
 
   tEndDecode(&decoder);
+
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeConfigReq *pReq) {
