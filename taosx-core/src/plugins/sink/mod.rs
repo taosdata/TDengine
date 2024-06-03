@@ -794,21 +794,16 @@ fn handle_transform(
     // status
     let status_col = message.clone_column_by_name("status")?;
 
-    let value_type = message.column_type_by_name("value").unwrap();
     let schema = Schema::new(vec![
         Field::new("id", DataType::Utf8, false),
         Field::new("name", DataType::Utf8, false),
-        Field::new(
-            "ts",
-            DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
-            false,
-        ),
+        Field::new("ts", transformed_ts_col.data_type().clone(), false),
         Field::new(
             "received",
-            DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+            transformed_received_col.data_type().clone(),
             false,
         ),
-        Field::new("value", value_type, true),
+        Field::new("value", transformed_value_col.data_type().clone(), true),
         Field::new("status", DataType::Int64, false),
     ]);
 
@@ -1039,7 +1034,7 @@ fn transform_by_name(
             }
             None => {
                 // no transform expression for this point_id, use raw value
-                let value = to_dynamic_value(record, col_type, col_index, row_index)?;
+                let value: Dynamic = to_dynamic_value(record, col_type, col_index, row_index)?;
                 values.push(value);
             }
         }
@@ -1063,17 +1058,20 @@ fn transform_by_name(
         return Ok(raw_column);
     }
 
-    let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
+    crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
         "failed to transform Vec<Dynamic> to ArrayRef"
-    ))?;
+    ))
 
-    arrow::compute::cast(&array, col_type).map_err(|err| {
-        anyhow::anyhow!(
-            "failed to cast transformed array to dataType: {}, cause: {:?}",
-            col_type,
-            err
-        )
-    })
+    // let array = crate::plugins::expr::array_from_rhai_dynamics(values).ok_or(anyhow::anyhow!(
+    //     "failed to transform Vec<Dynamic> to ArrayRef"
+    // ))?;
+    // arrow::compute::cast(&array, col_type).map_err(|err| {
+    //     anyhow::anyhow!(
+    //         "failed to cast transformed array to dataType: {}, cause: {:?}",
+    //         col_type,
+    //         err
+    //     )
+    // })
 }
 fn to_dynamic_value(
     record_batch: &RecordBatch,
