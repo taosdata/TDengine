@@ -67,6 +67,8 @@ export default {
   copySucc: "Copy Success!",
   fullName: "Full Name",
   tips: "Tips",
+  yes: "yes",
+  no: "no",
   time: "Time",
   date: "Date",
   nickname: "Nickname",
@@ -1481,6 +1483,9 @@ export default {
       jsonExtractTip: 'JSON extract expression editor',
       udtTip: 'UDT editor',
       uploadCode: "Upload Code"
+    },
+    pi: {
+      confirmOverwriteConfigFile: "The configuration file already exists. Do you want to overwrite it?",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",

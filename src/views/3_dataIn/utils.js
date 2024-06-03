@@ -19,7 +19,7 @@ const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
-export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
@@ -595,7 +595,7 @@ function handleDatasets(datasets, paramsConfig) {
           return config;
         })
       : categories.map((item, index) => {
-          const { category, display, description: desc, target, params: categoryParams } = item;
+          const { category, display, short_description, description: desc, target, params: categoryParams } = item;
           const paramConfig = {
             label: display,
             name: category,
@@ -604,6 +604,7 @@ function handleDatasets(datasets, paramsConfig) {
             category,
             radio: !!index,
             description: desc,
+            short_description,
             field: handleField(target.name),
             type: 'dataset',
             accept: '.csv',
@@ -622,9 +623,11 @@ function handleDatasets(datasets, paramsConfig) {
                     defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
                     multiple: categoryParam.multiple ?? false
                   };
+
                   handleHintType(config, categoryParam.hint);
                   // 特殊处理 opc 的点位过滤
                   if (currentType.startsWith('opc')) {
+
                     if (config.field == 'pattern') {
                       config.type = 'pattern';
                     }
@@ -638,6 +641,21 @@ function handleDatasets(datasets, paramsConfig) {
                           }
                         })
                         return list
+                      }
+                    }
+                  } else if (currentType == 'pi' || currentType == 'pibackfill') {
+                    if (config.field == 'filter_value') {
+                      config.options = (that) => {
+                        let activeTabValues = getActiveTabValueObject(that.sourceParent.sourceForm.data);
+                        if (that.sourceParent.sourceForm.data[optionsField]['system_configuration'].indexOf('AF') < 0) {
+                          activeTabValues['filter_value_type'] = 'point'
+                          return [{label: 'point',value: 'point'}]
+                        } else {
+                          if (activeTabValues['filter_value_type'] === 'point') {
+                            activeTabValues['filter_value_type'] = 'element'
+                          }
+                          return [{label: 'element',value: 'element'},{label: 'template',value: 'template'}]
+                        }
                       }
                     }
                   }
@@ -725,7 +743,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple, pattern, patternMsg } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -755,21 +773,24 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         patternMsg,
       };
       handleHintType(paramConfig, hint, value);
-      if (isArray(conflicts_with)) {
-        paramConfig.disabled = currentData => {
-          const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
-          if (conflict && conflict?.when == currentData[paramConfig.field]) {
-            currentData[paramConfig.field] = '';
-          }
-          return !!conflict;
-        };
-      }
+      // 2024-05-17，pibackfill remove the special rule
+      // if (isArray(conflicts_with)) {
+      //   paramConfig.disabled = currentData => {
+      //     const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
+      //     if (conflict && conflict?.when == currentData[paramConfig.field]) {
+      //       currentData[paramConfig.field] = '';
+      //     }
+      //     return !!conflict;
+      //   };
+      // }
+
       // postgres/mysql 的 sql 在编辑状态下不能修改
       if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
       }
+
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
@@ -962,6 +983,16 @@ export function handleHintType(config, hint) {
         config.defaultValue = hint.find(item => item.selected)?.value;
       }
       break;
+    case 'compose':
+      config.type = 'compose';
+      if (hint?.choices) {
+        config.options = hint.choices.filter(item => item != '--NONE--').map(item => ({
+          label: item,
+          value: item
+        }));
+      }
+      break;
+
     default:
       if (hint?.choices) {
         config.type = 'select';
@@ -1010,6 +1041,9 @@ export function generateFormInitData(paramsConfig) {
       }
     } else {
       data[item.field] = value;
+      if (item.type === 'compose' && item.hint?.choices) {
+        data[item.field + '_type'] = item.type_value || "";
+      }
     }
     return data;
   }, {});
@@ -1017,6 +1051,19 @@ export function generateFormInitData(paramsConfig) {
 export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
+
+export function getActiveTabValueObject(data) {
+  const activeTab = data[datasetsField][valueField];
+  return data[datasetsField][activeTab];
+}
+
+export function getActiveTabKey(data) {
+  return data[datasetsField][valueField];
+}
+
+export function getOptionsValue(data) {
+  return data[optionsField];
+}
 
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
@@ -1037,9 +1084,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
-  // if(definition.id=='csv'){
-  //   dsn+=`&headers=c0,c1`
-  // }
+  if (definition.id == 'pi' || definition.id == 'pibackfill') {
+    dsn += '&model=' + getActiveTabKey(data);
+  }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {
@@ -1283,7 +1330,6 @@ export async function handleDownload(filePath, fileName) {
   link.click();
   document.body.removeChild(link);
 }
-
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {
