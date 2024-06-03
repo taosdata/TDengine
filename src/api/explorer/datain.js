@@ -127,13 +127,37 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
     }
 }
 
+function haveAuthentication(auth_alternatives, auth_type) {
+    for (let i = 0; i < auth_alternatives.length; i++) {
+        if (auth_alternatives[i].name === auth_type) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function mergeAuthentication(cfgAuth, data) {
-    let auth_type = cfgAuth.value;
+    if (cfgAuth.alternatives.length > 1) {
+        // 多种认证方式时，需要判断用的是那种认证类型
+        if (data.username && data.password && haveAuthentication(cfgAuth.alternatives, 'plain')) {
+            cfgAuth.value = 'plain';
+        } else if (data.params.auth_certificate && haveAuthentication(cfgAuth.alternatives, 'certificates')) {
+            cfgAuth.value = 'certificates';
+        }
+    }
+
     for (let i = 0; i < cfgAuth.alternatives.length; i++) {
         let authentication = cfgAuth.alternatives[i];
-        if (authentication.name === auth_type) {
+        if (authentication.name === cfgAuth.value) {
             for (let key in authentication) {
-                if (authentication[key].display && data[key]) {
+                if (key === 'params' && authentication[key].length > 0) {
+                    for (let j = 0; j < authentication[key].length; j++) {
+                        let param = authentication[key][j];
+                        if (data.params[param.name]) {
+                            param.value = data.params[param.name];
+                        }
+                    }
+                } else if (authentication[key].display && data[key]) {
                     authentication[key].value = data[key];
                 }
             }
@@ -145,10 +169,6 @@ function mergeAuthentication(cfgAuth, data) {
 export async function refreshTask(id) {
     let taskDetail = await loadTaskDetail(id)
     let dsType = taskDetail.from_expand.id;
-    // if (['pi', 'pibackfill'].indexOf(dsType) == -1) {
-    //     return taskDetail;
-    // }
-    // console.log("return the config in the front end");
 
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
@@ -172,6 +192,13 @@ export async function refreshTask(id) {
                 dsConfig.datasets.value = categories[i].category
                 if (categories[i].params) {
                     mergeTaskDetailParams(categories[i].params, data.params);
+                }
+                if (categories[i].target && categories[i].target.name === categories[i].category) {
+                    if (categories[i].target.multiple) {
+                        categories[i].target.value = [data.params[categories[i].category]];
+                    } else {
+                        categories[i].target.value = data.params[categories[i].category];
+                    }
                 }
                 break;
             }
