@@ -177,7 +177,7 @@ static int32_t tBufferReaderInit(SBufferReader *reader, uint32_t offset, SBuffer
 }
 
 static FORCE_INLINE int32_t tBufferGet(SBufferReader *reader, uint32_t size, void *data) {
-  if (reader->offset < 0 || reader->offset + size > reader->buffer->size) {
+  if (reader->offset + size > reader->buffer->size) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
   if (data) {

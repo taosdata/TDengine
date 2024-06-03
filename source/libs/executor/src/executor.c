@@ -1078,9 +1078,9 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.tbName;
 }
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return &pTaskInfo->streamInfo.metaRsp;
+  return &pTaskInfo->streamInfo.btMetaRsp;
 }
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {

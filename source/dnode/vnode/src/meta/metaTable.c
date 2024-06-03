@@ -36,7 +36,7 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
-int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
+int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress) {
   int32_t nCols = pWp->nCols;
   int32_t ver = pWp->version;
   if (add) {
@@ -45,7 +45,7 @@ int8_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add) {
 
     SColCmpr *pCol = p + nCols;
     pCol->id = pSchema->colId;
-    pCol->alg = createDefaultColCmprByType(pSchema->type);
+    pCol->alg = compress;
     pWp->nCols = nCols + 1;
     pWp->version = ver;
     pWp->pColCmpr = p;
@@ -1491,6 +1491,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SSchema  tScheam;
   switch (pAlterTbReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
       if (pColumn) {
         terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
         goto _err;
@@ -1522,7 +1523,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         (void)tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
       }
       SSchema *pCol = &pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1];
-      updataTableColCmpr(&entry.colCmpr, pCol, 1);
+      uint32_t compress = pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ? createDefaultColCmprByType(pCol->type)
+                                                                             : pAlterTbReq->compress;
+      updataTableColCmpr(&entry.colCmpr, pCol, 1, compress);
       freeColCmpr = true;
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
       break;
@@ -1560,7 +1563,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         (void)tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, hasPrimayKey);
       }
 
-      updataTableColCmpr(&entry.colCmpr, &tScheam, 0);
+      updataTableColCmpr(&entry.colCmpr, &tScheam, 0, 0);
       ASSERT(entry.colCmpr.nCols == pSchema->nCols);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
@@ -2269,6 +2272,7 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
   pMeta->changed = true;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:

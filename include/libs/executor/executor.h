@@ -201,7 +201,7 @@ void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
