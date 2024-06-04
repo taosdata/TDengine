@@ -1455,7 +1455,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     pBlock->info.capacity = pDataBlock->info.rows;
   }
 
-  return pBlock;
+  return pDstBlock;
 }
 
 SSDataBlock* createBlockDataNotLoaded(SSDataBlock* pDataBlock) {

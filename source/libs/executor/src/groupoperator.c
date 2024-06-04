@@ -576,6 +576,67 @@ _error:
   return NULL;
 }
 
+SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBlock* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return NULL;
+  }
+
+  SSDataBlock* pDstBlock = createDataBlock();
+  pDstBlock->info = pDataBlock->info;
+
+  pDstBlock->info.rows = 0;
+  pDstBlock->info.capacity = 0;
+  pDstBlock->info.rowSize = 0;
+  pDstBlock->info.id = pDataBlock->info.id;
+  pDstBlock->info.blankFill = pDataBlock->info.blankFill;
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+
+  pDstBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
+  if (pDstBlock->pBlockAgg == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  copyPkVal(&pDstBlock->info, &pDataBlock->info);
+
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SExprInfo*       pExpr = &pOperator->exprSupp.pExprInfo[i];
+    int32_t          slotId = pExpr->base.pParam[0].pCol->slotId;
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, slotId);
+    if (pSrc) {
+      SColumnInfoData colInfo = {.hasNull = true, .info = pSrc->info};
+      blockDataAppendColInfo(pDstBlock, &colInfo);
+    }
+  }
+
+  int32_t code = blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    blockDataDestroy(pDstBlock);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SExprInfo* pExpr = &pOperator->exprSupp.pExprInfo[i];
+    int32_t    slotId = pExpr->base.pParam[0].pCol->slotId;
+    if (slotId < numOfCols) {
+      pDstBlock->pBlockAgg[slotId] = pDataBlock->pBlockAgg[i];
+      pDstBlock->pBlockAgg[slotId].colId = i;
+    }
+
+    // SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, slotId);
+    // if (pSrc) {
+    //   SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
+    //   colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
+    // }
+  }
+
+  pDstBlock->info.rows = pDataBlock->info.rows;
+  pDstBlock->info.capacity = pDataBlock->info.rows;
+
+  return pDstBlock;
+}
+
 static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
@@ -664,7 +725,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       setBufPageDirty(pPage, true);
       releaseBufPage(pInfo->pBuf, pPage);
     } else {
-      SSDataBlock* dataNotLoadBlock = createBlockDataNotLoaded(pBlock);
+      SSDataBlock* dataNotLoadBlock = createBlockDataNotLoaded(pOperator, pBlock);
       if (dataNotLoadBlock == NULL) {
         T_LONG_JMP(pTaskInfo->env, terrno);
       }

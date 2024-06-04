@@ -233,7 +233,6 @@ SSDataBlock* createDataBlock();
 void*        blockDataDestroy(SSDataBlock* pBlock);
 void         blockDataFreeRes(SSDataBlock* pBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
-SSDataBlock* createBlockDataNotLoaded(SSDataBlock* pDataBlock);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
 
 SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx);
@@ -256,6 +255,8 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }
