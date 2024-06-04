@@ -858,7 +858,10 @@ void tmqSendHbReq(void* param, void* tmrId) {
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  int32_t code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  if (code != 0) {
+    tscError("tmqSendHbReq asyncSendMsgToServer failed");
+  }
 
 OVER:
   tDestroySMqHbReq(&req);
@@ -1220,12 +1223,15 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(buf);
     goto FAIL;
   }
 
   SMqSubscribeCbParam param = {.rspErr = 0};
   if (tsem_init(&param.rspSem, 0, 0) != 0) {
     code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    taosMemoryFree(buf);
+    taosMemoryFree(sendInfo);
     goto FAIL;
   }
 
@@ -1244,10 +1250,6 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   if (code != 0) {
     goto FAIL;
   }
-
-  // avoid double free if msg is sent
-  buf = NULL;
-  sendInfo = NULL;
 
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
@@ -1287,8 +1289,6 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
 FAIL:
   taosArrayDestroyP(req.topicNames, taosMemoryFree);
-  taosMemoryFree(buf);
-  taosMemoryFree(sendInfo);
 
   return code;
 }
@@ -1361,7 +1361,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   if(pMsg->pData == NULL){
     tscError("consumer:0x%" PRIx64 " msg discard from vgId:%d, since msg is NULL", tmq->consumerId, vgId);
-    goto FAIL;
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto END;
   }
 
   int32_t msgEpoch = ((SMqRspHead*)pMsg->pData)->epoch;
@@ -1390,7 +1391,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       tDecoderClear(&decoder);
       taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto FAIL;
+      goto END;
     }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
@@ -1406,7 +1407,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       tDecoderClear(&decoder);
       taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto FAIL;
+      goto END;
     }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
@@ -1417,7 +1418,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       tDecoderClear(&decoder);
       taosReleaseRef(tmqMgmt.rsetId, refId);
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto FAIL;
+      goto END;
     }
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
@@ -1741,12 +1742,14 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
   if (tSerializeSMqPollReq(msg, msgSize, &req) < 0) {
     code = TSDB_CODE_INVALID_MSG;
+    taosMemoryFreeClear(msg);
     goto FAIL;
   }
 
   pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
   if (pParam == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(msg);
     goto FAIL;
   }
 
@@ -1758,6 +1761,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(msg);
     goto FAIL;
   }
 
@@ -1784,7 +1788,6 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
   return 0;
 FAIL:
-  taosMemoryFreeClear(msg);
   return tmqPollCb(pParam, NULL, code);
 }
 
@@ -1890,8 +1893,6 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         terrno = pRspWrapper->code;
         tscError("consumer:0x%" PRIx64 " unexpected rsp from poll, code:%s", tmq->consumerId,
                  tstrerror(pRspWrapper->code));
-        taosFreeQitem(pRspWrapper);
-        return NULL;
       } else {
         if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
           askEp(tmq, NULL, false, true);
@@ -2562,6 +2563,7 @@ void askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   if (tSerializeSMqAskEpReq(pReq, tlen, &req) < 0) {
     tscError("consumer:0x%" PRIx64 ", tSerializeSMqAskEpReq %d failed", pTmq->consumerId, tlen);
     code = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pReq);
     goto FAIL;
   }
 
@@ -2569,6 +2571,7 @@ void askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   if (pParam == NULL) {
     tscError("consumer:0x%" PRIx64 ", failed to malloc subscribe param", pTmq->consumerId);
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pReq);
     goto FAIL;
   }
 
@@ -2579,6 +2582,7 @@ void askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pReq);
     goto FAIL;
   }
 
@@ -2600,8 +2604,6 @@ void askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   }
 
 FAIL:
-  taosMemoryFreeClear(pParam);
-  taosMemoryFreeClear(pReq);
   askEpCb(pParam, NULL, code);
 }
 
@@ -2708,7 +2710,6 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pParam);
   return 0;
 }
 
@@ -2812,8 +2813,6 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   int64_t transporterId = 0;
   code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, epSet, &transporterId, sendInfo);
   if (code != 0) {
-    taosMemoryFree(buf);
-    taosMemoryFree(sendInfo);
     tsem_destroy(&pParam->sem);
     taosMemoryFree(pParam);
     return code;
@@ -3070,6 +3069,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       sendInfo->requestId = req.reqId;
       sendInfo->requestObjRefId = 0;
       sendInfo->param = pParam;
+      sendInfo->paramFreeFp = taosMemoryFree;
       sendInfo->fp = tmqGetWalInfoCb;
       sendInfo->msgType = TDMT_VND_TMQ_VG_WALINFO;
 
@@ -3081,8 +3081,6 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
               tmq->consumerId, pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
       code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, &transporterId, sendInfo);
       if (code != 0) {
-        taosMemoryFree(pParam);
-        taosMemoryFree(msg);
         goto end;
       }
     }
@@ -3238,8 +3236,6 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   int64_t transporterId = 0;
   code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
   if (code != 0) {
-    taosMemoryFree(msg);
-    taosMemoryFree(sendInfo);
     tsem_destroy(&pParam->sem);
     taosMemoryFree(pParam);
     return code;
