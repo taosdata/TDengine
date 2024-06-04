@@ -2342,7 +2342,7 @@ const char* tmq_get_db_name(TAOS_RES* res) {
 
 int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   if (res == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
     return ((SMqRspObjCommon*)res)->vgId;
@@ -2350,7 +2350,7 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return pMetaRspObj->vgId;
   } else {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
