@@ -266,7 +266,7 @@ TDengine 在写入数据时如果有很严重的乱序写入问题，会严重�
 说明客户端和服务端版本不兼容，这里cliver的版本是3.0.7.0,server版本是 3.2.3.0。目前的兼容策略是前三位一致，client 和 sever才能兼容。
 
 ### 27 修改database的root密码后，启动taos遇到报错 “failed to connect to server, reason: Authen tication failure”
-默认情况，启动taos服务会使用系统默认的用户名（root）和密码尝试连接taosd，在root密码修改后，启用taos连接就需要指明用户名和密码，例如: taos.exe -h xxx.xxx.xxx.xxx -u root -p，然后输入新密码进行连接。
+默认情况，启动taos服务会使用系统默认的用户名（root）和密码尝试连接taosd，在root密码修改后，启用taos连接就需要指明用户名和密码，例如: taos -h xxx.xxx.xxx.xxx -u root -p，然后输入新密码进行连接。
 
 ### 28 修改database的root密码后，Grafana监控插件TDinsight无数据展示
-TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集并存储在TD的log库中，在root密码修改后，需要通过taosKeeper和taosAdapter配置文件中对应的密码信息，然后重启taosKeeper和taosAdapter服务（注：若是集群需要重启每个节点上的对应服务）。
+TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集并存储于TD的log库中，在root密码修改后，需要同步更新taosKeeper和taosAdapter配置文件中对应的密码信息，然后重启taosKeeper和taosAdapter服务（注：若是集群需要重启每个节点上的对应服务）。
