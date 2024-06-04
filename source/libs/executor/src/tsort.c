@@ -651,7 +651,7 @@ int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
         leftNull = colDataIsNull_t(pLeftColInfoData, leftRowIndex, isVarType);
       } else {
         leftNull =
-            colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, leftRowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
+            colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, leftRowIndex, &pLeftBlock->pBlockAgg[pOrder->slotId]);
       }
     }
 
@@ -661,7 +661,7 @@ int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
         rightNull = colDataIsNull_t(pRightColInfoData, rightRowIndex, isVarType);
       } else {
         rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, rightRowIndex,
-                                  pRightBlock->pBlockAgg[pOrder->slotId]);
+                                  &pRightBlock->pBlockAgg[pOrder->slotId]);
       }
     }
 
@@ -742,7 +742,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
             leftNull = colDataIsNull_t(pLeftColInfoData, pLeftSource->src.rowIndex, isVarType);
           } else {
             leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
-                                     pLeftBlock->pBlockAgg[i]);
+                                     &pLeftBlock->pBlockAgg[i]);
           }
         }
 
@@ -752,7 +752,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
             rightNull = colDataIsNull_t(pRightColInfoData, pRightSource->src.rowIndex, isVarType);
           } else {
             rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                      pRightBlock->pBlockAgg[i]);
+                                      &pRightBlock->pBlockAgg[i]);
           }
         }
 
