@@ -319,7 +319,8 @@ typedef struct SDispatchMsgInfo {
   int32_t             retryCount;  // retry send data count
   int64_t             startTs;     // dispatch start time, record total elapsed time for dispatch
   SArray*             pRetryList;  // current dispatch successfully completed node of downstream
-  void*               pTimer;      // used to dispatch data after a given time duration
+  void*               pRetryTmr;   // used to dispatch data after a given time duration
+  void*               pRspTmr;      // used to dispatch data after a given time duration
 } SDispatchMsgInfo;
 
 typedef struct STaskQueue {

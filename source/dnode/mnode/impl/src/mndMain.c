@@ -345,7 +345,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndCalMqRebalance(pMnode);
   }
 
-  if (sec % 30 == 0) {  // send the checkpoint info every 10 sec
+  if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
     mndStreamCheckpointTimer(pMnode);
   }
 

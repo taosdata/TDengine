@@ -228,9 +228,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->hTaskInfo.pTimer = NULL;
   }
 
-  if (pTask->msgInfo.pTimer != NULL) {
-    /*bool ret = */taosTmrStop(pTask->msgInfo.pTimer);
-    pTask->msgInfo.pTimer = NULL;
+  if (pTask->msgInfo.pRetryTmr != NULL) {
+    /*bool ret = */taosTmrStop(pTask->msgInfo.pRetryTmr);
+    pTask->msgInfo.pRetryTmr = NULL;
   }
 
   if (pTask->inputq.queue) {
@@ -1002,6 +1002,11 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   if (pInfo->pChkptTriggerTmr != NULL) {
     taosTmrStop(pInfo->pChkptTriggerTmr);
     pInfo->pChkptTriggerTmr = NULL;
+  }
+
+  if (pInfo->pSendReadyMsgTmr != NULL) {
+    taosTmrStop(pInfo->pSendReadyMsgTmr);
+    pInfo->pSendReadyMsgTmr = NULL;
   }
 
   taosMemoryFree(pInfo);

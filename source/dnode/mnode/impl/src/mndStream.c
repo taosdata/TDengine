@@ -1062,7 +1062,7 @@ static bool taskNodeIsUpdated(SMnode *pMnode) {
   bool    allReady = true;
   SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode, &allReady);
   if (!allReady) {
-    mWarn("not all vnodes ready");
+    mWarn("not all vnodes ready, quit from vnodes status check");
     taosArrayDestroy(pNodeSnapshot);
     taosThreadMutexUnlock(&execInfo.lock);
     return 0;
