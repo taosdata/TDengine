@@ -13,7 +13,6 @@ use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
-use crate::utils::log_cache::LogCache;
 use crate::utils::monitor::send_sub_process_info;
 use crate::TaskNotify;
 use crate::{
@@ -255,8 +254,6 @@ pub async fn pi_to_taos(
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
-            // Write the line to log_rotation
-            pi_log_cache_clone.push(line.clone());
             write!(log_rotation, "[task:{}]{}", log_task_id, line).unwrap();
             line.clear();
         }
