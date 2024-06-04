@@ -240,6 +240,26 @@ int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAlloc
   return code;
 }
 
+int32_t nodesSimAcquireAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
+  if (NULL == pAllocator) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesSimReleaseAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
+}
+
 int32_t nodesAcquireAllocator(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return TSDB_CODE_SUCCESS;
