@@ -558,10 +558,17 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   ```
   **功能说明**
   - tmq_conf_new 接口用于创建一个 tmq_conf_t 结构体，用于配置消费参数。
-  - tmq_conf_set 接口用于设置消费参数，key 为参数名，value 为参数值。
-  - tmq_conf_set_auto_commit_cb 接口用于设置自动提交回调函数，参数为回调函数和回调函数的参数。
+  - tmq_conf_set 接口用于设置消费参数。
+  - tmq_conf_set_auto_commit_cb 接口用于设置自动提交回调函数。
   - tmq_conf_destroy 接口用于销毁 tmq_conf_t 结构体。
 
+  **参数说明**
+  - tmq_conf_set : key 为参数名，value 为参数值
+  - tmq_conf_set_auto_commit_cb : cb 回调函数, param 回调函数参数
+
+  **返回值**
+  - tmq_conf_new: 配置 tmq_conf_t 类型指针, NULL 失败
+  - tmq_conf_set: 结果 tmq_conf_res_t 类型, TMQ_CONF_OK 成功, 其他失败
 
 - `tmq_list_t *tmq_list_new()`
 - `int32_t     tmq_list_append(tmq_list_t *, const char *)`
@@ -575,6 +582,12 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - tmq_list_destroy 接口用于销毁 tmq_list_t 结构体，tmq_list_new 的结果需要通过该接口销毁。
   - tmq_list_get_size 接口用于获取 tmq_list_t 结构体中 topic 的个数。
   - tmq_list_to_c_array 接口用于将 tmq_list_t 结构体转换为 C 数组，数组每个元素为字符串指针。
+
+  **返回值**
+  - tmq_list_new : 返回 tmq_list_t 结果指针, tmq_list_t 是一个数组，每个元素是一个字符串, NULL 失败
+  - tmq_list_append : 返回 0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+  - tmq_list_get_size : 返回 tmq_list_t 结构体中 topic 的个数, -1 失败
+  - tmq_list_to_c_array : 返回 c 数组, 每个元素是字符串指针, NULL 失败
 
 
 - `tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`

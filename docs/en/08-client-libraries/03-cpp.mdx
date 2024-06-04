@@ -483,9 +483,17 @@ In addition to writing data using the SQL method or the parameter binding API, w
   ```
   **Description**
   - tmq_conf_new : create a tmq_conf_t structure to configure consumption parameters
-  - tmq_conf_set : set configuration, key is parameter name，value is parameter value
-  - tmq_conf_set_auto_commit_cb : set automatic commit callback function, cb is call back function, param is callback function parameter
+  - tmq_conf_set : set configuration, configuration is key-value pair
+  - tmq_conf_set_auto_commit_cb : set auto commit callback function
   - tmq_conf_destroy : destroy tmq_conf_t structure
+
+  **Parameter description**
+  - tmq_conf_set : key is parameter name，value is parameter value
+  - tmq_conf_set_auto_commit_cb : cb is callback function, param is callback function parameter
+
+  **Return value**
+  - tmq_conf_new: structure of tmq_conf_t, NULL failed
+  - tmq_conf_set: tmq_conf_res_t, TMQ_CONF_OK means success, others means failure
 
 
 - `tmq_list_t *tmq_list_new()`
@@ -501,6 +509,11 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - tmq_list_get_size : get size of tmq_list_t
   - tmq_list_to_c_array : convert tmq_list_t to c array, element is string pointer
 
+  **Return value**
+  - tmq_list_new : structure of tmq_list_t, tmq_list_t is a list of strings, NULL failed
+  - tmq_list_append : zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_list_get_size : size of tmq_list_t, -1 failed
+  - tmq_list_to_c_array : c array, element is pointer of string, NULL failed
 
 - `tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
 - `int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
