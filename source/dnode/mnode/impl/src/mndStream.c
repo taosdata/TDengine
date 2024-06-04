@@ -1130,6 +1130,15 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
       ready = false;
       break;
     }
+
+    if (pEntry->hTaskId != 0) {
+      mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s related fill-history task:0x%" PRIx64
+             " exists, checkpoint not issued",
+             pEntry->id.streamId, (int32_t)pEntry->id.taskId, pEntry->nodeId, streamTaskGetStatusStr(pEntry->status),
+             pEntry->hTaskId);
+      ready = false;
+      break;
+    }
   }
 
   taosThreadMutexUnlock(&execInfo.lock);

@@ -91,7 +91,7 @@ SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WIN
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 sutable 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _groupId)。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 sutable 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 __stableName_groupId)。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -190,7 +190,7 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
-1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
+1. 增量计算，即 IGNORE EXPIRED 0。
 
 2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 

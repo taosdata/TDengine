@@ -2845,8 +2845,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
   SStreamRawScanInfo* pInfo = pOperator->info;
   int32_t             code = TSDB_CODE_SUCCESS;
-  pTaskInfo->streamInfo.metaRsp.metaRspLen = 0;  // use metaRspLen !=0 to judge if data is meta
-  pTaskInfo->streamInfo.metaRsp.metaRsp = NULL;
+  pTaskInfo->streamInfo.btMetaRsp.batchMetaReq = NULL;  // use batchMetaReq != NULL to judge if data is meta
+  pTaskInfo->streamInfo.btMetaRsp.batchMetaLen = NULL;
 
   qDebug("tmqsnap doRawScan called");
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -2893,28 +2893,60 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
-    void*         data = NULL;
-    int32_t       dataLen = 0;
-    int16_t       type = 0;
-    int64_t       uid = 0;
-    if (pAPI->snapshotFn.getTableInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
-      qError("tmqsnap getTableInfoFromSnapshot error");
-      taosMemoryFreeClear(data);
-      return NULL;
-    }
+    for(int32_t i = 0; i < tmqRowSize; i++) {
+      void*         data = NULL;
+      int32_t       dataLen = 0;
+      int16_t       type = 0;
+      int64_t       uid = 0;
+      if (pAPI->snapshotFn.getTableInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
+        qError("tmqsnap getTableInfoFromSnapshot error");
+        taosMemoryFreeClear(data);
+        break;
+      }
 
-    if (!sContext->queryMeta) {  // change to get data next poll request
-      STqOffsetVal offset = {0};
-      SValue val = {0};
-      tqOffsetResetToData(&offset, 0, INT64_MIN, val);
-      qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
-    } else {
-      tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
-      pTaskInfo->streamInfo.metaRsp.resMsgType = type;
-      pTaskInfo->streamInfo.metaRsp.metaRspLen = dataLen;
-      pTaskInfo->streamInfo.metaRsp.metaRsp = data;
-    }
+      if (!sContext->queryMeta) {  // change to get data next poll request
+        STqOffsetVal offset = {0};
+        SValue val = {0};
+        tqOffsetResetToData(&offset, 0, INT64_MIN, val);
+        qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
+        break;
+      } else {
+        tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
+        SMqMetaRsp tmpMetaRsp = {0};
+        tmpMetaRsp.resMsgType = type;
+        tmpMetaRsp.metaRspLen = dataLen;
+        tmpMetaRsp.metaRsp = data;
+        if (!pTaskInfo->streamInfo.btMetaRsp.batchMetaReq) {
+          pTaskInfo->streamInfo.btMetaRsp.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+          pTaskInfo->streamInfo.btMetaRsp.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+        }
+        int32_t  code = TSDB_CODE_SUCCESS;
+        uint32_t len = 0;
+        tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, code);
+        if (TSDB_CODE_SUCCESS != code) {
+          qError("tmqsnap tEncodeMqMetaRsp error");
+          taosMemoryFreeClear(data);
+          break;
+        }
 
+        int32_t tLen = sizeof(SMqRspHead) + len;
+        void*   tBuf = taosMemoryCalloc(1, tLen);
+        void*   metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
+        SEncoder encoder = {0};
+        tEncoderInit(&encoder, metaBuff, len);
+        code = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
+        if (code < 0) {
+          qError("tmqsnap tEncodeMqMetaRsp error");
+          tEncoderClear(&encoder);
+          taosMemoryFreeClear(tBuf);
+          taosMemoryFreeClear(data);
+          break;
+        }
+        taosMemoryFreeClear(data);
+        taosArrayPush(pTaskInfo->streamInfo.btMetaRsp.batchMetaReq, &tBuf);
+        taosArrayPush(pTaskInfo->streamInfo.btMetaRsp.batchMetaLen, &tLen);
+      }
+    }
     return NULL;
   }
   return NULL;
