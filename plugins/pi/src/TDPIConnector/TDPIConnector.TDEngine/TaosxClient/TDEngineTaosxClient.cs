@@ -265,7 +265,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         }
                         else
                         {
-                            valDic.Add(colValName, null);
+                            // No need to add null value to valDic, objRow.Value.Append(null) will be called later.
+                            // valDic.Add(colValName, null);
                             statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), value.Quality);
                         }
                     }
