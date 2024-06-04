@@ -51,20 +51,20 @@ namespace TDPIConnector.TDEngine.TaosxClient
     public class IpcDataTypes
     {
         public const IpcDataType BoolType = "Bool";
-        public const IpcDataType UInt8Type = "UInt8";
-        public const IpcDataType UInt16Type = "UInt16";
-        public const IpcDataType UInt32Type = "UInt32";
-        public const IpcDataType UInt64Type = "UInt64";
-        public const IpcDataType Int8Type = "Int8";
-        public const IpcDataType Int16Type = "Int16";
-        public const IpcDataType Int32Type = "Int32";
-        public const IpcDataType Int64Type = "Int64";
-        public const IpcDataType Float32Type = "Float32";
-        public const IpcDataType Float64Type = "Float64";
-        public const IpcDataType TimestampType = "Timestamp";
-        public const IpcDataType VarCharType = "VarChar";
-        public const IpcDataType NCharType = "NChar";
-        public const IpcDataType JsonType = "Json";
+        public const IpcDataType UInt8Type = "u8";
+        public const IpcDataType UInt16Type = "u16";
+        public const IpcDataType UInt32Type = "u32";
+        public const IpcDataType UInt64Type = "u64";
+        public const IpcDataType Int8Type = "i8";
+        public const IpcDataType Int16Type = "i16";
+        public const IpcDataType Int32Type = "i32";
+        public const IpcDataType Int64Type = "i64";
+        public const IpcDataType Float32Type = "f32";
+        public const IpcDataType Float64Type = "f64";
+        public const IpcDataType TimestampType = "timestamp";
+        public const IpcDataType VarCharType = "varchar";
+        public const IpcDataType NCharType = "nchar";
+        public const IpcDataType JsonType = "json";
     }
 
     public enum StreamType
