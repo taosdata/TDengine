@@ -133,6 +133,7 @@ class TDTestCase:
         tdSql.prepare()
         # time.sleep(2)
         tdSql.query("create user testpy pass 'testpy'")
+        tdSql.query("alter user testpy createdb 1")
 
         #hostname = socket.gethostname()
         #tdLog.info ("hostname: %s" % hostname)
