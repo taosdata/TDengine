@@ -123,15 +123,18 @@ function mergeTaskDetailOptions(cfgOptions, data) {
 }
 
 function mergeTaskDetailParams(cfgParams, dataParams) {
+    let haveAvailable = false;
     for (let i = 0; i < cfgParams.length; i++) {
         let key = cfgParams[i].name;
         if (dataParams[key]) {
             cfgParams[i].value = dataParams[key];
+            haveAvailable = true;
             if (cfgParams[i].hint?.type === 'compose') {
                 cfgParams[i].type_value = dataParams[key + '_type'];
             }
         }
     }
+    return haveAvailable;
 }
 
 function haveAuthentication(auth_alternatives, auth_type) {
@@ -192,7 +195,10 @@ export async function refreshTask(id) {
     }
     
     for (let i = 0; i < dsConfig.groups.length; i++) {
-        mergeTaskDetailParams(dsConfig.groups[i].params, data.params);
+        let haveAvailable = mergeTaskDetailParams(dsConfig.groups[i].params, data.params);
+        if (haveAvailable && dsConfig.groups[i].collapsed === false) {
+            dsConfig.groups[i].collapsed = true;
+        }
     }
     if (dsConfig.datasets) {
         const categories = dsConfig.datasets.categories;
