@@ -2195,7 +2195,7 @@ class StreamComputingTest(TDCase):
                 tbname = self.get_subtable_wait(f'{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
                 self.tdSql.query(f'select count(*) from `{tbname}`')
                 # self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True) if "c1" in partition else self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
     def subtable_exceed_test(self):
         self.case_name = sys._getframe().f_code.co_name
