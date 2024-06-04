@@ -63,6 +63,8 @@ export default {
   fullName: "全称",
   total: "全部",
   tips: "提示",
+  yes: "是",
+  no: "否",
   continue: "继续",
   change: "修改",
   copySucc: "复制成功",
@@ -1265,6 +1267,9 @@ export default {
       jsonExtractTip: 'JSON 提取表达式编辑器',
       udtTip: 'UDT 编辑',
       uploadCode: "上传代码"
+    },
+    pi: {
+      confirmOverwriteConfigFile: "请确认是否覆盖已有配置文件?",
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",

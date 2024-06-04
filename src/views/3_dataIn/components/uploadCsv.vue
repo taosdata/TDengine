@@ -39,12 +39,13 @@
       <el-button
         v-if="!isOpcDataset || isOpcDsn"
         slot="trigger"
-        size="mini"
+        size="small"
+        plain
+        icon="el-icon-upload2"
         type="primary"
         ref="uploadButton"
         :disabled="$COMMUNITY"
-        >{{ $t('support.selectFile') }}</el-button
-      >
+      >{{ btnText || $t('support.selectFile') }}</el-button>
     </el-upload>
   </el-tooltip>
   </div>
@@ -65,6 +66,14 @@ export default {
     },
     isOpcDataset: {
       type: Boolean
+    }, 
+    disabled: {
+      type: Boolean,
+      default: false
+    },
+    btnText: {
+      type: String,
+      default: ''
     }
   },
   inject: ['sourceParent'],
@@ -106,7 +115,21 @@ export default {
     // 在新增或者编辑时切换 tab 都能保持上传的文件列表
     this.handleFiles()
   },
-  mounted() {},
+  mounted() {
+    this.$eventBus.$on("updatePIDefaultConfigFile", (defaultFile) => {
+      this.files = [].concat({
+        name: defaultFile?.substr(defaultFile.lastIndexOf("/") + 1),
+        path: defaultFile,
+        percentage: 100,
+        raw: File,
+        response: [].concat(this.value),
+        size: 87,
+        status: "success",
+        uid: 1,
+      });
+      this.update();
+    })
+  },
   methods: {
     handleRemove(_, fileList) {
       this.files = fileList;
@@ -191,7 +214,8 @@ export default {
     handleFiles() {
       if (this.value && this.value != "*") {
         this.files = [].concat({
-          name: this.value?.substr(this.value.lastIndexOf("/") + 1),
+          name: this.value.substr(this.value.lastIndexOf("/") + 1),
+          path: this.value.startsWith("@") ? this.value.substr(1) : this.value,
           percentage: 100,
           raw: File,
           response: [].concat(this.value),
@@ -213,5 +237,8 @@ export default {
     margin-top: 0;
     margin-left: 1rem;
   }
+}
+::v-deep .el-upload-list__item.is-success.focusing .el-icon-close-tip {
+  display: none !important;
 }
 </style>
