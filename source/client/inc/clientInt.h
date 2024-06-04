@@ -122,7 +122,6 @@ struct SAppInstInfo {
 typedef struct SAppInfo {
   int64_t       startTime;
   char          appName[TSDB_APP_NAME_LEN];
-  char*         ep;
   int32_t       pid;
   int32_t       numOfThreads;
   SHashObj*     pInstMap;

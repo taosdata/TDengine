@@ -82,7 +82,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
-    if (pBuf->allocSize > 16384) {
+    if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       char*   p = taosMemoryMalloc(pBuf->allocSize);
 
       int32_t dataLen = blockEncode(pInput->pData, p, numOfCols);
@@ -295,6 +295,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
+
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 

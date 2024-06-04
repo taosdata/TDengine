@@ -25,7 +25,6 @@ extern "C" {
 #include "storageapi.h"
 #include "tcommon.h"
 
-struct SDataSink;
 struct SDataSinkHandle;
 
 typedef struct SDataSinkManager {

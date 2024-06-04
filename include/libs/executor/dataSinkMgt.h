@@ -55,6 +55,7 @@ typedef struct SDataSinkStat {
 } SDataSinkStat;
 
 typedef struct SDataSinkMgtCfg {
+  int8_t   compress;
   uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
