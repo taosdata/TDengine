@@ -85,11 +85,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "String") };
-            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "String"));
+            builder.tagNames = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, IpcDataTypes.VarCharType),
+                new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, IpcDataTypes.VarCharType)
+            };
             builder.tagNames.AddRange(tags);
-            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, "String"));
-            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, "String"));
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, IpcDataTypes.VarCharType));
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, IpcDataTypes.VarCharType));
 
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
