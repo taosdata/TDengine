@@ -218,7 +218,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 }
                 else
                 {
-                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].AppendNull();
                     builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality);
                 }
                 if (builder.tsArrowArray.Length > maxWaitLength)
@@ -279,7 +279,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             {
                                 TDValue value = valDic[objRow.Key];
                                 if (value == null) {
-                                    objRow.Value.Append(null);
+                                    objRow.Value.AppendNull();
                                 } else
                                 {
                                     objRow.Value.Append(value.Value);
@@ -287,7 +287,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             }
                             else
                             {
-                                objRow.Value.Append(null);
+                                objRow.Value.AppendNull();
                             }
                         }
                         foreach (var objRow in builder.statusArrowArrayList)
@@ -298,7 +298,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             }
                             else
                             {
-                                objRow.Value.Append(null);
+                                objRow.Value.AppendNull();
                             }
                         }
                         if (builder.tsArrowArray.Length > maxWaitLength)

@@ -63,70 +63,102 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public void Append(TDValueType valueType, object value) { 
-            if (valueType != ValueType)
-            {
-                throw new Exception("ValueType not match");
+        public void AppendNull() {
+            switch (ValueType) { 
+                case TDValueType.String:
+                    ((StringArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Int:
+                    ((Int32Array.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.BigInt:
+                    ((Int64Array.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Float:
+                    ((FloatArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Double:
+                    ((DoubleArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Timestamp:
+                    ((TimestampArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Boolean:
+                    ((BooleanArray.Builder)ArrowArray).AppendNull();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
             }
-            Append(value);
         }
 
         public void Append(object value) {
             switch (ValueType) {
-                case TDValueType.Int:
-                    if (value != null)
+                case TDValueType.String:
+                    if (value == null)
                     {
-                        ((Int32Array.Builder)ArrowArray).Append((int)value);
+                        ((StringArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else
+                    {
+                        ((StringArray.Builder)ArrowArray).Append((string)value);
+                    }
+                    break;
+                case TDValueType.Int:
+                    if (value == null)
+                    {
+                        ((Int32Array.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((Int32Array.Builder)ArrowArray).Append(null);
+                        ((Int32Array.Builder)ArrowArray).Append((int)value);
                     }
                     break;
                 case TDValueType.BigInt:
-                    if (value != null)
+                    if (value == null)
                     {
-                        ((Int64Array.Builder)ArrowArray).Append((long)value);
+                        ((Int64Array.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((Int64Array.Builder)ArrowArray).Append(null);
+                        ((Int64Array.Builder)ArrowArray).Append((long)value);
                     }
                     break;
                 case TDValueType.Float:
-                    if (value != null)
+                    if (value == null)
                     {
-                        ((FloatArray.Builder)ArrowArray).Append((float)value);
+                        ((FloatArray.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((FloatArray.Builder)ArrowArray).Append(null);
+                        ((FloatArray.Builder)ArrowArray).Append((float)value);
                     }
                     break;
                 case TDValueType.Double:
-                    if (value != null)
+                    if (value == null)
                     {
-                        ((DoubleArray.Builder)ArrowArray).Append((double)value);
+                        ((DoubleArray.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((DoubleArray.Builder)ArrowArray).Append(null);
+                        ((DoubleArray.Builder)ArrowArray).Append((double)value);
                     }
                     break;
                 case TDValueType.Timestamp:
-                    if (value != null)
+                    if (value == null)
                     {
-                        ((TimestampArray.Builder)ArrowArray).Append((DateTime)value);
+                        ((TimestampArray.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((TimestampArray.Builder)ArrowArray).Append(null);
+                        ((TimestampArray.Builder)ArrowArray).Append((DateTime)value);
                     }
                     break;
                 case TDValueType.Boolean:
-                    if (value != null)
+                    if (value == null)
                     {
-                        ((BooleanArray.Builder)ArrowArray).Append((bool)value);
+                        ((BooleanArray.Builder)ArrowArray).AppendNull();
                     }
                     else {
-                        ((BooleanArray.Builder)ArrowArray).Append(null);
+                        ((BooleanArray.Builder)ArrowArray).Append((bool)value);
                     }
                     break;
+                default:
+                    throw new Exception("Failed to append value");
             }
         }
 
