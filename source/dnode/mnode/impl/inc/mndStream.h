@@ -120,6 +120,7 @@ void             destroyStreamTaskIter(SStreamTaskIter *pIter);
 bool             streamTaskIterNextTask(SStreamTaskIter *pIter);
 SStreamTask     *streamTaskIterGetCurrent(SStreamTaskIter *pIter);
 void             mndInitExecInfo();
+void             removeExpiredNodeInfo(const SArray *pNodeSnapshot);
 
 #ifdef __cplusplus
 }
