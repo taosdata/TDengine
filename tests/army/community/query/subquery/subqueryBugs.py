@@ -70,6 +70,14 @@ class TDTestCase(TBase):
         tdSql.query(sql1)
         tdSql.checkRows(4)
 
+        row1 = ['2023-11-30 23:59:27.255', "201000008", 51412.900999999998021]
+        row2 = ['2023-12-04 23:11:28.179', "201000008", 51458.900999999998021]
+        row3 = ['2023-12-04 23:12:28.180', "201000008", 51458.800999999999476]
+        row4 = ['2023-12-31 23:59:36.108', "201000008", 52855.400999999998021]
+
+        rows = [row1, row2, row3, row4]
+        tdSql.checkDataMem(sql1, rows)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
