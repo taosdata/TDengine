@@ -3,7 +3,7 @@ use std::{hash::Hash, str::FromStr};
 use linked_hash_map::LinkedHashMap as HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use taos::{Field, JsonMeta, MetaCreate, MetaDrop, TagWithValue, Ty};
+use taos::{Field, JsonMeta, MetaCreate, MetaDrop, MetaUnit, TagWithValue, Ty};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(untagged)]
@@ -467,6 +467,20 @@ impl Action {
     }
 
     pub fn mutate_meta(&self, meta: &mut JsonMeta) -> anyhow::Result<()> {
+        match meta {
+            JsonMeta::Plural { metas, .. } => {
+                for meta in metas {
+                    self.mutate_meta_unit(meta)?;
+                }
+            }
+            JsonMeta::Single(meta) => {
+                self.mutate_meta_unit(meta)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn mutate_meta_unit(&self, meta: &mut MetaUnit) -> anyhow::Result<()> {
         let action = self;
         match action {
             Action::Select(_) => {
@@ -481,7 +495,7 @@ impl Action {
                 };
                 let field = Field::new(&action.name, Ty::VarChar, len as u32);
                 match meta {
-                    JsonMeta::Create(create) => match create {
+                    MetaUnit::Create(create) => match create {
                         MetaCreate::Super {
                             table_name: _,
                             columns: _,
@@ -511,7 +525,7 @@ impl Action {
                 }
             }
             Action::RenameTable(action) => match meta {
-                JsonMeta::Create(create) => match create {
+                MetaUnit::Create(create) => match create {
                     MetaCreate::Super {
                         table_name,
                         columns: _,
@@ -545,12 +559,12 @@ impl Action {
                         table_name.extend(s.chars());
                     }
                 },
-                JsonMeta::Alter(alter) => {
+                MetaUnit::Alter(alter) => {
                     let new = action.apply(&alter.table_name)?;
                     alter.table_name.clear();
                     alter.table_name.extend(new.chars());
                 }
-                JsonMeta::Drop(drop) => match drop {
+                MetaUnit::Drop(drop) => match drop {
                     MetaDrop::Super { table_name } => action.apply_in_place(table_name)?,
                     MetaDrop::Other { table_name_list } => {
                         for name in table_name_list {
@@ -558,13 +572,13 @@ impl Action {
                         }
                     }
                 },
-                JsonMeta::Delete(_) => {
+                MetaUnit::Delete(_) => {
                     // todo: renamed table should be deleted.
                     todo!()
                 }
             },
             Action::RenameChildTable(action) => match meta {
-                JsonMeta::Create(create) => match create {
+                MetaUnit::Create(create) => match create {
                     MetaCreate::Child {
                         table_name,
                         using: _,
@@ -578,8 +592,8 @@ impl Action {
                     }
                     _ => (),
                 },
-                JsonMeta::Alter(_) => (),
-                JsonMeta::Drop(drop) => match drop {
+                MetaUnit::Alter(_) => (),
+                MetaUnit::Drop(drop) => match drop {
                     MetaDrop::Super { table_name: _ } => (),
                     MetaDrop::Other { table_name_list } => {
                         // todo(@zitsen): normal or child?
@@ -588,7 +602,7 @@ impl Action {
                         }
                     }
                 },
-                JsonMeta::Delete(_) => {
+                MetaUnit::Delete(_) => {
                     todo!()
                 }
             },
@@ -598,9 +612,9 @@ impl Action {
         Ok(())
     }
 
-    fn rename_super_meta(action: &RenameOpts, meta: &mut JsonMeta) -> anyhow::Result<()> {
-        match meta {
-            JsonMeta::Create(create) => match create {
+    fn rename_super_meta(action: &RenameOpts, unit: &mut MetaUnit) -> anyhow::Result<()> {
+        match unit {
+            MetaUnit::Create(create) => match create {
                 MetaCreate::Super {
                     table_name,
                     columns: _,
@@ -622,7 +636,7 @@ impl Action {
                 }
                 _ => (),
             },
-            JsonMeta::Alter(alter) => match alter.alter_type {
+            MetaUnit::Alter(alter) => match alter.alter_type {
                 taos::AlterType::AddTag => action.apply_in_place(&mut alter.table_name)?,
                 taos::AlterType::DropTag => action.apply_in_place(&mut alter.table_name)?,
                 taos::AlterType::RenameTag => action.apply_in_place(&mut alter.table_name)?,
@@ -634,18 +648,16 @@ impl Action {
                 taos::AlterType::ModifyTableOption => (),
                 taos::AlterType::RenameColumn => (),
             },
-            JsonMeta::Drop(drop) => match drop {
+            MetaUnit::Drop(drop) => match drop {
                 MetaDrop::Super { table_name } => {
                     // todo(@zitsen): normal or child?
                     action.apply_in_place(table_name)?
                 }
                 _ => (),
             },
-            JsonMeta::Delete(_) => {
-                todo!()
-            }
+            MetaUnit::Delete(_) => (),
         }
-        Ok(())
+        anyhow::Ok(())
     }
 }
 

@@ -21,8 +21,7 @@ use arrow::{
 };
 use faststr::FastStr;
 use futures::Stream;
-use taos_query::prelude::Itertools;
-use taos_query::prelude::{ColumnView, Ty, Value};
+use taos::{ColumnView, Itertools, Precision, Ty, Value};
 use tracing::error;
 
 use crate::{
@@ -596,7 +595,7 @@ pub struct LushMessageInsert {
 mod arrow_to_taos {
     use crate::prelude::IpcDataType;
     use arrow::datatypes::TimeUnit;
-    use taos_query::prelude::ColumnView;
+    use taos::ColumnView;
 
     /// parse arrow array to column view, unsupported value will be ignored(as NULL)
     pub fn parse_str_into(ty: &IpcDataType, data: Vec<Option<&str>>) -> ColumnView {
@@ -1340,7 +1339,7 @@ pub fn parse_column_view_with_types(
 
 pub fn record_batch_to_column_view(
     record: &RecordBatch,
-    target_precision: taos_query::prelude::Precision,
+    target_precision: Precision,
 ) -> Vec<ColumnView> {
     record
         .columns()
@@ -1499,15 +1498,9 @@ pub fn record_batch_to_column_view(
             }
             DataType::Timestamp(_, _) => {
                 let precision = match target_precision {
-                    taos_query::prelude::Precision::Millisecond => {
-                        arrow::datatypes::TimeUnit::Millisecond
-                    }
-                    taos_query::prelude::Precision::Microsecond => {
-                        arrow::datatypes::TimeUnit::Microsecond
-                    }
-                    taos_query::prelude::Precision::Nanosecond => {
-                        arrow::datatypes::TimeUnit::Nanosecond
-                    }
+                    Precision::Millisecond => arrow::datatypes::TimeUnit::Millisecond,
+                    Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
+                    Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
                 };
                 let column =
                     arrow::compute::cast(column, &DataType::Timestamp(precision.clone(), None))

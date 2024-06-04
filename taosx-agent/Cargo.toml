@@ -22,7 +22,7 @@ twelf = { version = "0.13.0", default-features = false, features = [
   "env",
   "clap",
 ] }
-itertools = "0.12.0"
+itertools = { workspace = true }
 
 dashmap = "5.4.0"
 flume = "0.11.0"

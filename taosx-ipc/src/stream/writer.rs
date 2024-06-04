@@ -11,7 +11,7 @@ pub use arrow::datatypes::DataType as ArrowDataType;
 use faststr::FastStr;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use taos_query::prelude::{Itertools, Ty, Value};
+use taos::{Itertools, Ty, Value};
 
 use crate::{
     ack::AckType,

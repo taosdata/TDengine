@@ -9,6 +9,11 @@ fn upx_run
   fo = set ${2}
   if is_dir ${fo}
     fo = set "${fo}/${name}"
+  else
+    fod = dirname ${fo}
+    if not is_dir ${fod}
+      mkdir ${fod}
+    fi
   end
   echo "Compressing ${fi} to ${fo} using UPX"
 
@@ -41,7 +46,7 @@ fn upx_run
     rm ${fo}
   end
 
-  exec ${upx} -1 -f ${fi} -o ${fo}
+  exec ${upx} -f ${fi} -o ${fo}
 
   if not is_file ${fo}
     echo "UPX failed, fallback to copy"

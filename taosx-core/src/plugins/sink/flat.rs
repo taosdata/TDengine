@@ -48,7 +48,7 @@ pub(crate) fn message_to_sql(
     debug_assert!(
         messages
             .iter()
-            .group_by(|m| m.stable_name())
+            .chunk_by(|m| m.stable_name())
             .into_iter()
             .count()
             == 1,
@@ -56,7 +56,7 @@ pub(crate) fn message_to_sql(
     );
     messages
         .iter()
-        .group_by(|m| m.stable_name())
+        .chunk_by(|m| m.stable_name())
         .into_iter()
         .map(|(key, group)| {
             let values = group

@@ -19,7 +19,7 @@ zstd = "0.13.0"
 anyhow = "1"
 arrow = { workspace = true }
 faststr = { workspace = true }
-taos-query = { workspace = true }
+taos = { workspace = true }
 tonic = { workspace = true }
 shadow-rs = { workspace = true }
 taosx-metrics = { path = "../taosx-metrics" }
@@ -42,6 +42,5 @@ tokio = { version = "1", features = [
 tracing-actix-web = { version = "0.7" }
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 
-taos = { workspace = true }
 [build-dependencies]
 shadow-rs = { workspace = true }

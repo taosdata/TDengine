@@ -1,10 +1,17 @@
 [workspace]
-members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics", "crates/arrow-compute-ext"]
+members = [
+    "taosx-ipc",
+    "taosx-core",
+    "taosx-agent",
+    "taosx-metrics",
+    "crates/arrow-compute-ext",
+]
 
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.8.3" }
 shadow-rs = { version = "0.26.0" }
+itertools = { version = "0.13.0" }
 
 clap = { version = "4.4.7", features = ["default", "derive"] }
 
@@ -21,18 +28,17 @@ metrics-tracing-context = "0.15.0"
 tonic = "0.10"
 zerocopy = { version = "0.7.34", features = ["derive"] }
 
-taos = { version = "0.11.23", default-features = false, features = [
-    "ws",
-    "deadpool",
-] }
-taos-query = { version = "0.11.23", default-features = false, features = [
-    "deadpool",
-] }
-
 metrics = "0.22.0"
 metrics-util = "0.16.0"
 bytes = "1.4.0"
 sysinfo = "0.30.5"
+
+[workspace.dependencies.taos]
+# path = "../taos-connector-rust/taos"
+version = "0.12"
+git = "https://github.com/taosdata/taos-connector-rust.git"
+default-features = false
+features = ["ws", "deadpool"]
 
 [workspace.package]
 version = "1.6.1"
@@ -79,7 +85,7 @@ convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
 futures = "0.3"
-itertools = "0.12.0"
+itertools = { version = "0.13.0" }
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
