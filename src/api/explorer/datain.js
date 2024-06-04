@@ -112,6 +112,13 @@ function mergeTaskDetailOptions(cfgOptions, data) {
         if (data.subject) {
             cfgOptions.endpoint.value += `/${data.subject}`;
         }
+        if (data.id === 'tmq') {
+            if (data.username && data.password) {
+                cfgOptions.endpoint.value = `tmq+${data.protocol}://${data.username}:${data.password}@${cfgOptions.endpoint.value}`;
+            } else {
+                cfgOptions.endpoint.value = `tmq+${data.protocol}://${cfgOptions.endpoint.value}`;
+            }
+        }
     }
 }
 
@@ -174,7 +181,9 @@ export async function refreshTask(id) {
     const data = taskDetail.from_expand;
     
     mergeTaskDetailOptions(dsConfig.options, data);
-    mergeTaskDetailParams(dsConfig.advanced.params, data.params);
+    if (dsConfig.advanced && dsConfig.advanced.params) {
+        mergeTaskDetailParams(dsConfig.advanced.params, data.params);
+    }
     if (dsConfig.params) {
         mergeTaskDetailParams(dsConfig.params, data.params);
     }
