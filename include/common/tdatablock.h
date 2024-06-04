@@ -233,6 +233,7 @@ SSDataBlock* createDataBlock();
 void*        blockDataDestroy(SSDataBlock* pBlock);
 void         blockDataFreeRes(SSDataBlock* pBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
+SSDataBlock* createBlockDataNotLoaded(SSDataBlock* pDataBlock);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
 
 SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx);

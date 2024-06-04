@@ -630,7 +630,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
           leftNull = colDataIsNull_s(pLeftColInfoData, pLeftSource->src.rowIndex);
         } else {
           leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
-                                   pLeftBlock->pBlockAgg[i]);
+                                   &pLeftBlock->pBlockAgg[i]);
         }
       }
 
@@ -640,7 +640,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
           rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
         } else {
           rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                    pRightBlock->pBlockAgg[i]);
+                                    &pRightBlock->pBlockAgg[i]);
         }
       }
 
