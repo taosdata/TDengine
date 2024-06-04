@@ -21,7 +21,7 @@
 
 #define MALLOC_ALIGN_BYTES 32
 
-static void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -1729,62 +1729,6 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     pDstBlock->info.rows = pDataBlock->info.rows;
     pDstBlock->info.capacity = pDataBlock->info.rows;
   }
-
-  return pDstBlock;
-}
-
-SSDataBlock* createBlockDataNotLoaded(SSDataBlock* pDataBlock) {
-  if (pDataBlock == NULL) {
-    return NULL;
-  }
-
-  SSDataBlock* pDstBlock = createDataBlock();
-  pDstBlock->info = pDataBlock->info;
-
-  pDstBlock->info.rows = 0;
-  pDstBlock->info.capacity = 0;
-  pDstBlock->info.rowSize = 0;
-  pDstBlock->info.id = pDataBlock->info.id;
-  pDstBlock->info.blankFill = pDataBlock->info.blankFill;
-
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
-    blockDataAppendColInfo(pDstBlock, &colInfo);
-  }
-
-  copyPkVal(&pDstBlock->info, &pDataBlock->info);
-
-  int32_t code = blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    blockDataDestroy(pDstBlock);
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-    colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
-  }
-
-  pDstBlock->info.rows = pDataBlock->info.rows;
-  pDstBlock->info.capacity = pDataBlock->info.rows;
-
-  pDstBlock->pBlockAgg = pDataBlock->pBlockAgg;
-  pDataBlock->pBlockAgg = NULL;
-  //  int numOfSlots = sizeof(pDataBlock->pBlockAgg)/POINTER_BYTES;
-  //  if (pDataBlock->pBlockAgg != NULL) {
-  //    pDstBlock->pBlockAgg = taosMemoryCalloc(numOfSlots, POINTER_BYTES);
-  //    if (pDstBlock->pBlockAgg == NULL) {
-  //      terrno = TSDB_CODE_OUT_OF_MEMORY;
-  //      return NULL;
-  //    }
-  //    for (int j = 0; j < numOfSlots; ++j) {
-  //      pDstBlock->pBlockAgg[j] = &(*pDataBlock->pBlockAgg)[j];
-  //    }
-  //  }
 
   return pDstBlock;
 }
