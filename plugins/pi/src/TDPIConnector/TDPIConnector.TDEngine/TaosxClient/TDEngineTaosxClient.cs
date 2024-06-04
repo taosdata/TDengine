@@ -265,8 +265,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         }
                         else
                         {
-                            // No need to add null value to valDic, objRow.Value.Append(null) will be called later.
-                            // valDic.Add(colValName, null);
+                            valDic.Add(colValName, null);
                             statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), value.Quality);
                         }
                     }
@@ -279,7 +278,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
                             if (valDic.ContainsKey(objRow.Key))
                             {
                                 TDValue value = valDic[objRow.Key];
-                                objRow.Value.Append(value.Value);
+                                if (value == null) {
+                                    objRow.Value.Append(null);
+                                } else
+                                {
+                                    objRow.Value.Append(value.Value);
+                                }
                             }
                             else
                             {

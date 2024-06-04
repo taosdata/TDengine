@@ -302,7 +302,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public RecordBatch BuildTablesMessage()
         {
-            int length = 0;
+            int length;
             if (mode == PIDataMode.PointMode)
             {
                 length = tagVals.Count;
