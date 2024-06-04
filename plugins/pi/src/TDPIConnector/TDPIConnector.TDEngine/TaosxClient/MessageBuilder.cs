@@ -203,7 +203,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public Dictionary<string, Int32Array.Builder> statusArrowArrayList
             = new Dictionary<string, Int32Array.Builder>();
 
-        public Dictionary<string, ColumnValueBuilder> valArrowArrayList;
+        public Dictionary<string, ColumnValueBuilder> valArrowArrayList
+            = new Dictionary<string, ColumnValueBuilder>();
 
         // pointId is table tag for PI mode 
         // public Dictionary<string, int> pointIds
@@ -392,9 +393,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
          
             foreach (var tag in tagNames)
             {
-                string tagType = "NCHAR(100)";
-                // if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
-                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tagType));
+                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tag.Value));
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
             }
             GenerateMetadata(stableName, colIpcField, ipcTagField);

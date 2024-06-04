@@ -1,6 +1,7 @@
 ﻿using OSIsoft.AF.PI;
 using System.Collections.Generic;
 using System.Linq;
+using TDPIConnector.TDEngine.TaosxClient;
 
 namespace TDPIConnector.PI
 {
@@ -50,16 +51,18 @@ namespace TDPIConnector.PI
         }
         static public Dictionary<string, string> GetPointSavedAttrsType()
         {
-            Dictionary<string, string> tags = new Dictionary<string, string> { };
-            tags.Add("ptclassname", "string");
-            tags.Add("sourcetag", "string");
-            tags.Add("tag", "string");
-            tags.Add("descriptor", "string");
-            tags.Add("exdesc", "string");
-            tags.Add("engunits", "string");
-            tags.Add("pointsource", "string");
-            tags.Add("step", "string");
-            tags.Add("future", "string");
+            Dictionary<string, string> tags = new Dictionary<string, string>
+            {
+                { "ptclassname", IpcDataTypes.VarCharType },
+                { "sourcetag", IpcDataTypes.VarCharType },
+                { "tag", IpcDataTypes.VarCharType },
+                { "descriptor", IpcDataTypes.VarCharType },
+                { "exdesc", IpcDataTypes.VarCharType },
+                { "engunits", IpcDataTypes.VarCharType },
+                { "pointsource", IpcDataTypes.VarCharType },
+                { "step", IpcDataTypes.VarCharType },
+                { "future", IpcDataTypes.VarCharType }
+            };
             return tags;
         }
         public Dictionary<string, string> GetPointSavedAttrsValue() {

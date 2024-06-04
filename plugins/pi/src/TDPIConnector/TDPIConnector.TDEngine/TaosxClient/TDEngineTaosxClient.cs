@@ -47,11 +47,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
             // builder.tagNames = tags;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.POINTNAME, "String") };
-            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, "INT"));
+            builder.tagNames = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>(TaosxConstants.POINTNAME, IpcDataTypes.VarCharType),
+                new KeyValuePair<string, string>(TaosxConstants.POINTID, IpcDataTypes.VarCharType)
+            };
             builder.tagNames.AddRange(tags); 
-            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, "String"));
-            if(useAFDatabase) builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementsPathForPoint,"String"));
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, IpcDataTypes.VarCharType));
+            if(useAFDatabase) builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementsPathForPoint,IpcDataTypes.VarCharType));
 
             builder.tsArrowArray = new TimestampArray.Builder();
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
@@ -82,8 +85,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "VARCHAR(64)") };
-            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "NCHAR(100)"));
+            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, "String") };
+            builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, "String"));
             builder.tagNames.AddRange(tags);
             builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, "String"));
             builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, "String"));

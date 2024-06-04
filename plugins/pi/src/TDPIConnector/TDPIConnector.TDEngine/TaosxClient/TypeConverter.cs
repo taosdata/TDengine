@@ -28,9 +28,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     return TDValueType.Double;
                 case "TIMESTAMP":
                     return TDValueType.Timestamp;
+                case "BOOL":
+                    return TDValueType.Boolean;
+                default:
+                    log.Fatal($"TDType not supported:{tdType}");
+                    throw new Exception($"Can't convert to TDValueType: {tdType}");
             }
-            log.Fatal($"PointType not supported:{tdType}");
-            throw new Exception($"Can't convert to TDValueType: {tdType}");
         }
 
         internal static Apache.Arrow.Types.IArrowType ToArrowType(TDValueType tdType) {
