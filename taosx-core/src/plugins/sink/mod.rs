@@ -14,15 +14,15 @@ use std::{
 
 use crate::plugins::runners::opc::config::model::ColumnConfig;
 use crate::plugins::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+use crate::utils::trace::TraceDataId;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
     utils::{get_main_version_from_server_version, get_server_version},
 };
-use crate::{plugins::transform::TransformExt, utils::trace::TraceDataId};
-use crate::{runners::opc::config::model::TableConfig, sink::transform::parse::FieldParser};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
@@ -46,7 +46,6 @@ use bytes::Bytes;
 use deadpool::managed::Timeouts;
 use faststr::FastStr;
 use futures_util::{Sink, Stream, StreamExt};
-use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Engine, Scope};
 use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
@@ -82,10 +81,7 @@ use self::{
     flat::{flat_write_with_raw_block, flat_write_with_sql},
     ipc_metric::IpcMetrics,
     lush::{LushModelConfig, TableTagCache},
-    transform::parse::ParserImpl,
 };
-use crate::plugins::transform::parse::cast;
-
 pub mod flat;
 pub mod ipc_metric;
 pub mod lush;
@@ -922,7 +918,6 @@ async fn consume_lush_record_with_transform(
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
-    lush_parser: Arc<ParserImpl>,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
@@ -1032,8 +1027,7 @@ async fn consume_lush_record_with_transform(
                     lush::join_record_batch(&tags_records, values_records);
 
                 // 类型转换
-                let parsed_records: RecordBatch =
-                    lush_parser.transform_record_batch(&combined_records)?;
+                let parsed_records: RecordBatch = combined_records;
 
                 // 按超级表名分组
                 // let grouped_batches: LinkedHashMap<String, RecordBatch> =
@@ -1080,10 +1074,7 @@ async fn consume_lush_record_with_transform(
                     })?;
                 let message: transform::Message =
                         parser.parse_message_from_records(&record_batch).with_context(|| {
-                            format!(
-                                "lush_parser parse message from records failed, super_table: {}, parser: {}",
-                                super_table, serde_json::to_string(&lush_parser).unwrap()
-                            )
+                            format!("lush_parser parse message from records failed, super_table: {}", super_table)
                         })?;
 
                 let transform_elapsed = timer.elapsed();
@@ -2707,24 +2698,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
 
     let mut count = 0;
-    let lush_parser = ipc_reader
-        .metadata()
-        .init()
-        .map(|init| {
-            let columns = init.columns();
-            let fields: LinkedHashMap<String, FieldParser> = columns
-                .iter()
-                .map(|(col_name, ipc_type)| {
-                    (
-                        col_name.clone(),
-                        FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
-                    )
-                })
-                .collect();
-            ParserImpl::new(fields)
-        })
-        .map(Arc::new);
-
     let mut stream = ipc_reader.into_stream();
 
     let mut batches: u32 = 0;
@@ -2756,7 +2729,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
-                lush_parser.as_ref().unwrap().clone(),
             )
             .await
         } else {
@@ -3462,7 +3434,6 @@ impl IpcStreamWorker {
         data_trace_id: TraceDataId,
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
-        lush_parser: &Option<Arc<ParserImpl>>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
@@ -3541,7 +3512,6 @@ impl IpcStreamWorker {
                         metrics_arc,
                         lush_model_config.clone(),
                         table_tag_cache,
-                        lush_parser.clone().unwrap(),
                     )
                     .await;
                     if is_tables {

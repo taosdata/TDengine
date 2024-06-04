@@ -84,5 +84,11 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TDPIConnector.TDEngine\TDPIConnector.TDEngine.csproj">
+      <Project>{9A5ED5D0-7174-451A-8C05-762E4198294C}</Project>
+      <Name>TDPIConnector.TDEngine</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -13,7 +13,6 @@ use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
-use crate::utils::log_cache::LogCache;
 use crate::utils::monitor::send_sub_process_info;
 use crate::TaskNotify;
 use crate::{
@@ -245,8 +244,6 @@ pub async fn pi_to_taos(
         .take()
         .expect("Failed to capture stderr");
     let log_task_id = task_id.unwrap_or_default();
-    let pi_log_cache = LogCache::new(10);
-    let pi_log_cache_clone = pi_log_cache.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -257,8 +254,6 @@ pub async fn pi_to_taos(
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
-            // Write the line to log_rotation
-            pi_log_cache_clone.push(line.clone());
             write!(log_rotation, "[task:{}]{}", log_task_id, line).unwrap();
             line.clear();
         }
@@ -295,9 +290,13 @@ pub async fn pi_to_taos(
                     let mut exit = None;
                     if let Ok(Some(status)) = child_command
                         .terminate_timeout(Duration::from_secs(2))
-                        .await {
+                        .await
+                    {
                         tracing::info!("PI connector exit with {}", status);
-                        notify.send_async(TaskNotify::Info(format!("PI connector exit with {}", status)));
+                        notify.send_async(TaskNotify::Info(format!(
+                            "PI connector exit with {}",
+                            status
+                        )));
                         exit.replace(status);
                     }
                     tokio::spawn(async move {
@@ -325,7 +324,7 @@ pub async fn pi_to_taos(
                 tracing::info!("PI connector exit with {}", status);
                 if !status.success() {
                     safe_exit!();
-                    anyhow::bail!("PI connector exit with {}. PI Logs:\n{}", status, pi_log_cache.get());
+                    anyhow::bail!("PI connector exit with {}", status);
                 }
             },
             err = ipc.recv_error() => {
@@ -336,7 +335,7 @@ pub async fn pi_to_taos(
                             return Ok(());
                         }
                     }
-                    anyhow::bail!("PI writer error: {err}. PI Logs:\n{}", pi_log_cache.get());
+                    anyhow::bail!("PI writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
@@ -350,110 +349,6 @@ pub async fn pi_to_taos(
     .await??;
     Ok(())
 }
-
-// TODO: clean clode
-// #[allow(unused_variables, unreachable_code)]
-// #[instrument(skip(data), fields(plugin = "pi"))]
-// pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-//     println!("# loading plugin: PI");
-//     #[cfg(not(target_os = "windows"))]
-//     {
-//         anyhow::bail!("PI connector support only windows platform");
-//     }
-
-//     let from_dsn = data.from.clone().into_dsn()?;
-//     let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
-
-//     let toml = toml::to_string(&config)?;
-//     let mut config_file = tempfile::NamedTempFile::new()?;
-//     write!(config_file, "{}", &toml)?;
-//     let config_path = config_file.path().to_path_buf();
-//     let temp_path = config_file.into_temp_path();
-
-//     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
-
-//     let mut command = tokio::process::Command::new(pi_exe_path()?);
-
-//     let filter_point = from_dsn.params.get("filter_point").map(|s| s.as_str());
-//     let filter_element = from_dsn.params.get("filter_element").map(|s| s.as_str());
-//     let filter_template = from_dsn.params.get("filter_template").map(|s| s.as_str());
-
-//     let mode = data.categories.get(0).unwrap(); // -pp,-px,-pt
-//     let (pattern, pattern_type) = if mode.eq("-pp") {
-//         match filter_point {
-//             Some(pattern) => (pattern, ""),
-//             None => ("*", ""),
-//         }
-//     } else {
-//         if let Some(pattern) = filter_element {
-//             (pattern, "Element")
-//         } else if let Some(pattern) = filter_template {
-//             (pattern, "Template")
-//         } else {
-//             ("*", "Element")
-//         }
-//     };
-
-//     let mut log_path = log_path();
-
-//     fs::create_dir_all(&log_path)?;
-
-//     tracing::info!("log path created: {}", &log_path.display());
-
-//     log_path.push(LOG_FILE);
-
-//     tracing::info!("log file dir: {}", &log_path.display());
-
-//     let mut log_rotation = log_rotation(&log_path, 700);
-//     let cmd: &mut tokio::process::Command = command
-//         .arg("-f")
-//         .arg(&config_path)
-//         .arg(mode) // 搜索模式： -pp,-px,-pt
-//         .arg(pattern) // 搜索条件: * 或其它
-//         .kill_on_drop(true)
-//         .stdout(std::process::Stdio::piped())
-//         .stderr(std::process::Stdio::piped());
-//     if !pattern_type.is_empty() {
-//         cmd.arg(pattern_type);
-//     }
-//     tracing::info!("{:?}", cmd);
-//     let output = cmd.output().await?;
-//     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
-//     // .context("Start PI collector error")?;
-//     tracing::info!("PI Connector exit with status {}", output.status);
-//     let mut lines = output.stdout.lines();
-//     let json: Value = lines
-//         .find_map(|line| {
-//             let line = line.ok()?;
-//             if line.is_empty() {
-//                 return None;
-//             }
-//             if line.len() < 10 {
-//                 tracing::warn!("invalid json line: {}", &line);
-//                 return None;
-//             }
-//             serde_json::from_str(&line).ok()
-//         })
-//         .ok_or_else(|| {
-//             tracing::error!(
-//                 "No valid json data returned from PI connector: {}",
-//                 String::from_utf8_lossy(&output.stdout)
-//             );
-//             anyhow::format_err!(
-//                 "No valid json data returned from PI connector: {}",
-//                 String::from_utf8_lossy(&output.stdout)
-//             )
-//         })?;
-//     tracing::debug!("pi dataset: {}", &json);
-//     Ok(vec![DataSet {
-//         id: format!("{}", &json),
-//         name: None,
-//         category: None,
-//         r#type: None,
-//         options: None,
-//         format: None,
-//     }])
-// }
 
 #[instrument(skip_all)]
 #[allow(unused_variables, unreachable_code)]

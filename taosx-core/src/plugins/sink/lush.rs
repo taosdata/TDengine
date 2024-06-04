@@ -77,21 +77,8 @@ impl TableTagCache {
         table_name: impl Into<FastStr>,
         value: impl Into<Arc<LushInsertAttrs>>,
     ) {
-        let (mut k, mut v) = (table_name.into(), value.into());
-        let mut retry = 5;
-        loop {
-            match self.0.insert_async(k, v).await {
-                Ok(_) => break,
-                Err(entry) => {
-                    if retry == 0 {
-                        error!("Insert table tag cache failed: {:?}", entry);
-                        break;
-                    }
-                    (k, v) = entry;
-                    retry -= 1;
-                }
-            }
-        }
+        let (k, v) = (table_name.into(), value.into());
+        let _ = self.0.insert_async(k, v).await;
     }
 }
 

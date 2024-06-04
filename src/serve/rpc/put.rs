@@ -6,7 +6,6 @@ use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
-use linked_hash_map::LinkedHashMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
@@ -28,7 +27,6 @@ use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
-use taosx_core::plugins::transform::parse::{cast, FieldParser, ParserImpl};
 
 #[derive(Debug)]
 pub struct PutStream {
@@ -138,19 +136,6 @@ async fn ipc_stream_writer(
     let metadata = worker.parser.metadata();
     let metrics_arc = get_metrics(task.id).await.expect("metrics not found");
     let metrics = metrics_arc.ipc();
-    let lush_parser = metadata.init().map(|init| {
-        let columns = init.columns();
-        let fields: LinkedHashMap<String, FieldParser> = columns
-            .iter()
-            .map(|(col_name, ipc_type)| {
-                (
-                    col_name.clone(),
-                    FieldParser::Cast(cast::Cast::new(ipc_type.clone())),
-                )
-            })
-            .collect();
-        Arc::new(ParserImpl::new(fields))
-    });
     if worker.lush_model_config.get().is_none() {
         if let Some(sql) = metadata.init_sql_string() {
             let init = metadata.init().unwrap();
@@ -196,7 +181,6 @@ async fn ipc_stream_writer(
                 &abort_message_tx,
                 &contiguous_errors,
                 &metrics_arc,
-                &lush_parser,
                 &tables_messages_in_progress,
             ))
         })
@@ -212,7 +196,6 @@ async fn ipc_stream_writer(
                 abort_message_tx,
                 contiguous_errors,
                 metrics_arc,
-                lush_parser,
                 tables_messages_in_progress,
             )| {
                 async move {
@@ -224,7 +207,6 @@ async fn ipc_stream_writer(
                             trace_id,
                             metrics,
                             metrics_arc,
-                            lush_parser,
                             tables_messages_in_progress,
                         )
                         .in_current_span()
