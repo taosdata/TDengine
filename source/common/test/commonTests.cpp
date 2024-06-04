@@ -692,4 +692,38 @@ TEST(timeTest, epSet) {
     ASSERT_EQ(ep.numOfEps, 1);
   }
 }
+
+// Define test cases
+TEST(AlreadyAddGroupIdTest, GroupIdAdded) {
+  // Test case 1: Group ID has been added
+  char ctbName[64] = "abc123";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdNotAdded) {
+  // Test case 2: Group ID has not been added
+  char ctbName[64] = "abc456";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedAtTheEnd) {
+  // Test case 3: Group ID has been added at the end
+  char ctbName[64] = "xyz1";
+  int64_t groupId = 1;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
+  // Test case 4: Group ID has been added with different length
+  char ctbName[64] = "def";
+  int64_t groupId = 123456;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
 #pragma GCC diagnostic pop

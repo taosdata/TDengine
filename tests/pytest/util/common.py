@@ -201,6 +201,9 @@ class TDCom:
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
         self.state_window_range = list()
+
+        self.custom_col_val = 0
+        self.part_val_list = [1, 2]
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
 
@@ -1259,7 +1262,7 @@ class TDCom:
                 default_ctbname_index_start_num += 1
                 tdSql.execute(create_stable_sql)
 
-    def sgen_column_value_list(self, column_elm_list, need_null, ts_value=None):
+    def sgen_column_value_list(self, column_elm_list, need_null, ts_value=None, additional_ts=None, custom_col_index=None, col_value_type=None, force_pk_val=None):
         """_summary_
 
         Args:
@@ -1269,6 +1272,8 @@ class TDCom:
         """
         self.column_value_list = list()
         self.ts_value = self.genTs()[0]
+        if additional_ts is not None:
+            self.additional_ts = self.genTs(additional_ts=additional_ts)[2]
         if ts_value is not None:
             self.ts_value = ts_value
 
@@ -1292,7 +1297,22 @@ class TDCom:
             for i in range(int(len(self.column_value_list)/2)):
                 index_num = random.randint(0, len(self.column_value_list)-1)
                 self.column_value_list[index_num] = None
-        self.column_value_list = [self.ts_value] + self.column_value_list
+
+        if custom_col_index is not None:
+            if col_value_type == "Random":
+                pass
+            elif col_value_type == "Incremental":
+                self.column_value_list[custom_col_index] = self.custom_col_val
+                self.custom_col_val += 1
+            elif col_value_type == "Part_equal":
+                self.column_value_list[custom_col_index] = random.choice(self.part_val_list)
+
+        self.column_value_list = [self.ts_value] + [self.additional_ts] + self.column_value_list if additional_ts is not None else [self.ts_value] + self.column_value_list
+        if col_value_type == "Incremental" and custom_col_index==1:
+            self.column_value_list[custom_col_index] = self.custom_col_val if force_pk_val is None else force_pk_val
+        if col_value_type == "Part_equal" and custom_col_index==1:
+            self.column_value_list[custom_col_index] = random.randint(0, self.custom_col_val) if force_pk_val is None else force_pk_val
+
 
     def screate_table(self, dbname=None, tbname="tb", use_name="table", column_elm_list=None,
                     count=1, default_tbname_prefix="tb", default_tbname_index_start_num=1,
@@ -1333,7 +1353,7 @@ class TDCom:
                 default_tbname_index_start_num += 1
                 tdSql.execute(create_table_sql)
 
-    def sinsert_rows(self, dbname=None, tbname=None, column_ele_list=None, ts_value=None, count=1, need_null=False):
+    def sinsert_rows(self, dbname=None, tbname=None, column_ele_list=None, ts_value=None, count=1, need_null=False, custom_col_index=None, col_value_type="random"):
         """insert rows
 
         Args:
@@ -1353,7 +1373,7 @@ class TDCom:
             if tbname is not None:
                 self.tbname = tbname
 
-        self.sgen_column_value_list(column_ele_list, need_null, ts_value)
+        self.sgen_column_value_list(column_ele_list, need_null, ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
         # column_value_str = ", ".join(str(v) for v in self.column_value_list)
         column_value_str = ""
         for column_value in self.column_value_list:
@@ -1370,7 +1390,7 @@ class TDCom:
         else:
             for num in range(count):
                 ts_value = self.genTs()[0]
-                self.sgen_column_value_list(column_ele_list, need_null, f'{ts_value}+{num}s')
+                self.sgen_column_value_list(column_ele_list, need_null, f'{ts_value}+{num}s', custom_col_index=custom_col_index, col_value_type=col_value_type)
                 column_value_str = ""
                 for column_value in self.column_value_list:
                     if column_value is None:
@@ -1777,7 +1797,7 @@ class TDCom:
             self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
             self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
         """prepare stream data
 
         Args:
@@ -1840,8 +1860,8 @@ class TDCom:
         if fill_history_value == 1:
             for i in range(self.range_count):
                 ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
-                self.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
+                self.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if i == 1:
                     self.record_history_ts = ts_value
 
@@ -1861,6 +1881,18 @@ class TDCom:
                 latency += 1
                 time.sleep(1)
         return tbname
+
+    def get_group_id_from_stb(self, stbname):
+        tdSql.query(f'select distinct group_id from {stbname}')
+        cnt = 0
+        while len(tdSql.queryResult) == 0:
+            tdSql.query(f'select distinct group_id from {stbname}')
+            if cnt < self.default_interval:
+                cnt += 1
+                time.sleep(1)
+            else:
+                return False
+        return tdSql.queryResult[0][0]
 
     def update_json_file_replica(self, json_file_path, new_replica_value, output_file_path=None):
         """

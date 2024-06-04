@@ -1030,7 +1030,7 @@ function installProduct() {
     echo "${productName} is installed successfully!"
     echo
     
-    echo -e "\033[44;32;1mTo start all the components                 : sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
     if [ "$verMode" == "cluster" ]; then

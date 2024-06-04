@@ -1,7 +1,7 @@
 ---
 title: 可视化管理
 sidebar_label: 可视化管理工具
-description: taosExplorer 的使用说明，包括安装、配置、使用等。
+description: taos-explorer 的使用说明，包括安装、配置、使用等。
 ---
 
 taos-explorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。
@@ -21,8 +21,8 @@ cluster = "http://localhost:6041"
 
 配置文件中只需要关注这两项即可：
 
-- port：explorer 对外的服务端口
-- cluster：explorer 连接的 TDengine 实例，只支持 websocket 连接，所以该地址为 TDengine 集群中 taosAdapter 服务的地址
+- port：taos-explorer 对外的服务端口
+- cluster：taos-explorer 连接的 TDengine 实例，只支持 websocket 连接，所以该地址为 TDengine 集群中 taosAdapter 服务的地址
 
 ## 启动 & 停止
 
@@ -44,7 +44,7 @@ cluster = "http://localhost:6041"
 
 ### 注册流程
 
-安装好，打开浏览器，默认访问`http://ip:6060`来访问 explorer 平台。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
+安装好，打开浏览器，默认访问`http://ip:6060`来访问 taos-explorer 服务。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
 
 ### 登录
 

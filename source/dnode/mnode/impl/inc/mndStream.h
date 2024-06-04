@@ -97,6 +97,7 @@ void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t     mndPersistStream(STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t streamId);
+int32_t     mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt);
 int32_t     mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
 bool        mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char *pTransName, bool lock);
 int32_t     mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId);

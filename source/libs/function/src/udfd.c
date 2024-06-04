@@ -1424,7 +1424,7 @@ int main(int argc, char *argv[]) {
     printf("failed to start since init log error\n");
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0, true) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -2;
   }

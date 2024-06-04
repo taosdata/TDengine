@@ -103,6 +103,9 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
+    if (pTableName->n == 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "invalid table name");
+    }
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
@@ -111,6 +114,8 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
+    if (name[0] == '\0')
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
 
     code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
@@ -733,6 +738,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       }
     }
   } else {
+    bool hasTs = false;
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
         SSchema* pColSchema = &pSchema[j];
@@ -742,6 +748,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
                                          pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
             ret = TSDB_CODE_INVALID_PARA;
             goto end;
+          }
+
+          if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            hasTs = true;
           }
 
           int8_t* offset = pStart;
@@ -767,6 +777,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
           break;
         }
       }
+    }
+
+    if(!hasTs){
+      if (errstr != NULL) snprintf(errstr, errstrLen, "timestamp column(primary key) not found in raw data");
+      ret = TSDB_CODE_INVALID_PARA;
+      goto end;
     }
 
     for (int c = 0; c < boundInfo->numOfBound; ++c) {
