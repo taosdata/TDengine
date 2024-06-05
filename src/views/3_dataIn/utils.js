@@ -761,6 +761,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
             } else {
               return !['endDateTime'].includes(name)
             }
+          } else if (currentData.trust_cert){
+            return !['trust_cert_ca'].includes(name)
           } else {
             return !['table','retrieveInterval','tolerance'].includes(name)
           }
