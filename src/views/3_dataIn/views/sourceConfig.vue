@@ -1,6 +1,6 @@
 <template>
   <div class="source-ui">
-    <div :class="['left-ui', isShowEditBtn ? 'readable': '']">
+    <div :class="['left-ui']">
       <el-form
         :model="sourceForm"
         ref="form"
@@ -129,15 +129,15 @@
         <!-- <el-button @click="cancel" type="primary" class="preview-btn" size="small">{{
           $t("preview")
         }}</el-button> -->
-        <el-button
+        <!-- <el-button
           v-if="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
           size="small"
           >{{ $t("edit") }}</el-button
-        >
-        <template v-else>
+        > -->
+        <template>
           <el-tooltip
             placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
           >

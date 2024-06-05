@@ -743,7 +743,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -771,6 +771,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         multiple,
         pattern: pattern || null,
         patternMsg,
+        grid_two,
       };
       handleHintType(paramConfig, hint, value);
       // 2024-05-17，pibackfill remove the special rule

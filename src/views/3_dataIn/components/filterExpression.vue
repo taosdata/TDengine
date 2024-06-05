@@ -148,7 +148,9 @@ export default {
               })
             )
           )
-        this.$store.commit('app/SET_RESULTTB_SHOW',true)
+        // if (!this.isViewable) {
+          this.$store.commit('app/SET_RESULTTB_SHOW',true)
+        // }
         this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'filterResTb');
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [

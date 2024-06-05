@@ -2959,7 +2959,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3152,7 +3153,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3308,7 +3310,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3532,7 +3535,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -6569,7 +6573,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -6762,7 +6767,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -6918,7 +6924,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -7142,7 +7149,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",

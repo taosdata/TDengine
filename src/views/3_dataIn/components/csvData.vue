@@ -113,6 +113,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    isViewable: {
+      type: Boolean,
+      default: false,
+    },
     echoData: {
       type: Array,
       default: () => {
@@ -175,7 +179,7 @@ export default {
     };
   },
   async mounted() {
-    if (this.isEditable) {
+    if (this.isEditable || this.isViewable) {
       //编辑状态直接从返回值去csv 的parser
       this.activeName = "second";
       this.showConfig = true;
