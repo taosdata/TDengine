@@ -16,19 +16,18 @@
 #include "vnd.h"
 
 extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
 
-int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SCompactVnodeReq req = {0};
   if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return TSDB_CODE_INVALID_MSG;
+    return (terrno = TSDB_CODE_INVALID_MSG);
   }
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw, pVnode->config.sttTrigger == 1);
+  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -37,11 +36,10 @@ int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
   }
-  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode),
-        req.compactId);
+  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode), req.compactId);
 
   tsdbStopAllCompTask(pVnode->pTsdb);
-  
+
   pRsp->msgType = TDMT_VND_KILL_COMPACT_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -51,13 +49,13 @@ int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 }
 
 int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg) {
-  int32_t      code = 0;
+  int32_t code = 0;
 
   SQueryCompactProgressReq req = {0};
 
-  int32_t      rspSize = 0;
-  SRpcMsg      rspMsg = {0};
-  void        *pRsp = NULL;
+  int32_t                  rspSize = 0;
+  SRpcMsg                  rspMsg = {0};
+  void                    *pRsp = NULL;
   SQueryCompactProgressRsp rsp = {0};
 
   // deserialize request
@@ -69,8 +67,8 @@ int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   // query compact progress
   rsp.dnodeId = req.dnodeId;
   tsdbCompMonitorGetInfo(pVnode->pTsdb, &rsp);
-  vInfo("update compact progress, compactId:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
-        rsp.compactId, rsp.vgId, rsp.dnodeId, rsp.numberFileset, rsp.finished);
+  vInfo("update compact progress, compactId:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", rsp.compactId,
+        rsp.vgId, rsp.dnodeId, rsp.numberFileset, rsp.finished);
   rsp.compactId = req.compactId;
 
   // serialize response
