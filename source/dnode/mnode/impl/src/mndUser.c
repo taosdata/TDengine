@@ -2327,7 +2327,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->sysInfo, false);
 
     cols++;
-    flag = pUser->createdb ? 1 : 0;
+    flag = (pUser->createdb || pUser->superUser) ? 1 : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&flag, false);
 
