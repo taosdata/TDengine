@@ -92,6 +92,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
         if (!pRsp) {
           releaseTscObj(pReq->connKey.tscRid);
+          taosHashCancelIterate(hbMgr->activeInfo, pReq);
           break;
         }
       }

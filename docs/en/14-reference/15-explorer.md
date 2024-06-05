@@ -1,6 +1,6 @@
 ---
-title: Explorer
-sidebar_label: Explorer
+title: Graphic User Interface
+sidebar_label: Taos-Explorer
 description: User guide about taosExplorer
 ---
 
@@ -21,8 +21,8 @@ cluster = "http://localhost:6041"
 
 The description of these two parameters: 
 
-- port：explorer service port
-- cluster：The end point of the TDengine cluster for the explorer to manage. It supports only websocket connection, so this address is actually the end point of `taosAdapter` service in the TDengine cluster.
+- port：taos-explorer service port
+- cluster：The end point of the TDengine cluster for the taos-explorer to manage. It supports only websocket connection, so this address is actually the end point of `taosAdapter` service in the TDengine cluster.
 
 ## Start & Stop
 

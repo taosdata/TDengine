@@ -16,7 +16,7 @@ import RequestId from "./_request_id.mdx";
 `TDengine.Connector` provides 2 connection types.
 
 * **Native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
-* **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.(since v3.0.1)
+* **WebSocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.(since v3.0.1)
 
 For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
@@ -35,9 +35,12 @@ TDengine no longer supports 32-bit Windows platforms.
 
 ## Version support
 
-| **Connector version** | **TDengine version** |
-|-----------------------|----------------------|
-| 3.1.0                 | 3.2.1.0/3.1.1.18     |
+| **Connector version** | **TDengine version** | **major features**                   |
+|-----------------------|----------------------|--------------------------------------|
+| 3.1.3                 | 3.2.1.0/3.1.1.18     | support WebSocket reconnect          |
+| 3.1.2                 | 3.2.1.0/3.1.1.18     | fix schemaless result release        |
+| 3.1.1                 | 3.2.1.0/3.1.1.18     | support varbinary and geometry       |
+| 3.1.0                 | 3.2.1.0/3.1.1.18     | WebSocket uses native implementation |
 
 ## Handling exceptions
 
@@ -62,6 +65,8 @@ TDengine no longer supports 32-bit Windows platforms.
 | BINARY            | byte[]                  |
 | NCHAR             | string (utf-8 encoding) |
 | JSON              | byte[]                  |
+| VARBINARY         | byte[]                  |
+| GEOMETRY          | byte[]                  |
 
 **Note**: JSON type is only supported in tag.
 
@@ -131,6 +136,12 @@ The parameters supported by `ConnectionStringBuilder` are as follows:
 * connTimeout: WebSocket connection timeout, only valid when the protocol is WebSocket, the default is 1 minute, use the `TimeSpan.Parse` method to parse the string into a `TimeSpan` object.
 * readTimeout: WebSocket read timeout, only valid when the protocol is WebSocket, the default is 5 minutes, use the `TimeSpan.Parse` method to parse the string into a `TimeSpan` object.
 * writeTimeout: WebSocket write timeout, only valid when the protocol is WebSocket, the default is 10 seconds, use the `TimeSpan.Parse` method to parse the string into a `TimeSpan` object.
+* enableCompression: Whether to enable WebSocket compression (effective for dotnet version 6 and above, connector version 3.1.1 and above). The default is false.
+* autoReconnect: Whether to enable WebSocket reconnect (connector version 3.1.3 and above). The default is false.
+> **Note**：Enabling automatic reconnection is only effective for simple SQL statement execution, schemaless writing, and data subscription. It is not effective for parameter binding. Automatic reconnection is only effective for the database specified by parameters when the connection is established, and it is not effective for the `use db` statement to switch databases later.
+
+* reconnectRetryCount: The number of reconnection retries (connector version 3.1.3 and above). The default is 3.
+* reconnectIntervalMs: The interval between reconnection retries (connector version 3.1.3 and above). The default is 2000.
 
 ### Specify the URL and Properties to get the connection
 
@@ -806,6 +817,10 @@ The configuration parameters supported by consumer are as follows:
 * auto.commit.interval.ms: The interval for automatically submitting offsets, the default is 5000 milliseconds
 * auto.offset.reset: When offset does not exist, where to start consumption, the optional value is earliest or latest, the default is latest
 * msg.with.table.name: Whether the message contains the table name
+* ws.message.enableCompression: Whether to enable WebSocket compression (effective for dotnet version 6 and above, connector version 3.1.1 and above). The default is false.
+* ws.autoReconnect: Whether to enable WebSocket reconnect (connector version 3.1.3 and above). The default is false.
+* ws.reconnect.retry.count: The number of reconnection retries (connector version 3.1.3 and above). The default is 3.
+* ws.reconnect.interval.ms: The interval between reconnection retries (connector version 3.1.3 and above). The default is 2000.
 
 Supports subscribing to the result set `Dictionary<string, object>` where the key is the column name and the value is the column value.
 

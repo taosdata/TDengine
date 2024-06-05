@@ -186,7 +186,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
 
 extern int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 
-static int32_t dmWriteCheckCodeFile(char* file, char* realfile, char* key){
+static int32_t dmWriteCheckCodeFile(char* file, char* realfile, char* key, bool toLogFile){
   TdFilePtr pFile = NULL;
   char     *result = NULL;
   int32_t   code = -1;
@@ -211,7 +211,8 @@ static int32_t dmWriteCheckCodeFile(char* file, char* realfile, char* key){
   taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
-  dInfo("succeed to write checkCode file:%s", realfile);
+  encryptDebug("succeed to write checkCode file:%s", realfile);
+
   code = 0;
 _OVER:
   if(pFile != NULL) taosCloseFile(&pFile);
@@ -220,7 +221,7 @@ _OVER:
   return code;
 }
 
-static int32_t dmWriteEncryptCodeFile(char* file, char* realfile, char* encryptCode){
+static int32_t dmWriteEncryptCodeFile(char* file, char* realfile, char* encryptCode, bool toLogFile){
   TdFilePtr pFile = NULL;
   int32_t   code = -1;
 
@@ -234,7 +235,7 @@ static int32_t dmWriteEncryptCodeFile(char* file, char* realfile, char* encryptC
   taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
-  dInfo("succeed to write encryptCode file:%s", realfile);
+  encryptDebug("succeed to write encryptCode file:%s", realfile);
 
   code = 0;
 _OVER:
@@ -243,7 +244,7 @@ _OVER:
   return code;
 }
 
-static int32_t dmCompareEncryptKey(char* file, char* key){
+static int32_t dmCompareEncryptKey(char* file, char* key, bool toLogFile){
   char     *content = NULL;
   int64_t   size = 0;
   TdFilePtr pFile = NULL;
@@ -253,13 +254,13 @@ static int32_t dmCompareEncryptKey(char* file, char* key){
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to open dnode file:%s since %s", file, terrstr());
+    encryptError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   if (taosFStatFile(pFile, &size, NULL) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to fstat dnode file:%s since %s", file, terrstr());
+    encryptError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
@@ -271,11 +272,11 @@ static int32_t dmCompareEncryptKey(char* file, char* key){
 
   if (taosReadFile(pFile, content, size) != size) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to read dnode file:%s since %s", file, terrstr());
+    encryptError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
-  dInfo("succeed to read checkCode file:%s", file);
+  encryptDebug("succeed to read checkCode file:%s", file);
   
   int len = ENCRYPTED_LEN(size);
   result = taosMemoryMalloc(len);
@@ -290,11 +291,11 @@ static int32_t dmCompareEncryptKey(char* file, char* key){
 
   if(strcmp(opts.result, DM_KEY_INDICATOR) != 0) {
     terrno = TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED;
-    dError("failed to compare decrypted result");
+    encryptError("failed to compare decrypted result");
     goto _OVER;
   }
 
-  dInfo("succeed to compare checkCode file:%s", file);
+  encryptDebug("succeed to compare checkCode file:%s", file);
   code = 0;
 _OVER:
   if(result != NULL) taosMemoryFree(result);
@@ -304,7 +305,7 @@ _OVER:
   return code;
 }
 
-int32_t dmUpdateEncryptKey(char *key) {
+int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
 #ifdef TD_ENTERPRISE
   int32_t code = -1;
   char   *machineId = NULL;
@@ -328,12 +329,12 @@ int32_t dmUpdateEncryptKey(char *key) {
 
   if (taosMkDir(folder) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", folder, terrstr());
+    encryptError("failed to create dir:%s since %s", folder, terrstr());
     goto _OVER;
   }
 
   if(taosCheckExistFile(realCheckFile)){
-    if(dmCompareEncryptKey(realCheckFile, key) != 0){
+    if(dmCompareEncryptKey(realCheckFile, key, toLogFile) != 0){
       goto _OVER;
     }
   }
@@ -347,13 +348,15 @@ int32_t dmUpdateEncryptKey(char *key) {
     goto _OVER;
   }
 
-  if(dmWriteEncryptCodeFile(encryptFile, realEncryptFile, encryptCode) != 0){
+  if(dmWriteEncryptCodeFile(encryptFile, realEncryptFile, encryptCode, toLogFile) != 0){
     goto _OVER;
   }
 
-  if(dmWriteCheckCodeFile(checkFile, realCheckFile, key) != 0){
+  if(dmWriteCheckCodeFile(checkFile, realCheckFile, key, toLogFile) != 0){
     goto _OVER;
   }
+
+  encryptInfo("Succeed to update encrypt key\n");
 
   code = 0;
 _OVER:
@@ -361,7 +364,7 @@ _OVER:
   taosMemoryFree(machineId);
   if (code != 0) {
     if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to update encrypt key since %s", terrstr());
+    encryptError("failed to update encrypt key since %s", terrstr());
   }
   return code;
 #else
@@ -453,7 +456,7 @@ int32_t dmGetEncryptKey(){
     goto _OVER;
   }
 
-  if(dmCompareEncryptKey(checkFile, encryptKey) != 0){
+  if(dmCompareEncryptKey(checkFile, encryptKey, true) != 0){
     goto _OVER;
   }
 

@@ -240,6 +240,26 @@ int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAlloc
   return code;
 }
 
+int32_t nodesSimAcquireAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
+  if (NULL == pAllocator) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesSimReleaseAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
+}
+
 int32_t nodesAcquireAllocator(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -472,6 +492,8 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return makeNode(type, sizeof(SBalanceVgroupStmt));
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return makeNode(type, sizeof(SBalanceVgroupLeaderStmt));
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       return makeNode(type, sizeof(SBalanceVgroupLeaderStmt));
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return makeNode(type, sizeof(SMergeVgroupStmt));
@@ -1161,6 +1183,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RESUME_STREAM_STMT:          // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:         // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:  // no pointer field
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:           // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:

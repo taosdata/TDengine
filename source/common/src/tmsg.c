@@ -768,11 +768,22 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->alterType) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfFields) < 0) return -1;
+
+  // if (pReq->alterType == )
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
-    SField *pField = taosArrayGet(pReq->pFields, i);
-    if (tEncodeI8(&encoder, pField->type) < 0) return -1;
-    if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
-    if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+    if (pReq->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
+      SFieldWithOptions *pField = taosArrayGet(pReq->pFields, i);
+      if (tEncodeI8(&encoder, pField->type) < 0) return -1;
+      if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
+      if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+      if (tEncodeU32(&encoder, pField->compress) < 0) return -1;
+
+    } else {
+      SField *pField = taosArrayGet(pReq->pFields, i);
+      if (tEncodeI8(&encoder, pField->type) < 0) return -1;
+      if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
+      if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
+    }
   }
   if (tEncodeI32(&encoder, pReq->ttl) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->commentLen) < 0) return -1;
@@ -802,13 +813,28 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   }
 
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
-    SField field = {0};
-    if (tDecodeI8(&decoder, &field.type) < 0) return -1;
-    if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
-    if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
-    if (taosArrayPush(pReq->pFields, &field) == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+    if (pReq->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
+
+      taosArrayDestroy(pReq->pFields);
+      pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SFieldWithOptions));
+      SFieldWithOptions field = {0};
+      if (tDecodeI8(&decoder, &field.type) < 0) return -1;
+      if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+      if (tDecodeU32(&decoder, &field.compress) < 0) return -1;
+      if (taosArrayPush(pReq->pFields, &field) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    } else {
+      SField field = {0};
+      if (tDecodeI8(&decoder, &field.type) < 0) return -1;
+      if (tDecodeI32(&decoder, &field.bytes) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, field.name) < 0) return -1;
+      if (taosArrayPush(pReq->pFields, &field) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
     }
   }
 
@@ -5962,9 +5988,11 @@ int32_t tSerializeSBalanceVgroupLeaderReq(void *buf, int32_t bufLen, SBalanceVgr
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->useless) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->reserved) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
   ENCODESQL();
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -5977,12 +6005,15 @@ int32_t tDeserializeSBalanceVgroupLeaderReq(void *buf, int32_t bufLen, SBalanceV
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->reserved) < 0) return -1;
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
   }
-
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -6432,21 +6463,33 @@ void tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp *pRsp) {
   taosMemoryFreeClear(pRsp->memberToken);
 }
 
-int32_t tSerializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGroupReq *pReq) {
+int32_t tSerializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdateGroupBatchReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
-  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-    if (tEncodeI32(&encoder, pReq->members[i].dnodeId) < 0) return -1;
-    if (tEncodeCStr(&encoder, pReq->members[i].token) < 0) return -1;
+
+  int32_t sz = taosArrayGetSize(pReq->updateArray);
+  if (tEncodeI32(&encoder, sz) < 0) return -1;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    if (tEncodeI32(&encoder, pGroup->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, pGroup->dbUid) < 0) return -1;
+    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+      if (tEncodeI32(&encoder, pGroup->members[i].dnodeId) < 0) return -1;
+      if (tEncodeCStr(&encoder, pGroup->members[i].token) < 0) return -1;
+    }
+    if (tEncodeI8(&encoder, pGroup->isSync) < 0) return -1;
+    if (tEncodeI32(&encoder, pGroup->assignedLeader.dnodeId) < 0) return -1;
+    if (tEncodeCStr(&encoder, pGroup->assignedLeader.token) < 0) return -1;
+    if (tEncodeI64(&encoder, pGroup->version) < 0) return -1;
   }
-  if (tEncodeI8(&encoder, pReq->isSync) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->assignedLeader.dnodeId) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->assignedLeader.token) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->version) < 0) return -1;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    if (tEncodeI8(&encoder, pGroup->assignedLeader.acked) < 0) return -1;
+  }
 
   tEndEncode(&encoder);
 
@@ -6455,23 +6498,44 @@ int32_t tSerializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGrou
   return tlen;
 }
 
-int32_t tDeserializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGroupReq *pReq) {
+int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdateGroupBatchReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
-  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
-    if (tDecodeI32(&decoder, &pReq->members[i].dnodeId) < 0) return -1;
-    pReq->members[i].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
-    if (tDecodeCStrTo(&decoder, pReq->members[i].token) < 0) return -1;
+  int32_t sz = 0;
+  if (tDecodeI32(&decoder, &sz) < 0) return -1;
+
+  SArray *updateArray = taosArrayInit(sz, sizeof(SMArbUpdateGroup));
+  if (!updateArray) return -1;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup group = {0};
+    if (tDecodeI32(&decoder, &group.vgId) < 0) return -1;
+    if (tDecodeI64(&decoder, &group.dbUid) < 0) return -1;
+    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+      if (tDecodeI32(&decoder, &group.members[i].dnodeId) < 0) return -1;
+      group.members[i].token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+      if (tDecodeCStrTo(&decoder, group.members[i].token) < 0) return -1;
+    }
+    if (tDecodeI8(&decoder, &group.isSync) < 0) return -1;
+    if (tDecodeI32(&decoder, &group.assignedLeader.dnodeId) < 0) return -1;
+    group.assignedLeader.token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
+    if (tDecodeCStrTo(&decoder, group.assignedLeader.token) < 0) return -1;
+    if (tDecodeI64(&decoder, &group.version) < 0) return -1;
+    group.assignedLeader.acked = false;
+
+    taosArrayPush(updateArray, &group);
   }
-  if (tDecodeI8(&decoder, &pReq->isSync) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->assignedLeader.dnodeId) < 0) return -1;
-  pReq->assignedLeader.token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE);
-  if (tDecodeCStrTo(&decoder, pReq->assignedLeader.token) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->version) < 0) return -1;
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < sz; i++) {
+      SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
+      if (tDecodeI8(&decoder, &pGroup->assignedLeader.acked) < 0) return -1;
+    }
+  }
+
+  pReq->updateArray = updateArray;
 
   tEndDecode(&decoder);
 
@@ -6479,14 +6543,20 @@ int32_t tDeserializeSMArbUpdateGroupReq(void *buf, int32_t bufLen, SMArbUpdateGr
   return 0;
 }
 
-void tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq *pReq) {
-  if (NULL == pReq) {
+void tFreeSMArbUpdateGroupBatchReq(SMArbUpdateGroupBatchReq *pReq) {
+  if (NULL == pReq || NULL == pReq->updateArray) {
     return;
   }
-  for (int i = 0; i < 2; i++) {
-    taosMemoryFreeClear(pReq->members[i].token);
+
+  int32_t sz = taosArrayGetSize(pReq->updateArray);
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+      taosMemoryFreeClear(pGroup->members[i].token);
+    }
+    taosMemoryFreeClear(pGroup->assignedLeader.token);
   }
-  taosMemoryFreeClear(pReq->assignedLeader.token);
+  taosArrayDestroy(pReq->updateArray);
 }
 
 // int32_t tSerializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
@@ -8711,6 +8781,13 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
       if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
       break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->type) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->flags) < 0) return -1;
+      if (tEncodeI32v(pEncoder, pReq->bytes) < 0) return -1;
+      if (tEncodeU32(pEncoder, pReq->compress) < 0) return -1;
+      break;
     default:
       break;
   }
@@ -8766,6 +8843,12 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
       if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
       break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->type) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->flags) < 0) return -1;
+      if (tDecodeI32v(pDecoder, &pReq->bytes) < 0) return -1;
+      if (tDecodeU32(pDecoder, &pReq->compress) < 0) return -1;
     default:
       break;
   }

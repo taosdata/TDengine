@@ -26,7 +26,7 @@
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 48
+#define TRANS_RESERVE_SIZE 44
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -196,10 +196,21 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   }
 
   SDB_SET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER)
+
+  int32_t arbGroupNum = taosHashGetSize(pTrans->arbGroupIds);
+  SDB_SET_INT32(pRaw, dataPos, arbGroupNum, _OVER)
+  void *pIter = NULL;
+  pIter = taosHashIterate(pTrans->arbGroupIds, NULL);
+  while (pIter) {
+    int32_t arbGroupId = *(int32_t *)pIter;
+    SDB_SET_INT32(pRaw, dataPos, arbGroupId, _OVER)
+    pIter = taosHashIterate(pTrans->arbGroupIds, pIter);
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
-  terrno = 0;
+      terrno = 0;
 
 _OVER:
   if (terrno != 0) {
@@ -279,6 +290,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int32_t  undoActionNum = 0;
   int32_t  commitActionNum = 0;
   int32_t  dataPos = 0;
+  int32_t  arbgroupIdNum = 0;
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
@@ -350,6 +362,16 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
+
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+
+  SDB_GET_INT32(pRaw, dataPos, &arbgroupIdNum, _OVER)
+  for (int32_t i = 0; i < arbgroupIdNum; ++i) {
+    int32_t arbGroupId = 0;
+    SDB_GET_INT32(pRaw, dataPos, &arbGroupId, _OVER)
+    taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0);
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -461,6 +483,9 @@ void mndTransDropData(STrans *pTrans) {
   if (pTrans->commitActions != NULL) {
     mndTransDropActions(pTrans->commitActions);
     pTrans->commitActions = NULL;
+  }
+  if (pTrans->arbGroupIds != NULL) {
+    taosHashCleanup(pTrans->arbGroupIds);
   }
   if (pTrans->pRpcArray != NULL) {
     taosArrayDestroy(pTrans->pRpcArray);
@@ -581,6 +606,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->redoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
@@ -733,7 +759,9 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
   }
 }
 
-void mndTransSetArbGroupId(STrans *pTrans, int32_t groupId) { pTrans->arbGroupId = groupId; }
+void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
+  taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0);
+}
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
@@ -821,7 +849,16 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
-        if (pNew->arbGroupId == pTrans->arbGroupId) conflict = true;
+        void *pIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        while (pIter != NULL) {
+          int32_t groupId = *(int32_t *)pIter;
+          if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {
+            taosHashCancelIterate(pNew->arbGroupIds, pIter);
+            conflict = true;
+            break;
+          }
+          pIter = taosHashIterate(pNew->arbGroupIds, pIter);
+        }
       }
     }
 

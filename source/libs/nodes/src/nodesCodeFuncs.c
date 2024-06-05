@@ -187,6 +187,8 @@ const char* nodesNodeName(ENodeType type) {
       return "BalanceVgroupStmt";
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       return "BalanceVgroupLeaderStmt";
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return "BalanceVgroupLeaderStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -7607,6 +7609,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to serialize.
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to serialize.
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return mergeVgroupStmtToJson(pObj, pJson);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -7953,7 +7957,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to deserialize.
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+      return TSDB_CODE_SUCCESS;   // SBalanceVgroupLeaderStmt has no fields to deserialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return jsonToMergeVgroupStmt(pJson, pObj);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
