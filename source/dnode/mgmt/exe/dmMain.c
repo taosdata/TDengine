@@ -398,13 +398,6 @@ int mainWindows(int argc, char **argv) {
     return -1;
   }
 
-  if(dmGetEncryptKey() != 0){
-    dError("failed to start since failed to get encrypt key");
-    taosCloseLog();
-    taosCleanupArgs();
-    return -1;
-  };
-
   if (taosConvInit() != 0) {
     dError("failed to init conv");
     taosCloseLog();
@@ -441,6 +434,13 @@ int mainWindows(int argc, char **argv) {
 
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
+
+  if(dmGetEncryptKey() != 0){
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return -1;
+  };
 
   if (dmInit() != 0) {
     if (terrno == TSDB_CODE_NOT_FOUND) {

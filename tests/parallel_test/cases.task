@@ -11,6 +11,7 @@
 # army-test
 #
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/db-encrypt/basic.py
 ,,n,army,python3 ./test.py -f enterprise/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
@@ -20,10 +21,13 @@
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f community/query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f community/insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
 ,,n,army,python3 ./test.py -f community/query/show.py -N 3
+,,n,army,python3 ./test.py -f enterprise/alter/alterConfig.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f community/query/subquery/subqueryBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
 
@@ -994,6 +998,7 @@
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
+,,y,script,./test.sh -f tsim/query/timeline.sim
 ,,y,script,./test.sh -f tsim/join/join.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim

@@ -845,6 +845,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
+  COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
@@ -862,6 +863,8 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(timeLineResMode);
+  COPY_SCALAR_FIELD(timeLineFromOrderBy);
+  
   return TSDB_CODE_SUCCESS;
 }
 

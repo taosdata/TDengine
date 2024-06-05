@@ -3284,18 +3284,34 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SNodeList*  pNewChildTargets = nodesMakeList();
 
   if (NULL == pProjectNode->node.pParent) {
-    SNode* pProjection = NULL;
-    FOREACH(pProjection, pProjectNode->pProjections) {
-      SNode* pChildTarget = NULL;
-      FOREACH(pChildTarget, pChild->pTargets) {
-        if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
-          nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+    SNode *pProjection = NULL, *pChildTarget = NULL;
+    bool needOrderMatch = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
+    bool orderMatch = true;
+    if (needOrderMatch) {
+      // For sql: select ... from (select ... union all select ...);
+      // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
+      // union all project targets have same columns in the same order. See detail in TD-30188
+      FORBOTH(pProjection, pProjectNode->pProjections, pChildTarget, pChild->pTargets) {
+        if (!pProjection) break;
+        if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+          orderMatch = false;
           break;
+        }
+        nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+      }
+    } else {
+      FOREACH(pProjection, pProjectNode->pProjections) {
+        FOREACH(pChildTarget, pChild->pTargets) {
+          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+            nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+            break;
+          }
         }
       }
     }
 
-    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets)) {
+    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) &&
+        (!needOrderMatch || (needOrderMatch && orderMatch))) {
       nodesDestroyList(pChild->pTargets);
       pChild->pTargets = pNewChildTargets;
     } else {

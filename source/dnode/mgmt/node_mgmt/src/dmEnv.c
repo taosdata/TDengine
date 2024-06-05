@@ -415,3 +415,7 @@ void dmReportStartup(const char *pName, const char *pDesc) {
 }
 
 int64_t dmGetClusterId() { return globalDnode.data.clusterId; }
+
+bool dmReadyForTest() {
+  return dmInstance()->data.dnodeVer > 0;
+}

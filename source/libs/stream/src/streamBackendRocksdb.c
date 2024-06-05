@@ -1155,10 +1155,13 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     taskDbAddRef(pTaskDb);
 
     int64_t chkpId = pTaskDb->chkpId;
+    taskDbRefChkp(pTaskDb, chkpId);
     code = taskDbDoCheckpoint(pTaskDb, chkpId);
-    taskDbRemoveRef(pTaskDb);
+    if (code != 0) {
+      taskDbUnRefChkp(pTaskDb, chkpId);
+    }
 
-    taskDbRefChkp(pTaskDb, pTaskDb->chkpId);
+    taskDbRemoveRef(pTaskDb);
 
     SStreamTask*    pTask = pTaskDb->pTask;
     SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
@@ -1182,14 +1185,15 @@ int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
   for (int i = 0; i < taosArrayGetSize(pSnapInfo); i++) {
     SStreamTaskSnap* pSnap = taosArrayGet(pSnapInfo, i);
     sprintf(buf, "0x%" PRIx64 "-0x%x", pSnap->streamId, (int32_t)pSnap->taskId);
-    STaskDbWrapper* pTaskDb = taosHashGet(pMeta->pTaskDbUnique, buf, strlen(buf));
-    if (pTaskDb == NULL) {
+    STaskDbWrapper** pTaskDb = taosHashGet(pMeta->pTaskDbUnique, buf, strlen(buf));
+    if (pTaskDb == NULL || *pTaskDb == NULL) {
       stWarn("stream backend:%p failed to find task db, streamId:% " PRId64 "", pMeta, pSnap->streamId);
+      memset(buf, 0, sizeof(buf));
       continue;
     }
     memset(buf, 0, sizeof(buf));
 
-    taskDbUnRefChkp(pTaskDb, pSnap->chkpId);
+    taskDbUnRefChkp(*pTaskDb, pSnap->chkpId);
   }
   taosThreadMutexUnlock(&pMeta->backendMutex);
   return 0;
@@ -1989,7 +1993,8 @@ void taskDbRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp) {
 
 void taskDbUnRefChkp(STaskDbWrapper* pTaskDb, int64_t chkp) {
   taosThreadRwlockWrlock(&pTaskDb->chkpDirLock);
-  for (int i = 0; i < taosArrayGetSize(pTaskDb->chkpInUse); i++) {
+  int32_t size = taosArrayGetSize(pTaskDb->chkpInUse);
+  for (int i = 0; i < size; i++) {
     int64_t* p = taosArrayGet(pTaskDb->chkpInUse, i);
     if (*p == chkp) {
       taosArrayRemove(pTaskDb->chkpInUse, i);

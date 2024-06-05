@@ -144,7 +144,7 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
 
 int32_t streamCreateTaskDbSnapInfo(void* arg, char* path, SArray* pSnap) { return taskDbBuildSnap(arg, pSnap); }
 
-int32_t streamDestroyTasdDbSnapInfo(void* arg, SArray* snap) { return taskDbDestroySnap(arg, snap); }
+int32_t streamDestroyTaskDbSnapInfo(void* arg, SArray* snap) { return taskDbDestroySnap(arg, snap); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   if (qDebugFlag & DEBUG_DEBUG) {
@@ -333,7 +333,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
     }
     taosArrayDestroy(handle->pDbSnapSet);
   }
-  streamDestroyTasdDbSnapInfo(handle->pMeta, handle->pSnapInfoSet);
+  streamDestroyTaskDbSnapInfo(handle->pMeta, handle->pSnapInfoSet);
   if (handle->pSnapInfoSet) {
     for (int32_t i = 0; i < taosArrayGetSize(handle->pSnapInfoSet); i++) {
       SStreamTaskSnap* pSnap = taosArrayGet(handle->pSnapInfoSet, i);

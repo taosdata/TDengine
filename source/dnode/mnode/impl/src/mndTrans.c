@@ -1409,7 +1409,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
   mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
-    STransAction *pAction = taosArrayGet(pActions, pTrans->actionPos);
+    STransAction *pAction = taosArrayGet(pActions, action);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {

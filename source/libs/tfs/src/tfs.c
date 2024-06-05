@@ -177,11 +177,10 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
       continue;
     }
 
-    return 0;
+    return (terrno = 0);
   }
 
-  terrno = TSDB_CODE_FS_NO_VALID_DISK;
-  return -1;
+  return (terrno = TSDB_CODE_FS_NO_VALID_DISK);
 }
 
 const char *tfsGetPrimaryPath(STfs *pTfs) { return TFS_PRIMARY_DISK(pTfs)->path; }
