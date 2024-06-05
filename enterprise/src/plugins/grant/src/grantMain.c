@@ -158,12 +158,12 @@
 #define GRANT_LOG_MAX_MACHINE 300
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "opc_da",   "opc_ua", "pi",    "kafka", "influxdb", "mqtt",  "avevahistorian",
-    "opentsdb", "td2.6",  "td3.0", "mysql", "postgres", "oracle"};
+    "opc_da",   "opc_ua", "pi",    "kafka", "influxdb", "mqtt",   "avevahistorian",
+    "opentsdb", "td2.6",  "td3.0", "mysql", "postgres", "oracle", "mssql"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
-    "OPC_DA",   "OPC_UA",      "Pi",          "Kafka", "InfluxDB",   "MQTT",  "avevaHistorian",
-    "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle"};
+    "OPC_DA",   "OPC_UA",      "Pi",          "Kafka", "InfluxDB",   "MQTT",   "avevaHistorian",
+    "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle", "SqlServer"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic",   "service",        "stream",         "subscription",  "audit",        "csv",          "view",
