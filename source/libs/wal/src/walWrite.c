@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "crypt.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tglobal.h"
 #include "walInt.h"
-#include "crypt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
@@ -295,9 +295,9 @@ int32_t walEndSnapshot(SWal *pWal) {
   ver = TMAX(ver - pWal->vers.logRetention, pWal->vers.firstVer - 1);
 
   // compatible mode for refVer
-  bool hasTopic = false;
+  bool    hasTopic = false;
   int64_t refVer = INT64_MAX;
-  void *pIter = NULL;
+  void   *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
@@ -396,8 +396,7 @@ int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0;
 
   if (pWal->pIdxFile != NULL) {
-    code = taosFsyncFile(pWal->pIdxFile);
-    if (code != 0) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
@@ -409,8 +408,7 @@ int32_t walRollImpl(SWal *pWal) {
   }
 
   if (pWal->pLogFile != NULL) {
-    code = taosFsyncFile(pWal->pLogFile);
-    if (code != 0) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
@@ -510,12 +508,15 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s, cksum head %u cksum body %u", pWal->cfg.vgId, index,
          TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
 
-  code = walWriteIndex(pWal, index, offset);
-  if (code < 0) {
-    goto END;
+  if (pWal->cfg.level != TAOS_WAL_SKIP) {
+    code = walWriteIndex(pWal, index, offset);
+    if (code < 0) {
+      goto END;
+    }
   }
 
-  if (taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
+  if (pWal->cfg.level != TAOS_WAL_SKIP &&
+      taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -524,17 +525,17 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   }
 
   int32_t cyptedBodyLen = plainBodyLen;
-  char* buf = (char*)body;
-  char* newBody = NULL;
-  char* newBodyEncrypted = NULL;
+  char   *buf = (char *)body;
+  char   *newBody = NULL;
+  char   *newBodyEncrypted = NULL;
 
-  if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
+  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
-    
+
     newBody = taosMemoryMalloc(cyptedBodyLen);
-    if(newBody == NULL){
+    if (newBody == NULL) {
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-            strerror(errno));
+             strerror(errno));
       code = -1;
       goto END;
     }
@@ -542,11 +543,11 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     memcpy(newBody, body, plainBodyLen);
 
     newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
-    if(newBodyEncrypted == NULL){
+    if (newBodyEncrypted == NULL) {
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-            strerror(errno));
+             strerror(errno));
       code = -1;
-      if(newBody != NULL) taosMemoryFreeClear(newBody);
+      if (newBody != NULL) taosMemoryFreeClear(newBody);
       goto END;
     }
 
@@ -559,29 +560,29 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
     int32_t count = CBC_Encrypt(&opts);
 
-    //wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", 
-    //      pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
+    // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
+    //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
   }
-  
-  if (taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
+
+  if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
     code = -1;
-    if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
+    if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
       taosMemoryFreeClear(newBody);
       taosMemoryFreeClear(newBodyEncrypted);
     }
     goto END;
   }
 
-  if(pWal->cfg.encryptAlgorithm == DND_CA_SM4){
+  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
     taosMemoryFreeClear(newBody);
-    taosMemoryFreeClear(newBodyEncrypted); 
-    //wInfo("vgId:%d, free newBody newBodyEncrypted %s", 
-    //      pWal->cfg.vgId, __FUNCTION__);   
+    taosMemoryFreeClear(newBodyEncrypted);
+    // wInfo("vgId:%d, free newBody newBodyEncrypted %s",
+    //       pWal->cfg.vgId, __FUNCTION__);
   }
 
   // set status
@@ -693,6 +694,10 @@ int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    return;
+  }
+
   taosThreadMutexLock(&pWal->mutex);
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
