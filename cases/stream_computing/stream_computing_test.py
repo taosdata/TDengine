@@ -193,6 +193,7 @@ class StreamComputingTest(TDCase):
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
         self.need_cast_log = False
         self.n_print = False if self.need_cast_log else True
+        self.tdCom.stream_timeout = 60
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, pk_dict=self.pk_dict)

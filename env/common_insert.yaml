@@ -19,6 +19,7 @@ settings:
             numOfLogLines: 300000000
             checkpointInterval: 60
             snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
   - name: taospy
     fqdn: [ceph01]
     spec:

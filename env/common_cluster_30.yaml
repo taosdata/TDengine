@@ -18,6 +18,7 @@ settings:
             numOfLogLines: 300000000
             checkpointInterval: 60
             snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
         - endpoint: node221:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -30,6 +31,7 @@ settings:
             numOfLogLines: 300000000
             checkpointInterval: 60
             snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
         - endpoint: node222:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -42,6 +44,7 @@ settings:
             numOfLogLines: 300000000
             checkpointInterval: 60
             snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
   - name: taosBenchmark
     fqdn: [ceph01]
     spec:
