@@ -17,6 +17,7 @@ settings:
             logkeepDays: 2
             numOfLogLines: 300000000
             checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
         - endpoint: node221:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -28,6 +29,7 @@ settings:
             logkeepDays: 2
             numOfLogLines: 300000000
             checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
         - endpoint: node222:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -39,6 +41,7 @@ settings:
             logkeepDays: 2
             numOfLogLines: 300000000
             checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
   - name: taosBenchmark
     fqdn: [ceph01]
     spec:

@@ -18,6 +18,7 @@ settings:
             logKeepDays:  -1
             numOfLogLines: 300000000
             checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
   - name: taospy
     fqdn: [ceph01]
     spec:
