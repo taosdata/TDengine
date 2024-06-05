@@ -4074,8 +4074,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
-    if (pPKTsCol && ((pScan->node.pTargets->length == 1) || (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
-      // when select last(ts),ts from ..., we add another ts to targets
+    if (pPKTsCol &&
+        ((cxt.pLastCols->length == 1 && nodesEqualNode((SNode*)pPKTsCol, nodesListGetNode(cxt.pLastCols, 0))) ||
+         (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
+      // when select last(ts),tbname,ts from ..., we add another ts to targets
       sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
       nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
     }
