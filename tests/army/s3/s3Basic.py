@@ -19,6 +19,7 @@ import taos
 import frame
 import frame.etool
 import frame.eos
+import frame.eutil
 
 from frame.log import *
 from frame.cases import *
@@ -46,7 +47,7 @@ for test:
 
 
 class TDTestCase(TBase):
-    index = util.cpuRand(20) + 1
+    index = eutil.cpuRand(20) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
@@ -246,7 +247,7 @@ class TDTestCase(TBase):
     def preDb(self, vgroups):
         cnt = int(time.time())%2 + 1
         for i in range(cnt):
-             vg = util.cpuRand(9) + 1
+             vg = eutil.cpuRand(9) + 1
              sql = f"create database predb vgroups {vg}"
              tdSql.execute(sql, show=True)
              sql = "drop database predb"
