@@ -163,7 +163,7 @@ static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
     "OPC_DA",   "OPC_UA",      "Pi",          "Kafka", "InfluxDB",   "MQTT",   "avevaHistorian",
-    "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle", "SqlSever"};
+    "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL", "Oracle", "SqlServer"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic",   "service",        "stream",         "subscription",  "audit",        "csv",          "view",
