@@ -154,7 +154,7 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
   }
 
   if (operType == MND_OPER_CREATE_DB) {
-    if (pUser->sysInfo) goto _OVER;
+    if (pUser->createdb) goto _OVER;
   }
 
   if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_DROP_DB || operType == MND_OPER_COMPACT_DB ||
