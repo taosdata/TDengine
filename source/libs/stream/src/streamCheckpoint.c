@@ -526,6 +526,8 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
 }
 
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
+  char buf[128] = {0};
+
   char* file = taosMemoryCalloc(1, strlen(path) + 32);
   sprintf(file, "%s%s%s", path, TD_DIRSEP, "META_TMP");
 
@@ -537,12 +539,17 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
   }
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
-  char      buf[128] = {0};
+  if (pFile == NULL) {
+    stError("%s failed to open meta file:%s for checkpoint", id, file);
+    code = -1;
+    return code;
+  }
+
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    stError("chkp failed to read meta file:%s", file);
+    stError("%s failed to read meta file:%s for checkpoint", id, file);
     code = -1;
   } else {
-    int32_t len = strlen(buf);
+    int32_t len = strnlen(buf, tListLen(buf));
     for (int i = 0; i < len; i++) {
       if (buf[i] == '\n') {
         char* item = taosMemoryCalloc(1, i + 1);
