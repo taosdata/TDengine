@@ -912,6 +912,11 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
   int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
   for (int32_t i = 0; i < sz; i++) {
     SMqVgEp       *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
+    SVgObj *pVgObj = mndAcquireVgroup(pMnode, pVgEp->vgId);
+    if (pVgObj == NULL) {
+      mError("sendDeleteSubToVnode %s failed since vg %d doesn't exist", pSub->key, pVgEp->vgId);
+      continue;
+    }
     SMqVDeleteReq *pReq = taosMemoryCalloc(1, sizeof(SMqVDeleteReq));
     if(pReq == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -922,17 +927,12 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
     pReq->consumerId = -1;
     memcpy(pReq->subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
-    SVgObj *pVgObj = mndAcquireVgroup(pMnode, pVgEp->vgId);
-    if (pVgObj == NULL) {
-      taosMemoryFree(pReq);
-      terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
-      return -1;
-    }
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgObj);;
     action.pCont = pReq;
     action.contLen = sizeof(SMqVDeleteReq);
     action.msgType = TDMT_VND_TMQ_DELETE_SUB;
+    action.acceptableCode = TSDB_CODE_MND_VGROUP_NOT_EXIST;
 
     mndReleaseVgroup(pMnode, pVgObj);
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {

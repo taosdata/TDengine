@@ -351,7 +351,6 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
 
   memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
   handle->consumerId = req->newConsumerId;
-  handle->epoch = -1;
 
   handle->execHandle.subType = req->subType;
   handle->fetchMeta = req->withMeta;
