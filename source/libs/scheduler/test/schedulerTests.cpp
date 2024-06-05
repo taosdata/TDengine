@@ -798,6 +798,7 @@ TEST(queryTest, normalCase) {
 
   schedulerFreeJob(&job, 0);
 
+  taosThreadJoin(thread1, NULL);
 }
 
 TEST(queryTest, readyFirstCase) {
@@ -907,6 +908,8 @@ TEST(queryTest, readyFirstCase) {
   schedulerDestroy();
 
   schedulerFreeJob(&job, 0);
+
+  taosThreadJoin(thread1, NULL);
 }
 
 TEST(queryTest, flowCtrlCase) {
@@ -1001,6 +1004,8 @@ TEST(queryTest, flowCtrlCase) {
   schedulerDestroy();
 
   schedulerFreeJob(&job, 0);
+
+  taosThreadJoin(thread1, NULL);  
 }
 
 TEST(insertTest, normalCase) {
@@ -1061,6 +1066,8 @@ TEST(insertTest, normalCase) {
   schedulerFreeJob(&insertJobRefId, 0);
 
   schedulerDestroy();
+
+  taosThreadJoin(thread1, NULL);  
 }
 
 TEST(multiThread, forceFree) {

@@ -3284,18 +3284,34 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SNodeList*  pNewChildTargets = nodesMakeList();
 
   if (NULL == pProjectNode->node.pParent) {
-    SNode* pProjection = NULL;
-    FOREACH(pProjection, pProjectNode->pProjections) {
-      SNode* pChildTarget = NULL;
-      FOREACH(pChildTarget, pChild->pTargets) {
-        if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
-          nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+    SNode *pProjection = NULL, *pChildTarget = NULL;
+    bool needOrderMatch = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
+    bool orderMatch = true;
+    if (needOrderMatch) {
+      // For sql: select ... from (select ... union all select ...);
+      // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
+      // union all project targets have same columns in the same order. See detail in TD-30188
+      FORBOTH(pProjection, pProjectNode->pProjections, pChildTarget, pChild->pTargets) {
+        if (!pProjection) break;
+        if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+          orderMatch = false;
           break;
+        }
+        nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+      }
+    } else {
+      FOREACH(pProjection, pProjectNode->pProjections) {
+        FOREACH(pChildTarget, pChild->pTargets) {
+          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+            nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+            break;
+          }
         }
       }
     }
 
-    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets)) {
+    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) &&
+        (!needOrderMatch || (needOrderMatch && orderMatch))) {
       nodesDestroyList(pChild->pTargets);
       pChild->pTargets = pNewChildTargets;
     } else {
@@ -4143,8 +4159,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
-    if (pPKTsCol && ((pScan->node.pTargets->length == 1) || (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
-      // when select last(ts),ts from ..., we add another ts to targets
+    if (pPKTsCol &&
+        ((cxt.pLastCols->length == 1 && nodesEqualNode((SNode*)pPKTsCol, nodesListGetNode(cxt.pLastCols, 0))) ||
+         (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
+      // when select last(ts),tbname,ts from ..., we add another ts to targets
       sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
       nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
     }

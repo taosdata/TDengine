@@ -52,6 +52,23 @@ extern "C" {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+struct SActiveCheckpointInfo {
+  TdThreadMutex lock;
+  int32_t       transId;
+  int64_t       firstRecvTs;  // first time to recv checkpoint trigger info
+  int64_t       activeId;     // current active checkpoint id
+  int64_t       failedId;
+  bool          dispatchTrigger;
+  SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
+  SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
+  int8_t        allUpstreamTriggerRecv;
+  SArray*       pCheckpointReadyRecvList;   // SArray<STaskDownstreamReadyInfo>
+  int32_t       checkCounter;
+  tmr_h         pChkptTriggerTmr;
+  int32_t       sendReadyCheckCounter;
+  tmr_h         pSendReadyMsgTmr;
+};
+
 typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
@@ -80,6 +97,35 @@ struct STokenBucket {
   int64_t tokenFillTimestamp;  // fill timestamp
   int64_t quotaFillTimestamp;  // fill timestamp
 };
+
+typedef struct {
+  int32_t upstreamTaskId;
+  SEpSet  upstreamNodeEpset;
+  int32_t upstreamNodeId;
+  int32_t transId;
+  int32_t childId;
+  SRpcMsg msg;                 // for mnode checkpoint-source rsp
+  int64_t checkpointId;
+  int64_t recvTs;
+  int32_t sendCompleted;
+} STaskCheckpointReadyInfo;
+
+typedef struct {
+  int64_t sendTs;
+  int64_t recvTs;
+  bool    recved;
+  int32_t nodeId;
+  int32_t taskId;
+} STaskTriggerSendInfo;
+
+typedef struct {
+  int64_t streamId;
+  int64_t recvTs;
+  int32_t downstreamNodeId;
+  int32_t downstreamTaskId;
+  int64_t checkpointId;
+  int32_t transId;
+} STaskDownstreamReadyInfo;
 
 struct SStreamQueue {
   STaosQueue* pQueue;
@@ -113,7 +159,7 @@ void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
 int32_t getNumOfDispatchBranch(SStreamTask* pTask);
 void    clearBufferedDispatchMsg(SStreamTask* pTask);
 
-int32_t           streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t           streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
 SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
                                                SArray* pRes);
@@ -122,7 +168,6 @@ void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
 int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock);
 
-int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
@@ -132,11 +177,13 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
 void    streamTaskSetFailedCheckpointId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
+int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskGetTaskId(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
+void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
@@ -165,9 +212,14 @@ typedef enum ECHECKPOINT_BACKUP_TYPE {
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
-int32_t streamTaskDownloadCheckpointData(char* id, char* path);
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
-int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
+int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
+
+int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
+                                int32_t childId, SEpSet* pEpset, int64_t checkpointId);
+int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
+                               int64_t checkpointId, SRpcMsg* pMsg);
 
 typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 

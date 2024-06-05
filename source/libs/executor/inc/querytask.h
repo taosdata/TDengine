@@ -58,7 +58,7 @@ typedef struct STaskStopInfo {
 
 typedef struct {
   STqOffsetVal         currentOffset;  // for tmq
-  SMqMetaRsp           metaRsp;        // for tmq fetching meta
+  SMqBatchMetaRsp      btMetaRsp;      // for tmq fetching meta
   int8_t               sourceExcluded;
   int64_t              snapshotVer;
   SSchemaWrapper*      schema;

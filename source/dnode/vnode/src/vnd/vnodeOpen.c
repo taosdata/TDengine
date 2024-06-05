@@ -399,7 +399,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
-  if (vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel) != 0) {
+  if (vnodeAChannelInit(1, &pVnode->commitChannel) != 0) {
     vError("vgId:%d, failed to init commit channel", TD_VID(pVnode));
     goto _err;
   }
@@ -527,8 +527,8 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
-    vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+    vnodeAWait(&pVnode->commitTask);
+    vnodeAChannelDestroy(&pVnode->commitChannel, true);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);

@@ -255,6 +255,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
+  int8_t  acked;
 } SArbAssignedLeader;
 
 typedef struct {
