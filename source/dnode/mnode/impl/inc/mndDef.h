@@ -77,6 +77,7 @@ typedef enum {
   MND_OPER_CREATE_VIEW,
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
+  MND_OPER_BALANCE_VGROUP_LEADER,
 } EOperType;
 
 typedef enum {
