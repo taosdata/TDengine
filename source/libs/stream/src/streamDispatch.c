@@ -250,6 +250,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
     code = tInitStreamDispatchReq(pReq, pTask, pData->srcVgId, numOfBlocks, downstreamTaskId, pData->type);
     if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pReq);
       return code;
     }
 
