@@ -95,10 +95,14 @@ white_list(A) ::= HOST ip_range_list(B).                                        
 white_list_opt(A) ::= .                                                           { A = NULL; }
 white_list_opt(A) ::= white_list(B).                                              { A = B; }
 
+%type is_import_opt                                                                 { int8_t }
+%destructor is_import_opt                                                           { }
+is_import_opt(A) ::= .                                                              { A = 0; }
+is_import_opt(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = taosStr2Int8(B.z, NULL, 10); }
 /************************************************ create/alter/drop user **********************************************/
-cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C)
+cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C) is_import_opt(E)
                       white_list_opt(D).                                          {
-                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C);
+                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C, E);
                                                                                     pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);
                                                                                   }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
@@ -493,6 +497,7 @@ col_name(A) ::= column_name(B).                                                 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
+cmd ::= SHOW USERS FULL.                                                          { pCxt->pRootNode = createShowStmtWithFull(pCxt, QUERY_NODE_SHOW_USERS_FULL_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);

@@ -155,6 +155,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
+  TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -358,6 +359,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_TAGS_STMT,
   QUERY_NODE_SHOW_USERS_STMT,
+  QUERY_NODE_SHOW_USERS_FULL_STMT,
   QUERY_NODE_SHOW_LICENCES_STMT,
   QUERY_NODE_SHOW_VGROUPS_STMT,
   QUERY_NODE_SHOW_TOPICS_STMT,
@@ -1013,6 +1015,7 @@ typedef struct {
   SIpV4Range* pIpRanges;
   int32_t     sqlLen;
   char*       sql;
+  int8_t      isImport;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -2100,6 +2103,7 @@ typedef struct {
   char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
   int64_t compactId;  // for compact
+  bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {

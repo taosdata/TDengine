@@ -262,6 +262,7 @@ typedef struct SCreateUserStmt {
   SIpV4Range* pIpRanges;
 
   SNodeList* pNodeListIpRanges;
+  int8_t      isImport;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
@@ -310,6 +311,7 @@ typedef struct SShowStmt {
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
+  bool          withFull; // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
