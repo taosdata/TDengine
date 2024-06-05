@@ -150,6 +150,7 @@ typedef struct SBackendCfWrapper {
   int64_t        backendId;
   char           idstr[64];
 } SBackendCfWrapper;
+
 typedef struct STdbState {
   SBackendCfWrapper *pBackendCfWrapper;
   int64_t            backendCfWrapperId;

@@ -3467,22 +3467,23 @@ int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* 
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
-  int8_t igNotExists;
-} SMRecoverStreamReq;
-
-typedef struct {
-  int8_t reserved;
-} SMRecoverStreamRsp;
-
-typedef struct {
   int64_t recoverObjUid;
   int32_t taskId;
   int32_t hasCheckPoint;
 } SMVStreamGatherInfoReq;
 
-// int32_t tSerializeSMRecoverStreamReq(void* buf, int32_t bufLen, const SMRecoverStreamReq* pReq);
-// int32_t tDeserializeSMRecoverStreamReq(void* buf, int32_t bufLen, SMRecoverStreamReq* pReq);
+typedef struct SVUpdateCheckpointInfoReq {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  checkpointId;
+  int64_t  checkpointVer;
+  int64_t  checkpointTs;
+  int32_t  transId;
+  int8_t   dropRelHTask;
+  int64_t  hStreamId;
+  int64_t  hTaskId;
+} SVUpdateCheckpointInfoReq;
 
 typedef struct {
   int64_t leftForVer;
