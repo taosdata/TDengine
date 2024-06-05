@@ -403,11 +403,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 tmq_list_t* tmq_list_new() { return (tmq_list_t*)taosArrayInit(0, sizeof(void*)); }
 
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
-  if (list == NULL) return -1;
+  if (list == NULL) return TSDB_CODE_INVALID_PARA;
   SArray* container = &list->container;
-  if (src == NULL || src[0] == 0) return -1;
+  if (src == NULL || src[0] == 0) return TSDB_CODE_INVALID_PARA;
   char* topic = taosStrdup(src);
-  if (taosArrayPush(container, &topic) == NULL) return -1;
+  if (taosArrayPush(container, &topic) == NULL) return TSDB_CODE_INVALID_PARA;
   return 0;
 }
 
@@ -2257,7 +2257,7 @@ const char* tmq_get_db_name(TAOS_RES* res) {
 
 int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   if (res == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     return ((SMqRspObjCommon*)res)->vgId;
@@ -2265,7 +2265,7 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return pMetaRspObj->vgId;
   } else {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
@@ -2618,7 +2618,7 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
   if (tmq == NULL) {
     taosMemoryFree(pParamSet);
     terrno = TSDB_CODE_TMQ_CONSUMER_CLOSED;
-    return -1;
+    return terrno;
   }
 
   // if no more waiting rsp
