@@ -1,7 +1,8 @@
 //! Crate level metrics related data structures and functions.
 //! Define metrics data structure for each supported datasource.
 //! And supply a global accessible map to store all metrics data.
-//! Cocepts:
+//!
+//! Concepts:
 //! 1. Run Metrics：metrics that will be reset before each run.
 //! 2. Total Metrics：metrics that will be accumulated during the whole life cycle of a task.
 
@@ -21,7 +22,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use taos::Dsn;
 use tokio::sync::oneshot;
-use tracing::{instrument, Instrument};
+use tracing::Instrument;
 
 /// MetricsType is an enum to store all supported metrics data structure.
 #[derive(Serialize, Deserialize, Debug)]
@@ -464,7 +465,6 @@ impl Default for TaskStartTime {
 unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
-#[instrument(skip_all, fields(task.id = task_id))]
 pub async fn auto_save_task_metrics(task_id: i64, mut close_signal: oneshot::Receiver<()>) {
     let metrics_arc = get_metrics(task_id).await.unwrap();
     tokio::spawn(
