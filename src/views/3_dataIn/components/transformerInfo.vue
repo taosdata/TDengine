@@ -301,7 +301,13 @@
                     >
                       with {{ scope.row.joinwith }}
                     </span>
-      
+                    <span
+                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'TIMESTAMP'"
+                      :key="'default-value-of-' + scope.row['Name']"
+                      class="mapping-rule-extra"
+                    >
+                      {{ scope.row.default && parsinginZone(Number(scope.row.default)) }}
+                    </span>
                     <span
                       v-else-if="scope.row.exprname == 'mapping' && (scope.row.dataType || scope.row.dataRange || scope.row.dataType == 'BOOL' )"
                       size="small"
@@ -310,9 +316,6 @@
                       class="mapping-rule-extra"
                     >{{ scope.row.default }}</span>
                   </template>
-                  <div class="default-value-error" v-if="scope.row.defaultValueError">
-                    {{ scope.row.defaultValueError }}
-                  </div>
                 </div>
               </el-table-column>
             </el-table>
@@ -359,9 +362,10 @@ import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
-import { extractAllProperties, deepClone } from "@/utils"
+import { extractAllProperties, deepClone, parsinginZone } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -503,7 +507,8 @@ export default {
       visiblePop3: false,
       allProperties: [],
       dialogVisible: false,
-      checkedProperties: []
+      checkedProperties: [],
+      parsinginZone
     };
   },
   computed: {
@@ -526,7 +531,6 @@ export default {
     },
   },
   async mounted() {
-    console.log('0000000=======');
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
@@ -990,6 +994,7 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;
       } else {
+        console.log('this.$store.state.app.csvTransformerParser',this.$store.state.app.csvTransformerParser);
         let csvechoTransData = null;
         this.currentPage = value?.format?.currentPage;
         if (this.$store.state.app.currentDBType == "csv") {

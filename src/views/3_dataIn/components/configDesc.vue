@@ -101,7 +101,7 @@ import ConnectivityCheck from "../components/connectivityCheck.vue";
 import { getBrowserLang } from "@/utils";
 import { hasOwn } from "@/utils/util";
 import CommonTransformer from "./transformerInfo.vue";
-import CsvData from "./csvData.vue";
+import CsvData from "./csvDataInfo.vue";
 
 export default {
   props: {
