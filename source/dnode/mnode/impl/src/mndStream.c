@@ -2324,7 +2324,8 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
       taosArrayDestroy(execInfo.pNodeList);
       execInfo.pNodeList = extractNodeListFromStream(pMnode);
       execInfo.ts = ts;
-      mDebug("create trans successfully, update cached node list, numOfNodes:%d", taosArrayGetSize(execInfo.pNodeList));
+      mDebug("create trans successfully, update cached node list, numOfNodes:%d",
+             (int)taosArrayGetSize(execInfo.pNodeList));
     } else {
       mError("unexpected code during create nodeUpdate trans, code:%s", tstrerror(code));
     }
