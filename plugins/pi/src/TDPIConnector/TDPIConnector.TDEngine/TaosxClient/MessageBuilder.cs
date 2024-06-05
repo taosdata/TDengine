@@ -360,10 +360,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
             List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
             Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
             arrays.Add(CreateTypeArray(typeField, msgType));
-            Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
-            arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));
-            //Field attrsField = schema.GetFieldByName(TaosxConstants.ATTRS);
-            //arrays.Add(CreateAttrsArray(builder, attrsField, msgType));
+            // 只有建表消息才需要 __tables__ 列
+            if (msgType == MessageType.Children) {
+                Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
+                arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));
+            }
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
             arrays.Add(CreateRecordsArray(builder, recordsField, msgType, recordCounts));
 
