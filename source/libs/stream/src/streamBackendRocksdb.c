@@ -2044,13 +2044,18 @@ void taskDbDestroy(void* pDb, bool flush) {
       rocksdb_flushoptions_destroy(flushOpt);
     }
   }
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) {
-      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+
+  if (wrapper->pCf != NULL) {
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) {
+        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+      }
     }
   }
 
-  if (wrapper->db) rocksdb_close(wrapper->db);
+  if (wrapper->db) {
+    rocksdb_close(wrapper->db);
+  }
 
   rocksdb_options_destroy(wrapper->dbOpt);
   rocksdb_readoptions_destroy(wrapper->readOpt);
