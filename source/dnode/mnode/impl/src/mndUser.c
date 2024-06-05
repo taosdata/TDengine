@@ -1003,6 +1003,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->sysInfo, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->flag, _OVER)
+  if (pUser->superUser) pUser->createdb = 1;
   SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
   if (sver >= 4) {
     SDB_GET_INT32(pRaw, dataPos, &pUser->passVersion, _OVER)
@@ -2327,7 +2328,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->sysInfo, false);
 
     cols++;
-    flag = (pUser->createdb || pUser->superUser) ? 1 : 0;
+    flag = pUser->createdb ? 1 : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&flag, false);
 
