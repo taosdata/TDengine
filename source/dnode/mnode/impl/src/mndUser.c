@@ -644,11 +644,11 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.updateTime = userObj.createdTime;
   userObj.sysInfo = 1;
   userObj.enable = 1;
-  userObj.createdb = 1;
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.pIpWhiteList = createDefaultIpWhiteList();
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
+    userObj.createdb = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
