@@ -855,7 +855,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   int32_t pkLen = 0;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
-    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->basic.primaryPkIndex);
   }
 
   if (pSDataBlock->info.window.skey != tsCols[0] || pSDataBlock->info.window.ekey != tsCols[endRowId]) {
@@ -2144,7 +2144,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   int32_t pkLen = 0;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
-    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->basic.primaryPkIndex);
   }
 
   for (int32_t i = 0; i < rows;) {

@@ -131,18 +131,26 @@ static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     int32_t *pVgId = taosArrayGet(pNodeList, k);
     mInfo("set node expired for nodeId:%d, total:%d", *pVgId, num);
 
+    bool    setFlag = false;
     int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
+
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, i);
 
       if (pNodeEntry->nodeId == *pVgId) {
         mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
         pNodeEntry->stageUpdated = true;
+        setFlag = true;
         break;
       }
     }
-  }
 
+    if (!setFlag) {
+      mError("failed to set nodeUpdate flag, nodeId:%d not exists in nodelist, update it", *pVgId);
+      ASSERT(0);
+      return TSDB_CODE_FAILED;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -361,7 +369,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     pHead->vgId = htonl(req.vgId);
 
     tmsgSendRsp(&rsp);
-
     pReq->info.handle = NULL;   // disable auto rsp
   }
 
