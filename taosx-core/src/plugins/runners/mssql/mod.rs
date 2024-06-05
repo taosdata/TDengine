@@ -266,11 +266,11 @@ fn generate_json_value(
         },
         tiberius::ColumnData::F32(val) => match val {
             None => Ok(json!(null)),
-            Some(val) => Ok(json!(val)),
+            Some(val) => Ok(json!(format!("{:?}", val))),
         },
         tiberius::ColumnData::F64(val) => match val {
             None => Ok(json!(null)),
-            Some(val) => Ok(json!(val)),
+            Some(val) => Ok(json!(format!("{:?}", val))),
         },
         tiberius::ColumnData::Bit(val) => match val {
             None => Ok(json!(null)),

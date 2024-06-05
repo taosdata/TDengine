@@ -361,8 +361,8 @@ pub fn to_record_batches(
                     Some(val) => {
                         let days = val.days();
                         let secs = val.seconds_fragments();
-                        // convert to seconds and nanoseconds
-                        let secs = (days as u32) * 24 * 60 * 60 + secs / 300;
+                        // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually 1/300 seconds)
+                        let secs = (days as u32 - 25567) * 24 * 60 * 60 + secs / 300;
                         // convert to datetime with timezone
                         let datetime = DateTime::from_timestamp(secs as i64, 0 as u32).unwrap();
 
@@ -384,8 +384,8 @@ pub fn to_record_batches(
                     Some(val) => {
                         let days = val.days();
                         let secs = val.seconds_fragments();
-                        // convert to seconds and nanoseconds
-                        let secs = (days as i64) * 24 * 60 * 60 + secs as i64;
+                        // convert to seconds and nanoseconds(since 1900-01-01 00:00:00, and seconds are actually minutes)
+                        let secs = (days as i64 - 25567) * 24 * 60 * 60 + (secs as i64) * 60;
                         // convert to datetime with timezone
                         let datetime = DateTime::from_timestamp(secs, 0 as u32).unwrap();
 
@@ -431,8 +431,8 @@ pub fn to_record_batches(
                             .append_null();
                     }
                     Some(val) => {
-                        // convert to days
-                        let days = val.days();
+                        // convert to days(since 1st of January, year 1)
+                        let days = val.days() + 1;
                         // convert to naivedate
                         let date = NaiveDate::from_num_days_from_ce_opt(days as i32).unwrap();
 
@@ -454,7 +454,7 @@ pub fn to_record_batches(
                     Some(val) => {
                         let date = val.date();
                         let time = val.time();
-                        // convert to seconds and nanoseconds
+                        // convert to seconds and nanoseconds(since 1st of January, year 1)
                         let secs = (date.days() as u64 - 719162) * 24 * 60 * 60
                             + time.increments() / (10_u64.pow(time.scale() as u32));
                         let nsecs = time.increments() % (10_u64.pow(time.scale() as u32))
@@ -481,7 +481,7 @@ pub fn to_record_batches(
                         let datetime = val.datetime2();
                         let date = datetime.date();
                         let time = datetime.time();
-                        // convert to seconds and nanoseconds
+                        // convert to seconds and nanoseconds(since 1st of January, year 1)
                         let secs = (date.days() as u64 - 719162) * 24 * 60 * 60
                             + time.increments() / (10_u64.pow(time.scale() as u32));
                         let nsecs = time.increments() % (10_u64.pow(time.scale() as u32))
