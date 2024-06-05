@@ -244,6 +244,7 @@ typedef struct SStbInterlaceInfo {
   STableBufInfo tbBuf;
   char          firstName[TSDB_TABLE_NAME_LEN];
   
+  STSchema      *pTSchema;
   STableDataCxt *pDataCtx;
   void          *boundTags;
 

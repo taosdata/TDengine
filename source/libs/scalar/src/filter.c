@@ -177,7 +177,7 @@ __compar_fn_t gUint64SignCompare[] = {compareUint64Int8,  compareUint64Int16, co
                                       compareUint64Int64, compareUint64Float, compareUint64Double};
 __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, compareUint64Uint32, compareUint64Val};
 
-int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
+int8_t filterGetCompFuncIdx(int32_t type, int32_t optr, bool scalarMode) {
   int8_t comparFn = 0;
 
   if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
@@ -290,9 +290,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = 28;
+        comparFn = scalarMode ? 28 : 19;
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = 29;
+        comparFn = scalarMode ? 29 : 20;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
       } else if (optr == OP_TYPE_NOT_LIKE) {
@@ -343,7 +343,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   return comparFn;
 }
 
-__compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr)]; }
+__compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) { return gDataCompare[filterGetCompFuncIdx(type, optr, true)]; }
 
 __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
   if (TSDB_DATA_TYPE_NULL == rType || TSDB_DATA_TYPE_JSON == rType) {
@@ -2785,7 +2785,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
-    info->cunits[i].func = filterGetCompFuncIdx(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr); // set terrno if err
+    info->cunits[i].func = filterGetCompFuncIdx(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr, false); // set terrno if err
     info->cunits[i].rfunc = filterGetRangeCompFuncFromOptrs(unit->compare.optr, unit->compare.optr2);
     info->cunits[i].optr = FILTER_UNIT_OPTR(unit);
     info->cunits[i].colData = NULL;
