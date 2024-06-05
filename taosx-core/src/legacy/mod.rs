@@ -2226,7 +2226,7 @@ impl TableTodo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LegacyTodo {
     stables: scc::HashSet<Arc<String>>,
     tables: scc::HashSet<LegacyTableItem>,
@@ -3044,7 +3044,7 @@ async fn legacy_to_taos_impl(
         }
         std::thread::sleep(Duration::from_secs(5));
         tracing::info!(
-            "Processed {}/{}, metrics detail:\n{}",
+            "Processed {} parts for total {} tables, metrics detail:\n{}",
             metrics.total_finished_tables.load(Ordering::SeqCst),
             metrics.total_tables.load(Ordering::SeqCst),
             metrics
@@ -3100,6 +3100,7 @@ async fn legacy_to_taos_impl(
     let (schema_polling_done, schema_polling_waiter) = tokio::sync::oneshot::channel::<()>();
 
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
+        let todo_non_changed = Arc::new(todo.as_ref().clone());
         let schema_polling_task = tokio::spawn(async move {
             let handle = async move {
                 let mut interval =
@@ -3176,7 +3177,7 @@ async fn legacy_to_taos_impl(
             &scheduler,
             &from_pool,
             source_opts.query,
-            &todo,
+            &todo_non_changed,
             target_opts,
             source_opts.workers as _,
             &task_id,
