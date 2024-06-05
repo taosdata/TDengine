@@ -74,7 +74,7 @@ export const ServerLevel = {
 };
 export const OFFSETUTCTIME = new Date().getTimezoneOffset() * 60 * 1000;
 
-export const VariableTableColumnType = ["BINARY", "NCHAR", "VARCHAR"];
+export const VariableTableColumnType = ["BINARY", "NCHAR", "VARCHAR", "VARBINARY", "GEOMETRY"];
 export const HIDEDB = ["information_schema", "performance_schema"];
 export const DBFILED = {
   buffer: { type: "number", alter: false, defaultValue: undefined },
