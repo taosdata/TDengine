@@ -46,7 +46,10 @@ use super::{
 
 #[instrument(skip_all)]
 #[async_backtrace::framed]
-async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyReceiver)> {
+async fn task_opts_init(
+    task: &Task,
+    cancel: CancellationToken,
+) -> anyhow::Result<(TaskOpts, TaskNotifyReceiver)> {
     let id = task.id;
     let from = if let Some(topic) = task.oneshot_topic.as_deref() {
         let mut from: Dsn = task.from.parse()?;
@@ -57,9 +60,6 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
         task.from.parse()?
     };
     let to_dsn: Dsn = task.to.parse()?;
-
-    let token = tokio_util::sync::CancellationToken::new();
-    let cloned_token = token.clone();
     match from.driver.as_str() {
         "opcua" | "opcda" | "pi" | "pibackfill" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
@@ -125,7 +125,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
             jobs: 0,
             compression_level: None,
             force: true,
-            cancel: CancellationToken::new(),
+            cancel,
             // port_pool: ONCE,
             with_agent: None,
             breakpoints,
@@ -138,13 +138,17 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
     ))
 }
 
-async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
-    debug_assert!(task.task.via.is_none());
-    let _ = task.span.clone().entered();
-    let state = task;
+async fn run_task(
+    global: &GlobalState,
+    state: &TaskState,
+    job_id: &Uuid,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    debug_assert!(state.task.via.is_none());
+    let _ = state.span.clone().entered();
     let task = &state.task;
     let task_id = task.id;
-    let (opts, task_rx) = task_opts_init(task).await?;
+    let (opts, task_rx) = task_opts_init(task, cancel).await?;
     tracing::info!("start worker");
 
     // set current dir to DATA_DIR
@@ -899,7 +903,6 @@ impl TaskJob {
             license_tracker_state: TaskState,
             license_tracker_global: GlobalState,
             task_id: TaskId,
-            jid: Uuid,
         ) {
             // Check license for each 8 hours.
             let license_tracker_interval_seconds =
@@ -926,12 +929,12 @@ impl TaskJob {
                         // match anyhow::Ok(LicenseKind::Edition(anyhow::anyhow!("Community"))) {
                             Ok(kind) => {
                                 if let Err(err) = kind.ok() {
-                                    tracing::error!(error = %err, task.id = task_id, task.jid = %jid, "License error, suspend task");
+                                    tracing::error!(error = %err, "License error, suspend task");
                                     license_tracker_global.send_task_activity(TaskActivity::suspending_with(task_id, format!("License error: {:#}", err)));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
                                 } else {
-                                    tracing::info!(task.id = task_id, task.jid = %jid, "License validation tracking ok");
+                                    tracing::info!("License validation tracking ok");
                                 }
                             }
                             Err(err) => {
@@ -974,7 +977,6 @@ impl TaskJob {
                         license_tracker_state,
                         license_tracker_global,
                         task_id,
-                        jid,
                     )
                     .in_current_span(),
                 );
@@ -1404,20 +1406,12 @@ impl TaskJob {
                         task_id,
                         runs
                     );
-                    let span = tracing::info_span!(
-                        "run_task",
-                        task.id = opts.task.id,
-                        task.jid = %jid,
-                        task.rid = runs,
-                        task.agent = opts.task.via
-                    );
+                    let span = tracing::info_span!("run_task", task.rid = runs);
 
-                    let state = opts;
-                    let mut opts = state.clone();
-                    opts.cancellation = opts.cancellation.child_token();
+                    let cancellation = opts.cancellation.child_token();
 
                     // let license_tracker_cancellation_token = opts.cancellation.clone();
-                    let license_tracker_cancellation_token = opts.cancellation.clone();
+                    let license_tracker_cancellation_token = cancellation.clone();
 
                     let drop_guard = license_tracker_cancellation_token.clone().drop_guard();
                     let license_tracker_state = opts.clone();
@@ -1428,11 +1422,11 @@ impl TaskJob {
                             license_tracker_state,
                             license_tracker_global,
                             task_id,
-                            jid,
                         )
                         .instrument(span.clone()),
                     );
-                    let future = run_task(&global, &opts, &jid).instrument(span.clone());
+                    let future = run_task(&global, &opts, &jid, cancellation.clone())
+                        .instrument(span.clone());
 
                     let stop_condition = opts.stop_condition.clone();
                     let last_state = opts.last_state.clone();
@@ -1459,7 +1453,7 @@ impl TaskJob {
 
                     let _ = span.enter();
                     let mut should_stop = tokio::select! {
-                        _ = state.cancellation.cancelled() => {
+                        _ = opts.cancellation.cancelled() => {
                             tracing::info!("task cancelled");
                             opts.last_state.write().await.replace(LastState::Stopped);
                             true
@@ -1478,8 +1472,8 @@ impl TaskJob {
                         should_stop = opts.stop_condition.should_stop();
                     }
                     let state_guard = opts.last_state.read().await;
-                    let state = state_guard.as_ref().expect("task should have a last state");
-                    match state {
+                    let last_state = state_guard.as_ref().expect("task should have a last state");
+                    match last_state {
                         LastState::Done => match opts.operator.operator() {
                             Operator::Suspend => {
                                 global
@@ -1582,8 +1576,6 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     task.operator.start();
     task.stop_condition.tick();
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
-
-    let opts_cancellation_handler = opts.clone();
 
     let from_dsn: Dsn = task.task.from.parse().unwrap();
     let to_dsn = task.task.to.parse().unwrap();
