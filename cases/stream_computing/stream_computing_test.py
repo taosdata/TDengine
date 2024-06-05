@@ -4741,6 +4741,7 @@ class StreamComputingTest(TDCase):
 
 
     def insert_after_restart(self, delete=False, fill_history_value=None):
+        self.tdCom.stream_timeout = 600
         self.data_filter(delete=delete, fill_history_value=fill_history_value)
         time.sleep(self.stage_report_time)
         self.tdSql.query(f'select distinct(`stage`) from information_schema.ins_stream_tasks')
