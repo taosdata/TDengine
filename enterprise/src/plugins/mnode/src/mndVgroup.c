@@ -34,7 +34,8 @@ extern int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *
 
 int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   int32_t code = -1;
-  
+  STrans *pTrans = NULL;
+
   SBalanceVgroupLeaderReq req = {0};
   if (tDeserializeSBalanceVgroupLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -42,15 +43,18 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   }
 
   SMnode *pMnode = pReq->info.node;
-  SSdb *pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
 
   int32_t total = sdbGetSize(pSdb, SDB_VGROUP);
-  if(total <= 0) {
+  if (total <= 0) {
     terrno = TSDB_CODE_TSC_INVALID_OPERATION;
-    return code;
+    goto _OVER;
   }
-  
-  STrans *pTrans = NULL;
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP_LEADER) != 0) {
+    goto _OVER;
+  }
+
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "balance-vg-leader");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
