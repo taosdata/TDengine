@@ -465,6 +465,9 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_ORACLE)
   grantHandle.showDataIns[CONN_TYPE_ORACLE] = 1;
 #endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_MYSQL)
+  grantHandle.showDataIns[CONN_TYPE_MSSQL] = 1;
+#endif
 
   // add future datains here ...
 }
