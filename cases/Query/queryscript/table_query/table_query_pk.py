@@ -46,7 +46,7 @@ class TDTestQuery(TDCase):
         return case_description
             
     #basic_param
-    db = "table_pk8"
+    db = "table_pk9"
     
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
@@ -54,7 +54,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        #self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'yes','yes','no') 
+        self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'yes','yes','no') 
         #self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'no','yes','no') 
         # self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 2 ,'no','yes','no') 
         # self.tdCreateData.dropandcreateDB_primary_key("%s" % db, 1 , 1 ,'no','yes','no') 
@@ -71,20 +71,20 @@ class TDTestQuery(TDCase):
         # #self.fun_pk_twa(self.db,'irate','')
         # self.fun_pk_unique(self.db,'unique','')  
         #self.fun_pk_last_init(self.db,'last','')  
-        self.fun_pk_last(self.db,'last','')  
+        #self.fun_pk_last(self.db,'last','')  
         # self.fun_pk_last(self.db,'last_row','') 
         # self.fun_pk_first(self.db,'first','') 
         
         # self.query_pk_fun(self.db,'') 
         
-        # self.touying_pk_1(self.db,1) 
-        # self.touying_pk_where(self.db,'') 
-        # self.touying_pk_where(self.db,'tags') 
-        # self.touying_pk_where(self.db,'distinct') 
-        # self.touying_pk_asc(self.db,'')  
-        # self.touying_pk_asc(self.db,'tags')  
-        # self.touying_pk_asc(self.db,'distinct')  
-        #self.count_pk(self.db,1) #pass
+        self.touying_pk_1(self.db,1) 
+        self.touying_pk_where(self.db,'') 
+        self.touying_pk_where(self.db,'tags') 
+        self.touying_pk_where(self.db,'distinct') 
+        self.touying_pk_asc(self.db,'')  
+        self.touying_pk_asc(self.db,'tags')  
+        self.touying_pk_asc(self.db,'distinct')  
+        self.count_pk(self.db,1) #pass
         
     def query_pk_fun(self,db,num=1):
         self.fun_pk_num_1(self.db,'','') 
