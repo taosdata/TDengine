@@ -186,7 +186,7 @@ class TDTestCase:
         tdSql.query('show dnode 1 variables')
         for i in tdSql.queryResult:
             if i[1].lower() == "gitinfo":
-                taosd_gitinfo_sql = f"gitinfo: {i[2]}"
+                taosd_gitinfo_sql = f"git: {i[2]}"
         taos_gitinfo_sql = ''
         tdSql.query('show local variables')
         for i in tdSql.queryResult:
