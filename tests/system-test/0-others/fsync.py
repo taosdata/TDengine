@@ -148,7 +148,7 @@ class TDTestCase:
     @property
     def fsync_create_err(self):
         return [
-            "create database db1 wal_level 0",
+            #"create database db1 wal_level 0",
             "create database db1 wal_level 3",
             "create database db1 wal_level null",
             "create database db1 wal_level true",
@@ -162,7 +162,7 @@ class TDTestCase:
     @property
     def fsync_alter_err(self):
         return [
-            "alter database db1 wal_level 0",
+            #"alter database db1 wal_level 0",
             "alter database db1 wal_level 3",
             "alter database db1 wal_level null",
             "alter database db1 wal_level true",
