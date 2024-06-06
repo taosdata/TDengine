@@ -25,8 +25,8 @@ There is an additional charge for extracting OPC UA . The charge depends on your
 4. In the **Authentication** field, select the access method. You can select anonymous access, user name and password access, and certificate access. When using certificate access, you need to configure the certificate file information, private key file information, OPC-UA security protocol and OPC-UA security policy.
 5. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the OPC UA server is available.
 6. In the **Data Sets** field, configure the point information. Click the **Select File** button to select the regular expression to filter the points, and up to 10 points can be filtered out at a time.
-7. In the **Collect** part, configure the collection interval (unit: second), the number of points, and the collection mode. The Collect mode can be selected as observe (polling mode) and subscribe (subscription mode), and the default value is observe.
-8. In the **Advanced Options** part, configure the parallelism, single collection report batch (default value is 100), report timeout (unit: second, default value is 10), and whether to enable debug level logging. In the **Original Data Save** part, configure whether to enable save. If it is saved, please set the save path and the specific number of days to save.
+7. In the **Collect** part, configure the collection interval (unit: second), the number of points, and the collection mode. The Collect mode can be selected as observe (polling mode) and subscribe (subscription mode), and the default value is subscribe.
+8. In the **Advanced Options** part, configure the parallelism, single collection report batch (default value is 1000), report timeout (unit: second, default value is 1), and select logging level. In the **Original Data Save** part, configure whether to enable save. If it is saved, please set the save path and the specific number of days to save.
 9. After completing the above information, click the **Add** button to directly initiate data synchronization from the OPC UA server to the TDengine Cloud instance.
 
 ## CSV Configurations
