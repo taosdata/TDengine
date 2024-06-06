@@ -351,7 +351,12 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   }
 
   pCell = tdbPageGetCell(btc.pPage, btc.idx);
-  tdbBtreeDecodeCell(btc.pPage, pCell, &cd, btc.pTxn, pBt);
+  ret = tdbBtreeDecodeCell(btc.pPage, pCell, &cd, btc.pTxn, pBt);
+  if (ret < 0) {
+    tdbBtcClose(&btc);
+    tdbError("tdb/btree-pget: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   if (ppKey) {
     pTKey = tdbRealloc(*ppKey, cd.kLen);
@@ -1859,7 +1864,11 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
 
-  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  if (ret < 0) {
+    tdbError("tdb/btree-next: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {
@@ -1918,7 +1927,11 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
 
-  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  if (ret < 0) {
+    tdbError("tdb/btree-prev: decode cell failed with ret: %d.", ret);
+    return -1;
+  }
 
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {

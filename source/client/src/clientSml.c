@@ -939,7 +939,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   pReq.pColumns = taosArrayInit(pReq.numOfColumns, sizeof(SFieldWithOptions));
   for (int32_t i = 0; i < pReq.numOfColumns; ++i) {
     SField           *pField = taosArrayGet(pColumns, i);
-    SFieldWithOptions fieldWithOption;
+    SFieldWithOptions fieldWithOption = {0};
     setFieldWithOptions(&fieldWithOption, pField);
     setDefaultOptionsForField(&fieldWithOption);
     taosArrayPush(pReq.pColumns, &fieldWithOption);

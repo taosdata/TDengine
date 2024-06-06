@@ -86,7 +86,7 @@ int32_t s3CheckCfg() {
     snprintf(path + tmp_len, PATH_MAX, "%s", TD_DIRSEP);
     snprintf(path + tmp_len + ds_len, PATH_MAX, "%s", objectname[0]);
   } else {
-    snprintf(path + tmp_len, PATH_MAX, "%s", objectname[0]);
+    snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", objectname[0]);
   }
 
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
@@ -1075,19 +1075,19 @@ static SArray *getListByPrefix(const char *prefix) {
   S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                            &listBucketCallback};
 
-  const char               *marker = 0, *delimiter = 0;
-  int                       maxkeys = 0, allDetails = 0;
-  list_bucket_callback_data data = {0};
+  const char /**marker = 0,*/ *delimiter = 0;
+  int                          maxkeys = 0, allDetails = 0;
+  list_bucket_callback_data    data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
     uError("%s: %s", __func__, "out of memoty");
     return NULL;
   }
-  if (marker) {
+  /*if (marker) {
     snprintf(data.nextMarker, sizeof(data.nextMarker), "%s", marker);
-  } else {
-    data.nextMarker[0] = 0;
-  }
+    } else {*/
+  data.nextMarker[0] = 0;
+  //}
   data.keyCount = 0;
   data.allDetails = allDetails;
 

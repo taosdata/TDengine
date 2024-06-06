@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbIter.h"
 #include "tsdbReadUtil.h"
 #include "vnd.h"
 
