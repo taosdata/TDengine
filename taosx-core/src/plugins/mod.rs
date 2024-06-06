@@ -245,6 +245,11 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
 
     match dsn.driver.as_str() {
         AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        runners::kafka::KAFKA_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::kafka::get_sample(&dsn, limit, timeout).await
+        }
         runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
         runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
         runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
@@ -253,6 +258,21 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
             "get sample from data source is unsupported"
         )),
     }
+}
+
+fn parse_sample_limit(dsn: &Dsn) -> usize {
+    dsn.params
+        .get("get_sample_limit")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(5)
+}
+
+fn parse_sample_timeout(dsn: &Dsn) -> Duration {
+    dsn.params
+        .get("get_sample_timeout")
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(30))
 }
 
 pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
@@ -268,4 +288,40 @@ pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<St
     tokio::time::timeout(timeout, query_data_source_inner(request))
         .await
         .map_err(|err| anyhow::anyhow!("query data source timeout, cause: {:?}", err))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_parse_sample_limit() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 123);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=abc").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+    }
+
+    #[test]
+    fn test_parse_sample_timeout() {
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=123").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(123));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=abc").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+    }
 }

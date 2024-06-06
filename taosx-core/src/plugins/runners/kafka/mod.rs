@@ -13,6 +13,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use chrono::Utc;
 use futures_util::TryStreamExt;
+use linked_hash_map::LinkedHashMap;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -20,6 +21,7 @@ use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Reb
 use rdkafka::error::KafkaResult;
 use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
+use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -29,6 +31,7 @@ use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
 
 use crate::plugins::dsv::DataSourceValidation;
+use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::set_tcp_keepalive;
@@ -59,6 +62,47 @@ fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
         .fetch_metadata(None, Duration::from_secs(5))
         .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))?;
     Ok(())
+}
+
+pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
+    let sample_list: Vec<String> = get_sample_impl(dsn, limit, timeout).await?;
+
+    let mut sample_vec: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
+    for payload in sample_list {
+        let mut p = LinkedHashMap::new();
+        p.insert("payload".to_string(), json!(payload));
+        sample_vec.push(p);
+    }
+
+    let sample_json = json!({
+        "input": sample_vec,
+        "parser": {}
+    });
+
+    let sample: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse kafka sample data: {:?}, cause: {:?}",
+            sample_json,
+            err
+        )
+    })?;
+
+    Ok(sample)
+}
+
+async fn get_sample_impl(
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<String>> {
+    let mut payload_list: Vec<String> = Vec::new();
+
+    let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
+    let client_config = build_client_config(connect_config);
+
+    payload_list.push("sample".to_string());
+
+    Ok(payload_list)
 }
 
 pub async fn kafka_to_taos(
@@ -179,6 +223,7 @@ pub async fn kafka_to_taos(
 }
 
 type KafkaJoinSet = JoinSet<anyhow::Result<()>>;
+
 async fn execute(
     from: Dsn,
     ipc_server_port: u16,
@@ -642,6 +687,7 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rdkafka::Offset;
     use std::str::FromStr;
     use taos::IntoDsn;
 
@@ -721,5 +767,61 @@ mod tests {
             .filter(|tp| topics.contains(&tp.name().to_string()))
             .collect::<Vec<_>>();
         dbg!(topics_readable.len());
+    }
+
+    #[tokio::test]
+    async fn test_get_sample() {
+        let consumer: BaseConsumer = ClientConfig::new()
+            .set("bootstrap.servers", "192.168.1.40:9092")
+            .set("group.id", "test")
+            .set("auto.offset.reset", "earliest")
+            .set("enable.auto.commit", "false")
+            .create()
+            .unwrap();
+
+        let metadata = consumer
+            .fetch_metadata(None, Duration::from_secs(5))
+            .unwrap();
+
+        metadata
+            .topics()
+            .iter()
+            .filter(|tp| !tp.name().starts_with("__"))
+            .for_each(|tp| {
+                let topic_name = tp.name();
+                let partitions = tp.partitions().iter().map(|p| p.id()).collect::<Vec<_>>();
+                for p in partitions {
+                    consumer
+                        .seek(topic_name, p, Offset::Beginning, Duration::from_secs(1))
+                        .unwrap();
+                }
+            });
+
+        consumer
+            .subscribe(&["test_taosx"])
+            .expect("Can't subscribe to specified topics");
+
+        let start = Utc::now().timestamp();
+        let timeout = 10;
+        let limit = 10;
+        let mut count = 0;
+        loop {
+            let message = consumer.poll(Duration::from_secs(1));
+            if let Some(msg) = message {
+                match msg {
+                    Ok(m) => {
+                        m.payload().map(|p| {
+                            println!("payload: {}", String::from_utf8_lossy(p));
+                        });
+                    }
+                    Err(err) => {}
+                }
+                count += 1;
+            }
+            let now = Utc::now().timestamp();
+            if now - start > timeout || count > limit {
+                break;
+            }
+        }
     }
 }
