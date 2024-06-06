@@ -731,8 +731,8 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   } else {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug(
-        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), quit from timer and clear "
-        "checkpoint-ready msg, ref:%d",
+        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), clear checkpoint-ready msg "
+        "and quit from timer, ref:%d",
         id, vgId, ref);
 
     streamClearChkptReadyMsg(pTask);

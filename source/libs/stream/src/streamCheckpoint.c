@@ -278,6 +278,60 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 
     if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
+
+      // we need to transfer state here. The transfer of state may generate new data that need to dispatch to downstream,
+      // to transfer the new data to downstream before checkpoint-trigger reaching the downstream tasks.
+      // Otherwise, those new generated data may be lost, if crash before next checkpoint data generatd, which the
+      // the new generated data is kept in outputQ, and failed to dispatch to downstream tasks.
+      {
+        bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
+        if (dropRelHTask) {
+          ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+
+          STaskId*     pHTaskId = &pTask->hTaskInfo.id;
+          SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId);
+          if (pHTask != NULL) {
+            // 2. transfer the ownership of executor state
+            streamTaskReleaseState(pHTask);
+            streamTaskReloadState(pTask);
+            stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
+                    streamTaskGetStatus(pHTask)->name);
+
+            streamMetaReleaseTask(pTask->pMeta, pHTask);
+          } else {
+            stError("s-task:%s related fill-history task:0x%x failed to acquire, transfer state failed", id,
+                    (int32_t)pHTaskId->taskId);
+          }
+        } else {
+          stDebug("s-task:%s no transfer-state needed", id);
+        }
+
+        int32_t blockSize = 0;
+        int64_t st = taosGetTimestampMs();
+
+        stDebug("s-task:%s start to process batch of blocks, num:%d, type:%s", id, 1, "checkpoint-trigger");
+
+        int64_t ver = pTask->chkInfo.processedVer;
+        doSetStreamInputBlock(pTask, pBlock, &ver, id);
+
+        int64_t totalSize = 0;
+        int32_t totalBlocks = 0;
+        streamTaskExecImpl(pTask, (SStreamQueueItem*)pBlock, &totalSize, &totalBlocks);
+
+        double el = (taosGetTimestampMs() - st) / 1000.0;
+        stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
+                SIZE_IN_MiB(totalSize), totalBlocks);
+
+        pTask->execInfo.outputDataBlocks += totalBlocks;
+        pTask->execInfo.outputDataSize += totalSize;
+        if (fabs(el - 0.0) <= DBL_EPSILON) {
+          pTask->execInfo.procsThroughput = 0;
+          pTask->execInfo.outputThroughput = 0;
+        } else {
+          pTask->execInfo.outputThroughput = (totalSize / el);
+          pTask->execInfo.procsThroughput = (blockSize / el);
+        }
+      }
       continueDispatchCheckpointTriggerBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
       appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pActiveInfo->activeId, pActiveInfo->transId);
@@ -306,7 +360,58 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       streamTaskBuildCheckpoint(pTask);
     } else {  // source & agg tasks need to forward the checkpoint msg downwards
       stDebug("s-task:%s process checkpoint-trigger block, all %d upstreams sent, forwards to downstream", id, num);
-      // Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
+
+      {
+        bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
+        if (dropRelHTask) {
+          ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+
+          STaskId*     pHTaskId = &pTask->hTaskInfo.id;
+          SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId);
+          if (pHTask != NULL) {
+            // 2. transfer the ownership of executor state
+            streamTaskReleaseState(pHTask);
+            streamTaskReloadState(pTask);
+            stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
+                    streamTaskGetStatus(pHTask)->name);
+
+            streamMetaReleaseTask(pTask->pMeta, pHTask);
+          } else {
+            stError("s-task:%s related fill-history task:0x%x failed to acquire, transfer state failed", id,
+                    (int32_t)pHTaskId->taskId);
+          }
+        } else {
+          stDebug("s-task:%s no transfer-state needed", id);
+        }
+      }
+
+      int32_t blockSize = 0;
+      int64_t st = taosGetTimestampMs();
+
+      stDebug("s-task:%s start to process batch of blocks, num:%d, type:%s", id, 1, "checkpoint-trigger");
+
+      int64_t ver = pTask->chkInfo.processedVer;
+      doSetStreamInputBlock(pTask, pBlock, &ver, id);
+
+      int64_t totalSize = 0;
+      int32_t totalBlocks = 0;
+      streamTaskExecImpl(pTask, (SStreamQueueItem*)pBlock, &totalSize, &totalBlocks);
+
+      double el = (taosGetTimestampMs() - st) / 1000.0;
+      stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
+              SIZE_IN_MiB(totalSize), totalBlocks);
+
+      pTask->execInfo.outputDataBlocks += totalBlocks;
+      pTask->execInfo.outputDataSize += totalSize;
+      if (fabs(el - 0.0) <= DBL_EPSILON) {
+        pTask->execInfo.procsThroughput = 0;
+        pTask->execInfo.outputThroughput = 0;
+      } else {
+        pTask->execInfo.outputThroughput = (totalSize / el);
+        pTask->execInfo.procsThroughput = (blockSize / el);
+      }
+
+      // Put the checkpoint-trigger block into outputQ, to make sure all blocks with less version have been handled by this task
       // already. And then, dispatch check point msg to all downstream tasks
       code = continueDispatchCheckpointTriggerBlock(pBlock, pTask);
     }
@@ -507,7 +612,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   if (pReq->dropRelHTask) {
     streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
     int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId, pReq->taskId, numOfTasks);
+    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId, pReq->hTaskId, numOfTasks);
   }
 
   streamMetaWLock(pMeta);
