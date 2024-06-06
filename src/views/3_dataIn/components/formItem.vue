@@ -398,6 +398,7 @@ export default {
         case "postgres":
         case "mysql":
         case "oracle":
+        case "mssql":
           this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
           this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;

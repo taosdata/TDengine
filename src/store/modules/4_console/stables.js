@@ -38,18 +38,19 @@ const mutations = {
       rollup: "",
       columns: [
         { type: "TIMESTAMP", field: "", value: "",
-          varcharLength:8,ncharLength:8, encode: "delta-i", 
-          compress: "lz4", level: "medium", primaryKey: false 
+          encode: "delta-i", 
+          compress: "lz4", level: "medium", primaryKey: false,
+          length: 8 
         },
         {
           type: "INT", field: "", value: "",
           encode: "simple8b", compress: "lz4", level: "medium",
-          varcharLength: 8, ncharLength: 8, primaryKey: false,
+          primaryKey: false, length: 8 
         }
       ],
       tags: [{
         type: "INT", field: "", value: "",
-        varcharLength: 8, ncharLength: 8
+        length: 8
       }],
       ts_field_name: "",
     };
@@ -117,10 +118,10 @@ const actions = {
       })
       .catch((err) => {
         if (!state.stable_form.columns.length) {
-          state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8,encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false});
+          state.stable_form.columns.push({ type: "INT", field: "", value: "", length: 8,encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false});
         }
         if (!state.stable_form.tags.length) {
-          state.stable_form.tags.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
+          state.stable_form.tags.push({ type: "INT", field: "", value: "", length: 8 });
         }
         return Promise.reject(err);
       });

@@ -761,6 +761,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
             } else {
               return !['endDateTime'].includes(name)
             }
+          } else if (currentData.trust_cert){
+            return !['trust_cert_ca'].includes(name)
           } else {
             return !['table','retrieveInterval','tolerance'].includes(name)
           }
@@ -785,8 +787,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       //   };
       // }
 
-      // postgres/mysql 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
+      // postgres/mysql/sql server 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
@@ -809,6 +811,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       // TODO: 临时解决
       if (paramConfig.type == 'file') {
         paramConfig.templateUrl = templateUrlMap[currentType] ?? '';
+        if (currentType == 'mssql') {
+          paramConfig.accept = '.pem'
+        }
       }
       // 针对opc的opc_table_config特殊处理
       if (name == 'opc_table_config') {
