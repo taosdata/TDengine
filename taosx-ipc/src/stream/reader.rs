@@ -59,6 +59,7 @@ impl IpcParser {
                 match v {
                     LushMessageType::Table => todo!(),
                     LushMessageType::Children => {
+                        // 通过 __tables__ 列的索引位置获取列的值
                         let tables = record.column(__TABLES__INDEX__);
 
                         let tables = (0..tables.len())
