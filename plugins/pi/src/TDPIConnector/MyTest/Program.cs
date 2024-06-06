@@ -1,5 +1,6 @@
 ﻿using Apache.Arrow;
 using Apache.Arrow.Types;
+using System.ComponentModel.DataAnnotations;
 
 namespace MyTest
 {
@@ -18,6 +19,10 @@ namespace MyTest
             builder2.AppendNull();
             builder2.Append("a");
             Console.WriteLine(builder2.Build());
+            var builder3 = new BooleanArray.Builder();
+            builder3.AppendNull();
+            builder3.Append(true);
+            Console.WriteLine(builder3.Build());
         }
     }
 }

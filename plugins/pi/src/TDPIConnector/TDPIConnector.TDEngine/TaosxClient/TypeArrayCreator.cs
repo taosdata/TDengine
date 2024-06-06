@@ -175,12 +175,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public void Visit(StructType type)
         {
-            ArrowBuffer.BitmapBuilder nullBitmap = new ArrowBuffer.BitmapBuilder();
-            if (msgType == MessageType.Children)
+            if (msgType == MessageType.Children && messageBuilder.tagVals.Count > 0)
             {
-                if (messageBuilder.tagVals.Count > 0) // messageBuilder.mode == PIDataMode.AFElementMode && 
-                {
-                    int length = messageBuilder.tagVals.Count;
+                ArrowBuffer.BitmapBuilder nullBitmap = new ArrowBuffer.BitmapBuilder();
+
+                int length = messageBuilder.tagVals.Count;
                     int tagNum = messageBuilder.tagStruct.Fields.Count;
 
                     var arrays = new StringArray.Builder[tagNum];
@@ -215,11 +214,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         }
                         Array = new StructArray(type, length, arrays.Select(array => array.Build()), nullBitmap.Build());
                         return;
-                    }
-                }
-                else
-                {
-
                 }
             }
             var creator = new BlankArrayCreator(length);
@@ -334,7 +328,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             Length = length;
         }
 
-        public void Visit(BooleanType type) => Array = new BooleanArray.Builder().Build();
+        public void Visit(BooleanType type) => GenerateArray(new BooleanArray.Builder(), x => false);
         public void Visit(Int8Type type) => GenerateArray(new Int8Array.Builder(), x => (sbyte)x);
         public void Visit(Int16Type type) => GenerateArray(new Int16Array.Builder(), x => (short)x);
         public void Visit(Int32Type type) => GenerateArray(new Int32Array.Builder(), x => x);

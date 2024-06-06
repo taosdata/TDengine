@@ -323,7 +323,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public RecordBatch BuildInsertMessage()
         {
             var recordCounts = tableUniqKeyArrowArray.Length;
-            IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Insert, recordCounts);
+            IEnumerable<IArrowArray> arrays = CreateInsertArrays(this, recordCounts);
             var batch = new RecordBatch(
                 Schema,
                 arrays,
@@ -356,20 +356,42 @@ namespace TDPIConnector.TDEngine.TaosxClient
         private IEnumerable<IArrowArray> CreateArrays(MessageBuilder builder, MessageType msgType, int recordCounts)
         {
             var schema = builder.Schema;
-            const int fieldCount = 4;
+            const int fieldCount = 3;
             List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
+            // 添加 __type__ 列
             Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
             arrays.Add(CreateTypeArray(typeField, msgType));
-            // 只有建表消息才需要 __tables__ 列
-            if (msgType == MessageType.Children) {
-                Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
-                arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));
-            }
+            // 添加 __tables__ 列
+            Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
+            arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));       
+            // 添加 __records__ 列
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
             arrays.Add(CreateRecordsArray(builder, recordsField, msgType, recordCounts));
 
             return arrays;
         }
+
+        /// <summary>
+        /// 针对 Insert 消息，优化 __tables__ 列的构建
+        /// </summary>
+        private IEnumerable<IArrowArray> CreateInsertArrays(MessageBuilder builder, int recordCounts)
+        {
+            var schema = builder.Schema;
+            const int fieldCount = 3;
+            List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
+            // 添加 __type__ 列
+            Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
+            arrays.Add(CreateTypeArray(typeField, MessageType.Insert));
+            // 添加 __tables__ 列
+            Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
+            arrays.Add(CreateTablesArray(builder, tablesField, MessageType.Insert, 0));
+            // 添加 __records__ 列
+            Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
+            arrays.Add(CreateRecordsArray(builder, recordsField, MessageType.Insert, recordCounts));
+
+            return arrays;
+        }
+
 
         // type just needs one piece of data
         private IArrowArray CreateTypeArray(Field typeField, MessageType msgType)
