@@ -1516,566 +1516,434 @@ class TDTestQuery(TDCase):
 
     def join_base(self,dbname,num,num2,tables,per_table_num,dbnamejoin,base_fun,replace_fun):
         
-        # self.logger.info("base query ---------1----------")       
-        # sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts" %(dbname,dbname)
-        # sql_join_base = sql_join
+        self.logger.info("base query ---------1----------")       
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts" %(dbname,dbname)
+        sql_join_base = sql_join
         
-        # ##normal        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ##normal        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
         
-        # ##join on
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ##join on
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
         
-        # ## join normal and join on       
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ## join normal and join on       
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
         
-        # self.logger.info("base query ---------2--limit --------")  
-        # self.tdCreateData.drop_DB_index(dbname)     
-        # sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbname,num)
-        # sql_join_base = sql_join
+        self.logger.info("base query ---------2--limit --------")  
+        self.tdCreateData.drop_DB_index(dbname)     
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbname,num)
+        sql_join_base = sql_join
         
-        # #normal        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        #normal        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                 
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        # ##join on        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ##join on        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                 
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        # ## join normal and join on
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ## join normal and join on
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                 
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbname,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
         
-        # self.logger.info("base query ---------3----------")       
-        # sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts" %(dbname,dbnamejoin)
-        # sql_join_base = sql_join
+        self.logger.info("base query ---------3----------")       
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts" %(dbname,dbnamejoin)
+        sql_join_base = sql_join
         
-        # ##normal        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ##normal        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        # ##join on         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-                        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-        # ## join normal and join on        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ##join on         
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        
-        # self.logger.info("base query ---------4---limit -------")  
-        # self.tdCreateData.drop_DB_index(dbname)  
-        # self.tdCreateData.drop_DB_index(dbnamejoin)      
-        # sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_base = sql_join
-        
-        # #normal        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-        # ##join on   
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-        # ## join normal and join on  
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
-        # sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-                
-        # self.logger.info("base query ---------5-partition by a.ts---------")       
-        # sql_join = "select sum(cc) from (select distinct count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.ts)" %(dbname,dbname)
-        # sql_join_base = sql_join
-        
-        # #partition by         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.ts " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.ts " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.ts " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.ts " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        ## join normal and join on        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.ts " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.ts " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.ts " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.ts " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid" %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid" %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union all " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        # #group by 
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.ts " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.ts " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.ts " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by a.ts " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+        self.logger.info("base query ---------4---limit -------")  
+        self.tdCreateData.drop_DB_index(dbname)  
+        self.tdCreateData.drop_DB_index(dbnamejoin)      
+        sql_join = "select count(*) from %s.meters a,%s.meters b where a.ts = b.ts limit %d" %(dbname,dbnamejoin,num)
+        sql_join_base = sql_join
+        
+        #normal        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+        ##join on   
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+        ## join normal and join on  
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid limit %d" %(dbname,dbnamejoin,num)
+        sql_join_union = "select sum(cc) from ((" + sql_join_hint_batch_scan + " ) union all (" + sql_join_hint_no_batch_scan_batch_scan + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+                
+        self.logger.info("base query ---------5-partition by a.ts---------")       
+        sql_join = "select sum(cc) from (select distinct count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.ts)" %(dbname,dbname)
+        sql_join_base = sql_join
+        
+        #partition by         
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.ts " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.ts " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.ts " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.ts " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.ts " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.ts " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid group by a.ts " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.ts " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.ts " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.ts " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.ts " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.ts " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+        #group by 
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.ts " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.ts " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.ts " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by a.ts " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+                        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.ts " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.ts " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid group by a.ts " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.ts " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
           
-        # # group by + partition by    
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by  a.ts " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by  a.ts" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.ts" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by a.ts" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        # group by + partition by    
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by  a.ts " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by  a.ts" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.ts" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by a.ts" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.ts" %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.ts" %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.ts" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.ts" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.ts" %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.ts" %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.ts" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.ts" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                
                
-        # self.logger.info("base query ---------6-partition by now()---------")       
-        # sql_join = "select sum(cc) from (select distinct count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by now())" %(dbname,dbname)
-        # sql_join_base = sql_join
+        self.logger.info("base query ---------6-partition by now()---------")       
+        sql_join = "select sum(cc) from (select distinct count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by now())" %(dbname,dbname)
+        sql_join_base = sql_join
         
         
-        # #partition by  now()       
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by now() " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by now() " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        #partition by  now()       
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by now() " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by now() " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by now() " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by now() " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by now() " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by now() " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
-        # #group by now()
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by now() " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by now() " %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        #group by now()
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by now() " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by now() " %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by now() " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbname)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid group by now()" %(dbname,dbname)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by now()" %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by now() " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbname)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid group by now()" %(dbname,dbname)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by now()" %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                
-        # # group by now() + partition by now()    
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join = "select sum(cc) from (select distinct count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by now())" %(dbname,dbnamejoin)
+        sql_join_base = sql_join
+        # group by now() + partition by now()    
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by now() " %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location group by now() " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                         
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by now() " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbnamejoin)
-        # sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbnamejoin)
-        # sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by now() " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbnamejoin)
+        sql_join_1 = "select count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by now() " %(dbname,dbnamejoin)
+        sql_join_2 = "select count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by now() " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                 
         
                
-        # self.logger.info("base query ---------7--partition by a.tbname--------")       
-        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname)" %(dbname,dbname)
-        # sql_join_base = sql_join
-        
-        # # #partition by          
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbname)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbname)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbname)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbname)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-
-            
-        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname)" %(dbname,dbnamejoin)
-        # sql_join_base = sql_join
-        # # #group by                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-          
-        # # # group by + partition by        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-               
-        # self.logger.info("base query ---------8-partition by a.tbname,b.tbname---------")       
-        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname,b.tbname)" %(dbname,dbname)
-        # sql_join_base = sql_join
-        
-        # # #partition by          
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-
-
-        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname,b.tbname)" %(dbname,dbnamejoin)
-        # sql_join_base = sql_join
-        # # #group by                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-          
-        # # # group by + partition by        
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-                                
-        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
-        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
-        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
-        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
-        
-        
-        
-               
-        self.logger.info("base query ---------9-partition by a.tbname interval----------")       
-        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname interval(1a))" %(dbname,dbname)
+        self.logger.info("base query ---------7--partition by a.tbname--------")       
+        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname)" %(dbname,dbname)
         sql_join_base = sql_join
         
         # #partition by          
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbname)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbname)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbname)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbname)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                                 
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbname)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbname)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbname)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
 
             
-        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname interval(1a))" %(dbname,dbnamejoin)
+        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname)" %(dbname,dbnamejoin)
         sql_join_base = sql_join
         # #group by                
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                                 
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
@@ -2083,23 +1951,157 @@ class TDTestQuery(TDCase):
         
           
         # # group by + partition by        
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname " %(dbname,dbnamejoin)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
                                 
-        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
-        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname " %(dbname,dbnamejoin)
         sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
         sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
         self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+               
+        self.logger.info("base query ---------8-partition by a.tbname,b.tbname---------")       
+        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname,b.tbname)" %(dbname,dbname)
+        sql_join_base = sql_join
+        
+        # #partition by          
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbname)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+
+
+        sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname,b.tbname)" %(dbname,dbnamejoin)
+        sql_join_base = sql_join
+        # #group by                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+          
+        # # group by + partition by        
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname,b.tbname " %(dbname,dbnamejoin)
+        sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+        
+        
+               
+        # self.logger.info("base query ---------9-partition by a.tbname interval----------")       
+        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname interval(1a))" %(dbname,dbname)
+        # sql_join_base = sql_join
+        
+        # # #partition by          
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbname)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+
+            
+        # sql_join = "select sum(cc) from (select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts partition by a.tbname interval(1a))" %(dbname,dbnamejoin)
+        # sql_join_base = sql_join
+        # # #group by                
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+        
+          
+        # # # group by + partition by        
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location = b.location partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location != b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.location = b.location group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.location != b.location partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
+                                
+        # sql_join_hint_batch_scan = "select /*+ batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid = b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_hint_no_batch_scan_batch_scan = "select /*+ no_batch_scan() batch_scan()*/ distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid != b.groupid partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_1 = "select distinct a.tbname,count(*) as cc from %s.meters as a join %s.meters as b on a.ts = b.ts and a.groupid = b.groupid partition by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_2 = "select distinct a.tbname,count(*) as cc from %s.meters a,%s.meters b where a.ts = b.ts and a.groupid != b.groupid group by a.tbname interval(1a) " %(dbname,dbnamejoin)
+        # sql_join_union = "select sum(cc) from ( " + sql_join_hint_batch_scan + " union " + sql_join_hint_no_batch_scan_batch_scan + " ) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union)
+        # sql_join_union_all = "select sum(cc) from ( (" + sql_join_hint_batch_scan + ") union (" + sql_join_hint_no_batch_scan_batch_scan +  " ) union (" + sql_join_1 + " ) union ( " + sql_join_2 + " )) "
+        # self.tdCreateData.check_sql_rows_equal(dbname,sql_join_base,sql_join_union_all)
         
         
     def drop_db_table(self,database):
