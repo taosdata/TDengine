@@ -71,12 +71,12 @@ class TDTestQuery(TDCase):
                      'rpcDebugFlag','timezone','qDebugFlag','locale','charset','assert','enableCoreFile','numOfCores','SSE42','AVX','AVX2',
                      'FMA','SIMD-builtins','tagFilterCache','openMax','streamMax','pageSizeKB','totalMemoryKB','os sysname',
                      'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','ssd42','avx','avx2',
-                     'fma','avx512','simdEnable','experimental','','','','','','',''];
+                     'fma','avx512','simdEnable','experimental','crashReporting','monitor','monitorInterval','countAlwaysReturnValue','','',''];
         
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
                        'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter',
-                       'maxShellConns','smlAutoChildTableNameDelimiter','','','','','','','',''];
+                       'maxShellConns','smlAutoChildTableNameDelimiter','multiResultFunctionStarReturnTag','maxTsmaCalcDelay','tsmaDataDeleteMark','','','','',''];
         
         list_server = ['fqdn','serverPort','crashReporting','','','','','','','','','','','','','','','','','','','','','','','']
         
@@ -106,12 +106,13 @@ class TDTestQuery(TDCase):
                         'countAlwaysReturnValue','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','rpcQueueMemoryAllowed',
                         'crashReporting','telemetryReporting','telemetryInterval','telemetryServer','telemetryPort','configDir','scriptDir',
                         'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle','rsyncPort',
-                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','','','','','','','','',''];
+                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','monitor','monitorInterval','','','','','','',''];
     
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
                         'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','minSlidingTime','minIntervalTime',
-                        'smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter','maxShellConns','','','','','','','','','','','','','',''];
+                        'smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter','maxShellConns','multiResultFunctionStarReturnTag','maxTsmaCalcDelay',
+                        'tsmaDataDeleteMark','','','','','','','','','','',''];
     
         list_server = ['fqdn','serverPort','crashReporting','dataDir','minimalDataDirGB','supportVnodes','maxShellConns','statusInterval',
                         'maxNumOfDistinctRes','queryBufferSize','printAuth','queryRspPolicy','numOfCommitThreads','numOfMnodeReadThreads',
@@ -127,7 +128,10 @@ class TDTestQuery(TDCase):
                         's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','timeseriesThreshold','LossyColumns','FPrecision','DPrecision',
                         'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','auditCreateTable','snodeAddress','checkpointBackupDir',
                         'streamSinkDataRate','lossyColumns','fPrecision','dPrecision','maxRange','curRange','ifAdtFse','compressor','s3PageCacheSize',
-                        's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','','','','','','','','','','','','','']
+                        's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','encryptAlgorithm','encryptScope',
+                        'syncSnapReplMaxWaitN','arbHeartBeatIntervalSec','arbCheckSyncIntervalSec','arbSetAssignedTimeoutSec','monitorLogProtocol',
+                        'monitorIntervalForBasic','monitorForceV2','tmqRowSize','maxTsmaNum','s3MigrateIntervalSec','s3MigrateEnabled','streamAggCnt',
+                        'concurrentCheckpoint','','','','','','','','','']
         
         
         dnodes_list = []
@@ -168,7 +172,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_dnodes;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_dnodes')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_dnodes` (`id` INT, `endpoint` VARCHAR(134), `vnodes` SMALLINT, `support_vnodes` SMALLINT, `status` VARCHAR(10), `create_time` TIMESTAMP, `reboot_time` TIMESTAMP, `note` VARCHAR(256), `active_code` VARCHAR(109), `c_active_code` VARCHAR(255)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_dnodes` (`id` INT, `endpoint` VARCHAR(134), `vnodes` SMALLINT, `support_vnodes` SMALLINT, `status` VARCHAR(10), `create_time` TIMESTAMP, `reboot_time` TIMESTAMP, `note` VARCHAR(256), `machine_id` VARCHAR(24)) COMMENT ''")
         show_sql = "show dnodes;"
         select_sql = "select * from information_schema.ins_dnodes;"
         self.sql_check(show_sql,select_sql)
@@ -205,7 +209,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_databases;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_databases')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_databases` (`name` VARCHAR(64), `create_time` TIMESTAMP, `vgroups` INT, `ntables` BIGINT, `replica` TINYINT, `strict` VARCHAR(4), `duration` VARCHAR(10), `keep` VARCHAR(32), `buffer` INT, `pagesize` INT, `pages` INT, `minrows` INT, `maxrows` INT, `comp` TINYINT, `precision` VARCHAR(2), `status` VARCHAR(10), `retentions` VARCHAR(60), `single_stable` BOOL, `cachemodel` VARCHAR(11), `cachesize` INT, `wal_level` TINYINT, `wal_fsync_period` INT, `wal_retention_period` INT, `wal_retention_size` BIGINT, `stt_trigger` SMALLINT, `table_prefix` SMALLINT, `table_suffix` SMALLINT, `tsdb_pagesize` INT, `keep_time_offset` INT) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_databases` (`name` VARCHAR(64), `create_time` TIMESTAMP, `vgroups` INT, `ntables` BIGINT, `replica` TINYINT, `strict` VARCHAR(4), `duration` VARCHAR(10), `keep` VARCHAR(32), `buffer` INT, `pagesize` INT, `pages` INT, `minrows` INT, `maxrows` INT, `comp` TINYINT, `precision` VARCHAR(2), `status` VARCHAR(10), `retentions` VARCHAR(60), `single_stable` BOOL, `cachemodel` VARCHAR(11), `cachesize` INT, `wal_level` TINYINT, `wal_fsync_period` INT, `wal_retention_period` INT, `wal_retention_size` BIGINT, `stt_trigger` SMALLINT, `table_prefix` SMALLINT, `table_suffix` SMALLINT, `tsdb_pagesize` INT, `keep_time_offset` INT, `s3_chunksize` INT, `s3_keeplocal` VARCHAR(10), `s3_compact` TINYINT, `with_arbitrator` TINYINT, `encrypt_algorithm` VARCHAR(16)) COMMENT ''")
         show_sql = "show databases;"
         select_sql = "select name from information_schema.ins_databases;"
         self.sql_check(show_sql,select_sql)
@@ -251,7 +255,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_grants;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_grants')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(9), `expire_time` VARCHAR(19), `expired` VARCHAR(5), `storage` VARCHAR(21), `timeseries` VARCHAR(21), `databases` VARCHAR(10), `users` VARCHAR(10), `accounts` VARCHAR(10), `dnodes` VARCHAR(10), `connections` VARCHAR(11), `streams` VARCHAR(9), `cpu_cores` VARCHAR(9), `speed` VARCHAR(9), `querytime` VARCHAR(9), `opc_da` VARCHAR(196), `opc_ua` VARCHAR(196), `pi` VARCHAR(196), `kafka` VARCHAR(196), `influxdb` VARCHAR(196), `mqtt` VARCHAR(196)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(9), `expire_time` VARCHAR(19), `service_time` VARCHAR(19), `expired` VARCHAR(5), `state` VARCHAR(9), `timeseries` VARCHAR(21), `dnodes` VARCHAR(10), `cpu_cores` VARCHAR(13)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vgroups;"
         self.tdSql.query(show_create_sql)          
@@ -281,12 +285,12 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_streams;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_streams')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_streams` (`stream_name` VARCHAR(192), `create_time` TIMESTAMP, `sql` VARCHAR(2048), `status` VARCHAR(20), `source_db` VARCHAR(64), `target_db` VARCHAR(64), `target_table` VARCHAR(192), `watermark` BIGINT, `trigger` VARCHAR(20), `sink_quota` VARCHAR(20), `history_scan_idle` VARCHAR(20)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_streams` (`stream_name` VARCHAR(192), `create_time` TIMESTAMP, `stream_id` VARCHAR(16), `history_id` VARCHAR(16), `sql` VARCHAR(2048), `status` VARCHAR(20), `source_db` VARCHAR(64), `target_db` VARCHAR(64), `target_table` VARCHAR(192), `watermark` BIGINT, `trigger` VARCHAR(20), `sink_quota` VARCHAR(20), `checkpoint_interval` VARCHAR(20), `checkpoint_backup` VARCHAR(20), `history_scan_idle` VARCHAR(20)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_stream_tasks;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_stream_tasks')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(16), `node_type` VARCHAR(10), `node_id` INT, `level` VARCHAR(10), `status` VARCHAR(15), `stage` BIGINT, `in_queue` VARCHAR(18), `info` VARCHAR(23)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(16), `node_type` VARCHAR(10), `node_id` INT, `level` VARCHAR(10), `status` VARCHAR(12), `stage` BIGINT, `in_queue` VARCHAR(18), `process_total` VARCHAR(12), `process_throughput` VARCHAR(12), `out_total` VARCHAR(12), `out_throughput` VARCHAR(12), `info` VARCHAR(40), `start_time` TIMESTAMP, `start_id` BIGINT, `start_ver` BIGINT, `checkpoint_time` TIMESTAMP, `checkpoint_id` BIGINT, `checkpoint_ver` BIGINT, `checkpoint_size` VARCHAR(14), `checkpoint_backup` VARCHAR(14), `extra_info` VARCHAR(25), `history_task_id` VARCHAR(16), `history_task_status` VARCHAR(12)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vnodes;"
         self.tdSql.query(show_create_sql)          
@@ -305,11 +309,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_dnodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql)   
         show_tags_sql = "show tags from information_schema.ins_dnodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql)    
         show_tags_sql = "show table tags from ins_dnodes from information_schema;" 
         self.tdSql.error(show_tags_sql)    
         show_tags_sql = "show table tags from information_schema.ins_dnodes;" 
@@ -322,11 +324,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_mnodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_mnodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_mnodes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_mnodes;" 
@@ -339,11 +339,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_modules from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_modules;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_modules from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_modules;" 
@@ -356,11 +354,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_qnodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_qnodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_qnodes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_qnodes;" 
@@ -373,11 +369,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_snodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_snodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_snodes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_snodes;" 
@@ -390,11 +384,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_databases from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_databases;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_databases from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_databases;" 
@@ -407,11 +399,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_functions from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_functions;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_functions from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_functions;" 
@@ -424,11 +414,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_indexes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_indexes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_indexes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_indexes;" 
@@ -441,11 +429,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_stables from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_stables;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_stables from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_stables;" 
@@ -458,11 +444,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_tables from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_tables;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_tables from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_tables;" 
@@ -475,11 +459,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_tags from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_tags;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_tags from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_tags;" 
@@ -492,11 +474,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_columns from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_columns;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_columns from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_columns;" 
@@ -509,11 +489,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_users from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_users;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_users from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_users;" 
@@ -526,11 +504,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_grants from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_grants;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_grants from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_grants;" 
@@ -543,11 +519,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_vgroups from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_vgroups;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_vgroups from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_vgroups;" 
@@ -560,11 +534,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_configs from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_configs;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_configs from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_configs;" 
@@ -577,11 +549,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_dnode_variables from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_dnode_variables;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_dnode_variables from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_dnode_variables;" 
@@ -594,11 +564,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_topics from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_topics;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_topics from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_topics;" 
@@ -611,11 +579,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_subscriptions from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_subscriptions;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_subscriptions from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_subscriptions;" 
@@ -628,11 +594,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_streams from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_streams;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_streams from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_streams;" 
@@ -645,11 +609,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_stream_tasks from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_stream_tasks;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_stream_tasks from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_stream_tasks;" 
@@ -662,11 +624,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_vnodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_vnodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_vnodes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_vnodes;" 
@@ -679,11 +639,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from ins_dnodes from information_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from information_schema.ins_dnodes;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from ins_dnodes from information_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from information_schema.ins_dnodes;" 
@@ -736,11 +694,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from perf_connections from performance_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from performance_schema.perf_connections;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from perf_connections from performance_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from performance_schema.perf_connections;" 
@@ -753,11 +709,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from perf_queries from performance_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from performance_schema.perf_queries;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from perf_queries from performance_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from performance_schema.perf_queries;" 
@@ -770,11 +724,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from perf_consumers from performance_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from performance_schema.perf_consumers;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from perf_consumers from performance_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from performance_schema.perf_consumers;" 
@@ -787,11 +739,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from perf_apps from performance_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from performance_schema.perf_apps;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from perf_apps from performance_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from performance_schema.perf_apps;" 
@@ -807,11 +757,9 @@ class TDTestQuery(TDCase):
         self.tdSql.query(show_indexes_sql)          
         self.tdSql.checkRow(0)
         show_tags_sql = "show tags from perf_trans from performance_schema;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show tags from performance_schema.perf_trans;" 
-        self.tdSql.query(show_tags_sql)          
-        self.tdSql.checkRow(0)
+        self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from perf_trans from performance_schema;" 
         self.tdSql.error(show_tags_sql) 
         show_tags_sql = "show table tags from performance_schema.perf_trans;" 
@@ -837,10 +785,6 @@ class TDTestQuery(TDCase):
         self.tdSql.query(select_index_sql)         
         self.sql_check(select_index_sql,show_create_sql)
         
-        
-        show_create_sql = "show tags from %s;" % self.db
-        self.tdSql.query(show_create_sql)          
-        self.tdSql.checkRow(0)
         show_create_sql = "show tags from stable_1 from %s;" % self.db
         self.tdSql.query(show_create_sql)          
         self.tdSql.checkRow(0)
