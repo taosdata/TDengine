@@ -47,7 +47,7 @@ class TDTestQuery(TDCase):
         return case_description
             
     #basic_param
-    db = "table_pk_random1"
+    db = "table_pk_random6"
     
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
@@ -3870,7 +3870,7 @@ class TDTestQuery(TDCase):
     def run(self)-> bool:
         startTime = time.time() 
         
-        #self.data_create(self.db) 
+        self.data_create(self.db) 
         
         
         #self.query_pk(self.db,1) 
