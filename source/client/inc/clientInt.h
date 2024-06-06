@@ -44,6 +44,7 @@ enum {
   RES_TYPE__TMQ,
   RES_TYPE__TMQ_META,
   RES_TYPE__TMQ_METADATA,
+  RES_TYPE__TMQ_BATCH_META,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       3
@@ -51,10 +52,11 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)        (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)          (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res)     (*(int8_t*)res == RES_TYPE__TMQ_META)
-#define TD_RES_TMQ_METADATA(res) (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
+#define TD_RES_QUERY(res)          (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)            (*(int8_t*)res == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)       (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_METADATA(res)   (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
+#define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)res == RES_TYPE__TMQ_BATCH_META)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -234,6 +236,21 @@ typedef struct {
   SReqResultInfo resInfo;
   STaosxRsp      rsp;
 } SMqTaosxRspObj;
+
+typedef struct {
+  int8_t         resType;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int32_t        vgId;
+  SSchemaWrapper schema;
+  int32_t        resIter;
+  SReqResultInfo resInfo;
+} SMqRspObjCommon;
+
+typedef struct {
+  SMqRspObjCommon common;
+  SMqBatchMetaRsp rsp;
+} SMqBatchMetaRspObj;
 
 typedef struct SReqRelInfo {
   uint64_t userRefId;

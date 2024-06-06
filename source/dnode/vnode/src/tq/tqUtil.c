@@ -19,6 +19,8 @@
 
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
+static int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
+                                      const SMqBatchMetaRsp* pRsp, int32_t vgId);
 
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->reqOffset = pOffset;
@@ -183,18 +185,19 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   tqInitTaosxRsp(&taosxRsp, *offset);
 
   if (offset->type != TMQ_OFFSET__LOG) {
-    if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
+    SMqBatchMetaRsp btMetaRsp = {0};
+    if (tqScanTaosx(pTq, pHandle, &taosxRsp, &btMetaRsp, offset) < 0) {
       code = -1;
       goto end;
     }
 
-    if (metaRsp.metaRspLen > 0) {
-      code = tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId);
+    if (taosArrayGetSize(btMetaRsp.batchMetaReq) > 0) {
+      code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
       tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64
               ",ts:%" PRId64,
-              pRequest->consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
-              metaRsp.rspOffset.ts);
-      taosMemoryFree(metaRsp.metaRsp);
+              pRequest->consumerId, pHandle->subKey, vgId, btMetaRsp.rspOffset.type, btMetaRsp.rspOffset.uid,
+              btMetaRsp.rspOffset.ts);
+      tDeleteMqBatchMetaRsp(&btMetaRsp);
       goto end;
     }
 
@@ -312,6 +315,40 @@ static void initMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int
   pMsgHead->mqMsgType = type;
   pMsgHead->walsver = sver;
   pMsgHead->walever = ever;
+}
+
+int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqBatchMetaRsp* pRsp,
+                               int32_t vgId) {
+  int32_t len = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeMqBatchMetaRsp, pRsp, len, code);
+  if (code < 0) {
+    return -1;
+  }
+  int32_t tlen = sizeof(SMqRspHead) + len;
+  void*   buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  int64_t sver = 0, ever = 0;
+  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+  initMqRspHead(buf, TMQ_MSG_TYPE__POLL_BATCH_META_RSP, pReq->epoch, pReq->consumerId, sver, ever);
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, abuf, len);
+  tEncodeMqBatchMetaRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
+
+  SRpcMsg resp = {.info = pMsg->info, .pCont = buf, .contLen = tlen, .code = 0};
+
+  tmsgSendRsp(&resp);
+  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, res msg type: batch meta, offset type:%d", vgId,
+          pReq->consumerId, pReq->epoch, pRsp->rspOffset.type);
+
+  return 0;
 }
 
 int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp,

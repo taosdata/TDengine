@@ -24,6 +24,8 @@
 #define LOG_ID_TAG   "connId:0x%"PRIx64",reqId:0x%"PRIx64
 #define LOG_ID_VALUE *(int64_t*)taos,pRequest->requestId
 
+static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen);
+
 static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
 
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
@@ -1895,38 +1897,81 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   return code;
 }
 
+static char* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
+  if (pMetaRsp->resMsgType == TDMT_VND_CREATE_STB) {
+    return processCreateStb(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_STB) {
+    return processAlterStb(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_STB) {
+    return processDropSTable(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_CREATE_TABLE) {
+    return processCreateTable(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_TABLE) {
+    return processAlterTable(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
+    return processDropTable(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
+    return processDropTable(pMetaRsp);
+  } else if (pMetaRsp->resMsgType == TDMT_VND_DELETE) {
+    return processDeleteTable(pMetaRsp);
+  }
+
+  return NULL;
+}
+static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
+  SDecoder        coder;
+  SMqBatchMetaRsp rsp = {0};
+  tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
+  if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
+    goto _end;
+  }
+
+  int64_t fullSize = 0;
+  int32_t num = taosArrayGetSize(rsp.batchMetaReq);
+  SArray* strArray = taosArrayInit(num, POINTER_BYTES);
+  for (int32_t i = 0; i < num; i++) {
+    int32_t len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
+    void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
+    SDecoder metaCoder = {0};
+    SMqMetaRsp metaRsp = {0};
+    tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), len - sizeof(SMqRspHead));
+    if(tDecodeMqMetaRsp(&metaCoder, &metaRsp) < 0 ) {
+      goto _end;
+    }
+    char* subStr = processSimpleMeta(&metaRsp);
+    tDeleteMqMetaRsp(&metaRsp);
+    fullSize += strlen(subStr);
+    taosArrayPush(strArray, &subStr);
+  }
+
+  char* buf = (char*)taosMemoryCalloc(1, fullSize + num + 1);
+  for (int32_t i = 0; i < num; i++) {
+    char* subStr = taosArrayGetP(strArray, i);
+    strcat(buf, subStr);
+    strcat(buf, "\n");
+  }
+
+_end:
+  return NULL;
+}
+
 char* tmq_get_json_meta(TAOS_RES* res) {
   if (res == NULL) return NULL;
   uDebug("tmq_get_json_meta res:%p", res);
-  if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res)) {
+  if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res) && !TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
 
   if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* pMetaDataRspObj = (SMqTaosxRspObj*)res;
     return processAutoCreateTable(&pMetaDataRspObj->rsp);
+  } else if (TD_RES_TMQ_BATCH_META(res)) {
+    SMqBatchMetaRspObj* pBatchMetaRspObj = (SMqBatchMetaRspObj*)res;
+    return processBatchMetaToJson(&pBatchMetaRspObj->rsp);
   }
 
   SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-  if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_STB) {
-    return processCreateStb(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_STB) {
-    return processAlterStb(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_STB) {
-    return processDropSTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_TABLE) {
-    return processCreateTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_TABLE) {
-    return processAlterTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE) {
-    return processDropTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE) {
-    return processDropTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
-    return processDeleteTable(&pMetaRspObj->metaRsp);
-  }
-
-  return NULL;
+  return processSimpleMeta(&pMetaRspObj->metaRsp);
 }
 
 void tmq_free_json_meta(char* jsonMeta) { taosMemoryFreeClear(jsonMeta); }
@@ -1982,6 +2027,12 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     raw->raw_len = len;
     raw->raw_type = RES_TYPE__TMQ_METADATA;
     uDebug("tmq get raw type metadata:%p", raw);
+  } else if (TD_RES_TMQ_BATCH_META(res)) {
+    SMqBatchMetaRspObj* pBtMetaRspObj = (SMqBatchMetaRspObj*)res;
+    raw->raw = pBtMetaRspObj->rsp.pMetaBuff;
+    raw->raw_len = pBtMetaRspObj->rsp.metaBuffLen;
+    raw->raw_type = RES_TYPE__TMQ_BATCH_META;
+    uDebug("tmq get raw batch meta:%p", raw);
   } else {
     uError("tmq get raw error type:%d", *(int8_t*)res);
     terrno = TSDB_CODE_TMQ_INVALID_MSG;
@@ -1998,32 +2049,76 @@ void tmq_free_raw(tmq_raw_data raw) {
   memset(terrMsg, 0, ERR_MSG_LEN);
 }
 
-int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
-  if (!taos) {
-    goto end;
+static int32_t writeRawImpl(TAOS* taos, void* buf, uint32_t len, uint16_t type) {
+  if (type == TDMT_VND_CREATE_STB) {
+    return taosCreateStb(taos, buf, len);
+  } else if (type == TDMT_VND_ALTER_STB) {
+    return taosCreateStb(taos, buf, len);
+  } else if (type == TDMT_VND_DROP_STB) {
+    return taosDropStb(taos, buf, len);
+  } else if (type == TDMT_VND_CREATE_TABLE) {
+    return taosCreateTable(taos, buf, len);
+  } else if (type == TDMT_VND_ALTER_TABLE) {
+    return taosAlterTable(taos, buf, len);
+  } else if (type == TDMT_VND_DROP_TABLE) {
+    return taosDropTable(taos, buf, len);
+  } else if (type == TDMT_VND_DELETE) {
+    return taosDeleteData(taos, buf, len);
+  } else if (type == RES_TYPE__TMQ) {
+    return tmqWriteRawDataImpl(taos, buf, len);
+  } else if (type == RES_TYPE__TMQ_METADATA) {
+    return tmqWriteRawMetaDataImpl(taos, buf, len);
+  } else if (type == RES_TYPE__TMQ_BATCH_META) {
+    return tmqWriteBatchMetaDataImpl(taos, buf, len);
   }
-
-  if (raw.raw_type == TDMT_VND_CREATE_STB) {
-    return taosCreateStb(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_ALTER_STB) {
-    return taosCreateStb(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_DROP_STB) {
-    return taosDropStb(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_CREATE_TABLE) {
-    return taosCreateTable(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_ALTER_TABLE) {
-    return taosAlterTable(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_DROP_TABLE) {
-    return taosDropTable(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == TDMT_VND_DELETE) {
-    return taosDeleteData(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == RES_TYPE__TMQ) {
-    return tmqWriteRawDataImpl(taos, raw.raw, raw.raw_len);
-  } else if (raw.raw_type == RES_TYPE__TMQ_METADATA) {
-    return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len);
-  }
-
-  end:
   terrno = TSDB_CODE_INVALID_PARA;
   return terrno;
+}
+
+int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
+  if (!taos) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
+}
+
+static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  SMqBatchMetaRsp rsp = {0};
+  SDecoder        coder;
+  int32_t         code = TSDB_CODE_SUCCESS;
+
+  // decode and process req
+  tDecoderInit(&coder, meta, metaLen);
+  if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+  int32_t num = taosArrayGetSize(rsp.batchMetaReq);
+  for (int32_t i = 0; i < num; i++) {
+    int32_t    len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
+    void*      tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
+    SDecoder   metaCoder = {0};
+    SMqMetaRsp metaRsp = {0};
+    tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), len - sizeof(SMqRspHead));
+    if (tDecodeMqMetaRsp(&metaCoder, &metaRsp) < 0) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _end;
+    }
+    code = writeRawImpl(taos, metaRsp.metaRsp, metaRsp.metaRspLen, metaRsp.resMsgType);
+    tDeleteMqMetaRsp(&metaRsp);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+  }
+
+_end:
+  tDeleteMqBatchMetaRsp(&rsp);
+  errno = code;
+  return code;
 }
