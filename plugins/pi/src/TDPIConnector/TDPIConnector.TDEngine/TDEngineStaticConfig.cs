@@ -20,6 +20,8 @@ namespace TDPIConnector.TDEngine
         public int HttpMaxRetryTime { get; internal set; } = 3;
         public int HttpMaxRetryTimes { get; private set; }
         public bool ForBackfill { get; private set; } = false;
+        public int ConcurrencyCounts { get; set; } = 20;
+        public int ConcurrencyCountsForOneTemplate { get; set; } = 10;
 
         public TDEngineStaticConfig() { 
         }
@@ -55,6 +57,12 @@ namespace TDPIConnector.TDEngine
         public TDEngineStaticConfig SetBackfill(bool forBackfill)
         {
             ForBackfill = forBackfill;
+            return this;
+        }
+        public TDEngineStaticConfig SetConcurrencyCount(int all, int forOneTemplate)
+        {
+            ConcurrencyCounts = all;
+            ConcurrencyCountsForOneTemplate = forOneTemplate;
             return this;
         }
     }

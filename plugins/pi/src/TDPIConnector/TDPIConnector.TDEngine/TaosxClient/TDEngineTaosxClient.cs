@@ -36,10 +36,20 @@ namespace TDPIConnector.TDEngine.TaosxClient
         const long QueueSize = 30;
         long actualQueueBufferSize = QueueSize;
         DateTime lastSend = DateTime.UtcNow;
+        List<KeyValuePair<string, string>> columnNameTypes;
+        List<KeyValuePair<string, string>> tags;
+        public string tdColomnType;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
             string tdColomnType, List<KeyValuePair<string, string>> tags, int maxWaitLength, bool useAFDatabase) {
+
+            this.hostname = hostname;
+            this.port = port;
+            this.useAFDatabase = useAFDatabase;
+            this.tdColomnType = tdColomnType;
+            this.tags = tags;
+
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
@@ -66,10 +76,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.POINTNAME, TDValueType.String));
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointValColomn(), tdType));
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointStatusColomn(), TDValueType.Int));
-
-            this.hostname = hostname;
-            this.port = port;
-            this.useAFDatabase = useAFDatabase;
         }
 
         // For AFElement
@@ -79,6 +85,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             List<KeyValuePair<string, string>> tags,
             int maxWaitLength)
         {
+            this.hostname = hostname;
+            this.port = port;
+            this.columnNameTypes = columnNameTypes;
+            this.tags = tags;
             AckType ackType = AckType.Lush;
             builder = new MessageBuilder(PIDataMode.AFElementMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
@@ -109,8 +119,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdColName, tdType));
                 builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdStatusColName, TDValueType.Int));
             }
-            this.hostname = hostname;
-            this.port = port;
+        }
+        public TDEngineTaosxClient Clone()
+        {
+            if (builder.mode == PIDataMode.AFElementMode)
+            {
+                var dst = new TDEngineTaosxClient(hostname, port, "", builder.stableName, columnNameTypes, tags, maxWaitLength);
+                return dst;
+            }
+            else {
+                var dst = new TDEngineTaosxClient(hostname, port, "", builder.stableName, tdColomnType, tags, maxWaitLength, useAFDatabase);
+                return dst;
+            }
         }
 
         private void start() {

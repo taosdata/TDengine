@@ -19,6 +19,7 @@ namespace TDPIConnector.Core
             public int BackfillBatchSize { get; set; } = 10000;
             public int UpdateInterval { get; set; } = 10;
             public int BackfillConcurrencyCounts { get; set; } = 20;
+            public int ConcurrencyCountsForOneTemplate { get; set; } = 10;
             public int MaxBackfillRangeDays { get; set; } = 1; // uit: Minutes
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }

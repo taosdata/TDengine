@@ -4,6 +4,7 @@ using log4net;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.TaosxClient;
@@ -24,12 +25,99 @@ namespace TDPIConnector.TDEngine
         private string hostname;
         private int port;
         private int maxWaitLength;
+        static long connectionCount = 0;
 
         public event EventHandler<Exception> OnExceptionThrown = delegate { };
         public event EventHandler<TDEngineHttpResponseSummary> OnHttpResponseReceived = delegate { };
         public event EventHandler<string> OnServerVersionReceived = delegate { };
 
-        private Dictionary<string, TDEngineTaosxClient> taosxClients = new Dictionary<string, TDEngineTaosxClient>(0);
+        public class TDEngineClientManager
+        {
+            List<TDEngineTaosxClient> clients;
+            int lastUsed = 0;
+            string templateName;
+            private readonly Object clientsManagerLock = new Object();
+
+            public TDEngineClientManager(in string templateName, in TDEngineTaosxClient client) { 
+                this.clients = new List<TDEngineTaosxClient>();
+                this.templateName = templateName;
+                clients.Add(client);
+                Interlocked.Add(ref connectionCount, 1);
+            }
+
+            public TDEngineTaosxClient DefaultClient
+            {
+                get { return clients[0]; }
+            }
+
+            public TDEngineTaosxClient AnyClient
+            {
+                get {
+                    lock (clientsManagerLock)
+                    {
+                        lastUsed = lastUsed + 1 < clients.Count ? lastUsed + 1 : 0;
+                        return clients[lastUsed];
+                    }
+                }
+            }
+
+            internal void Stop()
+            {
+                lock (clientsManagerLock)
+                {
+                    for (int i = 0; i < clients.Count; ++i)
+                    {
+                        clients[i].Stop();
+                        Interlocked.Decrement(ref connectionCount);
+                    }
+                }
+            }
+
+            internal bool IsBusy()
+            {
+                lock (clientsManagerLock)
+                {
+                    for (int i = 0; i < clients.Count; ++i)
+                    {
+                        if (clients[i].isBusy()) return true;
+                    }
+                    return false;
+                }
+            }
+
+            internal void ExpandCap(int num)
+            {
+                lock (clientsManagerLock)
+                {
+                    int size = clients.Count;
+                    for (int i = size; i < num; ++i)
+                    {
+                        long count = Interlocked.Read(ref connectionCount);
+                        if (count >= StaticConfig.Default.ConcurrencyCounts) break;
+                        if (i >= StaticConfig.Default.ConcurrencyCountsForOneTemplate) break;
+                        var newClient = clients[0].Clone();
+                        newClient.Connect();
+                        clients.Add(newClient);
+                        Interlocked.Add(ref connectionCount, 1);
+                    }
+                }
+            }
+
+            internal void LimitToOne()
+            {
+                lock (clientsManagerLock)
+                {
+                    for (int i = clients.Count-1; i > 0; --i)
+                    {
+                        clients[i].Stop();
+                        clients.RemoveAt(i);
+                        Interlocked.Decrement(ref connectionCount);
+                    }
+                }
+            }
+        }
+
+        private Dictionary<string, TDEngineClientManager> taosxClients = new Dictionary<string, TDEngineClientManager>(0);
         // private TDEngineTaosxCommonClient taosxCommonClient;
         private TDEngineClient taosxCommonClient;
         private readonly Object taosxClientsLock = new Object();  // for update dictionary taosxClients
@@ -45,7 +133,7 @@ namespace TDPIConnector.TDEngine
         {
             OnServerVersionReceived(this, version);
         }
-        public TDEngineProxy() { this.taosxClients = new Dictionary<string, TDEngineTaosxClient>(); }
+        public TDEngineProxy() { this.taosxClients = new Dictionary<string, TDEngineClientManager>(); }
 
         public TDEngineProxy(string ipcHost, string restHost, string tablesPrefix, int maxWaitLength)
         {
@@ -64,7 +152,7 @@ namespace TDPIConnector.TDEngine
 #else
             taosxCommonClient = new TDEngineClient(true, restHost, 0, "", "", "", tablesPrefix);
 #endif
-            this.taosxClients = new Dictionary<string, TDEngineTaosxClient>();
+            this.taosxClients = new Dictionary<string, TDEngineClientManager>();
         }
         public virtual void Connect()
         {
@@ -119,7 +207,7 @@ namespace TDPIConnector.TDEngine
                 {
                     var taosxClient = new TDEngineTaosxClient(hostname, port, database, superTableName,
                         tdColumnType, tags, maxWaitLength, useAFDatabase);
-                    taosxClients.Add(superTableName, taosxClient);
+                    taosxClients.Add(superTableName, new TDEngineClientManager(superTableName, taosxClient));
                     taosxClient.Connect();
                     log.Info($"create PIPoint superTable {superTableName}:{tdColumnType}");
                 }
@@ -148,7 +236,7 @@ namespace TDPIConnector.TDEngine
                     }
                     var taosxClient = new TDEngineTaosxClient(hostname, port, database,
                         stableName, columnNameTypes, tags, maxWaitLength);
-                    taosxClients.Add(stableName, taosxClient);
+                    taosxClients.Add(stableName, new TDEngineClientManager(stableName, taosxClient));
                     taosxClient.Connect();
                     log.Info($"create AFElements superTable {stableName}");
                 }
@@ -176,7 +264,7 @@ namespace TDPIConnector.TDEngine
 
                 string tdEngineTableName = element.Name;
                
-                var taosxClient = GetTaosxClient(element.STableName);
+                var taosxClient = GetDefaultTaosxClient(element.STableName);
                 if (taosxClient != null)
                 {
                     taosxClient.AddAFElementTableTag(tdEngineTableName, tags);
@@ -191,7 +279,7 @@ namespace TDPIConnector.TDEngine
         }
         public virtual Task CreateTablesForAFElementsV2(string superTableName, List<TDTable> elements)
         {
-            var taosxClient = GetTaosxClient(superTableName);
+            var taosxClient = GetDefaultTaosxClient(superTableName);
             if (taosxClient == null)
             {
                 log.Error($"Create stable for AFElement(V2) failed, not found {superTableName}");
@@ -241,7 +329,7 @@ namespace TDPIConnector.TDEngine
                 var piPoint = piPoints[i];
                 string tdEngineTableUniKey = piPoint.Name;
    
-                var taosxClient = GetTaosxClient(piPoint.STableName);
+                var taosxClient = GetDefaultTaosxClient(piPoint.STableName);
                 var tags = new List<KeyValuePair<string, string>>();
                 tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTID, piPoint.PointId.ToString()));
                 tags.Add(new KeyValuePair<string, string>(TaosxConstants.POINTNAME, piPoint.Name));
@@ -280,9 +368,9 @@ namespace TDPIConnector.TDEngine
             {
                 foreach (var taosxClient in taosxClients)
                 {
-                    if (taosxClient.Value.WorkMode() == PIDataMode.PointMode)
+                    if (taosxClient.Value.DefaultClient.WorkMode() == PIDataMode.PointMode)
                     {
-                        taosxClient.Value.InitTables();
+                        taosxClient.Value.DefaultClient.InitTables();
                     }
                 }
             }
@@ -293,9 +381,9 @@ namespace TDPIConnector.TDEngine
             {
                 foreach (var taosxClient in taosxClients)
                 {
-                    if (taosxClient.Value.WorkMode() == PIDataMode.AFElementMode)
+                    if (taosxClient.Value.DefaultClient.WorkMode() == PIDataMode.AFElementMode)
                     {
-                        taosxClient.Value.InitTables();
+                        taosxClient.Value.DefaultClient.InitTables();
                     }
                 }
             }
@@ -382,11 +470,59 @@ namespace TDPIConnector.TDEngine
                 var stbName = superTableName.ToTDEngineNamingPattern();
                 if (taosxClients.ContainsKey(stbName))
                 {
-                    return taosxClients[stbName];
+                    return taosxClients[stbName].AnyClient;
                 }
                 else
                 {
                     return null;
+                }
+            }
+        }
+        public TDEngineTaosxClient GetDefaultTaosxClient(string superTableName)
+        {
+            lock (taosxClientsLock)
+            {
+                var stbName = superTableName.ToTDEngineNamingPattern();
+                if (taosxClients.ContainsKey(stbName))
+                {
+                    return taosxClients[stbName].DefaultClient;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+        public void ExpandTaosxClientCap(string superTableName, int num)
+        {
+            lock (taosxClientsLock)
+            {
+                var stbName = superTableName.ToTDEngineNamingPattern();
+                if (taosxClients.ContainsKey(stbName))
+                {
+                    taosxClients[stbName].ExpandCap(num);
+                }
+            }
+        }
+        public void StopTaosxClientOfTemplalte(string superTableName)
+        {
+            lock (taosxClientsLock)
+            {
+                var stbName = superTableName.ToTDEngineNamingPattern();
+                if (taosxClients.ContainsKey(stbName))
+                {
+                    taosxClients[stbName].Stop();
+                }
+            }
+        }
+        public void LimitTaosxClientCapToOne(string superTableName)
+        {
+            lock (taosxClientsLock)
+            {
+                var stbName = superTableName.ToTDEngineNamingPattern();
+                if (taosxClients.ContainsKey(stbName))
+                {
+                    taosxClients[stbName].LimitToOne();
                 }
             }
         }
@@ -413,7 +549,7 @@ namespace TDPIConnector.TDEngine
             {
                 foreach (var taosxClient in taosxClients)
                 {
-                    if (taosxClient.Value.isBusy()) return true;
+                    if (taosxClient.Value.IsBusy()) return true;
                 }
                 return false;
             }

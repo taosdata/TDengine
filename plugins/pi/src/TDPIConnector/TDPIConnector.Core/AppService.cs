@@ -80,7 +80,8 @@ namespace TDPIConnector.Core
                 .SetMaxWaitLen(AppSettings.tomlConfig.MaxWaitLen)
                 .SetTDDatabase(AppSettings.tomlConfig.TDDataBase)
                 .SetHttpMaxTryTimes(AppSettings.tomlConfig.HttpMaxRetryTimes)
-                .SetBackfill(AppSettings.tomlConfig.ForBackfill);
+                .SetBackfill(AppSettings.tomlConfig.ForBackfill)
+                .SetConcurrencyCount(AppSettings.tomlConfig.BackfillConcurrencyCounts, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
 
             try
             {

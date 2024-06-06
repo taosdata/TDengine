@@ -144,12 +144,14 @@ namespace TDPIConnector.Core
             if (null != groupManager) {
                 var task = groupManager.GetNextTask();
                 if (task != null) return task;
+                tdEngineProxy.LimitTaosxClientCapToOne(groupManager.templateName);
                 log.Info($"backfill task manager: templalte:{groupManager.templateName} finished, group({groupNum}), waitting new task.");
             }
             
             ElementsBackfillTaskManager newGroupManager = GetNotStartedGroup(groupNum);
             if (null != newGroupManager) {
                 log.Info($"backfill task manager: start backfill for a new templalte:{newGroupManager.templateName}, group({groupNum}).");
+                tdEngineProxy.ExpandTaosxClientCap(newGroupManager.templateName, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
                 return newGroupManager.GetNextTask();
             }
 
@@ -167,6 +169,7 @@ namespace TDPIConnector.Core
                         var task = newManagerToadd.GetNextTask();
                         if (task != null)
                         {
+                            tdEngineProxy.ExpandTaosxClientCap(newManagerToadd.templateName, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
                             log.Info($"backfill task manager: add a new backfill group for templalte:{newManagerToadd.templateName}, group({groupNum}).");
                             return task;
                         }
