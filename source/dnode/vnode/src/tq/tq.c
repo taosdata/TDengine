@@ -50,6 +50,9 @@ void tqDestroyTqHandle(void* data) {
   if (pData->block != NULL) {
     blockDataDestroy(pData->block);
   }
+  if (pData->pRef) {
+    walCloseRef(pData->pRef->pWal, pData->pRef->refId);
+  }
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
@@ -571,9 +574,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      if (pHandle->pRef) {
-        walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
-      }
 
       tqUnregisterPushHandle(pTq, pHandle);
 
@@ -660,7 +660,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       goto end;
     }
     STqHandle handle = {0};
-    ret = tqCreateHandle(pTq, &req, &handle);
+    ret = tqCreateHandle(pTq, &req, &handle, walGetCommittedVer(pTq->pVnode->pWal));
     if (ret < 0) {
       tqDestroyTqHandle(&handle);
       goto end;
@@ -689,7 +689,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
         // update handle to avoid req->qmsg changed if spilt vnode is failed
         STqHandle handle = {0};
-        ret = tqCreateHandle(pTq, &req, &handle);
+        ret = tqCreateHandle(pTq, &req, &handle, pHandle->snapshotVer);
         if (ret < 0) {
           tqDestroyTqHandle(&handle);
           goto end;
@@ -701,7 +701,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
   }
 
-end:
+  end:
   tDecoderClear(&dc);
   return ret;
 }
