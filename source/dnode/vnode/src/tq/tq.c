@@ -685,6 +685,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
                req.newConsumerId);
+        tqUnregisterPushHandle(pTq, pHandle);
         // update handle to avoid req->qmsg changed if spilt vnode is failed
         STqHandle handle = {0};
         ret = tqCreateHandle(pTq, &req, &handle, pHandle->snapshotVer);
