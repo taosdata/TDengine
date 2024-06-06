@@ -133,7 +133,7 @@ int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key);
-int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
+int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle, int64_t snapshotVer);
 
 STqOffsetStore* tqOffsetOpen(STQ* pTq);
 int32_t         tqMetaTransform(STQ* pTq);

@@ -50,6 +50,9 @@ void tqDestroyTqHandle(void* data) {
   if (pData->block != NULL) {
     blockDataDestroy(pData->block);
   }
+  if (pData->pRef) {
+    walCloseRef(pData->pRef->pWal, pData->pRef->refId);
+  }
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
@@ -571,9 +574,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      if (pHandle->pRef) {
-        walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
-      }
 
       tqUnregisterPushHandle(pTq, pHandle);
 
@@ -649,20 +649,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   tqInfo("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
-  STqHandle* pHandle = NULL;
-  while (1) {
-    pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
-    if (pHandle) {
-      break;
-    }
-    taosRLockLatch(&pTq->lock);
-    ret = tqMetaGetHandle(pTq, req.subKey);
-    taosRUnLockLatch(&pTq->lock);
-
-    if (ret < 0) {
-      break;
-    }
-  }
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
 
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -674,7 +661,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       goto end;
     }
     STqHandle handle = {0};
-    ret = tqCreateHandle(pTq, &req, &handle);
+    ret = tqCreateHandle(pTq, &req, &handle, walGetCommittedVer(pTq->pVnode->pWal));
     if (ret < 0) {
       tqDestroyTqHandle(&handle);
       goto end;
@@ -700,8 +687,16 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
                req.newConsumerId);
         atomic_store_64(&pHandle->consumerId, req.newConsumerId);
         atomic_store_32(&pHandle->epoch, 0);
-        tqUnregisterPushHandle(pTq, pHandle);
-        ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
+        taosHashRemove(pTq->pHandle, pHandle->subKey, strlen(pHandle->subKey));
+
+        // update handle to avoid req->qmsg changed if spilt vnode is failed
+        STqHandle handle = {0};
+        ret = tqCreateHandle(pTq, &req, &handle, pHandle->snapshotVer);
+        if (ret < 0) {
+          tqDestroyTqHandle(&handle);
+          goto end;
+        }
+        ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
       }
       taosWUnLockLatch(&pTq->lock);
       break;
