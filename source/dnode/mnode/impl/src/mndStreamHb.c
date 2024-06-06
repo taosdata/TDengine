@@ -22,7 +22,7 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static void doExtractTasksFromStream(SMnode *pMnode) {
+static void extractStreamTasks(SMnode *pMnode) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
@@ -36,6 +36,33 @@ static void doExtractTasksFromStream(SMnode *pMnode) {
     saveStreamTasksInfo(pStream, &execInfo);
     sdbRelease(pSdb, pStream);
   }
+}
+
+static void removeDroppedStreams(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
+  int32_t num = taosArrayGetSize(pExecInfo->pTaskList);
+
+  SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
+  SArray* pInvalid = taosArrayInit(4, sizeof(STaskId));
+  for(int32_t i = 0; i < num; ++i) {
+    STaskId* pId = taosArrayGet(pExecInfo->pTaskList, i);
+
+    void* p = taosHashGet(pHash, &pId->streamId, sizeof(int64_t));
+    if (p != NULL) {
+      continue;
+    }
+
+    void* pObj = mndGetStreamObj(pMnode, pId->streamId);
+    if (pObj != NULL) {
+      mndReleaseStream(pMnode, pObj);
+      taosHashPut(pHash, &pId->streamId, sizeof(int64_t), NULL, 0);
+    } else {
+      taosArrayPush(pInvalid, pId);
+    }
+  }
+
+  removeInvalidTasks(pInvalid);
+  taosHashCleanup(pHash);
 }
 
 static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
@@ -230,7 +257,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
-  SArray      *pFailedTasks = NULL;
+  SArray      *pFailedChkpt = NULL;
   SArray      *pOrphanTasks = NULL;
 
   if ((terrno = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
@@ -252,17 +279,21 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
 
-  pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
-  pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
+  pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
+  pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
 
   taosThreadMutexLock(&execInfo.lock);
 
   // extract stream task list
   if (taosHashGetSize(execInfo.pTaskMap) == 0) {
-    doExtractTasksFromStream(pMnode);
+    extractStreamTasks(pMnode);
+  } else {
+    // the already dropped tasks may be added by hb from vnode at the time when the pTaskMap happens to be empty.
+    // let's drop them here.
+    removeDroppedStreams(pMnode, &execInfo);
   }
 
-  initStreamNodeList(pMnode);
+  extractStreamNodeList(pMnode);
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
@@ -310,7 +341,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
         SFailedCheckpointInfo info = {
             .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
-        addIntoCheckpointList(pFailedTasks, &info);
+        addIntoCheckpointList(pFailedChkpt, &info);
       }
     }
 
@@ -328,7 +359,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
-  if (taosArrayGetSize(pFailedTasks) > 0) {
+  if (taosArrayGetSize(pFailedChkpt) > 0) {
     bool allReady = true;
     if (pMnode != NULL) {
       SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
@@ -339,8 +370,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      for(int32_t i = 0; i < taosArrayGetSize(pFailedTasks); ++i) {
-        SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedTasks, i);
+      for(int32_t i = 0; i < taosArrayGetSize(pFailedChkpt); ++i) {
+        SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedChkpt, i);
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
               pInfo->checkpointId, pInfo->transId);
 
@@ -359,7 +390,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   taosThreadMutexUnlock(&execInfo.lock);
   tCleanupStreamHbMsg(&req);
 
-  taosArrayDestroy(pFailedTasks);
+  taosArrayDestroy(pFailedChkpt);
   taosArrayDestroy(pOrphanTasks);
 
   {

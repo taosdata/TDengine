@@ -598,3 +598,32 @@ void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
 
   mDebug("remain %d valid node entries after clean expired nodes info", (int32_t)taosArrayGetSize(pValidList));
 }
+
+int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
+  void *p = taosHashGet(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
+  if (p == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosHashRemove(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
+
+  for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
+    STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
+    if (pId->taskId == pRemovedId->taskId && pId->streamId == pRemovedId->streamId) {
+      taosArrayRemove(pExecNode->pTaskList, k);
+
+      int32_t num = taosArrayGetSize(pExecNode->pTaskList);
+      mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)pRemovedId->taskId, num);
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void removeInvalidTasks(SArray *pTaskIds) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTaskIds); ++i) {
+    STaskId *pId = taosArrayGet(pTaskIds, i);
+    doRemoveTasks(&execInfo, pId);
+  }
+}

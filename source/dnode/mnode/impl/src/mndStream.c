@@ -62,7 +62,7 @@ static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 
 static void     removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
-static int32_t  removeExpiredNodeEntryAndTask(SArray *pNodeSnapshot);
+static int32_t  removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 static int32_t  doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
@@ -1031,7 +1031,7 @@ _ERR:
   return code;
 }
 
-int32_t initStreamNodeList(SMnode *pMnode) {
+int32_t extractStreamNodeList(SMnode *pMnode) {
   if (taosArrayGetSize(execInfo.pNodeList) == 0) {
     execInfo.pNodeList = taosArrayDestroy(execInfo.pNodeList);
     execInfo.pNodeList = extractNodeListFromStream(pMnode);
@@ -1044,7 +1044,7 @@ static bool taskNodeIsUpdated(SMnode *pMnode) {
   // check if the node update happens or not
   taosThreadMutexLock(&execInfo.lock);
 
-  int32_t numOfNodes = initStreamNodeList(pMnode);
+  int32_t numOfNodes = extractStreamNodeList(pMnode);
   if (numOfNodes == 0) {
     mDebug("stream task node change checking done, no vgroups exist, do nothing");
     execInfo.ts = taosGetTimestampSec();
@@ -2212,27 +2212,6 @@ static SArray *extractNodeListFromStream(SMnode *pMnode) {
   return plist;
 }
 
-static int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
-  void *p = taosHashGet(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
-  if (p == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-  taosHashRemove(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
-
-  for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
-    STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
-    if (pId->taskId == pRemovedId->taskId && pId->streamId == pRemovedId->streamId) {
-      taosArrayRemove(pExecNode->pTaskList, k);
-
-      int32_t num = taosArrayGetSize(pExecNode->pTaskList);
-      mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)pRemovedId->taskId, num);
-      break;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static bool taskNodeExists(SArray *pList, int32_t nodeId) {
   size_t num = taosArrayGetSize(pList);
 
@@ -2246,7 +2225,7 @@ static bool taskNodeExists(SArray *pList, int32_t nodeId) {
   return false;
 }
 
-int32_t removeExpiredNodeEntryAndTask(SArray *pNodeSnapshot) {
+int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot) {
   SArray *pRemovedTasks = taosArrayInit(4, sizeof(STaskId));
 
   int32_t numOfTask = taosArrayGetSize(execInfo.pTaskList);
@@ -2264,10 +2243,7 @@ int32_t removeExpiredNodeEntryAndTask(SArray *pNodeSnapshot) {
     }
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pRemovedTasks); ++i) {
-    STaskId *pId = taosArrayGet(pRemovedTasks, i);
-    doRemoveTasks(&execInfo, pId);
-  }
+  removeInvalidTasks(pRemovedTasks);
 
   mDebug("remove invalid stream tasks:%d, remain:%d", (int32_t)taosArrayGetSize(pRemovedTasks),
          (int32_t)taosArrayGetSize(execInfo.pTaskList));
@@ -2294,7 +2270,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
 
   taosThreadMutexLock(&execInfo.lock);
-  int32_t numOfNodes = initStreamNodeList(pMnode);
+  int32_t numOfNodes = extractStreamNodeList(pMnode);
   taosThreadMutexUnlock(&execInfo.lock);
 
   if (numOfNodes == 0) {
@@ -2314,7 +2290,8 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   }
 
   taosThreadMutexLock(&execInfo.lock);
-  removeExpiredNodeEntryAndTask(pNodeSnapshot);
+
+  removeExpiredNodeEntryAndTaskInBuf(pNodeSnapshot);
 
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
@@ -2410,21 +2387,7 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
     SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
 
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-    void   *p = taosHashGet(pExecNode->pTaskMap, &id, sizeof(id));
-    if (p != NULL) {
-      taosHashRemove(pExecNode->pTaskMap, &id, sizeof(id));
-
-      for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
-        STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
-        if (pId->taskId == id.taskId && pId->streamId == id.streamId) {
-          taosArrayRemove(pExecNode->pTaskList, k);
-
-          int32_t num = taosArrayGetSize(pExecNode->pTaskList);
-          mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)id.taskId, num);
-          break;
-        }
-      }
-    }
+    doRemoveTasks(pExecNode, &id);
   }
 
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));

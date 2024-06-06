@@ -279,10 +279,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
 
-      // we need to transfer state here. The transfer of state may generate new data that need to dispatch to downstream,
-      // to transfer the new data to downstream before checkpoint-trigger reaching the downstream tasks.
-      // Otherwise, those new generated data may be lost, if crash before next checkpoint data generatd, which the
-      // the new generated data is kept in outputQ, and failed to dispatch to downstream tasks.
+      // We need to transfer state here, before dispatching checkpoint-trigger to downstream tasks.
+      // The transfer of state may generate new data that need to dispatch to downstream tasks,
+      // Otherwise, those new generated data by executors that is kept in outputQ, may be lost if this program crashed
+      // before the next checkpoint.
       {
         bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
         if (dropRelHTask) {
