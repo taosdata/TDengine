@@ -695,7 +695,7 @@ class StreamComputingTest(TDCase):
         cnt = 0
         while len(self.tdSql.query_data) == 0:
             self.tdSql.query(f'select distinct group_id from {stbname}')
-            if cnt < self.default_interval:
+            if cnt < self.tdCom.stream_timeout:
                 cnt += 1
                 time.sleep(1)
             else:
