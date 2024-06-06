@@ -756,6 +756,8 @@ class StreamComputingTest(TDCase):
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
         start_time = self.date_time
+        custom_col_index = 1 if partition == "c1" else None
+        col_value_type = "Incremental" if partition == "c1" else "random"
         for i in range(self.range_count):
             if checkpoint_check:
                 if i == int(self.range_count/2):
@@ -784,15 +786,15 @@ class StreamComputingTest(TDCase):
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
                 self.date_time += 1
             else:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict)
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, pk_dict=self.pk_dict, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.delete and i%2 != 0:
                     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
                 self.date_time += 1
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.update and i%2 == 0:
-                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict)
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, pk_dict=self.pk_dict, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if self.delete and i%2 != 0:
                     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
                 self.date_time += 1
@@ -2682,18 +2684,20 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         start_time = self.date_time
         need_null = True if partition == "tbname" else False
+        custom_col_index = 1 if partition == "c1" else None
+        col_value_type = "Incremental" if partition == "c1" else "random"
         for i in range(self.range_count):
             ts_value = str(self.date_time)+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null, custom_col_index=custom_col_index, col_value_type=col_value_type)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null, custom_col_index=custom_col_index, col_value_type=col_value_type)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null, custom_col_index=custom_col_index, col_value_type=col_value_type)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null, custom_col_index=custom_col_index, col_value_type=col_value_type)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
