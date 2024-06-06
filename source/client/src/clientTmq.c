@@ -826,7 +826,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
       offRows->vgId = pVg->vgId;
       offRows->rows = pVg->numOfRows;
       offRows->offset = pVg->offsetInfo.endOffset;
-      offRows->ever = pVg->offsetInfo.walVerEnd;
+      offRows->ever = pVg->offsetInfo.walVerEnd == -1 ? 0 : pVg->offsetInfo.walVerEnd;
       char buf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(buf, TSDB_OFFSET_LEN, &offRows->offset);
       tscDebug("consumer:0x%" PRIx64 ",report offset, group:%s vgId:%d, offset:%s/%" PRId64 ", rows:%" PRId64,
