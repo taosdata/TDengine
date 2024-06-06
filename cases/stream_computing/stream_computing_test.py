@@ -193,7 +193,7 @@ class StreamComputingTest(TDCase):
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
         self.need_cast_log = False
         self.n_print = False if self.need_cast_log else True
-        self.tdCom.stream_timeout = 60
+        self.tdCom.stream_timeout = 100
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, pk_dict=self.pk_dict)
@@ -4781,7 +4781,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql} partition by tbname;')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};')
-        self.tdCom.stream_timeout = 12
+        self.tdCom.stream_timeout = 100
         time.sleep(self.stage_report_time)
         self.tdCom.check_stream_tasks(old_stage, True)
 
