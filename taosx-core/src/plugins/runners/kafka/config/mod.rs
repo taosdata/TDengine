@@ -52,7 +52,7 @@ impl KafkaTaskConfig {
             .to_string()
     }
 
-    fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
+    pub fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
         Ok(dsn
             .get("topics")
             .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())

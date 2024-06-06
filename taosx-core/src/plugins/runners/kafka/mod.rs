@@ -21,6 +21,7 @@ use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Reb
 use rdkafka::error::KafkaResult;
 use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
+use rdkafka::Offset;
 use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
@@ -95,12 +96,53 @@ async fn get_sample_impl(
     limit: usize,
     timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
-    let mut payload_list: Vec<String> = Vec::new();
-
+    // create consumer
     let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
-    let client_config = build_client_config(connect_config);
+    let mut client_config = build_client_config(connect_config);
+    let consumer: BaseConsumer = client_config
+        .set("group.id", "test")
+        .set("auto.offset.reset", "earliest")
+        .set("enable.auto.commit", "false")
+        .create()
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {}", err.to_string()))?;
 
-    payload_list.push("sample".to_string());
+    // subscribe topics
+    let topics = KafkaTaskConfig::parse_topics(dsn)?;
+    let topics = topics.iter().map(|p| p.as_str()).collect::<Vec<&str>>();
+    consumer
+        .subscribe(&topics)
+        .expect("Can't subscribe to specified topics");
+    // assign offset to the beginning
+    let mut partitions = consumer.assignment().unwrap();
+    partitions.set_all_offsets(Offset::Beginning).unwrap();
+    consumer.assign(&partitions).unwrap();
+
+    // polling message from kafka
+    let start = Utc::now().timestamp();
+    let mut count = 0;
+    let mut payload_list: Vec<String> = Vec::new();
+    loop {
+        let message = consumer.poll(Duration::from_secs(1));
+        if let Some(msg) = message {
+            match msg {
+                Ok(m) => {
+                    m.payload().map(|p| {
+                        // println!("payload: {}", String::from_utf8_lossy(p));
+                        payload_list.push(String::from_utf8_lossy(p).to_string());
+                    });
+                }
+                Err(err) => {
+                    tracing::error!("Kafka polling error: {:#}", err);
+                    anyhow::bail!("Kafka polling error: {:#}", err);
+                }
+            }
+            count += 1;
+        }
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break;
+        }
+    }
 
     Ok(payload_list)
 }
@@ -686,10 +728,11 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use rdkafka::Offset;
     use std::str::FromStr;
+
     use taos::IntoDsn;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_is_valid() {
@@ -767,61 +810,5 @@ mod tests {
             .filter(|tp| topics.contains(&tp.name().to_string()))
             .collect::<Vec<_>>();
         dbg!(topics_readable.len());
-    }
-
-    #[tokio::test]
-    async fn test_get_sample() {
-        let consumer: BaseConsumer = ClientConfig::new()
-            .set("bootstrap.servers", "192.168.1.40:9092")
-            .set("group.id", "test")
-            .set("auto.offset.reset", "earliest")
-            .set("enable.auto.commit", "false")
-            .create()
-            .unwrap();
-
-        let metadata = consumer
-            .fetch_metadata(None, Duration::from_secs(5))
-            .unwrap();
-
-        metadata
-            .topics()
-            .iter()
-            .filter(|tp| !tp.name().starts_with("__"))
-            .for_each(|tp| {
-                let topic_name = tp.name();
-                let partitions = tp.partitions().iter().map(|p| p.id()).collect::<Vec<_>>();
-                for p in partitions {
-                    consumer
-                        .seek(topic_name, p, Offset::Beginning, Duration::from_secs(1))
-                        .unwrap();
-                }
-            });
-
-        consumer
-            .subscribe(&["test_taosx"])
-            .expect("Can't subscribe to specified topics");
-
-        let start = Utc::now().timestamp();
-        let timeout = 10;
-        let limit = 10;
-        let mut count = 0;
-        loop {
-            let message = consumer.poll(Duration::from_secs(1));
-            if let Some(msg) = message {
-                match msg {
-                    Ok(m) => {
-                        m.payload().map(|p| {
-                            println!("payload: {}", String::from_utf8_lossy(p));
-                        });
-                    }
-                    Err(err) => {}
-                }
-                count += 1;
-            }
-            let now = Utc::now().timestamp();
-            if now - start > timeout || count > limit {
-                break;
-            }
-        }
     }
 }
