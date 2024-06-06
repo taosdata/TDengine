@@ -17,27 +17,6 @@
 #include "meta.h"
 
 // SDataFileReader =============================================
-struct SDataFileReader {
-  SDataFileReaderConfig config[1];
-
-  SBuffer  local[10];
-  SBuffer *buffers;
-
-  struct {
-    bool headFooterLoaded;
-    bool tombFooterLoaded;
-    bool brinBlkLoaded;
-    bool tombBlkLoaded;
-  } ctx[1];
-
-  STsdbFD *fd[TSDB_FTYPE_MAX];
-
-  SHeadFooter   headFooter[1];
-  STombFooter   tombFooter[1];
-  TBrinBlkArray brinBlkArray[1];
-  TTombBlkArray tombBlkArray[1];
-};
-
 static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
   if (reader->ctx->headFooterLoaded) return 0;
 
@@ -370,7 +349,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   if (extraColIdx < 0) {
     goto _exit;
   }
-  
+
   // load SBlockCol part
   tBufferClear(buffer0);
   code = tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize, hdr.szBlkCol,
@@ -1336,7 +1315,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer, int32_t encryptAlgorithm, 
+int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer, int32_t encryptAlgorithm,
                                 char* encryptKey) {
   int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey);
   if (code) return code;
@@ -1452,13 +1431,13 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize, 
+int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize,
                               int32_t encryptAlgorithm, char* encryptKey) {
   ptr->size = TARRAY2_DATA_LEN(tombBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
 
-    int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(tombBlkArray), ptr->size, 
+    int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(tombBlkArray), ptr->size,
                                   encryptAlgorithm, encryptKey);
     if (code) {
       return code;
@@ -1582,7 +1561,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize, 
+int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize,
                             int32_t encryptAlgorithm, char* encryptKey) {
   ASSERT(TARRAY2_SIZE(brinBlkArray) > 0);
   ptr->offset = *fileSize;
