@@ -52,7 +52,8 @@ from .service_manager import ServiceManager, TdeInstance
 from .shared.config import Config
 from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
-from .shared.types import TdDataType
+from .shared.types import TdDataType, DataBoundary
+from .shared.common import TDCom
 
 # Config.init()
 
@@ -1974,10 +1975,52 @@ class TaskCreateSuperTable(StateTransitionTask):
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
-
+        # backup 20240606 by jayden
+        # sTable.create(wt.getDbConn(),
+        #               {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
+        #                   'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+        #               dropIfExists=True
+        #               )
+        cols = {
+                    'ts'                        : TdDataType.TIMESTAMP,
+                    'speed'                     : TdDataType.INT,
+                    'color'                     : TdDataType.BINARY16,
+                    'tinyint_type_col_name'     : TdDataType.TINYINT,
+                    'smallint_type_col_name'    : TdDataType.SMALLINT,
+                    'bigint_type_col_name'      : TdDataType.BIGINT,
+                    'utinyint_type_col_name'    : TdDataType.TINYINT,
+                    'usmallint_type_col_name'   : TdDataType.SMALLINT,
+                    'uint_type_col_name'        : TdDataType.INT,
+                    'ubigint_type_col_name'     : TdDataType.BIGINT,
+                    'ufloat_type_col_name'      : TdDataType.FLOAT,
+                    'udouble_type_col_name'     : TdDataType.DOUBLE,
+                    'bool_type_col_name'        : TdDataType.BOOL,
+                    'udouble_type_col_name'     : TdDataType.DOUBLE,
+                    'varchar_type_col_name'     : TdDataType.VARCHAR16,
+                    'varbinary_type_col_name'   : TdDataType.VARBINARY16,
+                    'geometry_type_col_name'    : TdDataType.GEOMETRY32,
+                }
+        tags = {
+                    'b'                         : TdDataType.BINARY200,
+                    'f'                         : TdDataType.FLOAT,
+                    'tinyint_type_tag_name'     : TdDataType.TINYINT,
+                    'smallint_type_tag_name'    : TdDataType.SMALLINT,
+                    'int_type_tag_name'         : TdDataType.INT,
+                    'bigint_type_tag_name'      : TdDataType.BIGINT,
+                    'utinyint_type_tag_name'    : TdDataType.TINYINT,
+                    'usmallint_type_tag_name'   : TdDataType.SMALLINT,
+                    'uint_type_tag_name'        : TdDataType.INT,
+                    'ubigint_type_tag_name'     : TdDataType.BIGINT,
+                    'udouble_type_tag_name'     : TdDataType.DOUBLE,
+                    'bool_type_tag_name'        : TdDataType.BOOL,
+                    'udouble_type_tag_name'     : TdDataType.DOUBLE,
+                    'varchar_type_tag_name'     : TdDataType.VARCHAR16,
+                    'varbinary_type_tag_name'   : TdDataType.VARBINARY16,
+                    'geometry_type_tag_name'    : TdDataType.GEOMETRY32,
+                }
         sTable.create(wt.getDbConn(),
-                      {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
-                          'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+                      cols,
+                      tags,
                       dropIfExists=True
                       )
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
@@ -2059,7 +2102,7 @@ class TdSuperTable:
                 pass
             return
 
-        # mulit Consumer 
+        # mulit Consumer
         current_topic_list = self.getTopicLists(dbc)
         for i in range(Consumer_nums):
             consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
@@ -2194,6 +2237,7 @@ class TdSuperTable:
                 # Logging.info("Table unlocked after creation: {}".format(fullTableName))
 
     def _getTagStrForSql(self, dbc):
+        print("-----", DataBoundary.TINYINT_BOUNDARY.value)
         tags = self._getTags(dbc)
         tagStrs = []
         for tagName in tags:
@@ -2201,14 +2245,28 @@ class TdSuperTable:
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
             elif tagType == 'VARCHAR':
-                tagStrs.append("'London-Paris-Berlin'")
-            elif tagType == 'FLOAT':
-                tagStrs.append('9.9')
+                tagStrs.append(TDCom.get_long_name(16, "VARCHAR"))
+            elif tagType == 'VARBINARY':
+                tagStrs.append(TDCom.get_long_name(16, "VARBINARY"))
+            elif tagType == 'GEOMETRY':
+                tagStrs.append(random.choice(DataBoundary.GEOMETRY_BOUNDARY.value))
+            elif tagType == 'TINYINT':
+                tagStrs.append(random.randint(DataBoundary.TINYINT_BOUNDARY.value[0], DataBoundary.TINYINT_BOUNDARY.value[1]))
+            elif tagType == 'SMALLINT':
+                tagStrs.append(random.randint(DataBoundary.SMALLINT_BOUNDARY.value[0], DataBoundary.SMALLINT_BOUNDARY.value[1]))
             elif tagType == 'INT':
-                tagStrs.append('88')
+                tagStrs.append(random.randint(DataBoundary.INT_BOUNDARY.value[0], DataBoundary.INT_BOUNDARY.value[1]))
+            elif tagType == 'BIGINT':
+                tagStrs.append(random.randint(DataBoundary.BIGINT_BOUNDARY.value[0], DataBoundary.BIGINT_BOUNDARY.value[1]))
+            elif tagType == 'FLOAT':
+                tagStrs.append(random.uniform(DataBoundary.FLOAT_BOUNDARY.value[0], DataBoundary.FLOAT_BOUNDARY.value[1]))
+            elif tagType == 'DOUBLE':
+                tagStrs.append(random.uniform(DataBoundary.DOUBLE_BOUNDARY.value[0], DataBoundary.DOUBLE_BOUNDARY.value[1]))
+            elif tagType == 'BOOL':
+                tagStrs.append(random.choice(DataBoundary.BOOL_BOUNDARY.value))
             else:
                 raise RuntimeError("Unexpected tag type: {}".format(tagType))
-        return ", ".join(tagStrs)
+        return ", ".join(str(tagStrs))
 
     def _getTags(self, dbc) -> dict:
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))

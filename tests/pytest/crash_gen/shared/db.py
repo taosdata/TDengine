@@ -307,7 +307,7 @@ class MyTDSql:
         # Make the DB connection
         self._conn = taos.connect(host=hostAddr, config=cfgPath) 
         self._cursor = self._conn.cursor()
-
+        self.cfgPath = cfgPath
         self.queryRows = 0
         self.queryCols = 0
         self.affectedRows = 0
@@ -367,6 +367,8 @@ class MyTDSql:
 
     def query(self, sql):
         self.sql = sql
+        print(self.sql)
+        self.recordSql(self.sql)
         try:
             self._execInternal(sql)
             self.queryResult = self._cursor.fetchall()
@@ -381,6 +383,8 @@ class MyTDSql:
 
     def execute(self, sql):
         self.sql = sql
+        print(self.sql)
+        self.recordSql(self.sql)
         try:
             self.affectedRows = self._execInternal(sql)
         except Exception as e:
@@ -389,6 +393,14 @@ class MyTDSql:
             # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
             raise
         return self.affectedRows
+
+    def recordSql(self, sql):
+        sql_file = os.path.join(os.path.dirname(self.cfgPath), "test.sql")
+        with open(sql_file, 'a') as f:
+            if sql.endswith(";"):
+                f.write(f'{sql}\n')
+            else:
+                f.write(f'{sql};\n')
 
 
 class DbTarget:
