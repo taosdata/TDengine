@@ -49,6 +49,27 @@ typedef struct SDataFileReaderConfig {
   SBuffer *buffers;
 } SDataFileReaderConfig;
 
+struct SDataFileReader {
+  SDataFileReaderConfig config[1];
+
+  SBuffer  local[10];
+  SBuffer *buffers;
+
+  struct {
+    bool headFooterLoaded;
+    bool tombFooterLoaded;
+    bool brinBlkLoaded;
+    bool tombBlkLoaded;
+  } ctx[1];
+
+  STsdbFD *fd[TSDB_FTYPE_MAX];
+
+  SHeadFooter   headFooter[1];
+  STombFooter   tombFooter[1];
+  TBrinBlkArray brinBlkArray[1];
+  TTombBlkArray tombBlkArray[1];
+};
+
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
 void    tsdbDataFileReaderClose(SDataFileReader **reader);

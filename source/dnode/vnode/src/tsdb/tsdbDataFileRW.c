@@ -17,27 +17,6 @@
 #include "meta.h"
 
 // SDataFileReader =============================================
-struct SDataFileReader {
-  SDataFileReaderConfig config[1];
-
-  SBuffer  local[10];
-  SBuffer *buffers;
-
-  struct {
-    bool headFooterLoaded;
-    bool tombFooterLoaded;
-    bool brinBlkLoaded;
-    bool tombBlkLoaded;
-  } ctx[1];
-
-  STsdbFD *fd[TSDB_FTYPE_MAX];
-
-  SHeadFooter   headFooter[1];
-  STombFooter   tombFooter[1];
-  TBrinBlkArray brinBlkArray[1];
-  TTombBlkArray tombBlkArray[1];
-};
-
 static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
   if (reader->ctx->headFooterLoaded) {
     return 0;

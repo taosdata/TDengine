@@ -37,3 +37,23 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+ADD_EXECUTABLE(headdump headdump.c)
+
+aux_source_directory("../src/tsdb/" DUMP_TSDB_SOURCE_FILES)
+
+target_sources(
+    headdump
+    PRIVATE
+    ${DUMP_TSDB_SOURCE_FILES}
+)
+
+target_include_directories(
+    headdump
+    PUBLIC "${TD_SOURCE_DIR}/source/dnode/vnode/src/tsdb"
+)
+
+TARGET_LINK_LIBRARIES(
+        headdump
+        PUBLIC os util common vnode
+)

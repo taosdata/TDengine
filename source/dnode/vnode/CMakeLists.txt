@@ -71,7 +71,7 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
-    
+
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
@@ -135,18 +135,18 @@ else()
     )
     if (${TD_LINUX})
     target_include_directories(
-            vnode 
+            vnode
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )
         target_link_directories(
-            vnode 
+            vnode
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
         )
     endif()
 endif()
 
 target_link_directories(
-    vnode 
+    vnode
     PUBLIC "${CMAKE_BINARY_DIR}/build/lib"
 )
 
@@ -189,6 +189,4 @@ if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
-if(${BUILD_TEST})
-    add_subdirectory(test)
-endif(${BUILD_TEST})
+add_subdirectory(test)
