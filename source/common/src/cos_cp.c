@@ -389,11 +389,12 @@ void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t 
   int i = 0;
 
   checkpoint->cp_type = COS_CP_TYPE_UPLOAD;
-  strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN);
+  memset(checkpoint->file_path, 0, TSDB_FILENAME_LEN);
+  strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN - 1);
 
   checkpoint->file_size = size;
   checkpoint->file_last_modified = mtime;
-  strncpy(checkpoint->upload_id, upload_id, 128);
+  strncpy(checkpoint->upload_id, upload_id, 127);
 
   checkpoint->part_size = part_size;
   for (; i * part_size < size; i++) {
