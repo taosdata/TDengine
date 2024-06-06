@@ -1318,6 +1318,7 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
         pVal->val = pSrc->pks[i].val;
       } else {
         pVal->nData = pSrc->pks[i].nData;
+        ASSERT(pSrc->pks[i].pData != NULL);
         memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
       }
     }

@@ -46,18 +46,8 @@ typedef struct SVgroupChangeInfo {
   SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
-// time to generated the checkpoint, if now() - checkpointTs >= tsCheckpointInterval, this checkpoint will be discard
-// to avoid too many checkpoints for a taskk in the waiting list
-typedef struct SCheckpointCandEntry {
-  char   *pName;
-  int64_t streamId;
-  int64_t checkpointTs;
-  int64_t checkpointId;
-} SCheckpointCandEntry;
-
 typedef struct SStreamTransMgmt {
   SHashObj *pDBTrans;
-  SHashObj *pWaitingList;  // stream id list, of which timed checkpoint failed to be issued due to the trans conflict.
 } SStreamTransMgmt;
 
 typedef struct SStreamExecInfo {
@@ -97,7 +87,7 @@ void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t     mndPersistStream(STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t streamId);
-int32_t     mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
+int32_t     mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt);
 bool        mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char *pTransName, bool lock);
 int32_t     mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId);
 
@@ -130,6 +120,7 @@ void             destroyStreamTaskIter(SStreamTaskIter *pIter);
 bool             streamTaskIterNextTask(SStreamTaskIter *pIter);
 SStreamTask     *streamTaskIterGetCurrent(SStreamTaskIter *pIter);
 void             mndInitExecInfo();
+void             removeExpiredNodeInfo(const SArray *pNodeSnapshot);
 
 #ifdef __cplusplus
 }
