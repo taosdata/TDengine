@@ -83,8 +83,8 @@ int32_t s3CheckCfg() {
 
   snprintf(path, PATH_MAX, "%s", tsTempDir);
   if (strncmp(tsTempDir + tmp_len - ds_len, TD_DIRSEP, ds_len) != 0) {
-    snprintf(path + tmp_len, PATH_MAX, "%s", TD_DIRSEP);
-    snprintf(path + tmp_len + ds_len, PATH_MAX, "%s", objectname[0]);
+    snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", TD_DIRSEP);
+    snprintf(path + tmp_len + ds_len, PATH_MAX - tmp_len - ds_len, "%s", objectname[0]);
   } else {
     snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", objectname[0]);
   }
@@ -1076,7 +1076,7 @@ static SArray *getListByPrefix(const char *prefix) {
                                            &listBucketCallback};
 
   const char /**marker = 0,*/ *delimiter = 0;
-  int                          maxkeys = 0, allDetails = 0;
+  int /*maxkeys = 0, */        allDetails = 0;
   list_bucket_callback_data    data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
@@ -1094,13 +1094,13 @@ static SArray *getListByPrefix(const char *prefix) {
   do {
     data.isTruncated = 0;
     do {
-      S3_list_bucket(&bucketContext, prefix, data.nextMarker, delimiter, maxkeys, 0, timeoutMsG, &listBucketHandler,
-                     &data);
+      S3_list_bucket(&bucketContext, prefix, data.nextMarker, delimiter, 0 /*maxkeys*/, 0, timeoutMsG,
+                     &listBucketHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
     if (data.status != S3StatusOK) {
       break;
     }
-  } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
+  } while (data.isTruncated /* && (!maxkeys || (data.keyCount < maxkeys))*/);
 
   if (data.status == S3StatusOK) {
     if (data.keyCount > 0) {
