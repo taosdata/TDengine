@@ -6216,6 +6216,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
     pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
+  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   return tlen + headLen;
 }
@@ -6240,6 +6241,12 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
   if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->enableBatchMeta) < 0) return -1;
+  } else {
+    pReq->enableBatchMeta = false;
+  }
 
   tEndDecode(&decoder);
 
@@ -7244,6 +7251,18 @@ int tDecodeSVCreateTbBatchReq(SDecoder *pCoder, SVCreateTbBatchReq *pReq) {
   return 0;
 }
 
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq *pReq) {
+  for (int32_t iReq = 0; iReq < pReq->nReqs; iReq++) {
+    SVCreateTbReq *pCreateReq = pReq->pReqs + iReq;
+    taosMemoryFreeClear(pCreateReq->sql);
+    taosMemoryFreeClear(pCreateReq->comment);
+    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+      taosArrayDestroy(pCreateReq->ctb.tagName);
+      pCreateReq->ctb.tagName = NULL;
+    }
+  }
+}
+
 int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {
   if (tStartEncode(pCoder) < 0) return -1;
 
@@ -8019,6 +8038,8 @@ int32_t tDecodeMqMetaRsp(SDecoder *pDecoder, SMqMetaRsp *pRsp) {
   return 0;
 }
 
+void tDeleteMqMetaRsp(SMqMetaRsp *pRsp) { taosMemoryFree(pRsp->metaRsp); }
+
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
@@ -8634,4 +8655,56 @@ void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) {
   taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
   pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
+}
+
+int32_t tEncodeMqBatchMetaRsp(SEncoder *pEncoder, const SMqBatchMetaRsp *pRsp) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
+
+  int32_t size = taosArrayGetSize(pRsp->batchMetaReq);
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  if (size > 0) {
+    for (int32_t i = 0; i < size; i++) {
+      void   *pMetaReq = taosArrayGetP(pRsp->batchMetaReq, i);
+      int32_t metaLen = *(int32_t *)taosArrayGet(pRsp->batchMetaLen, i);
+      if (tEncodeBinary(pEncoder, pMetaReq, metaLen) < 0) return -1;
+    }
+  }
+  return 0;
+}
+
+int32_t tDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
+  int32_t size = 0;
+  if (tDecodeI32(pDecoder, &size) < 0) return -1;
+  if (size > 0) {
+    pRsp->batchMetaReq = taosArrayInit(size, POINTER_BYTES);
+    pRsp->batchMetaLen = taosArrayInit(size, sizeof(int32_t));
+    for (int32_t i = 0; i < size; i++) {
+      void    *pCreate = NULL;
+      uint64_t len = 0;
+      if (tDecodeBinaryAlloc(pDecoder, &pCreate, &len) < 0) return -1;
+      int32_t l = (int32_t)len;
+      taosArrayPush(pRsp->batchMetaReq, &pCreate);
+      taosArrayPush(pRsp->batchMetaLen, &l);
+    }
+  }
+  return 0;
+}
+
+int32_t tSemiDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
+  if (pDecoder->size < pDecoder->pos) {
+    return -1;
+  }
+  pRsp->metaBuffLen = TD_CODER_REMAIN_CAPACITY(pDecoder);
+  pRsp->pMetaBuff = taosMemoryCalloc(1, pRsp->metaBuffLen);
+  memcpy(pRsp->pMetaBuff, TD_CODER_CURRENT(pDecoder), pRsp->metaBuffLen);
+  return 0;
+}
+
+void tDeleteMqBatchMetaRsp(SMqBatchMetaRsp *pRsp) {
+  taosMemoryFreeClear(pRsp->pMetaBuff);
+  taosArrayDestroyP(pRsp->batchMetaReq, taosMemoryFree);
+  taosArrayDestroy(pRsp->batchMetaLen);
+  pRsp->batchMetaReq = NULL;
+  pRsp->batchMetaLen = NULL;
 }
