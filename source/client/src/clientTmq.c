@@ -2149,9 +2149,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       } else {
         tscInfo("consumer:0x%" PRIx64 " vgId:%d msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
                 tmq->consumerId, pollRspWrapper->vgId, pollRspWrapper->batchMetaRsp.head.epoch, consumerEpoch);
-        setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
-        tmqFreeRspWrapper(pRspWrapper);
-        taosFreeQitem(pRspWrapper);
+        pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
+        taosFreeQitem(pollRspWrapper);
       }
     } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;

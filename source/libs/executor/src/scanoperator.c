@@ -2420,8 +2420,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
       if (!sContext->queryMeta) {  // change to get data next poll request
         STqOffsetVal offset = {0};
-        SValue val = {0};
-        tqOffsetResetToData(&offset, 0, INT64_MIN, val);
+        tqOffsetResetToData(&offset, 0, INT64_MIN);
         qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
         break;
       } else {

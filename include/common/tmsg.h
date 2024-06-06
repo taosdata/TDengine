@@ -2525,7 +2525,6 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
   return buf;
 }
 
@@ -3685,6 +3684,7 @@ typedef struct {
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
 int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
+void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead   head;
