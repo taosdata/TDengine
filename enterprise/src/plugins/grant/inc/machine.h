@@ -354,7 +354,7 @@ typedef struct {
       int64_t auditExpired : 1;
       int64_t csvExpired : 1;
       int64_t viewExpired : 1;
-      int64_t reserve1 : 1;
+      int64_t placeHolder : 1;
     };
   };
   union {
