@@ -15,11 +15,14 @@ import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
+import os
+
 class TestWal(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.cfg = self.tdCom.Boundary.DB_PARAM_WAL_CONFIG
         self.remote: Remote = Remote(self.logger)
+        self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
         for env_setting in self.env_setting["settings"]:
             if env_setting["name"].lower() == "taosd":
                 self.taosd_setting = env_setting
@@ -52,6 +55,9 @@ class TestWal(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
+            if self.replica != 1:
+                if param_value == 0:
+                    return
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value}
             self.tdCom.createDb(dbname, **kv_dict)
