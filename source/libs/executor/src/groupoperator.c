@@ -581,23 +581,16 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
 
   SSDataBlock* pDstBlock = createDataBlock();
   pDstBlock->info = pDataBlock->info;
-
-  copyPkVal(&pDstBlock->info, &pDataBlock->info);
-  pDstBlock->info.rows = pDataBlock->info.rows;
   pDstBlock->info.capacity = 0;
   pDstBlock->info.rowSize = 0;
-  pDstBlock->info.id = pDataBlock->info.id;
-  pDstBlock->info.blankFill = pDataBlock->info.blankFill;
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SExprInfo*       pExpr = &pOperator->exprSupp.pExprInfo[i];
     int32_t          slotId = pExpr->base.pParam[0].pCol->slotId;
     SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, slotId);
-    if (pSrc) {
-      SColumnInfoData colInfo = {.hasNull = true, .info = pSrc->info};
-      blockDataAppendColInfo(pDstBlock, &colInfo);
-    }
+    SColumnInfoData colInfo = {.hasNull = true, .info = pSrc->info};
+    blockDataAppendColInfo(pDstBlock, &colInfo);
   }
 
   int32_t code = blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows);
@@ -617,13 +610,16 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
       SExprInfo* pExpr = &pOperator->exprSupp.pExprInfo[i];
       int32_t    slotId = pExpr->base.pParam[0].pCol->slotId;
-      if (slotId < numOfCols) {
-        pDstBlock->pBlockAgg[slotId] = pDataBlock->pBlockAgg[i];
-        SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-        SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, slotId);
-        colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
-      }
+      pDstBlock->pBlockAgg[i] = pDataBlock->pBlockAgg[slotId];
     }
+  }
+
+  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+    SExprInfo*       pExpr = &pOperator->exprSupp.pExprInfo[i];
+    int32_t          slotId = pExpr->base.pParam[0].pCol->slotId;
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, slotId);
+    SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
+    colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
   }
 
   return pDstBlock;
