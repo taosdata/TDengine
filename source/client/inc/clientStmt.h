@@ -100,6 +100,7 @@ typedef struct SStmtSQLInfo {
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
+  SBindInfo        *pBindInfo;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo;

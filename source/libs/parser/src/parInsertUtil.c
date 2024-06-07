@@ -577,12 +577,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   uint64_t uid;
   int32_t  vgId;
   
-  pTbCtx->pData->aCol = pTbData->aCol;
-  
-  SColData* pCol = taosArrayGet(pTbCtx->pData->aCol, 0);
-  if (pCol->nVal <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
+  pTbCtx->pData->aRowP = pTbData->aCol;
   
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
   if (TSDB_CODE_SUCCESS != code) {
@@ -593,13 +588,12 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   pTbCtx->pMeta->uid = uid;
   pTbCtx->pData->uid = uid;
 
-  if (pTbCtx->pData->pCreateTbReq) {
-    pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  if (!pTbCtx->ordered) {
+    code = tRowSort(pTbCtx->pData->aRowP);
   }
-
-  taosArraySort(pTbCtx->pData->aCol, insColDataComp);
-
-  tColDataSortMerge(pTbCtx->pData->aCol);
+  if (code == TSDB_CODE_SUCCESS && (!pTbCtx->ordered || pTbCtx->duplicateTs)) {
+    code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+  }
 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -622,12 +616,12 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     code = fillVgroupDataCxt(pTbCtx, pVgCxt, false, false);
   }
 
-/*
-  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 1000) {
+  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
     code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
-    taosArrayClear(pVgCxt->pData->aSubmitTbData);
+    //taosArrayClear(pVgCxt->pData->aSubmitTbData);
+    tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+    //insDestroyVgroupDataCxt(pVgCxt);
   }
-*/
 
   return code;
 }

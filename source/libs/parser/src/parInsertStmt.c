@@ -276,7 +276,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, STSchema** pTSchema) {
+int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, STSchema** pTSchema, SBindInfo* pBindInfos) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -285,7 +285,6 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
   TAOS_MULTI_BIND  ncharBind = {0};
   TAOS_MULTI_BIND* pBind = NULL;
   int32_t          code = 0;
-  SBindInfo        bindInfos[100];
   int16_t          lastColId = -1;
   bool             colInOrder = true;
 
@@ -322,9 +321,9 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
       pBind = bind + c;
     }
 
-    bindInfos[c].columnId = pColSchema->colId;
-    bindInfos[c].bind = pBind;
-    bindInfos[c].type = pColSchema->type;
+    pBindInfos[c].columnId = pColSchema->colId;
+    pBindInfos[c].bind = pBind;
+    pBindInfos[c].type = pColSchema->type;
 
     //code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
     //if (code) {
@@ -332,7 +331,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     //}
   }
 
-  code = tRowBuildFromBind(bindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
+  code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols);
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
@@ -343,6 +342,57 @@ _return:
 
   return code;
 }
+
+int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
+  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
+  int32_t          rowNum = bind->num;
+  TAOS_MULTI_BIND  ncharBind = {0};
+  TAOS_MULTI_BIND* pBind = NULL;
+  int32_t          code = 0;
+
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    SColData* pCol = taosArrayGet(pCols, c);
+
+    if (bind[c].num != rowNum) {
+      code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      goto _return;
+    }
+
+    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) && bind[c].buffer_type != pColSchema->type) { // for rowNum ==1 , connector may not set buffer_type
+      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      goto _return;
+    }
+
+    if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+      code = convertStmtNcharCol(&pBuf, pColSchema, bind + c, &ncharBind);
+      if (code) {
+        goto _return;
+      }
+      pBind = &ncharBind;
+    } else {
+      pBind = bind + c;
+    }
+
+    code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
+    if (code) {
+      goto _return;
+    }
+  }
+
+  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
+}
+
 
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
                                 int32_t rowNum) {

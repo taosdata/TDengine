@@ -227,23 +227,22 @@ typedef struct STableDataCxt {
 } STableDataCxt;
 
 typedef struct SStbInterlaceInfo {
-  void*         pCatalog;
-  void*         pQuery;
-  int32_t       acctId;
-  char*         dbname;
-  void*         transport;
-  SEpSet        mgmtEpSet;
-  void*         pRequest;
-  uint64_t      requestId;
-  int64_t       requestSelf;
-  bool          tbFromHash;      
-  SHashObj*     pVgroupHash;
-  SArray*       pVgroupList;
-  SSHashObj*    pTableHash;
-  int64_t       tbRemainNum;
-  STableBufInfo tbBuf;
-  char          firstName[TSDB_TABLE_NAME_LEN];
-  
+  void*          pCatalog;
+  void*          pQuery;
+  int32_t        acctId;
+  char*          dbname;
+  void*          transport;
+  SEpSet         mgmtEpSet;
+  void*          pRequest;
+  uint64_t       requestId;
+  int64_t        requestSelf;
+  bool           tbFromHash;      
+  SHashObj*      pVgroupHash;
+  SArray*        pVgroupList;
+  SSHashObj*     pTableHash;
+  int64_t        tbRemainNum;
+  STableBufInfo  tbBuf;
+  char           firstName[TSDB_TABLE_NAME_LEN];
   STSchema      *pTSchema;
   STableDataCxt *pDataCtx;
   void          *boundTags;
