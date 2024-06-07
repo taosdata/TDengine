@@ -174,7 +174,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
 
   insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
                       pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
-
+  pTag = NULL;
+  
 end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
@@ -184,6 +185,7 @@ end:
   }
   taosArrayDestroy(pTagArray);
   taosArrayDestroy(tagName);
+  taosMemoryFree(pTag);
 
   return code;
 }
@@ -200,7 +202,7 @@ int32_t convertStmtNcharCol(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_MULTI_BIND*
 
   if (NULL == dst->length) {
     dst->length = taosMemoryRealloc(dst->length, sizeof(int32_t) * src->num);
-    if (NULL == dst->buffer) {
+    if (NULL == dst->length) {
       taosMemoryFreeClear(dst->buffer);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -457,7 +459,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     pNewTb->pCreateTbReq = NULL;
 
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
-    if (NULL == pNewTb) {
+    if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
