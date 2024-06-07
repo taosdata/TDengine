@@ -26,6 +26,8 @@ struct SStreamTaskIter {
   SStreamTask *pTask;
 };
 
+int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId);
+
 SStreamTaskIter* createStreamTaskIter(SStreamObj* pStream) {
   SStreamTaskIter* pIter = taosMemoryCalloc(1, sizeof(SStreamTaskIter));
   if (pIter == NULL) {
@@ -613,7 +615,7 @@ int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
       taosArrayRemove(pExecNode->pTaskList, k);
 
       int32_t num = taosArrayGetSize(pExecNode->pTaskList);
-      mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)pRemovedId->taskId, num);
+      mInfo("s-task:0x%x removed from buffer, remain:%d in buffer list", (int32_t)pRemovedId->taskId, num);
       break;
     }
   }
@@ -621,9 +623,26 @@ int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
   return TSDB_CODE_SUCCESS;
 }
 
-void removeInvalidTasks(SArray *pTaskIds) {
+void removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo* pExecInfo) {
   for (int32_t i = 0; i < taosArrayGetSize(pTaskIds); ++i) {
     STaskId *pId = taosArrayGet(pTaskIds, i);
-    doRemoveTasks(&execInfo, pId);
+    doRemoveTasks(pExecInfo, pId);
   }
+}
+
+void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
+  taosThreadMutexLock(&pExecNode->lock);
+
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
+
+    STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+    doRemoveTasks(pExecNode, &id);
+  }
+
+  ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
+  taosThreadMutexUnlock(&pExecNode->lock);
+
+  destroyStreamTaskIter(pIter);
 }

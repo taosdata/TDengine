@@ -22,7 +22,7 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static void extractStreamTasks(SMnode *pMnode) {
+static void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo* pExecInfo) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
@@ -33,18 +33,18 @@ static void extractStreamTasks(SMnode *pMnode) {
       break;
     }
 
-    saveStreamTasksInfo(pStream, &execInfo);
+    saveTaskAndNodeInfoIntoBuf(pStream, pExecInfo);
     sdbRelease(pSdb, pStream);
   }
 }
 
-static void removeDroppedStreams(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
+static void removeDroppedStreamTasksInBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   int32_t num = taosArrayGetSize(pExecInfo->pTaskList);
 
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  SArray   *pIdList = taosArrayInit(4, sizeof(STaskId));
 
-  SArray* pInvalid = taosArrayInit(4, sizeof(STaskId));
-  for(int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < num; ++i) {
     STaskId* pId = taosArrayGet(pExecInfo->pTaskList, i);
 
     void* p = taosHashGet(pHash, &pId->streamId, sizeof(int64_t));
@@ -57,11 +57,13 @@ static void removeDroppedStreams(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
       mndReleaseStream(pMnode, pObj);
       taosHashPut(pHash, &pId->streamId, sizeof(int64_t), NULL, 0);
     } else {
-      taosArrayPush(pInvalid, pId);
+      taosArrayPush(pIdList, pId);
     }
   }
 
-  removeInvalidTasks(pInvalid);
+  removeTasksInBuf(pIdList, &execInfo);
+
+  taosArrayDestroy(pIdList);
   taosHashCleanup(pHash);
 }
 
@@ -286,11 +288,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // extract stream task list
   if (taosHashGetSize(execInfo.pTaskMap) == 0) {
-    extractStreamTasks(pMnode);
+    addAllStreamTasksIntoBuf(pMnode, &execInfo);
   } else {
     // the already dropped tasks may be added by hb from vnode at the time when the pTaskMap happens to be empty.
     // let's drop them here.
-    removeDroppedStreams(pMnode, &execInfo);
+    removeDroppedStreamTasksInBuf(pMnode, &execInfo);
   }
 
   extractStreamNodeList(pMnode);
