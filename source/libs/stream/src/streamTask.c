@@ -624,18 +624,19 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
   SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if (pInfo != NULL) {
+  if ((pInfo != NULL) && pInfo->dataAllowed) {
     pInfo->dataAllowed = false;
     int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    ASSERT(t <= streamTaskGetNumOfUpstream(pTask));
   }
 }
 
 void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
   SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if (pInfo != NULL) {
-    pInfo->dataAllowed = true;
+  if ((pInfo != NULL) && (!pInfo->dataAllowed)) {
     int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
     ASSERT(t >= 0);
+    pInfo->dataAllowed = true;
   }
 }
 

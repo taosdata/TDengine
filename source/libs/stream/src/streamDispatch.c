@@ -246,6 +246,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
     code = tInitStreamDispatchReq(pReq, pTask, pData->srcVgId, numOfBlocks, downstreamTaskId, pData->type);
     if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pReq);
       return code;
     }
 
@@ -730,8 +731,8 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   } else {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug(
-        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), quit from timer and clear "
-        "checkpoint-ready msg, ref:%d",
+        "s-task:%s vgId:%d recv of checkpoint-ready msg confirmed by all upstream task(s), clear checkpoint-ready msg "
+        "and quit from timer, ref:%d",
         id, vgId, ref);
 
     streamClearChkptReadyMsg(pTask);
