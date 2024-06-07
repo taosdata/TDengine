@@ -192,12 +192,6 @@ int32_t getCfIdx(const char* cfName) {
 
 bool isValidCheckpoint(const char* dir) {
   return true;
-  STaskDbWrapper* pDb = taskDbOpenImpl(NULL, NULL, (char*)dir);
-  if (pDb == NULL) {
-    return false;
-  }
-  taskDbDestroy(pDb, false);
-  return true;
 }
 
 int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
@@ -2050,13 +2044,18 @@ void taskDbDestroy(void* pDb, bool flush) {
       rocksdb_flushoptions_destroy(flushOpt);
     }
   }
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) {
-      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+
+  if (wrapper->pCf != NULL) {
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) {
+        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+      }
     }
   }
 
-  if (wrapper->db) rocksdb_close(wrapper->db);
+  if (wrapper->db) {
+    rocksdb_close(wrapper->db);
+  }
 
   rocksdb_options_destroy(wrapper->dbOpt);
   rocksdb_readoptions_destroy(wrapper->readOpt);

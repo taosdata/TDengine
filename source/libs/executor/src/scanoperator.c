@@ -3845,17 +3845,19 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
     if (pInput->rowIdx == -1) {
       continue;
     }
+
     if (pInput->type == SUB_TABLE_MEM_BLOCK) {
       pInput->rowIdx = 0;
       pInput->pageIdx = -1;
     }
+
     pInput->pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
     SColumnInfoData* col = taosArrayGet(pInput->pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
     pInput->aTs = (int64_t*)col->pData;
   }
+
   __merge_compare_fn_t mergeCompareFn = (!pSubTblsInfo->pPkOrderInfo) ? subTblRowCompareTsFn : subTblRowCompareTsPkFn;
-  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
-  return  TSDB_CODE_SUCCESS;
+  return tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
 }
 
 static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {

@@ -454,7 +454,12 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     scanPathOptSetGroupOrderScan(info.pScan);
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
-    info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+    if (pCxt->pPlanCxt->streamQuery) {
+      info.pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD; // always load all data for stream query
+    } else {
+      info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+    }
+
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
   }
   if (TSDB_CODE_SUCCESS == code && info.pScan) {

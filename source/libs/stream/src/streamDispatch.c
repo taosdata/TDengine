@@ -120,10 +120,10 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
       return code;
     }
 
-    buf = NULL;
     stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
             pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
   }
+
   return code;
 }
 
@@ -250,6 +250,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
     code = tInitStreamDispatchReq(pReq, pTask, pData->srcVgId, numOfBlocks, downstreamTaskId, pData->type);
     if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pReq);
       return code;
     }
 
@@ -970,7 +971,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
                 id, pTask->chkInfo.checkpointingId);
         { // send checkpoint failure msg to mnode directly
           pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;   // record the latest failed checkpoint id
-          pTask->chkInfo.checkpointingId = pTask->chkInfo.checkpointingId;
           streamTaskSendCheckpointSourceRsp(pTask);
         }
       } else {
