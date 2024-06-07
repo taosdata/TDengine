@@ -766,7 +766,13 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
 static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->dbname) == 0 || strcasecmp(conflict, pTrans->stbname) == 0) return true;
+  if (strcasecmp(conflict, pTrans->dbname) == 0) return true;
+  return false;
+}
+
+static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
+  if (conflict[0] == 0) return false;
+  if (strcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -786,17 +792,17 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
       if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
       }
     }
 

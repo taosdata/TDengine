@@ -18,7 +18,6 @@
 // extern dependencies
 typedef struct {
   int32_t    fid;
-  bool       hasDataToCommit;
   STFileSet *fset;
 } SFileSetCommitInfo;
 
@@ -185,10 +184,6 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
     } else if (record->skey > committer->ctx->maxKey) {
       // committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
     } else {
-      if (record->ekey > committer->ctx->maxKey) {
-        // committer->ctx->nextKey = TMIN(committer->ctx->nextKey, committer->ctx->maxKey + 1);
-      }
-
       record->skey = TMAX(record->skey, committer->ctx->minKey);
       record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
 
@@ -510,36 +505,25 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitInfoAdd(STsdb *tsdb, const SFileSetCommitInfo *info) {
+static int32_t tsdbCommitInfoAdd(STsdb *tsdb, int32_t fid) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SFileSetCommitInfo *tinfo;
 
-  vHashGet(tsdb->commitInfo->ht, info, (void **)&tinfo);
-  if (tinfo) {
-    if (info->hasDataToCommit && !tinfo->hasDataToCommit) {
-      tinfo->hasDataToCommit = true;
-    }
-  } else {
-    if ((tinfo = taosMemoryCalloc(1, sizeof(*tinfo))) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-    }
-    tinfo->fid = info->fid;
-    tinfo->hasDataToCommit = info->hasDataToCommit;
-    if (info->fset) {
-      code = tsdbTFileSetInitCopy(tsdb, info->fset, &tinfo->fset);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    code = vHashPut(tsdb->commitInfo->ht, tinfo);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-    }
-    taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
+  if ((tinfo = taosMemoryMalloc(sizeof(*tinfo))) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
+  tinfo->fid = fid;
+  tinfo->fset = NULL;
+
+  code = vHashPut(tsdb->commitInfo->ht, tinfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if ((taosArrayPush(tsdb->commitInfo->arr, &tinfo)) == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
+  taosArraySort(tsdb->commitInfo->arr, tFileSetCommitInfoPCompare);
 
 _exit:
   if (code) {
@@ -558,26 +542,17 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   code = tsdbCommitInfoInit(tsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  taosThreadMutexLock(&tsdb->mutex);
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    SFileSetCommitInfo info = {
-        .fid = fset->fid,
-        .hasDataToCommit = false,
-        .fset = fset,
-    };
-    if ((code = tsdbCommitInfoAdd(tsdb, &info))) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-  }
-  taosThreadMutexUnlock(&tsdb->mutex);
-
+  // scan time-series data
   iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
   for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
     STbData *pTbData = TCONTAINER_OF(node, STbData, rbtn);
 
     // scan time-series data
-    for (TSDBKEY from = {INT64_MIN, INT64_MIN};;) {
+    TSDBKEY from = {
+        INT64_MIN,
+        INT64_MIN,
+    };
+    for (;;) {
       int64_t     minKey, maxKey;
       STbDataIter tbDataIter = {0};
       TSDBROW    *row;
@@ -591,33 +566,76 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
       fid = tsdbKeyFid(TSDBROW_TS(row), tsdb->keepCfg.days, tsdb->keepCfg.precision);
       tsdbFidKeyRange(fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
 
-      SFileSetCommitInfo info = {
-          .fid = fid,
-          .hasDataToCommit = true,
-          .fset = NULL,
+      SFileSetCommitInfo *info;
+      SFileSetCommitInfo  tinfo = {
+           .fid = fid,
       };
-      code = tsdbCommitInfoAdd(tsdb, &info);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
+      if (info == NULL) {
+        code = tsdbCommitInfoAdd(tsdb, fid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
 
       from.ts = maxKey + 1;
     }
+  }
 
-    // scan tomb data
-    for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
-      for (int32_t i = taosArrayGetSize(tsdb->commitInfo->arr) - 1; i >= 0; i--) {
-        int64_t             minKey, maxKey;
-        SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
+  taosThreadMutexLock(&tsdb->mutex);
 
-        tsdbFidKeyRange(info->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
+  // scan tomb data
+  if (tsdb->imem->nDel > 0) {
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      if (tsdbTFileSetIsEmpty(fset)) {
+        continue;
+      }
 
-        if (pDelData->sKey > maxKey || pDelData->eKey < minKey) {
-          continue;
-        } else if (!info->hasDataToCommit) {
-          info->hasDataToCommit = true;
+      SFileSetCommitInfo *info;
+      SFileSetCommitInfo  tinfo = {
+           .fid = fset->fid,
+      };
+
+      // check if the file set already on the commit list
+      vHashGet(tsdb->commitInfo->ht, &tinfo, (void **)&info);
+      if (info != NULL) {
+        continue;
+      }
+
+      int64_t minKey, maxKey;
+      bool    hasDataToCommit = false;
+      tsdbFidKeyRange(fset->fid, tsdb->keepCfg.days, tsdb->keepCfg.precision, &minKey, &maxKey);
+      iter = tRBTreeIterCreate(tsdb->imem->tbDataTree, 1);
+      for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+        STbData *pTbData = TCONTAINER_OF(node, STbData, rbtn);
+        for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
+          if (pDelData->sKey > maxKey || pDelData->eKey < minKey) {
+            continue;
+          } else {
+            hasDataToCommit = true;
+            if ((code = tsdbCommitInfoAdd(tsdb, fset->fid))) {
+              taosThreadMutexUnlock(&tsdb->mutex);
+              TSDB_CHECK_CODE(code, lino, _exit);
+            }
+            break;
+          }
+        }
+
+        if (hasDataToCommit) {
+          break;
         }
       }
     }
   }
+
+  // begin tasks on file set
+  for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
+    SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
+    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
+    if (fset) {
+      tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
+    }
+  }
+
+  taosThreadMutexUnlock(&tsdb->mutex);
 
 _exit:
   if (code) {
@@ -645,16 +663,6 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
 
   code = tsdbCommitInfoBuild(tsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  STFileSet *fset;
-  taosThreadMutexLock(&tsdb->mutex);
-  for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
-    SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    if (info->hasDataToCommit && info->fset) {
-      tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
-    }
-  }
-  taosThreadMutexUnlock(&tsdb->mutex);
 
 _exit:
   if (code) {
@@ -728,10 +736,8 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
 
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       committer.ctx->info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-      if (committer.ctx->info->hasDataToCommit) {
-        code = tsdbCommitFileSet(&committer);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+      code = tsdbCommitFileSet(&committer);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     code = tsdbCloseCommitter(&committer, code);
@@ -764,7 +770,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
 
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-      if (info->hasDataToCommit && info->fset) {
+      if (info->fset) {
         tsdbFinishTaskOnFileSet(tsdb, info->fid);
       }
     }
@@ -796,7 +802,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   taosThreadMutexLock(&pTsdb->mutex);
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
-    if (info->hasDataToCommit && info->fset) {
+    if (info->fset) {
       tsdbFinishTaskOnFileSet(pTsdb, info->fid);
     }
   }

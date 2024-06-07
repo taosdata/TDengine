@@ -12,13 +12,13 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
 else
   OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
-  len=$(echo ${#OS})
+  len="${#OS}"
   len=$((len - 2))
-  TD_OS=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+  TD_OS=$(echo -ne "${OS:1:${len}}" | cut -d" " -f1)
 fi
 
-UNAME_BIN=$(which uname)
-OS_TYPE=$($UNAME_BIN)
+# UNAME_BIN=$(which uname)
+# OS_TYPE=$($UNAME_BIN)
 
 cd .
 
@@ -46,7 +46,7 @@ fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 declare -x SIM_DIR=$TOP_DIR/sim
-PROGRAM=$BUILD_DIR/build/bin/tsim
+# PROGRAM=$BUILD_DIR/build/bin/tsim
 PRG_DIR=$SIM_DIR/tsim
 ASAN_DIR=$SIM_DIR/asan
 
@@ -58,12 +58,18 @@ echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "ASAN_DIR  : $ASAN_DIR"
 
-rm -rf $SIM_DIR/*
+# # prevent delete / folder or /usr/bin 
+# if [ ${#SIM_DIR} -lt 10 ]; then
+#   echo "len(SIM_DIR) < 10 , danger so exit. SIM_DIR=$SIM_DIR"
+#   exit 1
+# fi
+
+rm -rf "${SIM_DIR:?}"/*
 
 mkdir -p $PRG_DIR
 mkdir -p $ASAN_DIR
 
-cd $CODE_DIR
+cd "$CODE_DIR" || exit
 ulimit -n 600000
 ulimit -c unlimited
 
@@ -72,33 +78,35 @@ ulimit -c unlimited
 echo "ExcuteCmd:" $*
 
 if [[ "$TD_OS" == "Alpine" ]]; then
-  $*
+  "$@"
 else
   AsanFile=$ASAN_DIR/psim.info
-  echo "AsanFile:" $AsanFile
+  echo "AsanFile:" "$AsanFile"
 
   unset LD_PRELOAD
   #export LD_PRELOAD=libasan.so.5
   #export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-  export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
+  asan_so="$(realpath "$(gcc -print-file-name=libasan.so)")"
+  stdc_so="$(realpath "$(gcc -print-file-name=libstdc++.so)")"
+  export LD_PRELOAD="$asan_so $stdc_so"
   echo "Preload AsanSo:" $?
 
-  $* -a 2>$AsanFile
-
+  "$@" -a 2> "$AsanFile" 
+  cat "$AsanFile"
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
-    AsanFileLen=$(cat $AsanFile | wc -l)
-    echo "AsanFileLen:" $AsanFileLen
-    if [ $AsanFileLen -gt 10 ]; then
+    AsanFileLen=$(cat "$AsanFile" | wc -l)
+    echo "AsanFileLen:" "$AsanFileLen"
+    if [ "$AsanFileLen" -gt 10 ]; then
       break
     fi
     sleep 1
   done
   # check case successful
-  AsanFileSuccessLen=$(grep -w "successfully executed" $AsanFile | wc -l)
-  echo "AsanFileSuccessLen:" $AsanFileSuccessLen
+  AsanFileSuccessLen=$(grep -wc "successfully executed" "$AsanFile" )
+  echo "AsanFileSuccessLen:" "$AsanFileSuccessLen"
 
-  if [ $AsanFileSuccessLen -gt 0 ]; then
+  if [ "$AsanFileSuccessLen" -gt 0 ]; then
     echo "Execute script successfully and check asan"
     $CODE_DIR/../script/sh/checkAsan.sh
   else
