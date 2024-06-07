@@ -162,7 +162,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
-    } else if (type == STREAM_INPUT__CHECKPOINT) {
+    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       SPackedData tmp = {.pDataBlock = input};
       taosArrayPush(pInfo->pBlockLists, &tmp);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
