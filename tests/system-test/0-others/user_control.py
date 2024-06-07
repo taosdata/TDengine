@@ -512,6 +512,17 @@ class TDTestCase:
         else:
             tdLog.exit("connect successfully, except error not occrued!")
 
+    def test_alter_user(self):
+        options = ["enable", "sysinfo", "createdb"]
+        optionErrVals = [-10000, -128, -1, 2, 127, 10000]
+        for optionErrVal in optionErrVals:
+            tdSql.error("create user user_alter pass 'taosdata' sysinfo %d" % optionErrVal)
+        tdSql.execute("create user user_alter pass 'taosdata'")
+        for option in options:
+            for optionErrVal in optionErrVals:
+                tdSql.error("alter user user_alter %s %d" % (option, optionErrVal))
+        tdSql.execute("drop user user_alter")
+
     def __drop_user(self, user):
         return f"DROP USER {user}"
 
@@ -720,8 +731,12 @@ class TDTestCase:
         else:
             tdLog.info("taos 4 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
 
+        # alter 用户测试
+        tdLog.printNoPrefix("==========step7: alter ordinary user")
+        self.test_alter_user()
+
         # root删除用户测试
-        tdLog.printNoPrefix("==========step7: super user drop normal user")
+        tdLog.printNoPrefix("==========step8: super user drop normal user")
         self.test_drop_user()
 
         tdSql.query("show users")
