@@ -36,7 +36,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pShow->numOfRows < 1) {
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, TD_PRODUCT_NAME, 32);
+    const char      *src = TD_PRODUCT_NAME;
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     GRANT_ITEM_SHOW("unlimited");
