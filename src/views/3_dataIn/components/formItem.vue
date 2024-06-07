@@ -113,6 +113,17 @@
           {{ config.action_text }}
         </el-button>
       </div>
+      <div v-if="config.type == 'composeAppend'">
+        <el-input :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="append" :placeholder="$t('timeUnit')">
+            <el-option v-for="item in getOptions()"
+              :key="item.value"
+              v-bind="item"
+              :title="item.label"
+            ></el-option>
+          </el-select>
+        </el-input>
+      </div>
 
       <UploadCsv
         v-if="config.type == 'file'"
@@ -515,6 +526,22 @@ export default {
       padding: 0px;
       border: none;
       background-color: unset;
+    }
+  }
+}
+.input-with-select {
+  ::v-deep .el-input-group__prepend {
+    background-color: #fff;
+    border-color: #bebcbc;
+    .el-input__inner {
+      box-shadow: none;
+    }
+  }
+  ::v-deep .el-input-group__append {
+    background-color: #fff;
+    border-color: #bebcbc;
+    .el-input__inner {
+      box-shadow: none;
     }
   }
 }

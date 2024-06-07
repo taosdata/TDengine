@@ -111,6 +111,7 @@ export default {
   start: "start",
   end: "end",
   userName: "User Name",
+  timeUnit: "Time unit",
   phone: "Phone",
   country: "Country",
   companyName: "Company",

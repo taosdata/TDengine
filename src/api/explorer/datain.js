@@ -132,6 +132,10 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
             if (cfgParams[i].hint?.type === 'compose') {
                 cfgParams[i].type_value = dataParams[key + '_type'];
             }
+            if (cfgParams[i].hint?.type === 'composeAppend') {
+                cfgParams[i].type_value = dataParams[key + '_type'];
+                cfgParams[i].value = dataParams[key] ? dataParams[key].match(/\d+/)[0] : '';
+            }
         }
     }
     return haveAvailable;

@@ -74,6 +74,7 @@ export default {
   back: "返回",
   date: "日期",
   time: "时间",
+  timeUnit: "时间单位",
   status: "状态",
   events: "事件",
   user: "用户",
