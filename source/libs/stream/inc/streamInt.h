@@ -224,8 +224,7 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
 typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 
 int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code);
-void    doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_t* pVer, const char* id);
-int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks);
+void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
 
 #ifdef __cplusplus
 }
