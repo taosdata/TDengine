@@ -1514,7 +1514,10 @@ int stmtClose(TAOS_STMT* stmt) {
 
   pStmt->queue.stopQueue = true;
 
-  taosMsleep(10);
+  if (pStmt->bindThreadInUse) {
+    taosThreadJoin(pStmt->bindThread, NULL);
+    pStmt->bindThreadInUse = false;
+  }
 
   STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64 ", parseSqlNum=>%" PRId64
     ", pStmt->stat.bindDataNum=>%" PRId64 ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
