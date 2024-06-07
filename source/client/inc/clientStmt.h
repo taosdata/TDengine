@@ -121,6 +121,7 @@ typedef struct SStmtStatInfo {
 } SStmtStatInfo;
 
 typedef struct SStmtQNode {
+  bool                 restoreTbCols;
   STableColsData       tblData;
   struct SStmtQNode*   next;
 } SStmtQNode;

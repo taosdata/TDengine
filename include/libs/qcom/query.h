@@ -247,6 +247,7 @@ typedef struct SStbInterlaceInfo {
   STableDataCxt *pDataCtx;
   void          *boundTags;
 
+  bool           tableColsReady;
   SArray        *pTableCols;
   int32_t        pTableColsIdx;
 } SStbInterlaceInfo;
