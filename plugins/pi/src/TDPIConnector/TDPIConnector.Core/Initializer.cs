@@ -48,8 +48,10 @@ namespace TDPIConnector.Core
             if (AppSettings.tomlConfig.ForBackfill)
             {
                 attries.Clear();
-                backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
-                                AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
+                if (superTable.HasValidColumn()) {
+                    backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                    AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
+                }
             }
             else
             {
@@ -57,9 +59,12 @@ namespace TDPIConnector.Core
                 attries.Clear();
                 if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
                 {
-                    var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
-                    backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, backfillStartLimit, DateTime.UtcNow);
-                    log.Info($"Backfill started successfully.");
+                    if (superTable.HasValidColumn())
+                    {
+                        var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+                        backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, backfillStartLimit, DateTime.UtcNow);
+                        log.Info($"Backfill started successfully.");
+                    }
                 }
             }
         }
@@ -92,7 +97,6 @@ namespace TDPIConnector.Core
         {
             //check for associated supertable, create if needed
             var superTable = TemplateSTableConverter.Convert(elementTemplate);
-            if (!superTable.HasValidColumn()) return;
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
             //get all elements based on template
