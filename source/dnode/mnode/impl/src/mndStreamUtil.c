@@ -646,3 +646,45 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
 
   destroyStreamTaskIter(pIter);
 }
+
+static bool taskNodeExists(SArray *pList, int32_t nodeId) {
+  size_t num = taosArrayGetSize(pList);
+
+  for (int32_t i = 0; i < num; ++i) {
+    SNodeEntry *pEntry = taosArrayGet(pList, i);
+    if (pEntry->nodeId == nodeId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot) {
+  SArray *pRemovedTasks = taosArrayInit(4, sizeof(STaskId));
+
+  int32_t numOfTask = taosArrayGetSize(execInfo.pTaskList);
+  for (int32_t i = 0; i < numOfTask; ++i) {
+    STaskId *pId = taosArrayGet(execInfo.pTaskList, i);
+
+    STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, pId, sizeof(*pId));
+    if (pEntry->nodeId == SNODE_HANDLE) {
+      continue;
+    }
+
+    bool existed = taskNodeExists(pNodeSnapshot, pEntry->nodeId);
+    if (!existed) {
+      taosArrayPush(pRemovedTasks, pId);
+    }
+  }
+
+  removeTasksInBuf(pRemovedTasks, &execInfo);
+
+  mDebug("remove invalid stream tasks:%d, remain:%d", (int32_t)taosArrayGetSize(pRemovedTasks),
+         (int32_t)taosArrayGetSize(execInfo.pTaskList));
+
+  removeExpiredNodeInfo(pNodeSnapshot);
+
+  taosArrayDestroy(pRemovedTasks);
+  return 0;
+}

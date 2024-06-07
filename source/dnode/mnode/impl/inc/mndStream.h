@@ -120,8 +120,9 @@ void             destroyStreamTaskIter(SStreamTaskIter *pIter);
 bool             streamTaskIterNextTask(SStreamTaskIter *pIter);
 SStreamTask     *streamTaskIterGetCurrent(SStreamTaskIter *pIter);
 void             mndInitExecInfo();
-void             removeExpiredNodeInfo(const SArray *pNodeSnapshot);
-void             removeTasksInBuf(SArray* pTaskIds, SStreamExecInfo* pExecInfo);
+void             mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo);
+int32_t          removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
+void             removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
 #ifdef __cplusplus
 }
