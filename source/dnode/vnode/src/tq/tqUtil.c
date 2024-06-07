@@ -176,9 +176,6 @@ end : {
   }
 }
 
-static void tDeleteCommon(void* parm) {
-}
-
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int             code = 0;
