@@ -6581,8 +6581,8 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
                                 int64_t maxVal) {
   if (val >= 0 && (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
-                                   "Invalid option %s: %" PRId64 " valid range: [%" PRId64 ", %" PRId64 "]", pName, val,
-                                   minVal, maxVal);
+                                   "Invalid option: %s %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
+                                   val, minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -8456,7 +8456,11 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 }
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
+  int32_t        code = 0;
   SCreateUserReq createReq = {0};
+  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1))) {
+    return code;
+  }
   strcpy(createReq.user, pStmt->userName);
   createReq.createType = 0;
   createReq.superUser = 0;
@@ -8469,13 +8473,33 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
     createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
     memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
   }
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
   return code;
 }
 
+static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
+  int32_t code = 0;
+  switch (pStmt->alterType) {
+    case TSDB_ALTER_USER_ENABLE:
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1);
+      break;
+    case TSDB_ALTER_USER_SYSINFO:
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1);
+      break;
+    case TSDB_ALTER_USER_CREATEDB:
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1);
+      break;
+  }
+  return code;
+}
+
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
+  int32_t       code = 0;
   SAlterUserReq alterReq = {0};
+  if ((code = checkAlterUser(pCxt, pStmt))) {
+    return code;
+  }
   strcpy(alterReq.user, pStmt->userName);
   alterReq.alterType = pStmt->alterType;
   alterReq.superUser = 0;
@@ -8492,7 +8516,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
     memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
   }
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);
   return code;
 }
