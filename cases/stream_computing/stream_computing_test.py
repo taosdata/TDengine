@@ -5096,8 +5096,7 @@ class StreamComputingTest(TDCase):
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, subtable=None, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=1, fill_history_value=fill_history_value)
-                # ! TD-30451
-                # self.at_once_session(session=random.randint(10, 15), ignore_update=1, fill_history_value=fill_history_value)
+                self.at_once_session(session=random.randint(10, 15), ignore_update=1, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value)
                 self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(2, 4)}s", fill_history_value=fill_history_value)
