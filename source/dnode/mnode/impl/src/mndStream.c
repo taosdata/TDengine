@@ -45,9 +45,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
 
-static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
-static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -114,10 +112,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_DROP_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_REQ_CHKPT, mndProcessStreamReqCheckpoint);
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, mndProcessStreamCheckpointInCandid);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_NODECHANGE_CHECK, mndProcessNodeCheckReq);
@@ -886,24 +882,8 @@ int64_t mndStreamGenChkptId(SMnode *pMnode, bool lock) {
     }
   }
 
-  mDebug("generated checkpoint %" PRId64 "", maxChkptId + 1);
+  mDebug("generate new checkpointId:%" PRId64, maxChkptId + 1);
   return maxChkptId + 1;
-}
-
-static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
-    return 0;
-  }
-
-  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = mndStreamGenChkptId(pMnode, true);
-
-  int32_t size = sizeof(SMStreamDoCheckpointMsg);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
-  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  return 0;
 }
 
 static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
@@ -1136,73 +1116,101 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
   return ready ? 0 : -1;
 }
 
+typedef struct {
+  int64_t streamId;
+  int64_t duration;
+} SCheckpointInterval;
+
+static int32_t streamWaitComparFn(const void* p1, const void* p2) {
+  const SCheckpointInterval* pInt1 = p1;
+  const SCheckpointInterval* pInt2 = p2;
+  if (pInt1->duration == pInt2->duration) {
+    return 0;
+  }
+
+  return pInt1->duration > pInt2->duration? -1:1;
+}
+
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   void       *pIter = NULL;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+  int32_t     numOfCheckpointTrans = 0;
 
   if ((code = mndCheckNodeStatus(pMnode)) != 0) {
     return code;
   }
 
-  // make sure the time interval between two consecutive checkpoint trans is long enough
-  SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
+  SArray* pList = taosArrayInit(4, sizeof(SCheckpointInterval));
+  int64_t now = taosGetTimestampMs();
   while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
-    code = mndProcessStreamCheckpointTrans(pMnode, pStream, pMsg->checkpointId, 1, true);
-    sdbRelease(pSdb, pStream);
-    if (code == -1) {
-      break;
-    }
-  }
-
-  return code;
-}
-
-static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  void   *pIter = NULL;
-  int32_t code = 0;
-
-  taosThreadMutexLock(&execInfo.lock);
-  int32_t num = taosHashGetSize(execInfo.transMgmt.pWaitingList);
-  taosThreadMutexUnlock(&execInfo.lock);
-  if (num == 0) {
-    return code;
-  }
-
-  if ((code = mndCheckNodeStatus(pMnode)) != 0) {
-    return code;
-  }
-
-  SArray *pList = taosArrayInit(4, sizeof(int64_t));
-  while ((pIter = taosHashIterate(execInfo.transMgmt.pWaitingList, pIter)) != NULL) {
-    SCheckpointCandEntry *pEntry = pIter;
-
-    SStreamObj *ps = mndAcquireStream(pMnode, pEntry->pName);
-    if (ps == NULL) {
+    int64_t duration = now - pStream->checkpointFreq;
+    if (duration < tsStreamCheckpointInterval * 1000) {
+      sdbRelease(pSdb, pStream);
       continue;
     }
 
-    mDebug("start to launch checkpoint for stream:%s %" PRIx64 " in candidate list", pEntry->pName, pEntry->streamId);
+    SCheckpointInterval in = {.streamId = pStream->uid, .duration = duration};
+    taosArrayPush(pList, &in);
 
-    code = mndProcessStreamCheckpointTrans(pMnode, ps, pEntry->checkpointId, 1, true);
-    mndReleaseStream(pMnode, ps);
+    int32_t currentSize = taosArrayGetSize(pList);
+    mDebug("stream:%s (uid:0x%" PRIx64 ") checkpoint interval beyond threshold: %ds(%" PRId64
+           "s) beyond threshold:%d",
+           pStream->name, pStream->uid, tsStreamCheckpointInterval, duration / 1000, currentSize);
 
-    if (code == TSDB_CODE_SUCCESS) {
-      taosArrayPush(pList, &pEntry->streamId);
+    sdbRelease(pSdb, pStream);
+  }
+
+  int32_t size = taosArrayGetSize(pList);
+  if (size == 0) {
+    taosArrayDestroy(pList);
+    return code;
+  }
+
+  taosArraySort(pList, streamWaitComparFn);
+  mndStreamClearFinishedTrans(pMnode, &numOfCheckpointTrans);
+  int32_t numOfQual = taosArrayGetSize(pList);
+
+  if (numOfCheckpointTrans > tsMaxConcurrentCheckpoint) {
+    mDebug(
+        "%d stream(s) checkpoint interval longer than %ds, ongoing checkpoint trans:%d reach maximum allowed:%d, new "
+        "checkpoint trans are not allowed, wait for 30s",
+        numOfQual, tsStreamCheckpointInterval, numOfCheckpointTrans, tsMaxConcurrentCheckpoint);
+    taosArrayDestroy(pList);
+    return code;
+  }
+
+  int32_t capacity = tsMaxConcurrentCheckpoint - numOfCheckpointTrans;
+  mDebug(
+      "%d stream(s) checkpoint interval longer than %ds, %d ongoing checkpoint trans, %d new checkpoint trans allowed, "
+      "concurrent trans threshold:%d",
+      numOfQual, tsStreamCheckpointInterval, numOfCheckpointTrans, capacity, tsMaxConcurrentCheckpoint);
+
+  int32_t started = 0;
+  int64_t checkpointId = mndStreamGenChkptId(pMnode, true);
+
+  for (int32_t i = 0; i < numOfQual; ++i) {
+    SCheckpointInterval *pCheckpointInfo = taosArrayGet(pList, i);
+
+    SStreamObj *p = mndGetStreamObj(pMnode, pCheckpointInfo->streamId);
+    if (p != NULL) {
+      code = mndProcessStreamCheckpointTrans(pMnode, p, checkpointId, 1, true);
+      sdbRelease(pSdb, p);
+
+      if (code != -1) {
+        started += 1;
+
+        if (started >= capacity) {
+          mDebug("already start %d new checkpoint trans, current active checkpoint trans:%d", started,
+                 (started + numOfCheckpointTrans));
+          break;
+        }
+      }
     }
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
-    int64_t *pId = taosArrayGet(pList, i);
-
-    taosHashRemove(execInfo.transMgmt.pWaitingList, pId, sizeof(*pId));
-  }
-
-  int32_t remain = taosHashGetSize(execInfo.transMgmt.pWaitingList);
-  mDebug("%d in candidate list generated checkpoint, remaining:%d", (int32_t)taosArrayGetSize(pList), remain);
   taosArrayDestroy(pList);
   return code;
 }
@@ -2284,10 +2292,10 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
     return 0;
   }
 
-  SMStreamNodeCheckMsg *pMsg = rpcMallocCont(sizeof(SMStreamNodeCheckMsg));
+  int32_t size = sizeof(SMStreamNodeCheckMsg);
+  SMStreamNodeCheckMsg *pMsg = rpcMallocCont(size);
 
-  SRpcMsg rpcMsg = {
-      .msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = sizeof(SMStreamNodeCheckMsg)};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = size};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   return 0;
 }

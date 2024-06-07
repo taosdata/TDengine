@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbIter.h"
 #include "tsdbReadUtil.h"
 #include "vnd.h"
 
@@ -587,6 +588,13 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
     tsdbCachePutBatch(pLastCol, key, klen, (SCacheFlushState *)ud);
   }
 
+  for (uint8_t i = 0; i < pLastCol->rowKey.numOfPKs; ++i) {
+    SValue *pValue = &pLastCol->rowKey.pks[i];
+    if (IS_VAR_DATA_TYPE(pValue->type)) {
+      taosMemoryFree(pValue->pData);
+    }
+  }
+
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
@@ -763,6 +771,7 @@ int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWrap
     STSchema *pTSchema = NULL;
     code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema);
     if (code != TSDB_CODE_SUCCESS) {
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
       terrno = code;
       return -1;
     }
@@ -1062,15 +1071,17 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
 
     rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
     for (int i = 0; i < num_keys; ++i) {
-      SIdxKey *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
+      SIdxKey        *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       SLastUpdateCtx *updCtx = (SLastUpdateCtx *)taosArrayGet(updCtxArray, i);
-      SRowKey *pRowKey = &updCtx->tsdbRowKey.key;
-      SColVal *pColVal = &updCtx->colVal;
+      SRowKey        *pRowKey = &updCtx->tsdbRowKey.key;
+      SColVal        *pColVal = &updCtx->colVal;
 
       SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i], values_list_sizes[i]);
       SLastCol *PToFree = pLastCol;
 
       if (IS_LAST_KEY(idxKey->key) && !COL_VAL_IS_VALUE(pColVal)) {
+        taosMemoryFreeClear(PToFree);
+        rocksdb_free(values_list[i]);
         continue;
       }
 
@@ -1095,7 +1106,6 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
         *pTmpLastCol = *pLastCol;
         pLastCol = pTmpLastCol;
-
 
         size_t charge = sizeof(*pLastCol);
         for (int8_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
@@ -1147,9 +1157,9 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   // 1. prepare last
   TSDBROW lRow = {.type = TSDBROW_ROW_FMT, .pTSRow = aRow[nRow - 1], .version = version};
 
-  STSchema *pTSchema = NULL;
-  int32_t   sver = TSDBROW_SVERSION(&lRow);
-  SArray   *ctxArray = NULL;
+  STSchema  *pTSchema = NULL;
+  int32_t    sver = TSDBROW_SVERSION(&lRow);
+  SArray    *ctxArray = NULL;
   SSHashObj *iColHash = NULL;
 
   code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema);

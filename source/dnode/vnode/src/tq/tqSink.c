@@ -34,11 +34,12 @@ static int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSData
 static int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2* pReq, int32_t numOfBlocks);
 static int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, int32_t* msgLen);
 static int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDataBlock* pDataBlock,
-                             const char* id);
+                             int64_t earlyTs, const char* id);
 static int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkInfo* pTableSinkInfo,
                                         const char* dstTableName, int64_t* uid);
 static int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId,
                               const char* id);
+static int32_t doRemoveFromCache(SSHashObj* pSinkTableMap, uint64_t groupId, const char* id);
 static bool    isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const char* ctbName, int64_t suid);
 static int32_t initCreateTableMsg(SVCreateTbReq* pCreateTableReq, uint64_t suid, const char* stbFullName,
                                   int32_t numOfTags);
@@ -396,46 +397,6 @@ int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, c
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock, SStreamTask* pTask,
-                                int64_t suid) {
-  SBatchDeleteReq deleteReq = {.suid = suid, .deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq))};
-
-  int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr,
-                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  if (taosArrayGetSize(deleteReq.deleteReqs) == 0) {
-    taosArrayDestroy(deleteReq.deleteReqs);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t len;
-  tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("s-task:%s failed to encode delete request", pTask->id.idStr);
-    return code;
-  }
-
-  SEncoder encoder;
-  void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
-  void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSBatchDeleteReq(&encoder, &deleteReq);
-  tEncoderClear(&encoder);
-  taosArrayDestroy(deleteReq.deleteReqs);
-
-  ((SMsgHead*)serializedDeleteReq)->vgId = TD_VID(pVnode);
-
-  SRpcMsg msg = {.msgType = TDMT_VND_BATCH_DEL, .pCont = serializedDeleteReq, .contLen = len + sizeof(SMsgHead)};
-  if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-    tqDebug("failed to put delete req into write-queue since %s", terrstr());
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 bool isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const char* ctbName, int64_t suid) {
   if (pReader->me.type != TSDB_CHILD_TABLE) {
     tqError("vgId:%d, failed to write into %s, since table type:%d incorrect", vgId, ctbName, pReader->me.type);
@@ -482,23 +443,6 @@ SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, in
   // set table name
   setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId, newSubTableRule);
   return pCreateTbReq;
-}
-
-int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId, const char* id) {
-  if (tSimpleHashGetSize(pSinkTableMap) > MAX_CACHE_TABLE_INFO_NUM) {
-    taosMemoryFreeClear(pTableSinkInfo);  // too many items, failed to cache it
-    return TSDB_CODE_FAILED;
-  }
-
-  int32_t code = tSimpleHashPut(pSinkTableMap, &groupId, sizeof(uint64_t), &pTableSinkInfo, POINTER_BYTES);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFreeClear(pTableSinkInfo);
-  } else {
-    tqDebug("s-task:%s new dst table:%s(uid:%" PRIu64 ") added into cache, total:%d", id, pTableSinkInfo->name.data,
-            pTableSinkInfo->uid, tSimpleHashGetSize(pSinkTableMap));
-  }
-
-  return code;
 }
 
 int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, int32_t* msgLen) {
@@ -552,7 +496,8 @@ int32_t tsAscendingSortFn(const void* p1, const void* p2) {
   }
 }
 
-int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDataBlock* pDataBlock, const char* id) {
+int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDataBlock* pDataBlock, int64_t earlyTs,
+                      const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -581,6 +526,14 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
         ts = *(int64_t*)colDataGetData(pColData, j);
         tqTrace("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, ts);
+
+        if (ts < earlyTs) {
+          tqError("s-task:%s ts:%" PRId64 " of generated results out of valid time range %" PRId64 " , discarded", id,
+                  ts, earlyTs);
+          pTableData->aRowP = taosArrayDestroy(pTableData->aRowP);
+          taosArrayDestroy(pVals);
+          return TSDB_CODE_SUCCESS;
+        }
       }
 
       if (IS_SET_NULL(pCol)) {
@@ -605,8 +558,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
           dataIndex++;
         } else {
           void* colData = colDataGetData(pColData, j);
-          if (IS_VAR_DATA_TYPE(pCol->type)) {
-            // address copy, no value
+          if (IS_VAR_DATA_TYPE(pCol->type)) { // address copy, no value
             SValue sv =
                 (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
@@ -796,34 +748,26 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 }
 
 int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                               SSubmitTbData* pTableData, const char* id) {
+                               SSubmitTbData* pTableData, int64_t earlyTs, const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
+  char*   dstTableName = pDataBlock->info.parTbName;
 
   tqDebug("s-task:%s sink data pipeline, build submit msg from %dth resBlock, including %d rows, dst suid:%" PRId64, id,
           blockIndex + 1, numOfRows, suid);
-  char* dstTableName = pDataBlock->info.parTbName;
 
   // convert all rows
-  int32_t code = doConvertRows(pTableData, pTSchema, pDataBlock, id);
+  int32_t code = doConvertRows(pTableData, pTSchema, pDataBlock, earlyTs, id);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("s-task:%s failed to convert rows from result block, code:%s", id, tstrerror(terrno));
     return code;
   }
 
-  taosArraySort(pTableData->aRowP, tsAscendingSortFn);
-  tqTrace("s-task:%s build submit msg for dstTable:%s, numOfRows:%d", id, dstTableName, numOfRows);
-  return code;
-}
-
-bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks) {
-  for (int32_t i = 0; i < numOfBlocks; ++i) {
-    SSDataBlock* p = taosArrayGet(pBlocks, i);
-    if (p->info.type == STREAM_DELETE_RESULT || p->info.type == STREAM_CREATE_CHILD_TABLE) {
-      return false;
-    }
+  if (pTableData->aRowP != NULL) {
+    taosArraySort(pTableData->aRowP, tsAscendingSortFn);
+    tqTrace("s-task:%s build submit msg for dstTable:%s, numOfRows:%d", id, dstTableName, numOfRows);
   }
 
-  return true;
+  return code;
 }
 
 void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
@@ -836,6 +780,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   int32_t       numOfBlocks = taosArrayGetSize(pBlocks);
   int32_t       code = TSDB_CODE_SUCCESS;
   const char*   id = pTask->id.idStr;
+  int64_t       earlyTs = tsdbGetEarliestTs(pVnode->pTsdb);
 
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData) {
@@ -870,8 +815,13 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
           continue;
         }
 
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
-        if (code != TSDB_CODE_SUCCESS) {
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, earlyTs, id);
+        if (code != TSDB_CODE_SUCCESS || tbData.aRowP == NULL) {
+          if (tbData.pCreateTbReq != NULL) {
+            tdDestroySVCreateTbReq(tbData.pCreateTbReq);
+            doRemoveFromCache(pTask->outputInfo.tbSink.pTblInfo, pDataBlock->info.id.groupId, id);
+            tbData.pCreateTbReq = NULL;
+          }
           continue;
         }
 
@@ -918,8 +868,13 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
           continue;
         }
 
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
-        if (code != TSDB_CODE_SUCCESS) {
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, earlyTs, id);
+        if (code != TSDB_CODE_SUCCESS || tbData.aRowP == NULL) {
+          if (tbData.pCreateTbReq != NULL) {
+            tdDestroySVCreateTbReq(tbData.pCreateTbReq);
+            doRemoveFromCache(pTask->outputInfo.tbSink.pTblInfo, groupId, id);
+            tbData.pCreateTbReq = NULL;
+          }
           continue;
         }
 
@@ -928,8 +883,12 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         int32_t size = (int32_t)taosArrayGetSize(submitReq.aSubmitTbData) - 1;
         taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
       } else {
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, id);
-        if (code != TSDB_CODE_SUCCESS) {
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, earlyTs, id);
+        if (code != TSDB_CODE_SUCCESS || tbData.aRowP == NULL) {
+          if (tbData.pCreateTbReq != NULL) {
+            tdDestroySVCreateTbReq(tbData.pCreateTbReq);
+            tbData.pCreateTbReq = NULL;
+          }
           continue;
         }
 
@@ -952,4 +911,83 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       tqDebug("vgId:%d, s-task:%s write results completed", vgId, id);
     }
   }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks) {
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock* p = taosArrayGet(pBlocks, i);
+    if (p->info.type == STREAM_DELETE_RESULT || p->info.type == STREAM_CREATE_CHILD_TABLE) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int32_t doPutIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId, const char* id) {
+  if (tSimpleHashGetSize(pSinkTableMap) > MAX_CACHE_TABLE_INFO_NUM) {
+    taosMemoryFreeClear(pTableSinkInfo);  // too many items, failed to cache it
+    return TSDB_CODE_FAILED;
+  }
+
+  int32_t code = tSimpleHashPut(pSinkTableMap, &groupId, sizeof(uint64_t), &pTableSinkInfo, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pTableSinkInfo);
+  } else {
+    tqDebug("s-task:%s new dst table:%s(uid:%" PRIu64 ") added into cache, total:%d", id, pTableSinkInfo->name.data,
+            pTableSinkInfo->uid, tSimpleHashGetSize(pSinkTableMap));
+  }
+
+  return code;
+}
+
+int32_t doRemoveFromCache(SSHashObj* pSinkTableMap, uint64_t groupId, const char* id) {
+  if (tSimpleHashGetSize(pSinkTableMap) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = tSimpleHashRemove(pSinkTableMap, &groupId, sizeof(groupId));
+  tqDebug("s-task:%s remove cached table meta for groupId:%" PRId64, id, groupId);
+  return code;
+}
+
+int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock, SStreamTask* pTask,
+                                int64_t suid) {
+  SBatchDeleteReq deleteReq = {.suid = suid, .deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq))};
+
+  int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr,
+                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && pTask->subtableWithoutMd5 != 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosArrayGetSize(deleteReq.deleteReqs) == 0) {
+    taosArrayDestroy(deleteReq.deleteReqs);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t len;
+  tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("s-task:%s failed to encode delete request", pTask->id.idStr);
+    return code;
+  }
+
+  SEncoder encoder;
+  void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
+  void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
+  tEncoderInit(&encoder, abuf, len);
+  tEncodeSBatchDeleteReq(&encoder, &deleteReq);
+  tEncoderClear(&encoder);
+  taosArrayDestroy(deleteReq.deleteReqs);
+
+  ((SMsgHead*)serializedDeleteReq)->vgId = TD_VID(pVnode);
+
+  SRpcMsg msg = {.msgType = TDMT_VND_BATCH_DEL, .pCont = serializedDeleteReq, .contLen = len + sizeof(SMsgHead)};
+  if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+    tqDebug("failed to put delete req into write-queue since %s", terrstr());
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

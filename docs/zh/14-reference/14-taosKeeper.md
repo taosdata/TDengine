@@ -140,16 +140,9 @@ port = 6041
 username = "root"
 password = "taosdata"
 
-# 需要被监控的 taosAdapter
-[taosAdapter]
-address = ["127.0.0.1:6041"]
-
 [metrics]
 # 监控指标前缀
 prefix = "taos"
-
-# 集群数据的标识符
-cluster = "production"
 
 # 存放监控数据的数据库
 database = "log"
@@ -157,9 +150,22 @@ database = "log"
 # 指定需要监控的普通表
 tables = []
 
-# database options for db storing metrics data
+# 监控数据的配置选项
 [metrics.databaseoptions]
 cachemodel = "none"
+
+[environment]
+# 容器模式收集信息
+incgroup = false
+
+[log]
+# 日志文件滚动个数
+rotationCount = 5
+# 日志文件切割时间
+rotationTime = "24h"
+# 日志文件切割大小 (字节)
+rotationSize = 100000000
+
 ```
 
 ### 获取监控指标
@@ -172,16 +178,16 @@ taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产�
 $ taos
 # 如上示例，使用 log 库作为监控日志存储位置
 > use log;
-> select * from cluster_info limit 1;
+> select * from taosd_cluster_info limit 1;
 ```
 
 结果示例：
 
 ```shell
-           ts            |            first_ep            | first_ep_dnode_id |   version    |    master_uptime     | monitor_interval |  dbs_total  |  tbs_total  | stbs_total  | dnodes_total | dnodes_alive | mnodes_total | mnodes_alive | vgroups_total | vgroups_alive | vnodes_total | vnodes_alive | connections_total |  protocol   |           cluster_id           |
-===============================================================================================================================================================================================================================================================================================================================================================================
- 2022-08-16 17:37:01.629 | hlb:6030                       |                 1 | 3.0.0.0      |              0.27250 |               15 |           2 |          27 |          38 |            1 |            1 |            1 |            1 |             4 |             4 |            4 |            4 |                14 |           1 | 5981392874047724755            |
-Query OK, 1 rows in database (0.036162s)
+           _ts           |      cluster_uptime       |         dbs_total         |         tbs_total         |        stbs_total         |       vgroups_total       |       vgroups_alive       |       vnodes_total        |       vnodes_alive        |       mnodes_total        |       mnodes_alive        |     connections_total     |       topics_total        |       streams_total       |       dnodes_total        |       dnodes_alive        |    grants_expire_time     |  grants_timeseries_used   |  grants_timeseries_total  |           cluster_id           |
+===================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ 2024-06-04 03:03:34.341 |         0.000000000000000 |         2.000000000000000 |         1.000000000000000 |         4.000000000000000 |         4.000000000000000 |         4.000000000000000 |         4.000000000000000 |         4.000000000000000 |         1.000000000000000 |         1.000000000000000 |         2.000000000000000 |         0.000000000000000 |         0.000000000000000 |         1.000000000000000 |         1.000000000000000 |         0.000000000000000 |         3.000000000000000 |         0.000000000000000 | 554014120921134497             |
+Query OK, 1 row(s) in set (0.001652s)
 ```
 
 #### 导出监控指标
@@ -193,21 +199,24 @@ $ curl http://127.0.0.1:6043/metrics
 部分结果集：
 
 ```shell
-# HELP taos_cluster_info_connections_total
+# HELP taos_cluster_info_connections_total 
 # TYPE taos_cluster_info_connections_total counter
-taos_cluster_info_connections_total{cluster_id="5981392874047724755"} 16
-# HELP taos_cluster_info_dbs_total
+taos_cluster_info_connections_total{cluster_id="554014120921134497"} 8
+# HELP taos_cluster_info_dbs_total 
 # TYPE taos_cluster_info_dbs_total counter
-taos_cluster_info_dbs_total{cluster_id="5981392874047724755"} 2
-# HELP taos_cluster_info_dnodes_alive
+taos_cluster_info_dbs_total{cluster_id="554014120921134497"} 2
+# HELP taos_cluster_info_dnodes_alive 
 # TYPE taos_cluster_info_dnodes_alive counter
-taos_cluster_info_dnodes_alive{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_dnodes_total
+taos_cluster_info_dnodes_alive{cluster_id="554014120921134497"} 1
+# HELP taos_cluster_info_dnodes_total 
 # TYPE taos_cluster_info_dnodes_total counter
-taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_first_ep
+taos_cluster_info_dnodes_total{cluster_id="554014120921134497"} 1
+# HELP taos_cluster_info_first_ep 
 # TYPE taos_cluster_info_first_ep gauge
-taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
+taos_cluster_info_first_ep{cluster_id="554014120921134497",value="tdengine:6030"} 1
+# HELP taos_cluster_info_first_ep_dnode_id 
+# TYPE taos_cluster_info_first_ep_dnode_id counter
+taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 ```
 
 ### check\_health 

@@ -25,7 +25,7 @@
 #include "mndVgroup.h"
 
 #define ARBGROUP_VER_NUMBER   1
-#define ARBGROUP_RESERVE_SIZE 64
+#define ARBGROUP_RESERVE_SIZE 63
 
 static SHashObj *arbUpdateHash = NULL;
 
@@ -129,6 +129,7 @@ SSdbRaw *mndArbGroupActionEncode(SArbGroup *pGroup) {
   SDB_SET_INT32(pRaw, dataPos, pLeader->dnodeId, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pLeader->token, TSDB_ARB_TOKEN_SIZE, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pGroup->version, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pLeader->acked, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, ARBGROUP_RESERVE_SIZE, _OVER)
 
@@ -182,6 +183,7 @@ SSdbRow *mndArbGroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pLeader->dnodeId, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pLeader->token, TSDB_ARB_TOKEN_SIZE, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pGroup->version, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pLeader->acked, _OVER)
 
   pGroup->mutexInited = false;
 
@@ -235,6 +237,7 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   pOld->isSync = pNew->isSync;
   pOld->assignedLeader.dnodeId = pNew->assignedLeader.dnodeId;
   memcpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+  pOld->assignedLeader.acked = pNew->assignedLeader.acked;
   pOld->version++;
 
 _OVER:
@@ -540,6 +543,14 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     return -1;
   }
 
+  int64_t roleTimeMs = mndGetRoleTimeMs(pMnode);
+  int64_t nowMs = taosGetTimestampMs();
+  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalSec * 1000 * 2) {
+    mInfo("arb skip to check sync since mnd had just switch over, roleTime:%" PRId64 " now:%" PRId64, roleTimeMs,
+          nowMs);
+    return 0;
+  }
+
   SArray *pUpdateArray = taosArrayInit(16, sizeof(SArbGroup));
 
   while (1) {
@@ -551,15 +562,14 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     taosThreadMutexUnlock(&pArbGroup->mutex);
 
     int32_t vgId = arbGroupDup.vgId;
-    int64_t nowMs = taosGetTimestampMs();
 
     bool                member0IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 0, nowMs);
     bool                member1IsTimeout = mndCheckArbMemberHbTimeout(&arbGroupDup, 1, nowMs);
     SArbAssignedLeader *pAssignedLeader = &arbGroupDup.assignedLeader;
     int32_t             currentAssignedDnodeId = pAssignedLeader->dnodeId;
 
-    // 1. has assigned && is sync => send req
-    if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true) {
+    // 1. has assigned && is sync && no response => send req
+    if (currentAssignedDnodeId != 0 && arbGroupDup.isSync == true && pAssignedLeader->acked == false) {
       (void)mndSendArbSetAssignedLeaderReq(pMnode, currentAssignedDnodeId, vgId, arbToken, term,
                                            pAssignedLeader->token);
       mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, currentAssignedDnodeId);
@@ -651,6 +661,7 @@ static void mndInitArbUpdateGroup(SArbGroup *pGroup, SMArbUpdateGroup *outGroup)
   outGroup->isSync = pGroup->isSync;
   outGroup->assignedLeader.dnodeId = pGroup->assignedLeader.dnodeId;
   outGroup->assignedLeader.token = pGroup->assignedLeader.token;  // just copy the pointer
+  outGroup->assignedLeader.acked = pGroup->assignedLeader.acked;
   outGroup->version = pGroup->version;
 }
 
@@ -766,6 +777,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     newGroup.isSync = pUpdateGroup->isSync;
     newGroup.assignedLeader.dnodeId = pUpdateGroup->assignedLeader.dnodeId;
     memcpy(newGroup.assignedLeader.token, pUpdateGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+    newGroup.assignedLeader.acked = pUpdateGroup->assignedLeader.acked;
     newGroup.version = pUpdateGroup->version;
 
     SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
@@ -783,10 +795,10 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s]",
+    mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s][%d]",
           pTrans->id, newGroup.vgId, newGroup.members[0].info.dnodeId, newGroup.members[0].state.token,
           newGroup.members[1].info.dnodeId, newGroup.members[1].state.token, newGroup.isSync,
-          newGroup.assignedLeader.dnodeId, newGroup.assignedLeader.token);
+          newGroup.assignedLeader.dnodeId, newGroup.assignedLeader.token, newGroup.assignedLeader.acked);
 
     sdbRelease(pMnode->pSdb, pOldGroup);
   }
@@ -819,11 +831,13 @@ static void mndArbGroupSetAssignedLeader(SArbGroup *pGroup, int32_t index) {
 
   pGroup->assignedLeader.dnodeId = pMember->info.dnodeId;
   strncpy(pGroup->assignedLeader.token, pMember->state.token, TSDB_ARB_TOKEN_SIZE);
+  pGroup->assignedLeader.acked = false;
 }
 
 static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup) {
   pGroup->assignedLeader.dnodeId = 0;
   memset(pGroup->assignedLeader.token, 0, TSDB_ARB_TOKEN_SIZE);
+  pGroup->assignedLeader.acked = false;
 }
 
 static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew) {
@@ -834,10 +848,10 @@ static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew) {
     goto _OVER;
   }
 
-  mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s]",
+  mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s][%d]",
         pTrans->id, pNew->vgId, pNew->members[0].info.dnodeId, pNew->members[0].state.token,
         pNew->members[1].info.dnodeId, pNew->members[1].state.token, pNew->isSync, pNew->assignedLeader.dnodeId,
-        pNew->assignedLeader.token);
+        pNew->assignedLeader.token, pNew->assignedLeader.acked);
 
   mndTransAddArbGroupId(pTrans, pNew->vgId);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -1103,11 +1117,12 @@ bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char 
     goto _OVER;
   }
 
-  if (pGroup->isSync) {
+  if (pGroup->assignedLeader.acked == false) {
     mndArbGroupDupObj(pGroup, pNewGroup);
     pNewGroup->isSync = false;
+    pNewGroup->assignedLeader.acked = true;
 
-    mInfo("vgId:%d, arb isSync is setting to false", vgId);
+    mInfo("vgId:%d, arb received assigned ack", vgId);
     updateAssigned = true;
     goto _OVER;
   }
@@ -1217,7 +1232,13 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       STR_WITH_MAXSIZE_TO_VARSTR(token, pGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE + VARSTR_HEADER_SIZE);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)token, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->assignedLeader.acked, false);
     } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetNULL(pColInfo, numOfRows);
 

@@ -21,8 +21,6 @@ typedef struct SKeyInfo {
   int32_t keyLen;
 } SKeyInfo;
 
-static int32_t clearFinishedTrans(SMnode* pMnode);
-
 int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamId) {
   SStreamTransInfo info = {
       .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamId = streamId};
@@ -30,41 +28,54 @@ int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t s
   return 0;
 }
 
-int32_t clearFinishedTrans(SMnode* pMnode) {
+int32_t mndStreamClearFinishedTrans(SMnode* pMnode, int32_t* pNumOfActiveChkpt) {
   size_t  keyLen = 0;
   void*   pIter = NULL;
   SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
+  int32_t num = 0;
 
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
-    SStreamTransInfo* pEntry = (SStreamTransInfo*)pIter;
+    SStreamTransInfo *pEntry = (SStreamTransInfo *)pIter;
 
     // let's clear the finished trans
-    STrans* pTrans = mndAcquireTrans(pMnode, pEntry->transId);
+    STrans *pTrans = mndAcquireTrans(pMnode, pEntry->transId);
     if (pTrans == NULL) {
-      void* pKey = taosHashGetKey(pEntry, &keyLen);
+      void *pKey = taosHashGetKey(pEntry, &keyLen);
       // key is the name of src/dst db name
       SKeyInfo info = {.pKey = pKey, .keyLen = keyLen};
-      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name,
-             pEntry->startTime);
+      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name, pEntry->startTime);
       taosArrayPush(pList, &info);
     } else {
+      if (strcmp(pEntry->name, MND_STREAM_CHECKPOINT_NAME) == 0) {
+        num++;
+      }
       mndReleaseTrans(pMnode, pTrans);
     }
   }
 
-  size_t num = taosArrayGetSize(pList);
-  for (int32_t i = 0; i < num; ++i) {
+  int32_t size = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < size; ++i) {
     SKeyInfo* pKey = taosArrayGet(pList, i);
     taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
   }
 
-  mDebug("clear %d finished stream-trans, remained:%d", (int32_t)num, taosHashGetSize(execInfo.transMgmt.pDBTrans));
+  mDebug("clear %d finished stream-trans, remained:%d, active checkpoint trans:%d", size,
+         taosHashGetSize(execInfo.transMgmt.pDBTrans), num);
 
   terrno = TSDB_CODE_SUCCESS;
   taosArrayDestroy(pList);
+
+  if (pNumOfActiveChkpt != NULL) {
+    *pNumOfActiveChkpt = num;
+  }
+
   return 0;
 }
 
+// * Transactions of different streams are not related. Here only check the conflict of transaction for a given stream.
+// For a given stream:
+// 1. checkpoint trans is conflict with any other trans except for the drop and reset trans.
+// 2. create/drop/reset/update trans are conflict with any other trans.
 bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* pTransName, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
@@ -78,7 +89,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* p
     return false;
   }
 
-  clearFinishedTrans(pMnode);
+  mndStreamClearFinishedTrans(pMnode, NULL);
 
   SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId));
   if (pEntry != NULL) {
@@ -95,7 +106,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* p
         terrno = TSDB_CODE_MND_TRANS_CONFLICT;
         return true;
       } else {
-        mDebug("not conflict with checkpoint trans, name:%s, continue create trans", pTransName);
+        mDebug("not conflict with checkpoint trans, name:%s, continue creating trans", pTransName);
       }
     } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0) ||
@@ -106,7 +117,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* p
       return true;
     }
   } else {
-    mDebug("stream:0x%"PRIx64" no conflict trans existed, continue create trans", streamId);
+    mDebug("stream:0x%" PRIx64 " no conflict trans existed, continue create trans", streamId);
   }
 
   if (lock) {
@@ -124,7 +135,7 @@ int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
     return 0;
   }
 
-  clearFinishedTrans(pMnode);
+  mndStreamClearFinishedTrans(pMnode, NULL);
   SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
   if (pEntry != NULL) {
     SStreamTransInfo tInfo = *pEntry;

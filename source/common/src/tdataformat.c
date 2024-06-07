@@ -383,7 +383,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
-            memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+            if (colValArray[colValIndex].value.nData > 0) {
+              memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+            }
             payloadSize += colValArray[colValIndex].value.nData;
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
@@ -1183,8 +1185,7 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
   }
 }
 
-void tRowGetKey(SRow *row, SRowKey *key) {
-  key->ts = row->ts;
+void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
   key->numOfPKs = row->numOfPKs;
 
   if (key->numOfPKs == 0) {
@@ -1283,10 +1284,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
 // NOTE:
 // set key->numOfPKs to 0 as the smallest key with ts
 // set key->numOfPKs to (TD_MAX_PK_COLS + 1) as the largest key with ts
-int32_t tRowKeyCompare(const void *p1, const void *p2) {
-  SRowKey *key1 = (SRowKey *)p1;
-  SRowKey *key2 = (SRowKey *)p2;
-
+FORCE_INLINE int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2) {
   if (key1->ts < key2->ts) {
     return -1;
   } else if (key1->ts > key2->ts) {
@@ -2911,7 +2909,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         }
       } else {
         if (varDataTLen(data + offset) > bytes) {
-          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
+          uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d", (int)varDataTLen(data + offset),
                  bytes);
           code = TSDB_CODE_PAR_VALUE_TOO_LONG;
           goto _exit;

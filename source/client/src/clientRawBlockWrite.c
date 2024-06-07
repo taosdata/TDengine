@@ -199,6 +199,26 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       }
       break;
     }
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION: {
+      SFieldWithOptions* field = taosArrayGet(req.pFields, 0);
+      cJSON*             colName = cJSON_CreateString(field->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      cJSON* colType = cJSON_CreateNumber(field->type);
+      cJSON_AddItemToObject(json, "colType", colType);
+
+      if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
+          field->type == TSDB_DATA_TYPE_GEOMETRY) {
+        int32_t length = field->bytes - VARSTR_HEADER_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t length = (field->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
+      setCompressOption(json, field->compress);
+      break;
+    }
     case TSDB_ALTER_TABLE_DROP_TAG:
     case TSDB_ALTER_TABLE_DROP_COLUMN: {
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
@@ -544,6 +564,25 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
       }
+      break;
+    }
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION: {
+      cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
+      cJSON_AddItemToObject(json, "colName", colName);
+      cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
+      cJSON_AddItemToObject(json, "colType", colType);
+
+      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY || vAlterTbReq.type == TSDB_DATA_TYPE_VARBINARY ||
+          vAlterTbReq.type == TSDB_DATA_TYPE_GEOMETRY) {
+        int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      } else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
+      setCompressOption(json, vAlterTbReq.compress);
       break;
     }
     case TSDB_ALTER_TABLE_DROP_COLUMN: {

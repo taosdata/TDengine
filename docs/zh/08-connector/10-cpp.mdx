@@ -528,10 +528,103 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - 带_reqid的接口可以通过传递reqid参数来追踪整个的调用链。
 
 ### 数据订阅 API
+- `const char *tmq_err2str(int32_t code)`
+
+  **功能说明**
+  - 该接口用于将数据订阅的错误码转换为错误信息
+    
+  **参数说明**
+  - code: 数据订阅的错误码
+
+  **返回值**
+  - 非NULL，返回错误信息，错误信息可能为空字符串
+
+
+- `tmq_conf_t    *tmq_conf_new()`
+- `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
+- `void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
+- `void           tmq_conf_destroy(tmq_conf_t *conf)`
+  tmq_conf_res_t 错误码定义如下：
+  ```
+  typedef enum tmq_conf_res_t {
+    TMQ_CONF_UNKNOWN = -2,
+    TMQ_CONF_INVALID = -1,
+    TMQ_CONF_OK = 0,
+  } tmq_conf_res_t;
+  ```
+  设置自动提交回调函数的定义如下：
+  ```
+  typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))
+  ```
+  **功能说明**
+  - tmq_conf_new 接口用于创建一个 tmq_conf_t 结构体，用于配置消费参数。
+  - tmq_conf_set 接口用于设置消费参数。
+  - tmq_conf_set_auto_commit_cb 接口用于设置自动提交回调函数。
+  - tmq_conf_destroy 接口用于销毁 tmq_conf_t 结构体。
+
+  **参数说明**
+  - tmq_conf_set : key 为参数名，value 为参数值
+  - tmq_conf_set_auto_commit_cb : cb 回调函数, param 回调函数参数
+
+  **返回值**
+  - tmq_conf_new: 配置 tmq_conf_t 类型指针, NULL 失败
+  - tmq_conf_set: 结果 tmq_conf_res_t 类型, TMQ_CONF_OK 成功, 其他失败
+
+- `tmq_list_t *tmq_list_new()`
+- `int32_t     tmq_list_append(tmq_list_t *, const char *)`
+- `void        tmq_list_destroy(tmq_list_t *)`
+- `int32_t     tmq_list_get_size(const tmq_list_t *)`
+- `char      **tmq_list_to_c_array(const tmq_list_t *)`
+  
+  **功能说明**
+  - tmq_list_new 接口用于创建一个 tmq_list_t 结构体，用于存储订阅的 topic。
+  - tmq_list_append 接口用于向 tmq_list_t 结构体中添加一个 topic。
+  - tmq_list_destroy 接口用于销毁 tmq_list_t 结构体，tmq_list_new 的结果需要通过该接口销毁。
+  - tmq_list_get_size 接口用于获取 tmq_list_t 结构体中 topic 的个数。
+  - tmq_list_to_c_array 接口用于将 tmq_list_t 结构体转换为 C 数组，数组每个元素为字符串指针。
+
+  **返回值**
+  - tmq_list_new : 返回 tmq_list_t 结果指针, tmq_list_t 是一个数组，每个元素是一个字符串, NULL 失败
+  - tmq_list_append : 返回 0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+  - tmq_list_get_size : 返回 tmq_list_t 结构体中 topic 的个数, -1 失败
+  - tmq_list_to_c_array : 返回 c 数组, 每个元素是字符串指针, NULL 失败
+
+
+- `tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
+- `int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
+- `int32_t   tmq_unsubscribe(tmq_t *tmq)`
+- `int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topic_list)`
+- `TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout)`
+- `int32_t   tmq_consumer_close(tmq_t *tmq)`
+  
+  **功能说明**
+  - tmq_consumer_new 接口用于创建一个 tmq_t 结构体，用于消费数据，消费完数据后需调用 tmq_consumer_close 关闭消费者。
+  - tmq_subscribe 接口用于订阅 topic 列表，消费完数据后，需调用 tmq_subscribe 取消订阅。
+  - tmq_unsubscribe 接口用于取消订阅的 topic 列表。需与 tmq_subscribe 配合使用。
+  - tmq_subscription 接口用于获取订阅的 topic 列表。
+  - tmq_consumer_poll 接口用于轮询消费数据，每一个消费者，只能单线程调用该接口。
+  - tmq_consumer_close 接口用于关闭 tmq_t 结构体。需与 tmq_consumer_new 配合使用。
+
+  **参数说明**
+  - conf: 参数用于配置消费参数
+  - errstr: 错误信息存储在这个字符串中，需自定分配内存，释放内存由调用者负责
+  - errstenLen: errstr 字符串的长度
+  - tmq: tmq_consumer_new 函数返回的 tmq_t 结构体
+  - topic_list: topic 列表
+  - timeout: 超时时间，单位为毫秒，表示多久没数据的话自动返回 NULL，负数的话默认超时1秒
+
+  **返回值**
+  - tmq_consumer_new 返回 tmq_t 结构体，失败返回 NULL
+  - tmq_subscribe 返回错误码，0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+  - tmq_unsubscribe 返回错误码，0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+  - tmq_subscription 返回错误码，0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+  - tmq_consumer_poll 返回 TAOS_RES 结构体，NULL 表示没有数据，非 NULL 表示有数据，TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
+  - tmq_consumer_close 返回错误码，0 表示成功，非0表示失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
+
 
 - `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 - `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
-  
+
   tmq_topic_assignment结构体定义如下：
   ```c
   typedef struct tmq_topic_assignment {
@@ -541,6 +634,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     int64_t end;
   } tmq_topic_assignment;
   ```
+
   **功能说明**
   - tmq_get_topic_assignment 接口返回当前consumer分配的vgroup的信息，每个vgroup的信息包括vgId，wal的最大最小offset，以及当前消费到的offset。
 
@@ -551,65 +645,97 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   **返回值**
   - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息。
 
+
 - `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
-  
+
   **功能说明**
   - 获取当前 consumer 在某个 topic 和 vgroup上的 commit 位置。
 
   **返回值**
   - 当前commit的位置，-2147467247表示没有消费进度，其他小于0的值表示失败，错误码就是返回值
 
+
 - `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
 - `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
 - `int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
 - `void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
-  
+
   **功能说明**
-  
+
   - commit接口分为两种类型，每种类型有同步和异步接口：
-    - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
-    - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
-  
+  - 第一种类型：根据消息提交，提交消息里的进度，如果消息传NULL，提交当前consumer所有消费的vgroup的当前进度 : tmq_commit_sync/tmq_commit_async
+  - 第二种类型：根据某个topic的某个vgroup的offset提交 : tmq_commit_offset_sync/tmq_commit_offset_async
+
   **参数说明**
   - msg：消费到的消息结构，如果msg传NULL，提交当前consumer所有消费的vgroup的当前进度
 
   **返回值**
   - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
 
+
 - `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
 
   **功能说明**
   - 获取当前消费位置，为消费到的数据位置的下一个位置
-  
+
   **返回值**
   - 消费位置，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
 
-- `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
+
+  - `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
 
   **功能说明**
   - 设置 consumer 在某个topic的某个vgroup的 offset位置，开始消费
 
   **返回值**
   - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
-  
-- `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
+
+
+- `int64_t tmq_get_vgroup_offset(TAOS_RES* res)`
+- `int32_t tmq_get_vgroup_id(TAOS_RES *res)`
 
   **功能说明**
-  - 获取 poll 消费到的数据的起始offset
-  
+  - tmq_get_vgroup_offset 获取 poll 消费到的数据的起始offset
+  - tmq_get_vgroup_id 获取 poll 消费到的数据的所属的vgrou id
+
   **参数说明**
   - msg：消费到的消息结构
 
   **返回值**
-  - 消费到的offset，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
-  
-- `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
+  - tmq_get_vgroup_offset 返回值为消费到的offset，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  - tmq_get_vgroup_id 返回值为消费到的数据所属的vgrou id，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+
+
+- `TAOS       *tmq_get_connect(tmq_t *tmq)`
+- `const char *tmq_get_table_name(TAOS_RES *res)`
+- `tmq_res_t   tmq_get_res_type(TAOS_RES *res)`
+- `const char *tmq_get_topic_name(TAOS_RES *res)`
+- `const char *tmq_get_db_name(TAOS_RES *res)`
+
+  tmq_res_t 表示消费到的数据类型，定义如下：
+  ```
+  typedef enum tmq_res_t {
+    TMQ_RES_INVALID = -1,   // invalid
+    TMQ_RES_DATA = 1,       // 数据
+    TMQ_RES_TABLE_META = 2, // 元数据
+    TMQ_RES_METADATA = 3    // 既有元数据又有数据，即自动建表
+  } tmq_res_t;
+  ```
 
   **功能说明**
-  - 获取消费者订阅的 topic 列表
-  
+  - tmq_get_connect 创建consumer时，会自动建立链接保存在 tmq_t 结构体中，该接口用户获取 tmq_t 结构体中的链接信息，类似taos_connect
+  - tmq_get_table_name 获取返回结果所属的的表名
+  - tmq_get_res_type 获取返回结果的类型
+  - tmq_get_topic_name 获取返回结果所属的topic名
+  - tmq_get_db_name 获取返回结果所属的数据库名
+
   **参数说明**
-  - topics: 获取的 topic 列表存储在这个结构中，接口内分配内存，需调用tmq_list_destroy释放
+  - tmq：tmq_consumer_new 返回的消费者handle
+  - res：tmq_consumer_poll 返回的消费到的消息
 
   **返回值**
-  - 错误码，0成功，非0失败，可通过 `char *tmq_err2str(int32_t code)` 函数获取错误信息
+  - tmq_get_connect 返回值为tmq_t结构体中的链接连接，非 NULL 正常，NULL 失败
+  - tmq_get_table_name 返回值为消费到的数据所属的表名，非 NULL 正常，NULL 失败
+  - tmq_get_res_type 返回值为消费到的数据所属的类型，具体见上面 tmq_res_t 的注释说明
+  - tmq_get_topic_name 返回值为消费到的数据所属的 topic 名，非 NULL 正常，NULL 失败
+  - tmq_get_db_name 返回值为消费到的数据所属的数据库名，非 NULL 正常，NULL 失败

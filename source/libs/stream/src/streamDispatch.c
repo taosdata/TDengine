@@ -959,7 +959,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
       taosArrayPush(pTask->msgInfo.pRetryList, &pRsp->downstreamNodeId);
       taosThreadMutexUnlock(&pTask->lock);
 
-      stWarn("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch", id,
+      stTrace("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch", id,
              pRsp->downstreamTaskId, pRsp->downstreamNodeId, DISPATCH_RETRY_INTERVAL_MS);
     } else if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
       // todo handle the agg task failure, add test case

@@ -90,7 +90,7 @@ Through TAOSC caching mechanism, mnode needs to be accessed only when a table is
 
 ### Storage Model
 
-The data stored by TDengine includes collected time-series data, metadata and tag data related to database and tablesetc. All of the data is specifically divided into three parts:
+The data stored by TDengine includes collected time-series data, metadata and tag data related to database and tables, etc. All of the data is specifically divided into three parts:
 
 - Time-series data: stored in vnode and composed of data, head and last files. Normally the amount of time series data is very huge and query amount depends on the application scenario. Out-of-order writing is allowed. By adopting the model with **one table for each data collection point**, the data of a given time period is continuously stored, and the writing against one single table is a simple appending operation. Multiple records can be read at one time, thus ensuring the best performance for both insert and query operations of a single data collection point.
 - Table Metadata: table meta data includes tags and table schema and is stored in meta file in each vnode. CRUD can be operated on table metadata. There is a specific record for each table, so the amount of table meta data depends on the number of tables. Table meta data is stored in LRU model and supports index for tag data. TDengine can support multiple queries in parallel. As long as the memory resource is enough, meta data is all stored in memory for quick access. The filtering on tens of millions of tags can be finished in a few milliseconds. Even though when the memory resource is not sufficient, TDengine can still perform high speed query on tens of millions of tables.
