@@ -163,7 +163,6 @@ openssl = { version = "0.10.55", features = ["vendored"] }
 [features]
 default = ["optin", "native-tls"]
 optin = ["taos/optin"]
-sys = ["taos/native"]
 rustls = ["taos/ws-rustls"]
 native-tls = ["taos/ws-native-tls"]
 disable-enterprise-only-validation = []

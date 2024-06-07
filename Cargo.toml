@@ -205,7 +205,6 @@ tower = "0.4"
 [features]
 default = ["optin", "native-tls", "mimalloc"]
 optin = ["taos/optin", "taosx-core/optin"]
-sys = ["taos/native", "taosx-core/sys"]
 jemallocator = ["tikv-jemallocator"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
 native-tls = [
