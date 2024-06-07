@@ -18,7 +18,7 @@ The architecture of the PrivateLink is as follows:
 
 <center><figcaption>Figure 1. Architecture of PrivateLink</figcaption></center>
 
-For more details of the PrivateLink concept, please see the following AWS documents:  
+For more details of the PrivateLink concept, please see the following documents:  
 [What is AWS PrivateLink?](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html)  
 [AWS PrivateLink concepts](https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html)  
 [GCP Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect)
