@@ -49,7 +49,7 @@
                 <template slot="content">
                   <span v-html="$t('communityTip')"></span>
                 </template>
-                <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL || $COMMUNITY" @click="getMsgBody">{{
+                <el-button type="primary" plain size="small" :loading="requesting" :disabled="$store.state.app.currentDBType == 'mqtt' || $COMMUNITY" @click="getMsgBody">{{
                   $t("datasource.transformer.msgbodytypes.retrieve")
                 }}</el-button>
               </el-tooltip>
@@ -803,7 +803,8 @@ export default {
       visiblePop3: false,
       allProperties: [],
       dialogVisible: false,
-      checkedProperties: []
+      checkedProperties: [],
+      requesting: false
     };
   },
   computed: {
@@ -934,6 +935,7 @@ export default {
       if (flag) {
         return;
       }
+      this.requesting = true;
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
@@ -947,9 +949,17 @@ export default {
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$message.error(result.message)
         this.msgForm.msgbody = '';
+        this.requesting = false;
         return
       }
-      this.msgForm.msgbody = JSON.stringify(result);
+      if (this.$store.state.app.currentDBType == 'kafka') {
+        result.input.map(item => {
+          this.msgForm.msgbody += item.payload + "\n";
+        })
+      } else {
+        this.msgForm.msgbody = JSON.stringify(result);
+      }
+      this.requesting = false;
       await this.submitParse();
     },
     clearMsgBody() {
