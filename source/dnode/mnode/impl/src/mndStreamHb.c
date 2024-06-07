@@ -39,6 +39,10 @@ static void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo* pExecInfo)
 }
 
 static void removeDroppedStreamTasksInBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
+  if (pMnode == NULL) {
+    return;
+  }
+
   int32_t num = taosArrayGetSize(pExecInfo->pTaskList);
 
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -323,16 +327,16 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
     } else {
       // task is idle for more than 50 sec.
-      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
-        if (!pTaskEntry->inputQChanging) {
-          pTaskEntry->inputQUnchangeCounter++;
-        } else {
-          pTaskEntry->inputQChanging = false;
-        }
-      } else {
-        pTaskEntry->inputQChanging = true;
-        pTaskEntry->inputQUnchangeCounter = 0;
-      }
+//      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
+//        if (!pTaskEntry->inputQChanging) {
+//          pTaskEntry->inputQUnchangeCounter++;
+//        } else {
+//          pTaskEntry->inputQChanging = false;
+//        }
+//      } else {
+//        pTaskEntry->inputQChanging = true;
+//        pTaskEntry->inputQUnchangeCounter = 0;
+//      }
 
       streamTaskStatusCopy(pTaskEntry, p);
 
