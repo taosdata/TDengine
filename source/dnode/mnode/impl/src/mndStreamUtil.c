@@ -574,6 +574,7 @@ void mndInitExecInfo() {
   execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
+  execInfo.pChkptStreams = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
 
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
@@ -687,4 +688,115 @@ int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot) {
 
   taosArrayDestroy(pRemovedTasks);
   return 0;
+}
+
+static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
+  SVUpdateCheckpointInfoReq *pReq = taosMemoryCalloc(1, sizeof(SVUpdateCheckpointInfoReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVUpdateCheckpointInfoReq),
+           tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return terrno;
+  }
+
+  pReq->head.vgId = htonl(pTask->info.nodeId);
+  pReq->taskId = pTask->id.taskId;
+  pReq->streamId = pTask->id.streamId;
+
+  SArray **pReqTaskList = (SArray **)taosHashGet(execInfo.pChkptStreams, &pTask->id.streamId, sizeof(pTask->id.streamId));
+  ASSERT(pReqTaskList);
+
+  int32_t size = taosArrayGetSize(*pReqTaskList);
+  for(int32_t i = 0; i < size; ++i) {
+    STaskChkptInfo* pInfo = taosArrayGet(*pReqTaskList, i);
+    if (pInfo->taskId == pTask->id.taskId) {
+      pReq->checkpointId = pInfo->checkpointId;
+      pReq->checkpointVer = pInfo->version;
+      pReq->checkpointTs = pInfo->ts;
+      pReq->dropRelHTask = pInfo->dropHTask;
+      pReq->transId = pInfo->transId;
+    }
+  }
+
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {
+    taosMemoryFree(pReq);
+    return code;
+  }
+
+  code = setTransAction(pTrans, pReq, sizeof(SVUpdateCheckpointInfoReq), TDMT_STREAM_TASK_UPDATE_CHKPT, &epset, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pReq);
+  }
+
+  return code;
+}
+
+int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  taosWLockLatch(&pStream->lock);
+
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
+
+    int32_t code = doSetUpdateChkptAction(pMnode, pTrans, pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyStreamTaskIter(pIter);
+      taosWUnLockLatch(&pStream->lock);
+      return -1;
+    }
+  }
+
+  destroyStreamTaskIter(pIter);
+  taosWUnLockLatch(&pStream->lock);
+  return 0;
+}
+
+void scanCheckpointReportInfo(SMnode* pMnode) {
+  void* pIter = NULL;
+  mDebug("start to scan checkpoint report info");
+
+  while ((pIter = taosHashIterate(execInfo.pChkptStreams, pIter)) != NULL) {
+    SArray *pList = *(SArray **)pIter;
+
+    STaskChkptInfo* pInfo = taosArrayGet(pList, 0);
+    SStreamObj* pStream = mndGetStreamObj(pMnode, pInfo->streamId);
+    if (pStream == NULL) {
+      mError("failed to acquire stream:0x%"PRIx64" remove it from checkpoint-report list", pInfo->streamId);
+      taosHashRemove(execInfo.pChkptStreams, &pInfo->streamId, sizeof(pInfo->streamId));
+      continue;
+    }
+
+    int32_t total = mndGetNumOfStreamTasks(pStream);
+    int32_t existed = (int32_t) taosArrayGetSize(pList);
+
+    if (total == existed) {
+      mDebug("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, start to update checkpoint-info",
+             pStream->uid, pStream->name, total);
+
+      bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
+      if (!conflict) {
+        int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, pList);
+        if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) { // remove this entry
+          taosHashRemove(execInfo.pChkptStreams, &pInfo->streamId, sizeof(pInfo->streamId));
+
+          int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
+          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", pInfo->streamId, numOfStreams);
+        } else {
+          mDebug("stream:0x%" PRIx64 " not launch chkpt update trans, due to checkpoint not finished yet",
+                 pInfo->streamId);
+        }
+      } else {
+        mDebug("stream:%x%"PRIx64" active checkpoint trans not finished yet, wait", pInfo->streamId);
+      }
+    } else {
+      mDebug("stream:0x%" PRIx64 " %s %d/%d tasks send checkpoint-report, %d not send", pInfo->streamId, pStream->name,
+             existed, total, total - existed);
+    }
+
+    sdbRelease(pMnode->pSdb, pStream);
+  }
+
 }

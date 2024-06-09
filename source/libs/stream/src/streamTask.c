@@ -731,35 +731,50 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   return code;
 }
 
-int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, STaskId* pHTaskId,
-                                              SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  SVUpdateCheckpointInfoReq* pReq = rpcMallocCont(sizeof(SVUpdateCheckpointInfoReq));
-  if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
+  int32_t     code;
+  int32_t     tlen = 0;
+  int32_t     vgId = pTask->pMeta->vgId;
+  const char* id = pTask->id.idStr;
+  SActiveCheckpointInfo* pActive = pCheckpointInfo->pActiveInfo;
+
+  SCheckpointReport req = {.streamId = pTask->id.streamId,
+                           .taskId = pTask->id.taskId,
+                           .nodeId = vgId,
+                           .dropHTask = dropRelHTask,
+                           .transId = pActive->transId,
+                           .checkpointId = pActive->activeId,
+                           .checkpointVer = pCheckpointInfo->processedVer,
+                           .checkpointTs = pCheckpointInfo->startTs};
+
+  tEncodeSize(tEncodeStreamTaskChkptReport, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report failed, code:%s", id, vgId, tstrerror(code));
     return -1;
   }
 
-  pReq->head.vgId = vgId;
-  pReq->taskId = pTaskId->taskId;
-  pReq->streamId = pTaskId->streamId;
-  pReq->dropRelHTask = dropRelHTask;
-  pReq->hStreamId = pHTaskId->streamId;
-  pReq->hTaskId = pHTaskId->taskId;
-  pReq->transId = pCheckpointInfo->pActiveInfo->transId;
-
-  pReq->checkpointId = pCheckpointInfo->pActiveInfo->activeId;
-  pReq->checkpointVer = pCheckpointInfo->processedVer;
-  pReq->checkpointTs = pCheckpointInfo->startTs;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_UPDATE_CHKPT, .pCont = pReq, .contLen = sizeof(SVUpdateCheckpointInfoReq)};
-  int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("vgId:%d task:0x%x failed to send update checkpoint info msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
-  } else {
-    stDebug("vgId:%d task:0x%x build and send update checkpoint info msg msg", vgId, pTaskId->taskId);
+  void* buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
   }
-  return code;
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeStreamTaskChkptReport(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {0};
+  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_REPORT, buf, tlen);
+  stDebug("s-task:%s vgId:%d build and send task checkpoint-report to mnode", id, vgId);
+
+  tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+  return 0;
 }
 
 STaskId streamTaskGetTaskId(const SStreamTask* pTask) {

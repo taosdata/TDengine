@@ -441,8 +441,10 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
   if (pReq->checkpointId <= pInfo->checkpointId) {
     stDebug("s-task:%s vgId:%d latest checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " no need to update the checkpoint info, updated checkpointId:%" PRId64 " checkpointVer:%" PRId64 " ignored",
-            id, vgId, pInfo->checkpointId, pInfo->checkpointVer, pReq->checkpointId, pReq->checkpointVer);
+            " no need to update the checkpoint info, updated checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " transId:%d ignored",
+            id, vgId, pInfo->checkpointId, pInfo->checkpointVer, pReq->checkpointId, pReq->checkpointVer,
+            pReq->transId);
     taosThreadMutexUnlock(&pTask->lock);
 
     { // destroy the related fill-history tasks
@@ -703,9 +705,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   // update the latest checkpoint info if all works are done successfully, for rsma, the pMsgCb is null.
   if (code == TSDB_CODE_SUCCESS && (pTask->pMsgCb != NULL)) {
-    STaskId* pHTaskId = &pTask->hTaskInfo.id;
-    code = streamBuildAndSendCheckpointUpdateMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, pHTaskId, &pTask->chkInfo,
-                                                 dropRelHTask);
+    code = streamSendChkptReportMsg(pTask, &pTask->chkInfo, dropRelHTask);
     if (code == TSDB_CODE_SUCCESS) {
       code = streamTaskRemoteBackupCheckpoint(pTask, ckId, (char*)id);
       if (code != TSDB_CODE_SUCCESS) {
@@ -770,6 +770,18 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
+
+  // checkpoint-trigger recv flag is set, quit
+  if (pActiveInfo->allUpstreamTriggerRecv) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d",
+            pTask->id.idStr, vgId, ref);
+
+    taosThreadMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   taosThreadMutexUnlock(&pTask->lock);
 
   taosThreadMutexLock(&pActiveInfo->lock);

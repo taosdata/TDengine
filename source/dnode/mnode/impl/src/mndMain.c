@@ -680,8 +680,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mndInitStreamExecInfo(pMnode, &execInfo);
-
   mInfo("mnode open successfully");
   return pMnode;
 }

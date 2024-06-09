@@ -3628,10 +3628,6 @@ typedef struct {
 } SVPauseStreamTaskReq, SVResetStreamTaskReq;
 
 typedef struct {
-  int8_t reserved;
-} SVPauseStreamTaskRsp;
-
-typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
 } SMPauseStreamReq;

@@ -241,6 +241,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   taosThreadMutexLock(&execInfo.lock);
 
+  mndInitStreamExecInfo(pMnode, &execInfo);
+
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
     mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
@@ -266,18 +268,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         snodeChanged = true;
       }
     } else {
-      // task is idle for more than 50 sec.
-//      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
-//        if (!pTaskEntry->inputQChanging) {
-//          pTaskEntry->inputQUnchangeCounter++;
-//        } else {
-//          pTaskEntry->inputQChanging = false;
-//        }
-//      } else {
-//        pTaskEntry->inputQChanging = true;
-//        pTaskEntry->inputQUnchangeCounter = 0;
-//      }
-
       streamTaskStatusCopy(pTaskEntry, p);
 
       STaskCkptInfo *pChkInfo = &p->checkpointInfo;
@@ -288,6 +278,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         SFailedCheckpointInfo info = {
             .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
         addIntoCheckpointList(pFailedChkpt, &info);
+
+        // remove failed trans from pChkptStreams
+        taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
       }
     }
 
@@ -332,6 +325,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   if (taosArrayGetSize(pOrphanTasks) > 0) {
     mndDropOrphanTasks(pMnode, pOrphanTasks);
   }
+
+  scanCheckpointReportInfo(pMnode);
 
   taosThreadMutexUnlock(&execInfo.lock);
   tCleanupStreamHbMsg(&req);
