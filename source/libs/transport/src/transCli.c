@@ -348,6 +348,7 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   taosWLockLatch(&exh->latch);
   if (exh->handle == NULL) exh->handle = conn;
   exh->inited = 1;
+  exh->pThrd = conn->hostThrd;
   if (!QUEUE_IS_EMPTY(&exh->q)) {
     queue* h = QUEUE_HEAD(&exh->q);
     QUEUE_REMOVE(h);
@@ -2514,7 +2515,7 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   if (exh == NULL) {
     return NULL;
   }
-
+  taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
     int idx = cliRBChoseIdx(trans);
     if (idx < 0) return NULL;
@@ -2522,7 +2523,9 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   }
 
   pThrd = exh->pThrd;
+  taosWUnLockLatch(&exh->latch);
   transReleaseExHandle(transGetRefMgt(), handle);
+
   return pThrd;
 }
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {

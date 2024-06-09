@@ -5,6 +5,7 @@ import time
 import socket
 import os
 import platform
+import re
 if platform.system().lower() == 'windows':
     import wexpect as taosExpect
 else:
@@ -370,10 +371,11 @@ class TDTestCase:
         if retCode != "TAOS_OK":
             tdLog.exit("taos -V fail")
 
-        version = 'version: ' + version
-        retVal = retVal.replace("\n", "")
-        retVal = retVal.replace("\r", "")
-        if retVal.startswith(version) == False:
+        version = 'taos version: ' + version
+        # retVal = retVal.replace("\n", "")
+        # retVal = retVal.replace("\r", "")
+        taosVersion = re.findall((f'^%s'%(version)), retVal,re.M)
+        if len(taosVersion) == 0:
             print ("return version: [%s]"%retVal)
             print ("dict version: [%s]"%version)
             tdLog.exit("taos -V version not match")
