@@ -959,7 +959,8 @@ static bool isTimeLineQuery(SNode* pStmt) {
     return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
            (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineCurMode);
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
-    return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
+    return (TIME_LINE_MULTI == ((SSetOperator*)pStmt)->timeLineResMode) ||
+           (TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode);
   } else {
     return false;
   }
@@ -1000,18 +1001,65 @@ static bool isBlockTimeLineAlignedQuery(SNode* pStmt) {
   return false;
 }
 
+SNodeList* buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum) {
+  SNodeList* pPartitionList = NULL;
+  SNode*     pNode = NULL;
+  if (pOrderList->length <= nodesNum) {
+    return NULL;
+  }
+
+  pNode = nodesListGetNode(pOrderList, nodesNum);
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)pNode;
+  if (!isPrimaryKeyImpl(pOrder->pExpr)) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < nodesNum; ++i) {
+    pNode = nodesListGetNode(pOrderList, i);
+    pOrder = (SOrderByExprNode*)pNode;
+    nodesListMakeStrictAppend(&pPartitionList, nodesCloneNode(pOrder->pExpr));
+  }
+
+  return pPartitionList;
+}
+
 static bool isTimeLineAlignedQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   if (!isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return false;
   }
-  if (QUERY_NODE_SELECT_STMT != nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    return false;
+  if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSelect->pPartitionByList) {
+      if (!pSub->timeLineFromOrderBy && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+        return true;
+      }
+      if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+        SNodeList* pPartitionList =
+            buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
+        bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
+        nodesDestroyList(pPartitionList);
+
+        if (match) {
+          return true;
+        }
+      }
+    }
   }
-  SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-  if (pSelect->pPartitionByList && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
-    return true;
+  if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSelect->pPartitionByList && pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+      SNodeList* pPartitionList =
+          buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length);
+      bool match = nodesListMatch(pSelect->pPartitionByList, pPartitionList);
+      nodesDestroyList(pPartitionList);
+
+      if (match) {
+        return true;
+      }
+    }
   }
+
   return false;
 }
 
@@ -6025,9 +6073,19 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
       (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
-  } else {
-    pSelect->timeLineResMode = TIME_LINE_NONE;
+    return;
+  } else if (pSelect->pOrderByList->length > 1) {
+    for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
+      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      if (isPrimaryKeyImpl(pOrder)) {
+        pSelect->timeLineResMode = TIME_LINE_MULTI;
+        pSelect->timeLineFromOrderBy = true;
+        return;
+      }
+    }
   }
+
+  pSelect->timeLineResMode = TIME_LINE_NONE;
 }
 
 static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6180,16 +6238,13 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
-    if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_COLUMN == nodeType(pRight)) {
-      SColumnNode* pLCol = (SColumnNode*)pLeft;
-      SColumnNode* pRCol = (SColumnNode*)pRight;
+    bool   isLeftPrimTs = isPrimaryKeyImpl(pLeft);
+    bool   isRightPrimTs = isPrimaryKeyImpl(pRight);
+
+    if (isLeftPrimTs && isRightPrimTs) {
       SColumnNode* pFCol = (SColumnNode*)pProj;
-      if (pLCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID && pRCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-        if (pLCol->isPrimTs && pRCol->isPrimTs) {
-          pFCol->isPrimTs = true;
-        }
-      }
+      pFCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pFCol->isPrimTs = true;
     }
     if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, pProj)) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -6225,9 +6280,19 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
     if (isPrimaryKeyImpl(pOrder)) {
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
-    } else {
-      pSetOperator->timeLineResMode = TIME_LINE_NONE;
+      return code;
+    } else if (pSetOperator->pOrderByList->length > 1) {
+      for (int32_t i = 1; i < pSetOperator->pOrderByList->length; ++i) {
+        pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, i))->pExpr;
+        if (isPrimaryKeyImpl(pOrder)) {
+          pSetOperator->timeLineResMode = TIME_LINE_MULTI;
+          pSetOperator->timeLineFromOrderBy = true;
+          return code;
+        }
+      }
     }
+
+    pSetOperator->timeLineResMode = TIME_LINE_NONE;
   }
   return code;
 }
@@ -6706,6 +6771,15 @@ static int32_t checkDbEnumOption(STranslateContext* pCxt, const char* pName, int
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkDbEnumOption3(STranslateContext* pCxt, const char* pName, int32_t val, int32_t v1, int32_t v2,
+                                  int32_t v3) {
+  if (val >= 0 && val != v1 && val != v2 && val != v3) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option %s: %d, only %d, %d, %d allowed", pName, val, v1, v2, v3);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRetentions, int8_t precision) {
   if (NULL == pRetentions) {
     return TSDB_CODE_SUCCESS;
@@ -6849,7 +6923,12 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
   if ((pOptions->replica == 2) ^ (pOptions->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid database option, with_arbitrator should be used with replica 2");
+                                   "Invalid option, with_arbitrator should be used with replica 2");
+  }
+
+  if (pOptions->replica > 1 && pOptions->walLevel == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option, wal_level 0 should be used with replica 1");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6913,7 +6992,8 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbStrictOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "walLevel", pOptions->walLevel, TSDB_MIN_WAL_LEVEL, TSDB_MAX_WAL_LEVEL);
+    code = checkDbEnumOption3(pCxt, "walLevel", pOptions->walLevel, TSDB_MIN_WAL_LEVEL, TSDB_DEFAULT_WAL_LEVEL,
+                              TSDB_MAX_WAL_LEVEL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "vgroups", pOptions->numOfVgroups, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
@@ -7187,6 +7267,15 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
+  if (pStmt->pOptions->walLevel == 0) {
+    SDbCfgInfo dbCfg = {0};
+    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == code && dbCfg.replications > 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option, wal_level 0 should be used with replica 1");
+    }
+  }
+
   int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -8092,9 +8181,9 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   }
 
   switch (pStmt->alterType) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_DROP_TAG:
-    case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
@@ -8125,6 +8214,31 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
                                  columnLevelVal(pStmt->pColOptions->compressLevel), false, (uint32_t*)&field.bytes);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
+      }
+      taosArrayPush(pAlterReq->pFields, &field);
+      break;
+    }
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION: {
+      taosArrayDestroy(pAlterReq->pFields);
+
+      pAlterReq->pFields = taosArrayInit(1, sizeof(SFieldWithOptions));
+      SFieldWithOptions field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
+      // TAOS_FIELD        field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
+      strcpy(field.name, pStmt->colName);
+      if (pStmt->pColOptions != NULL) {
+        if (!checkColumnEncodeOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->encode))
+          return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+        if (!checkColumnCompressOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->compress))
+          return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
+        if (!checkColumnLevelOrSetDefault(pStmt->dataType.type, pStmt->pColOptions->compressLevel))
+          return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+        int32_t code = setColCompressByOption(pStmt->dataType.type, columnEncodeVal(pStmt->pColOptions->encode),
+                                              columnCompressVal(pStmt->pColOptions->compress),
+                                              columnLevelVal(pStmt->pColOptions->compressLevel), false,
+                                              (uint32_t*)&field.compress);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       taosArrayPush(pAlterReq->pFields, &field);
       break;
@@ -10578,7 +10692,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
-  if(pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
+  if (pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -10993,7 +11107,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->deleteMark = convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
+    pReq->deleteMark =
+        convertTimePrecision(tsmaDataDeleteMark, TSDB_TIME_PRECISION_MILLI, pTableMeta->tableInfo.precision);
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
 
@@ -12793,6 +12908,11 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
+  // only super and normal support
+  if (pStmt->pColOptions != NULL && TSDB_CHILD_TABLE == pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
   pReq->colName = taosStrdup(pStmt->colName);
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -12801,6 +12921,17 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
+  if (pStmt->pColOptions != NULL) {
+    if (!checkColumnEncodeOrSetDefault(pReq->type, pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+    if (!checkColumnCompressOrSetDefault(pReq->type, pStmt->pColOptions->compress))
+      return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
+    if (!checkColumnLevelOrSetDefault(pReq->type, pStmt->pColOptions->compressLevel))
+      return TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
+                                         columnCompressVal(pStmt->pColOptions->compress),
+                                         columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12947,6 +13078,7 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
       return buildAddColReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       return buildDropColReq(pCxt, pStmt, pTableMeta, pReq);

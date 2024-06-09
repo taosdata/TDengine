@@ -26,6 +26,8 @@ struct SStreamTaskIter {
   SStreamTask *pTask;
 };
 
+int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId);
+
 SStreamTaskIter* createStreamTaskIter(SStreamObj* pStream) {
   SStreamTaskIter* pIter = taosMemoryCalloc(1, sizeof(SStreamTaskIter));
   if (pIter == NULL) {
@@ -135,6 +137,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     char buf[256] = {0};
     epsetToStr(&entry.epset, buf, tListLen(buf));
     mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
+
     taosArrayPush(pVgroupListSnapshot, &entry);
     sdbRelease(pSdb, pObj);
   }
@@ -558,11 +561,6 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
   return 0;
 }
 
-static void freeCheckpointCandEntry(void *param) {
-  SCheckpointCandEntry *pEntry = param;
-  taosMemoryFreeClear(pEntry->pName);
-}
-
 static void freeTaskList(void* param) {
   SArray** pList = (SArray **)param;
   taosArrayDestroy(*pList);
@@ -575,9 +573,76 @@ void mndInitExecInfo() {
   execInfo.pTaskList = taosArrayInit(4, sizeof(STaskId));
   execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.transMgmt.pWaitingList = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
+  execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
 
-  taosHashSetFreeFp(execInfo.transMgmt.pWaitingList, freeCheckpointCandEntry);
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
+}
+
+void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
+  SArray *pValidList = taosArrayInit(4, sizeof(SNodeEntry));
+  int32_t size = taosArrayGetSize(pNodeSnapshot);
+
+  for (int32_t i = 0; i < taosArrayGetSize(execInfo.pNodeList); ++i) {
+    SNodeEntry *p = taosArrayGet(execInfo.pNodeList, i);
+
+    for (int32_t j = 0; j < size; ++j) {
+      SNodeEntry *pEntry = taosArrayGet(pNodeSnapshot, j);
+      if (pEntry->nodeId == p->nodeId) {
+        taosArrayPush(pValidList, p);
+        break;
+      }
+    }
+  }
+
+  taosArrayDestroy(execInfo.pNodeList);
+  execInfo.pNodeList = pValidList;
+
+  mDebug("remain %d valid node entries after clean expired nodes info", (int32_t)taosArrayGetSize(pValidList));
+}
+
+int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
+  void *p = taosHashGet(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
+  if (p == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosHashRemove(pExecNode->pTaskMap, pRemovedId, sizeof(*pRemovedId));
+
+  for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
+    STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
+    if (pId->taskId == pRemovedId->taskId && pId->streamId == pRemovedId->streamId) {
+      taosArrayRemove(pExecNode->pTaskList, k);
+
+      int32_t num = taosArrayGetSize(pExecNode->pTaskList);
+      mInfo("s-task:0x%x removed from buffer, remain:%d in buffer list", (int32_t)pRemovedId->taskId, num);
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo* pExecInfo) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTaskIds); ++i) {
+    STaskId *pId = taosArrayGet(pTaskIds, i);
+    doRemoveTasks(pExecInfo, pId);
+  }
+}
+
+void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
+  taosThreadMutexLock(&pExecNode->lock);
+
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
+
+    STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+    doRemoveTasks(pExecNode, &id);
+  }
+
+  ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
+  taosThreadMutexUnlock(&pExecNode->lock);
+
+  destroyStreamTaskIter(pIter);
 }

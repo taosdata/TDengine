@@ -821,8 +821,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 
 #ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
-  if (grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0) {
-    code = TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED;
+  if ((code = grantCheck(TSDB_GRANT_DB_ENCRYPTION)) != 0) {
     goto _exit;
   }
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
@@ -1226,7 +1225,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (terrno != 0) code = terrno;
-    mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
+    mError("db:%s, failed to alter since %s", alterReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);

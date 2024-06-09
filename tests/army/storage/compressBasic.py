@@ -48,6 +48,15 @@ class TDTestCase(TBase):
             "bigint","bigint unsigned","timestamp","bool","float","double","binary(16)","nchar(16)",
             "varchar(16)","varbinary(16)"]
     
+    # encode
+    encodes = [
+        [["tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned","bigint","bigint unsigned"], ["simple8B"]],
+        [["timestamp","bigint","bigint unsigned"],  ["Delta-i"]],
+        [["bool"],                                  ["Bit-packing"]],
+        [["float","double"],                        ["Delta-d"]]
+    ]
+
+    
     def combineValid(self, datatype, encode, compress):
         if datatype != "float" and datatype != "double":
             if compress == "tsz":
@@ -55,13 +64,6 @@ class TDTestCase(TBase):
         return True
 
     def genAllSqls(self, stbName, max):
-        # encode
-        encodes = [
-            [["tinyint","tinyint unsigned","smallint","smallint unsigned","int","int unsigned","bigint","bigint unsigned"], ["simple8B"]],
-            [["timestamp","bigint","bigint unsigned"],  ["Delta-i"]],
-            [["bool"],                                  ["Bit-packing"]],
-            [["float","double"],                        ["Delta-d"]]
-        ]
 
         c = 0 # column number
         t = 0 # table number
@@ -70,7 +72,7 @@ class TDTestCase(TBase):
         sql  = ""
 
         # loop append sqls
-        for lines in encodes:
+        for lines in self.encodes:
             for datatype in lines[0]:
                 for encode in lines[1]:
                     for compress in self.compresses:
@@ -217,7 +219,34 @@ class TDTestCase(TBase):
             "alter table db.errstb modify column c3 compress 'xz';"
         ]
         tdSql.errors(sqls)
- 
+
+    # add column
+    def checkAddColumn(self):
+        c = 0
+        tbname = f"{self.db}.tbadd"
+        sql = f"create table {tbname}(ts timestamp, c0 int) tags(area int);"
+        tdSql.execute(sql)
+    
+        # loop append sqls
+        for lines in self.encodes:
+            for datatype in lines[0]:
+                for encode in lines[1]:
+                    for compress in self.compresses:
+                        for level in self.levels:
+                            if self.combineValid(datatype, encode, compress):
+                                sql = f"alter table {tbname} add column col{c} {datatype} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}';"
+                                tdSql.execute(sql, 3, True)
+                                c += 1
+
+        # alter error 
+        sqls = [
+            f"alter table {tbname} add column a1 int ENCODE 'simple8bAA';",
+            f"alter table {tbname} add column a2 int COMPRESS 'AABB';",
+            f"alter table {tbname} add column a3 bigint LEVEL 'high1';",
+            f"alter table {tbname} add column a4 BINARY(12) ENCODE 'simple8b' LEVEL 'high2';",
+            f"alter table {tbname} add column a5 VARCHAR(16) ENCODE 'simple8b' COMPRESS 'gzip' LEVEL 'high3';"
+        ]
+        tdSql.errors(sqls)
 
     def validCreate(self):
         sqls = self.genAllSqls(self.stb, 50)
@@ -237,6 +266,9 @@ class TDTestCase(TBase):
 
         # check alter and write
         self.checkAlter()
+
+        # check add column
+        self.checkAddColumn()
 
     def checkCorrect(self):
         # check data correct

@@ -74,7 +74,7 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.stt->level = reader->config->file.stt->level;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -130,7 +130,7 @@ static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFil
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   if (writer->fd) {
     code = tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey);
@@ -211,13 +211,13 @@ _exit:
   return code;
 }
 
-int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock, 
-                                      int32_t encryptAlgorithm, char* encryptKey) {
+int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock,
+                                      int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;
   int32_t lino = 0;
 
   code = tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data, pDataBlock->dataLength,
-                        encryptAlgorithm, encryptKey);
+                       encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->ctx->offset += pDataBlock->dataLength;

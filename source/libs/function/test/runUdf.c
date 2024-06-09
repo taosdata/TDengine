@@ -127,7 +127,7 @@ int aggregateFuncTest() {
 int main(int argc, char *argv[]) {
   parseArgs(argc, argv);
   initLog();
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0, true) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -1;
   }

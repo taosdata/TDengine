@@ -158,19 +158,20 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG                1
-#define TSDB_ALTER_TABLE_DROP_TAG               2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME        3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL         4
-#define TSDB_ALTER_TABLE_ADD_COLUMN             5
-#define TSDB_ALTER_TABLE_DROP_COLUMN            6
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES    7
-#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES       8
-#define TSDB_ALTER_TABLE_UPDATE_OPTIONS         9
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME     10
-#define TSDB_ALTER_TABLE_ADD_TAG_INDEX          11
-#define TSDB_ALTER_TABLE_DROP_TAG_INDEX         12
-#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS 13
+#define TSDB_ALTER_TABLE_ADD_TAG                         1
+#define TSDB_ALTER_TABLE_DROP_TAG                        2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4
+#define TSDB_ALTER_TABLE_ADD_COLUMN                      5
+#define TSDB_ALTER_TABLE_DROP_COLUMN                     6
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES             7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES                8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS                  9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME              10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX                   11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
+#define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -2323,10 +2324,10 @@ int32_t tDeserializeSVArbHeartBeatRsp(void* buf, int32_t bufLen, SVArbHeartBeatR
 void    tFreeSVArbHeartBeatRsp(SVArbHeartBeatRsp* pRsp);
 
 typedef struct {
-  char* arbToken;
+  char*   arbToken;
   int64_t arbTerm;
-  char* member0Token;
-  char* member1Token;
+  char*   member0Token;
+  char*   member1Token;
 } SVArbCheckSyncReq;
 
 int32_t tSerializeSVArbCheckSyncReq(void* buf, int32_t bufLen, SVArbCheckSyncReq* pReq);
@@ -2346,9 +2347,9 @@ int32_t tDeserializeSVArbCheckSyncRsp(void* buf, int32_t bufLen, SVArbCheckSyncR
 void    tFreeSVArbCheckSyncRsp(SVArbCheckSyncRsp* pRsp);
 
 typedef struct {
-  char*    arbToken;
-  int64_t  arbTerm;
-  char*    memberToken;
+  char*   arbToken;
+  int64_t arbTerm;
+  char*   memberToken;
 } SVArbSetAssignedLeaderReq;
 
 int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
@@ -2368,20 +2369,31 @@ void    tFreeSVArbSetAssignedLeaderRsp(SVArbSetAssignedLeaderRsp* pRsp);
 typedef struct {
   int32_t dnodeId;
   char*   token;
-} SMArbUpdateGroupReqMember;
+} SMArbUpdateGroupMember;
 
 typedef struct {
-  int32_t vgId;
-  int64_t dbUid;
-  SMArbUpdateGroupReqMember members[2];
-  int8_t                    isSync;
-  SMArbUpdateGroupReqMember assignedLeader;
-  int64_t                   version;
-} SMArbUpdateGroupReq;
+  int32_t dnodeId;
+  char*   token;
+  int8_t  acked;
+} SMArbUpdateGroupAssigned;
 
-int32_t tSerializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-int32_t tDeserializeSMArbUpdateGroupReq(void* buf, int32_t bufLen, SMArbUpdateGroupReq* pReq);
-void    tFreeSMArbUpdateGroupReq(SMArbUpdateGroupReq* pReq);
+typedef struct {
+  int32_t                  vgId;
+  int64_t                  dbUid;
+  SMArbUpdateGroupMember   members[2];
+  int8_t                   isSync;
+  int8_t                   assignedAcked;
+  SMArbUpdateGroupAssigned assignedLeader;
+  int64_t                  version;
+} SMArbUpdateGroup;
+
+typedef struct {
+  SArray* updateArray;  // SMArbUpdateGroup
+} SMArbUpdateGroupBatchReq;
+
+int32_t tSerializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+int32_t tDeserializeSMArbUpdateGroupBatchReq(void* buf, int32_t bufLen, SMArbUpdateGroupBatchReq* pReq);
+void    tFreeSMArbUpdateGroupBatchReq(SMArbUpdateGroupBatchReq* pReq);
 
 typedef struct {
   char queryStrId[TSDB_QUERY_ID_LEN];
@@ -2707,8 +2719,8 @@ typedef struct {
   int64_t  lastTs;
   SArray*  pVgroupVerList;
   // 3.3.0.0
-  SArray*  pCols;  // array of SField
-  int64_t  smaId;
+  SArray* pCols;  // array of SField
+  int64_t smaId;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -2755,6 +2767,7 @@ typedef struct {
   int32_t autoCommitInterval;
   int8_t  resetOffsetCfg;
   int8_t  enableReplay;
+  int8_t  enableBatchMeta;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2775,6 +2788,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
   tlen += taosEncodeFixedI8(buf, pReq->enableReplay);
+  tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
 
   return tlen;
 }
@@ -2799,6 +2813,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
+  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
   return buf;
 }
 
@@ -2987,6 +3002,7 @@ typedef struct {
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
@@ -3454,22 +3470,23 @@ int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* 
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
-  int8_t igNotExists;
-} SMRecoverStreamReq;
-
-typedef struct {
-  int8_t reserved;
-} SMRecoverStreamRsp;
-
-typedef struct {
   int64_t recoverObjUid;
   int32_t taskId;
   int32_t hasCheckPoint;
 } SMVStreamGatherInfoReq;
 
-// int32_t tSerializeSMRecoverStreamReq(void* buf, int32_t bufLen, const SMRecoverStreamReq* pReq);
-// int32_t tDeserializeSMRecoverStreamReq(void* buf, int32_t bufLen, SMRecoverStreamReq* pReq);
+typedef struct SVUpdateCheckpointInfoReq {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  checkpointId;
+  int64_t  checkpointVer;
+  int64_t  checkpointTs;
+  int32_t  transId;
+  int8_t   dropRelHTask;
+  int64_t  hStreamId;
+  int64_t  hTaskId;
+} SVUpdateCheckpointInfoReq;
 
 typedef struct {
   int64_t leftForVer;
@@ -3576,7 +3593,7 @@ static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t u
   pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
   pOffsetVal->uid = uid;
   pOffsetVal->ts = ts;
-  if(IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)){
+  if (IS_VAR_DATA_TYPE(pOffsetVal->primaryKey.type)) {
     taosMemoryFree(pOffsetVal->primaryKey.pData);
   }
   pOffsetVal->primaryKey = primaryKey;
@@ -3676,10 +3693,10 @@ typedef struct {
   char*   ast;
   int64_t deleteMark;
   int64_t lastTs;
-  int64_t normSourceTbUid; // the Uid of source tb if its a normal table, otherwise 0
+  int64_t normSourceTbUid;  // the Uid of source tb if its a normal table, otherwise 0
   SArray* pVgroupVerList;
   int8_t  recursiveTsma;
-  char    baseTsmaName[TSDB_TABLE_FNAME_LEN]; // base tsma name for recursively created tsma
+  char    baseTsmaName[TSDB_TABLE_FNAME_LEN];  // base tsma name for recursively created tsma
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -3904,11 +3921,12 @@ typedef struct {
   STqOffsetVal reqOffset;
   int8_t       enableReplay;
   int8_t       sourceExcluded;
+  int8_t       enableBatchMeta;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
 int32_t tDeserializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
-void    tDestroySMqPollReq(SMqPollReq *pReq);
+void    tDestroySMqPollReq(SMqPollReq* pReq);
 
 typedef struct {
   int32_t vgId;
@@ -3952,7 +3970,7 @@ typedef struct {
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
 int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
-void    tDeleteMqMetaRsp(SMqMetaRsp *pRsp);
+void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 
 #define MQ_DATA_RSP_VERSION 100
 
@@ -3988,6 +4006,20 @@ typedef struct {
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const void* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
 void    tDeleteSTaosxRsp(void* pRsp);
+
+typedef struct SMqBatchMetaRsp {
+  SMqRspHead   head;         // not serialize
+  STqOffsetVal rspOffset;
+  SArray*      batchMetaLen;
+  SArray*      batchMetaReq;
+  void*        pMetaBuff;    // not serialize
+  uint32_t     metaBuffLen;  // not serialize
+} SMqBatchMetaRsp;
+
+int32_t tEncodeMqBatchMetaRsp(SEncoder* pEncoder, const SMqBatchMetaRsp* pRsp);
+int32_t tDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead head;
@@ -4299,9 +4331,9 @@ int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pR
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
 typedef struct {
-  char name[TSDB_TABLE_FNAME_LEN]; // table name or tsma name
-  bool fetchingWithTsmaName; // if we are fetching with tsma name
-}STableTSMAInfoReq;
+  char name[TSDB_TABLE_FNAME_LEN];  // table name or tsma name
+  bool fetchingWithTsmaName;        // if we are fetching with tsma name
+} STableTSMAInfoReq;
 
 int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);
 int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq);
@@ -4324,15 +4356,15 @@ typedef struct {
   int32_t  version;
   int64_t  interval;
   int8_t   unit;
-  SArray*  pFuncs;  // SArray<STableTSMAFuncInfo>
-  SArray*  pTags; // SArray<SSchema>
-  SArray*  pUsedCols; // SArray<SSchema>
+  SArray*  pFuncs;     // SArray<STableTSMAFuncInfo>
+  SArray*  pTags;      // SArray<SSchema>
+  SArray*  pUsedCols;  // SArray<SSchema>
   char*    ast;
 
   int64_t streamUid;
   int64_t reqTs;
   int64_t rspTs;
-  int64_t delayDuration; // ms
+  int64_t delayDuration;  // ms
   bool    fillHistoryFinished;
 } STableTSMAInfo;
 
@@ -4343,10 +4375,10 @@ void    tFreeTableTSMAInfo(void* p);
 void    tFreeAndClearTableTSMAInfo(void* p);
 void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
 
-#define STSMAHbRsp STableTSMAInfoRsp
-#define tSerializeTSMAHbRsp tSerializeTableTSMAInfoRsp
+#define STSMAHbRsp            STableTSMAInfoRsp
+#define tSerializeTSMAHbRsp   tSerializeTableTSMAInfoRsp
 #define tDeserializeTSMAHbRsp tDeserializeTableTSMAInfoRsp
-#define tFreeTSMAHbRsp tFreeTableTSMAInfoRsp
+#define tFreeTSMAHbRsp        tFreeTableTSMAInfoRsp
 
 typedef struct SStreamProgressReq {
   int64_t streamId;
@@ -4372,7 +4404,7 @@ int32_t tDeserializeSStreamProgressRsp(void* buf, int32_t bufLen, SStreamProgres
 
 typedef struct SDropCtbWithTsmaSingleVgReq {
   SVgroupInfo vgInfo;
-  SArray*     pTbs; // SVDropTbReq
+  SArray*     pTbs;  // SVDropTbReq
 } SMDropTbReqsOnSingleVg;
 
 int32_t tEncodeSMDropTbReqOnSingleVg(SEncoder* pEncoder, const SMDropTbReqsOnSingleVg* pReq);
@@ -4380,7 +4412,7 @@ int32_t tDecodeSMDropTbReqOnSingleVg(SDecoder* pDecoder, SMDropTbReqsOnSingleVg*
 void    tFreeSMDropTbReqOnSingleVg(void* p);
 
 typedef struct SDropTbsReq {
-  SArray* pVgReqs; // SMDropTbReqsOnSingleVg
+  SArray* pVgReqs;  // SMDropTbReqsOnSingleVg
 } SMDropTbsReq;
 
 int32_t tSerializeSMDropTbsReq(void* buf, int32_t bufLen, const SMDropTbsReq* pReq);

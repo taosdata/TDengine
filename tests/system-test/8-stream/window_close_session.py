@@ -45,6 +45,9 @@ class TDTestCase:
                 for ts_value in [self.tdCom.date_time, window_close_ts-1]:
                     self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
                     self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
+                    if i == 0 and fill_history_value is not None:
+                        for tbname in [self.ctb_stream_des_table, self.tb_stream_des_table]:
+                            tdSql.query(f'select count(*) from {tbname}', count_expected_res=1)
                     if self.tdCom.update and i%2 == 0:
                         self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
                         self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)

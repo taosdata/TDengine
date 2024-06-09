@@ -162,7 +162,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
-    } else if (type == STREAM_INPUT__CHECKPOINT) {
+    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       SPackedData tmp = {.pDataBlock = input};
       taosArrayPush(pInfo->pBlockLists, &tmp);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
@@ -1079,9 +1079,9 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.tbName;
 }
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return &pTaskInfo->streamInfo.metaRsp;
+  return &pTaskInfo->streamInfo.btMetaRsp;
 }
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {

@@ -40,7 +40,7 @@ static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t 
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
                               int64_t* oldStage) {
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
   ASSERT(pInfo != NULL);
 
   *oldStage = pInfo->stage;
@@ -246,7 +246,7 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
 }
 
 int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTaskCheckRsp* pRsp,
-                           SRpcHandleInfo* pRpcInfo, int32_t taskId) {
+                               SRpcHandleInfo* pRpcInfo, int32_t taskId) {
   SEncoder encoder;
   int32_t  code;
   int32_t  len;
@@ -285,7 +285,7 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   streamTaskInitTaskCheckInfo(pInfo, &pTask->outputInfo, taosGetTimestampMs());
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-  stDebug("s-task:%s start check-rsp monit, ref:%d ", pTask->id.idStr, ref);
+  stDebug("s-task:%s start check-rsp monitor, ref:%d ", pTask->id.idStr, ref);
 
   if (pInfo->checkRspTmr == NULL) {
     pInfo->checkRspTmr = taosTmrStart(rspMonitorFn, CHECK_RSP_CHECK_INTERVAL, pTask, streamTimer);

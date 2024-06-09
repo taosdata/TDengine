@@ -202,6 +202,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
     }
 
     eventWindowAggImpl(pOperator, pInfo, pBlock);
+    doFilter(pRes, pSup->pFilterInfo, NULL);
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       return pRes;
     }

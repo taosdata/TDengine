@@ -35,23 +35,6 @@ struct SSnode {
   SMsgCb       msgCb;
 };
 
-#if 0
-typedef struct {
-  SHashObj* pHash;  // taskId -> SStreamTask
-} SStreamMeta;
-
-SStreamMeta* sndMetaNew();
-void         sndMetaDelete(SStreamMeta* pMeta);
-
-int32_t      sndMetaDeployTask(SStreamMeta* pMeta, SStreamTask* pTask);
-SStreamTask* sndMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
-int32_t      sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
-
-int32_t sndDropTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
-int32_t sndStopTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
-int32_t sndResumeTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
-#endif
-
 void initStreamStateAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus

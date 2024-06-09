@@ -220,7 +220,7 @@ int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  code = dmUpdateEncryptKey(cfgReq.value);
+  code = dmUpdateEncryptKey(cfgReq.value, true);
   if (code == 0) {
     tsEncryptionKeyChksum = taosCalcChecksum(0, cfgReq.value, strlen(cfgReq.value));
     tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;

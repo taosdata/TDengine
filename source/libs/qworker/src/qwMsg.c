@@ -372,12 +372,12 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
       if ((TEST_VIEW_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_VIEW)) {
         QW_ELOG("query failed cause of view grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
-        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+        QW_ERR_RET(TSDB_CODE_GRANT_VIEW_EXPIRED);
       }
       if ((TEST_AUDIT_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_AUDIT)) {
         QW_ELOG("query failed cause of audit grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
-        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+        QW_ERR_RET(TSDB_CODE_GRANT_AUDIT_EXPIRED);
       }
     }
   }
