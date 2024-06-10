@@ -574,6 +574,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
           T_LONG_JMP(taskInfo->env, code);
         }
       }
+      
 
       // restore it
       functionCtxRestore(&pCtx[k], &status);
