@@ -23,6 +23,9 @@ import time
 
 @dataclass
 class CmdOption:
+    """
+    Represents the command line options for data migration.
+    """
     host: str = None
     port: int = None
     config_dir: str = None
@@ -39,16 +42,34 @@ class CmdOption:
     interlace_rows: int = None
     stream_name: str = None
 
+import argparse
+import os
+import textwrap
+
 class Parser:
+    """
+    A class that builds a command-line argument parser for the DataMigration program.
+
+    Attributes:
+        prog (str): The name of the program.
+    """
+
     prog = "DataMigration"
+
     def __init__(self):
         pass
 
     def buildCmdLineParser(self):
+        """
+        Builds and returns the command-line argument parser.
+
+        Returns:
+            argparse.ArgumentParser: The command-line argument parser.
+        """
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
             prog=self.prog,
-            usage=f"\n    {self.prog} [options] or python3 run.py [options]",
+            usage=f"\n   python3 data_migration.py [options]",
             add_help=False,
             description=textwrap.dedent('''\
                 DataMigration: 
@@ -197,6 +218,15 @@ class Parser:
         return parser
 
     def get_opts(self, parser):
+        """
+        Parses the command-line arguments and returns the options.
+
+        Args:
+            parser (argparse.ArgumentParser): The command-line argument parser.
+
+        Returns:
+            CmdOption: The parsed command-line options.
+        """
         opts = CmdOption()
         opts.host = parser.host if parser.host else "localhost"
         opts.port = parser.port if parser.port else 6030
@@ -220,6 +250,26 @@ class Parser:
         return opts
 
 class DB:
+    """
+    Represents a database connection.
+
+    Args:
+        host (str): The hostname or IP address of the database server.
+        port (int): The port number of the database server.
+        config_dir (str): The directory path where the database configuration files are located.
+
+    Attributes:
+        host (str): The hostname or IP address of the database server.
+        port (int): The port number of the database server.
+        config_dir (str): The directory path where the database configuration files are located.
+        conn: The database connection object.
+        timeout (int): The timeout value for the database connection.
+
+    Methods:
+        get_connection: Establishes a connection to the database server.
+
+    """
+
     def __init__(self, host, port, config_dir):
         self.host = host
         self.port = port
@@ -228,14 +278,47 @@ class DB:
         self.timeout = 12
 
     def get_connection(self):
+        """
+        Establishes a connection to the database server.
+
+        Returns:
+            The database connection object.
+
+        """
         return taos.connect(host=self.host, port=int(self.port), config=self.config_dir, user='root', password='taosdata')
 
 class DataMigration(DB):
     def __init__(self, host, port, config_dir):
+        """
+        Initialize the DataMigration class.
+
+        Args:
+            host (str): The host address.
+            port (int): The port number.
+            config_dir (str): The directory path for the configuration.
+
+        """
         super().__init__(host, port, config_dir)
         self.taosBenchmark_json = os.path.dirname(__file__) + "/prepare.json"
 
     def prepare_json(self, thread_count, num_of_records_per_req, source_dbname, source_stbname, target_dbname, vgroups, childtable_count, row_count, timestamp_step):
+        """
+        Prepare a JSON template for data migration.
+
+        Args:
+            thread_count (int): Number of threads for data migration.
+            num_of_records_per_req (int): Number of records per request.
+            source_dbname (str): Name of the source database.
+            source_stbname (str): Name of the source super table.
+            target_dbname (str): Name of the target database.
+            vgroups (list): List of virtual groups.
+            childtable_count (int): Number of child tables.
+            row_count (int): Number of rows to insert.
+            timestamp_step (int): Step size for timestamps.
+
+        Returns:
+            None
+        """
         json_template = {
             "filetype": "insert",
             "cfgdir": "/etc/taos",
@@ -315,12 +398,18 @@ class DataMigration(DB):
             json.dump(json_template, f, indent=4)
 
     def prepare_data(self):
+        """
+        Prepares the data for migration using the taosBenchmark tool.
+
+        Returns:
+            bool: True if the data preparation is successful, False otherwise.
+        """
         cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
         try:
             with subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
                 for line in proc.stdout:
                     print(line, end='')
-            # 检查进程是否有错误输出
+                # Check if the process has any error output
                 error = proc.stderr.read()
                 if error:
                     print("error_msg:", error)
@@ -330,14 +419,38 @@ class DataMigration(DB):
             return False
 
     def prepare_data(self):
-        cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
-        self.exec_cmd(cmd)
+            """
+            Prepares the data for migration.
+
+            Executes the taosBenchmark command with the specified JSON file.
+            """
+            cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
+            self.exec_cmd(cmd)
 
     def create_stream(self, stream_name, source_dbname, source_stbname, target_dbname, target_stbname):
+        """
+        Create a stream for data migration.
+
+        Args:
+            stream_name (str): The name of the stream to be created.
+            source_dbname (str): The name of the source database.
+            source_stbname (str): The name of the source stable table.
+            target_dbname (str): The name of the target database.
+            target_stbname (str): The name of the target stable table.
+        """
         cmd = f'CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} as select _wstart, last(current),last(voltage),last(phase) from {source_dbname}.{source_stbname} interval(60s)'
         self.conn.execute(cmd)
 
     def exec_cmd(self, cmd):
+        """
+        Executes a command in the shell and captures the output.
+
+        Args:
+            cmd (str): The command to be executed.
+
+        Returns:
+            bool: True if the command executed successfully, False otherwise.
+        """
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             if result.stdout:
@@ -350,6 +463,15 @@ class DataMigration(DB):
             return False
 
     def wait_stream_finished(self, stream_name):
+        """
+        Waits for the specified stream to finish its tasks in the database.
+
+        Args:
+            stream_name (str): The name of the stream.
+
+        Returns:
+            int: The number of seconds waited for the stream to finish. Returns None if the timeout is reached.
+        """
         cnt = 0
         cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         res = self.conn.query(cmd)
@@ -362,21 +484,6 @@ class DataMigration(DB):
                 return
         return cnt
                 
-"""
-target_stb_row_count = self.tdSql.query_data[0][0]
-latency = 0
-if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
-    while sub_query_row_count != target_stb_row_count:
-        time.sleep(3)
-        self.tdSql.query(f'select count(*) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};')
-        target_stb_row_count = self.tdSql.query_data[0][0]
-        if latency < self.stream_timeout:
-            latency += 1
-        else:
-            f.write(str(target_stb_row_count))
-            return
-"""
-    
 if __name__ == "__main__":
     pars = Parser()
     parser = pars.buildCmdLineParser()
