@@ -37,6 +37,7 @@ extern "C" {
 #define TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
@@ -44,6 +45,7 @@ extern "C" {
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
@@ -51,6 +53,7 @@ extern "C" {
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_SEG_CODE_
 #undef TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
