@@ -343,7 +343,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
@@ -1104,9 +1104,9 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.tbName;
 }
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return &pTaskInfo->streamInfo.metaRsp;
+  return &pTaskInfo->streamInfo.btMetaRsp;
 }
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {

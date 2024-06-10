@@ -18,11 +18,12 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
 target_link_libraries(
     util
     PUBLIC os
-    PUBLIC lz4_static
+    PUBLIC lz4_static pcre2-8
     PUBLIC api cjson geos_c
 )
 

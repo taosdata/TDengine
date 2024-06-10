@@ -23,7 +23,7 @@
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
 static void setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
-  char *buf = taosMemoryCalloc(1, pCol->info.bytes);
+  char*          buf = taosMemoryCalloc(1, pCol->info.bytes);
   SFirstLastRes* pRes = (SFirstLastRes*)((char*)buf + VARSTR_HEADER_SIZE);
   pRes->bytes = 0;
   pRes->hasResult = true;
@@ -45,9 +45,9 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         setFirstLastResColToNull(pColInfoData, numOfRows);
         continue;
       }
-      SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
-      int32_t          slotId = slotIds[i];
-      SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[i]);
+      int32_t        slotId = slotIds[i];
+      SLastCol*      pColVal = (SLastCol*)taosArrayGet(pRow, i);
 
       p->ts = pColVal->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
@@ -77,7 +77,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
 
-      int32_t   slotId = slotIds[i];
+      int32_t slotId = slotIds[i];
       if (slotId == -1) {
         colDataSetNULL(pColInfoData, numOfRows);
         continue;
@@ -330,7 +330,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
     for (int32_t i = 0; i < pr->numOfCols; ++i) {
-      int32_t          slotId = slotIds[i];
+      int32_t slotId = slotIds[i];
       if (slotId == -1) {
         SLastCol p = {.ts = INT64_MIN, .colVal.type = TSDB_DATA_TYPE_BOOL, .colVal.flag = CV_FLAG_NULL};
         taosArrayPush(pLastCols, &p);
@@ -369,7 +369,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               if (!COL_VAL_IS_VALUE(&p->colVal)) {
                 hasNotNullRow = false;
               }
-              // For all of cols is null, the last null col of last table will be save 
+              // For all of cols is null, the last null col of last table will be save
               if (i != pr->numOfTables - 1 || k != pr->numOfCols - 1 || hasRes) {
                 continue;
               }
@@ -449,6 +449,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
 _end:
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
+  pr->pReadSnap = NULL;
   if (pr->pCurFileSet) {
     pr->pCurFileSet = NULL;
   }

@@ -47,7 +47,7 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp
 
 static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, int32_t n) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pTq->pVnode->pMeta, 0);
+  metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK);
 
   // TODO add reference to gurantee success
   if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
@@ -116,7 +116,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   return 0;
 }
 
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* pOffset) {
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* pOffset) {
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
 
@@ -171,10 +171,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     }
 
     // get meta
-    SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
-    if (tmp->metaRspLen > 0) {
+    SMqBatchMetaRsp* tmp = qStreamExtractMetaMsg(task);
+    if (taosArrayGetSize(tmp->batchMetaReq) > 0) {
       qStreamExtractOffset(task, &tmp->rspOffset);
-      *pMetaRsp = *tmp;
+      *pBatchMetaRsp = *tmp;
 
       tqDebug("tmqsnap task get meta");
       break;
@@ -257,7 +257,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
         tqAddBlockDataToRsp(pBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlock->pDataBlock),
                             pTq->pVnode->config.tsdbCfg.precision);
-        totalRows += pBlock->info.rows;
+        *totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
         taosArrayPush(pRsp->blockSchema, &pSW);

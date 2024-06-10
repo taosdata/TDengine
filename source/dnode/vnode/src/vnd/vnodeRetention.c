@@ -15,8 +15,9 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync);
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
 
-int32_t vnodeDoRetention(SVnode *pVnode, int64_t now) {
-  return tsdbRetention(pVnode->pTsdb, now, pVnode->config.sttTrigger == 1);
+int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
+  // async retention
+  return tsdbAsyncRetention(pVnode->pTsdb, now);
 }

@@ -202,7 +202,8 @@ int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int va
 int tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pTb->pBt, pKey, kLen, pTxn); }
 
 int tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
-  return tdbBtreeUpsert(pTb->pBt, pKey, kLen, pVal, vLen, pTxn);
+  tdbTbDelete(pTb, pKey, kLen, pTxn);
+  return tdbTbInsert(pTb, pKey, kLen, pVal, vLen, pTxn);
 }
 
 int tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen) {

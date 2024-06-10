@@ -80,6 +80,7 @@ void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, voi
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetParallel(STrans *pTrans);
+void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {

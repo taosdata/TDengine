@@ -597,6 +597,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   taosRUnLockLatch(&pOld->lock);
 
   pNew->pTags = NULL;
+  pNew->pColumns = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 

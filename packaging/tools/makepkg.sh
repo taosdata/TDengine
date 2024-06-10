@@ -101,6 +101,7 @@ else
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
+      ${script_dir}/quick_deploy.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
@@ -231,12 +232,8 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
-  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
-  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" remove_temp.sh  
+  sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" remove_temp.sh  
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -262,12 +259,10 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
-  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" install_temp.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" install_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
+  sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -281,6 +276,11 @@ fi
 chmod a+x ${install_dir}/install.sh
 
 if [[ $dbName == "taos" ]]; then  
+  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  chmod a+x ${install_dir}/start-all.sh
+  chmod a+x ${install_dir}/stop-all.sh
   # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
@@ -360,18 +360,11 @@ if [ "$verMode" == "cluster" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
 
-        cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
-        cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
-        cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
-        chmod a+x ${install_dir}/start-all.sh
-        chmod a+x ${install_dir}/stop-all.sh
-
         # copy taosx
         if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}
-          cp ${top_dir}/../enterprise/packaging/install_taosx.sh ${install_dir}/taosx
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh
-          sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall_taosx.sh
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
+          sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall.sh
         fi
     fi
 fi

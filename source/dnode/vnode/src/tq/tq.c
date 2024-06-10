@@ -119,21 +119,25 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 }
 
 int32_t tqInitialize(STQ* pTq) {
-  if (tqMetaOpen(pTq) < 0) {
-    return -1;
-  }
-
-  pTq->pOffsetStore = tqOffsetOpen(pTq);
-  if (pTq->pOffsetStore == NULL) {
-    return -1;
-  }
-
   pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, -1);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
 
   if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
+    return -1;
+  }
+
+  if (tqMetaTransform(pTq) < 0) {
+    return -1;
+  }
+
+  if (tqMetaRestoreCheckInfo(pTq) < 0) {
+    return -1;
+  }
+
+  pTq->pOffsetStore = tqOffsetOpen(pTq);
+  if (pTq->pOffsetStore == NULL) {
     return -1;
   }
 
@@ -392,7 +396,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       } while (0);
     }
 
-    // 2. check re-balance status
+    // 2. check rebalance status
     if (pHandle->consumerId != consumerId) {
       tqError("ERROR tmq poll: consumer:0x%" PRIx64
               " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
@@ -507,7 +511,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
 
-  // 2. check re-balance status
+  // 2. check rebalance status
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, vgId, req.subKey, pHandle->consumerId);
@@ -688,7 +692,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
       goto end;
     }
     STqHandle handle = {0};

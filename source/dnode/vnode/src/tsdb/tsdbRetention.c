@@ -23,8 +23,8 @@ typedef struct {
   int64_t now;
   int64_t cid;
 
-  TFileSetArray *fsetArr;
-  TFileOpArray   fopArr[1];
+  STFileSet   *fset;
+  TFileOpArray fopArr;
 } SRTNer;
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
@@ -34,7 +34,7 @@ static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
       .of = fobj->f[0],
   };
 
-  return TARRAY2_APPEND(rtner->fopArr, op);
+  return TARRAY2_APPEND(&rtner->fopArr, op);
 }
 
 static int32_t tsdbRemoveFileObjectS3(SRTNer *rtner, const STFileObj *fobj) {
@@ -46,7 +46,7 @@ static int32_t tsdbRemoveFileObjectS3(SRTNer *rtner, const STFileObj *fobj) {
       .of = fobj->f[0],
   };
 
-  code = TARRAY2_APPEND(rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
@@ -54,7 +54,7 @@ static int32_t tsdbRemoveFileObjectS3(SRTNer *rtner, const STFileObj *fobj) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -87,7 +87,7 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
     taosCloseFile(&fdFrom);
     taosCloseFile(&fdTo);
   }
@@ -116,7 +116,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
     taosCloseFile(&fdFrom);
   }
   return code;
@@ -134,7 +134,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
       .of = fobj->f[0],
   };
 
-  code = TARRAY2_APPEND(rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // create new
@@ -155,7 +155,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
           },
   };
 
-  code = TARRAY2_APPEND(rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // do copy the file
@@ -164,7 +164,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -181,7 +181,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
       .of = fobj->f[0],
   };
 
-  code = TARRAY2_APPEND(rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // create new
@@ -202,7 +202,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
           },
   };
 
-  code = TARRAY2_APPEND(rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // do copy the file
@@ -211,7 +211,7 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -222,64 +222,39 @@ typedef struct {
   int32_t fid;
 } SRtnArg;
 
-static int32_t tsdbDoRetentionBegin(SRtnArg *arg, SRTNer *rtner) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STsdb *tsdb = arg->tsdb;
-
-  rtner->tsdb = tsdb;
-  rtner->szPage = tsdb->pVnode->config.tsdbPageSize;
-  rtner->now = arg->now;
-  rtner->cid = tsdbFSAllocEid(tsdb->pFS);
-
-  code = tsdbFSCreateCopySnapshot(tsdb->pFS, &rtner->fsetArr);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
-  } else {
-    tsdbDebug("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
-  }
-  return code;
-}
-
 static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (TARRAY2_SIZE(rtner->fopArr) == 0) goto _exit;
-
-  code = tsdbFSEditBegin(rtner->tsdb->pFS, rtner->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadMutexLock(&rtner->tsdb->mutex);
-
-  code = tsdbFSEditCommit(rtner->tsdb->pFS);
-  if (code) {
-    taosThreadMutexUnlock(&rtner->tsdb->mutex);
+  if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
+    code = tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, TSDB_FEDIT_RETENTION);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    taosThreadMutexLock(&rtner->tsdb->mutex);
+
+    code = tsdbFSEditCommit(rtner->tsdb->pFS);
+    if (code) {
+      taosThreadMutexUnlock(&rtner->tsdb->mutex);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    taosThreadMutexUnlock(&rtner->tsdb->mutex);
   }
-
-  taosThreadMutexUnlock(&rtner->tsdb->mutex);
-
-  TARRAY2_DESTROY(rtner->fopArr, NULL);
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbDebug("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
   }
-  tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
   return code;
 }
 
-static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
+static int32_t tsdbDoRetention(SRTNer *rtner) {
   int32_t    code = 0;
   int32_t    lino = 0;
   STFileObj *fobj = NULL;
+  STFileSet *fset = rtner->fset;
   int32_t    expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
 
   if (expLevel < 0) {  // remove the fileset
@@ -355,82 +330,101 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(rtner->tsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
 
-static int32_t tsdbDoRetentionAsync(void *arg) {
+static int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
-  SRTNer  rtner[1] = {0};
 
-  code = tsdbDoRetentionBegin(arg, rtner);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  SRtnArg   *rtnArg = (SRtnArg *)arg;
+  STsdb     *pTsdb = rtnArg->tsdb;
+  SVnode    *pVnode = pTsdb->pVnode;
+  STFileSet *fset = NULL;
+  SRTNer     rtner = {
+          .tsdb = pTsdb,
+          .szPage = pVnode->config.tsdbPageSize,
+          .now = rtnArg->now,
+          .cid = tsdbFSAllocEid(pTsdb->pFS),
+  };
 
-  STFileSet *fset;
-  TARRAY2_FOREACH(rtner->fsetArr, fset) {
-    if (fset->fid != ((SRtnArg *)arg)->fid) continue;
+  // begin task
+  taosThreadMutexLock(&pTsdb->mutex);
+  tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
+  if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
+    taosThreadMutexUnlock(&pTsdb->mutex);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadMutexUnlock(&pTsdb->mutex);
 
-    code = tsdbDoRetentionOnFileSet(rtner, fset);
+  // do retention
+  if (rtner.fset) {
+    code = tsdbDoRetention(&rtner);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbDoRetentionEnd(&rtner);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbDoRetentionEnd(rtner);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
 _exit:
+  // finish task
+  if (rtner.fset) {
+    taosThreadMutexLock(&pTsdb->mutex);
+    tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
+    taosThreadMutexUnlock(&pTsdb->mutex);
+  }
+
+  // clear resources
+  tsdbTFileSetClear(&rtner.fset);
+  TARRAY2_DESTROY(&rtner.fopArr, NULL);
+  taosMemoryFree(arg);
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
 
-static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+static void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
-int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
-  int32_t code = 0;
-
-  taosThreadMutexLock(&tsdb->mutex);
-
-  if (tsdb->bgTaskDisabled) {
-    taosThreadMutexUnlock(&tsdb->mutex);
-    return 0;
-  }
-
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
   STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    code = tsdbTFileSetOpenChannel(fset);
-    if (code) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
-    }
 
-    SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
-    if (arg == NULL) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+  if (!tsdb->bgTaskDisabled) {
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      code = tsdbTFileSetOpenChannel(fset);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-    arg->tsdb = tsdb;
-    arg->now = now;
-    arg->fid = fset->fid;
+      SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+      if (arg == NULL) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      }
 
-    if (sync) {
-      code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    } else {
-      code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    }
-    if (code) {
-      tsdbFreeRtnArg(arg);
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
+      arg->tsdb = tsdb;
+      arg->now = now;
+      arg->fid = fset->fid;
+
+      if ((code = vnodeAsync(&fset->channel, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, NULL))) {
+        taosMemoryFree(arg);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 
+int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
+  int32_t code = 0;
+  taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbAsyncRetentionImpl(tsdb, now);
+  taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }

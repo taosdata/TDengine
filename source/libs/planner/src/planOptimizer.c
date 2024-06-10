@@ -172,11 +172,10 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
 
 static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
-    if (pNode->pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
-      if (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) return true;
-    } else {
+    if (!pNode->pParent || QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) ||
+        WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)
       return !scanPathOptHaveNormalCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
-    }
+    return false;
   }
 
   if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
@@ -2060,6 +2059,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
        TSDB_SUPER_TABLE == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->tableType)) {
     return false;
   }
+  
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if(LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
+      return false;
+    }
+  }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
   if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit ||
@@ -2144,17 +2150,33 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
   SNodeList*  pNewChildTargets = nodesMakeList();
 
-  SNode* pProjection = NULL;
-  FOREACH(pProjection, pProjectNode->pProjections) {
-    SNode* pChildTarget = NULL;
-    FOREACH(pChildTarget, pChild->pTargets) {
-      if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
-        nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+  SNode *pProjection = NULL, *pChildTarget = NULL;
+  bool needOrderMatch = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
+  bool orderMatch = true;
+  if (needOrderMatch) {
+    // For sql: select ... from (select ... union all select ...);
+    // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
+    // union all project targets have same columns in the same order. See detail in TD-30188
+    FORBOTH(pProjection, pProjectNode->pProjections, pChildTarget, pChild->pTargets) {
+      if (!pProjection) break;
+      if (0 != strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+        orderMatch = false;
         break;
+      }
+      nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+    }
+  } else {
+    FOREACH(pProjection, pProjectNode->pProjections) {
+      FOREACH(pChildTarget, pChild->pTargets) {
+        if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+          nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+          break;
+        }
       }
     }
   }
-  if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets)) {
+  if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) &&
+      (!needOrderMatch || (needOrderMatch && orderMatch))) {
     nodesDestroyList(pChild->pTargets);
     pChild->pTargets = pNewChildTargets;
   } else {

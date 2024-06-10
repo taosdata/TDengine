@@ -33,8 +33,16 @@ extern "C" {
 const char* tstrerror(int32_t err);
 const char* terrstr();
 
+#define  ERR_MSG_LEN                        256
+
+char*    taosGetErrMsgReturn();
+char*    taosGetErrMsg();
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
+#define terrMsg                             (taosGetErrMsg())
+
+#define SET_ERROR_MSG(MSG, ...) \
+  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error

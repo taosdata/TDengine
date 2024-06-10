@@ -586,13 +586,30 @@ struct STsdbSnapWriter {
 
 // APIs
 static int32_t tsdbSnapWriteTimeSeriesRow(STsdbSnapWriter* writer, SRowInfo* row) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TABLEID   tbid = {0};
+  SMetaInfo info;
 
   while (writer->ctx->hasData) {
-    SRowInfo* row1 = tsdbIterMergerGetData(writer->ctx->dataIterMerger);
-    if (row1 == NULL) {
-      writer->ctx->hasData = false;
+    SRowInfo* row1;
+    for (;;) {
+      row1 = tsdbIterMergerGetData(writer->ctx->dataIterMerger);
+      if (row1 == NULL) {
+        writer->ctx->hasData = false;
+      } else if (row1->uid != tbid.uid) {
+        tbid.suid = row1->suid;
+        tbid.uid = row1->uid;
+        if (metaGetInfo(writer->tsdb->pVnode->pMeta, tbid.uid, &info, NULL) != 0) {
+          code = tsdbIterMergerSkipTableData(writer->ctx->dataIterMerger, &tbid);
+          TSDB_CHECK_CODE(code, lino, _exit);
+          continue;
+        }
+      }
+      break;
+    }
+
+    if (writer->ctx->hasData == false) {
       break;
     }
 

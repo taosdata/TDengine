@@ -158,6 +158,10 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->left = -1;
     p->total = 0;
     p->len = 0;
+    if (p->cap > BUFFER_CAP) {
+      p->cap = BUFFER_CAP;
+      p->buf = taosMemoryRealloc(p->buf, p->cap);
+    }
   } else {
     ASSERTS(0, "invalid read from sock buf");
     return -1;
@@ -664,7 +668,7 @@ void transDestoryExHandle(void* handle) {
 void transDestroySyncMsg(void* msg) {
   if (msg == NULL) return;
   STransSyncMsg* pSyncMsg = msg;
-  tsem_destroy(pSyncMsg->pSem);
+  tsem2_destroy(pSyncMsg->pSem);
   taosMemoryFree(pSyncMsg->pSem);
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);

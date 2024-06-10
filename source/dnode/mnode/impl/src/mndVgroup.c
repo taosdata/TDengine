@@ -1458,6 +1458,7 @@ static int32_t mndAddAlterVnodeHashRangeAction(SMnode *pMnode, STrans *pTrans, i
     return -1;
   }
 
+  mInfo("trans:%d, add alter vnode hash range action for from vgId:%d to vgId:%d", pTrans->id, srcVgId, pVgroup->vgId);
   return 0;
 }
 
@@ -2319,29 +2320,10 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
       return -1;
     }
 
-    if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, pVgroup) != 0) {
-      mError("trans:%d, vgid:%d failed to be balanced to dnode:%d", pTrans->id, vgid, dnodeId);
-      return -1;
-    }
-
     mndReleaseDb(pMnode, pDb);
-
-    SSdbRaw *pRaw = mndVgroupActionEncode(pVgroup);
-    if (pRaw == NULL) {
-      mError("trans:%d, vgid:%d failed to encode action to dnode:%d", pTrans->id, vgid, dnodeId);
-      return -1;
-    }
-    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-      sdbFreeRaw(pRaw);
-      mError("trans:%d, vgid:%d failed to append commit log dnode:%d", pTrans->id, vgid, dnodeId);
-      return -1;
-    }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  }
-  else
-  {
-    mInfo("trans:%d, vgid:%d cant be balanced to dnode:%d, exist:%d, online:%d",
-                              pTrans->id, vgid, dnodeId, exist, online);
+  } else {
+    mInfo("trans:%d, vgid:%d cant be balanced to dnode:%d, exist:%d, online:%d", pTrans->id, vgid, dnodeId, exist,
+          online);
   }
 
   return 0;

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "tgrant.h"
 #include "thttp.h"
 
 static void *dmStatusThreadFp(void *param) {
@@ -47,29 +48,105 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-static void    *dmNotifyThreadFp(void *param) {
-     SDnodeMgmt *pMgmt = param;
-     int64_t     lastTime = taosGetTimestampMs();
-     setThreadName("dnode-notify");
+#define TIMESERIES_STASH_NUM 5
+static void *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-notify");
 
-     if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
-       return NULL;
+  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+    return NULL;
   }
 
-     bool wait = true;
-     while (1) {
-       if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+  // calculate approximate timeSeries per second
+  int64_t  notifyTimeStamp[TIMESERIES_STASH_NUM];
+  int64_t  notifyTimeSeries[TIMESERIES_STASH_NUM];
+  uint64_t approximateTimeSeries = 0;
+  uint64_t nTotalNotify = 0;
+  int32_t  head, tail = 0;
+
+  bool       wait = true;
+  int32_t    nDnode = 0;
+  int64_t    lastNotify = 0;
+  int64_t    lastFetchDnode = 0;
+  SNotifyReq req = {0};
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
-       dmSendNotifyReq(pMgmt);
-       if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
-         wait = true;
-         continue;
+
+    uint64_t remainTimeSeries = grantRemain(TSDB_GRANT_TIMESERIES);
+    if (remainTimeSeries == UINT64_MAX || remainTimeSeries <= 0) {
+      goto _skip;
     }
-       wait = false;
+    int64_t current = taosGetTimestampMs();
+    if (current - lastFetchDnode > 1000) {
+      nDnode = dmGetDnodeSize(pMgmt->pData);
+      if (nDnode < 1) nDnode = 1;
+      lastFetchDnode = current;
+    }
+    if (req.dnodeId == 0 || req.clusterId == 0) {
+      req.dnodeId = pMgmt->pData->dnodeId;
+      req.clusterId = pMgmt->pData->clusterId;
+    }
+
+    if (current - lastNotify < 10) {
+      int64_t nCmprTimeSeries = approximateTimeSeries / 100;
+      if (nCmprTimeSeries < 1e5) nCmprTimeSeries = 1e5;
+      if (remainTimeSeries > nCmprTimeSeries * 10) {
+        taosMsleep(10);
+      } else if (remainTimeSeries > nCmprTimeSeries * 5) {
+        taosMsleep(5);
+      } else {
+        taosMsleep(2);
+      }
+    }
+
+    SMonVloadInfo vinfo = {0};
+    (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
+    req.pVloads = vinfo.pVloads;
+    int32_t nVgroup = taosArrayGetSize(req.pVloads);
+    int64_t nTimeSeries = 0;
+    for (int32_t i = 0; i < nVgroup; ++i) {
+      SVnodeLoadLite *vload = TARRAY_GET_ELEM(req.pVloads, i);
+      nTimeSeries += vload->nTimeSeries;
+    }
+    notifyTimeSeries[tail] = nTimeSeries;
+    notifyTimeStamp[tail] = taosGetTimestampNs();
+    ++nTotalNotify;
+
+    approximateTimeSeries = 0;
+    if (nTotalNotify >= TIMESERIES_STASH_NUM) {
+      head = tail - TIMESERIES_STASH_NUM + 1;
+      if (head < 0) head += TIMESERIES_STASH_NUM;
+      int64_t timeDiff = notifyTimeStamp[tail] - notifyTimeStamp[head];
+      int64_t tsDiff = notifyTimeSeries[tail] - notifyTimeSeries[head];
+      if (tsDiff > 0) {
+        if (timeDiff > 0 && timeDiff < 1e9) {
+          approximateTimeSeries = (double)tsDiff * 1e9 / timeDiff;
+          if ((approximateTimeSeries * nDnode) > remainTimeSeries) {
+            dmSendNotifyReq(pMgmt, &req);
+          }
+        } else {
+          dmSendNotifyReq(pMgmt, &req);
+        }
+      }
+    } else {
+      dmSendNotifyReq(pMgmt, &req);
+    }
+    if (++tail == TIMESERIES_STASH_NUM) tail = 0;
+
+    tFreeSNotifyReq(&req);
+    lastNotify = taosGetTimestampMs();
+  _skip:
+    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+      wait = true;
+      continue;
+    }
+    wait = false;
   }
 
-     return NULL;
+  return NULL;
 }
 
 static void *dmMonitorThreadFp(void *param) {

@@ -103,6 +103,9 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
+    if (pTableName->n == 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "invalid table name");
+    }
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
@@ -111,6 +114,8 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
+    if (name[0] == '\0')
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
 
     code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
@@ -635,7 +640,7 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 }
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD* tFields,
-                     int numFields, bool needChangeLength) {
+                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen) {
   void* tmp = taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
@@ -654,8 +659,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   }
 
   char* p = (char*)data;
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column length |
   int32_t version = *(int32_t*)data;
   p += sizeof(int32_t);
   p += sizeof(int32_t);
@@ -670,6 +674,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   p += sizeof(uint64_t);
 
   int8_t* fields = p;
+  if(*fields >= TSDB_DATA_TYPE_MAX || *fields < 0){
+    uError("fields type error:%d", *fields);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
   p += numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 
   int32_t* colLength = (int32_t*)p;
@@ -681,12 +690,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
   if (tFields != NULL && numFields != numOfCols) {
-    uError("numFields:%d != numOfCols:%d", numFields, numOfCols);
+    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d not equal to data cols:%d", numFields, numOfCols);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
   if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    uError("numFields:%d > boundInfo->numOfBound:%d", numFields, boundInfo->numOfBound);
+    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
@@ -695,7 +704,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       SSchema*  pColSchema = &pSchema[j];
       SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
       if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-        uError("type or bytes not equal");
+        if (errstr != NULL) snprintf(errstr, errstrLen, "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                                     pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
         ret = TSDB_CODE_INVALID_PARA;
         goto end;
       }
@@ -719,16 +729,20 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       }
     }
   }else{
+    bool hasTs = false;
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++){
         SSchema*  pColSchema = &pSchema[j];
         if(strcmp(pColSchema->name, tFields[i].name) == 0){
           if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-            uError("type or bytes not equal");
+            if (errstr != NULL) snprintf(errstr, errstrLen, "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                                         pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
             ret = TSDB_CODE_INVALID_PARA;
             goto end;
           }
-
+          if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            hasTs = true;
+          }
           int8_t* offset = pStart;
           if (IS_VAR_DATA_TYPE(pColSchema->type)) {
             pStart += numOfRows * sizeof(int32_t);
@@ -753,6 +767,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         }
       }
 
+    }
+
+    if(!hasTs){
+      if (errstr != NULL) snprintf(errstr, errstrLen, "timestamp column(primary key) not found in raw data");
+      ret = TSDB_CODE_INVALID_PARA;
+      goto end;
     }
 
     for (int c = 0; c < boundInfo->numOfBound; ++c) {

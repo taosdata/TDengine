@@ -473,7 +473,7 @@ typedef enum ELogicConditionType {
 #define TSDB_ARB_DUMMY_TIME 4765104000000  // 2121-01-01 00:00:00.000, :P
 
 #define TFS_MAX_TIERS          3
-#define TFS_MAX_DISKS_PER_TIER 16
+#define TFS_MAX_DISKS_PER_TIER 128
 #define TFS_MAX_DISKS          (TFS_MAX_TIERS * TFS_MAX_DISKS_PER_TIER)
 #define TFS_MIN_LEVEL          0
 #define TFS_MAX_LEVEL          (TFS_MAX_TIERS - 1)

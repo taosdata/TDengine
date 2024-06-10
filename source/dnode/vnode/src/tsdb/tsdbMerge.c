@@ -546,9 +546,9 @@ int32_t tsdbMerge(void *arg) {
   if (merger->fset == NULL) return 0;
 
   // do merge
-  tsdbDebug("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
+  tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
   code = tsdbDoMerge(merger);
-  tsdbDebug("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -559,5 +559,6 @@ _exit:
     exit(EXIT_FAILURE);
   }
   tsdbTFileSetClear(&merger->fset);
+  taosMemoryFree(arg);
   return code;
 }

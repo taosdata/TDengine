@@ -154,11 +154,12 @@ typedef struct {
   ETrnConflct   conflict;
   ETrnExec      exec;
   EOperType     oper;
+  bool          changeless;
   int32_t       code;
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
-  int32_t       redoActionPos;
+  int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;
   SArray*       undoActions;

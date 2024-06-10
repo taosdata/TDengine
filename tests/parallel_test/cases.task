@@ -5,6 +5,30 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
+
+
+#
+# army-test
+#
+#,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+#,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3Basic.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/test_join.py
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/test_compare.py
+#,,y,army,./pytest.sh python3 ./test.py -f community/insert/test_column_tag_boundary.py
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
+#,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/insert/insert_basic.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
+#,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+,,n,army,python3 ./test.py -f community/query/show.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/query/subqueryBugs.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
+#,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
+
+
 #system test
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
@@ -170,6 +194,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
@@ -213,6 +238,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupRep1.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupRep3.py -N 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
+,,n,system-test,python3 ./test.py -f 0-others/empty_identifier.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
@@ -237,6 +263,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
@@ -267,6 +294,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insertWithCsv.py 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
@@ -955,6 +983,13 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_uint.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_timestamp.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_nchar.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_varbinary.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_json.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_geometry.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
 ,,y,script,./test.sh -f tsim/parser/condition_scl.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
@@ -1048,6 +1083,7 @@
 ,,y,script,./test.sh -f tsim/query/bug3398.sim
 ,,y,script,./test.sh -f tsim/query/explain_tsorder.sim
 ,,y,script,./test.sh -f tsim/query/apercentile.sim
+,,y,script,./test.sh -f tsim/query/union_precision.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 #,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim

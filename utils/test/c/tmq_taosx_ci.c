@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "cJSON.h"
 #include "taos.h"
 #include "types.h"
 
@@ -31,6 +32,7 @@ typedef struct {
   int  srcVgroups;
   int  dstVgroups;
   char dir[64];
+  bool btMeta;
 } Config;
 
 Config g_conf = {0};
@@ -60,8 +62,23 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
       if (g_fp && strcmp(result, "") != 0) {
-        taosFprintfFile(g_fp, result);
-        taosFprintfFile(g_fp, "\n");
+        // RES_TYPE__TMQ_BATCH_META
+        if ((*(int8_t*)msg) == 5) {
+          cJSON* pJson = cJSON_Parse(result);
+          cJSON* pJsonArray = cJSON_GetObjectItem(pJson, "metas");
+          int32_t num = cJSON_GetArraySize(pJsonArray);
+          for (int32_t i = 0; i < num; i++) {
+            cJSON* pJsonItem = cJSON_GetArrayItem(pJsonArray, i);
+            char* itemStr = cJSON_PrintUnformatted(pJsonItem);
+            taosFprintfFile(g_fp, itemStr);
+            tmq_free_json_meta(itemStr);
+            taosFprintfFile(g_fp, "\n");
+          }
+          cJSON_Delete(pJson);
+        } else {
+          taosFprintfFile(g_fp, result);
+          taosFprintfFile(g_fp, "\n");
+        }
       }
     }
     tmq_free_json_meta(result);
@@ -552,6 +569,10 @@ tmq_t* build_consumer() {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
+  if (g_conf.btMeta) {
+    tmq_conf_set(conf, "msg.enable.batchmeta", "true");
+  }
+
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -883,6 +904,16 @@ void initLogFile() {
   taosCloseFile(&pFile2);
 }
 
+void testDetailError(){
+  tmq_raw_data raw = {0};
+  raw.raw_type = 2;
+  int32_t code = tmq_write_raw((TAOS *)1, raw);
+  ASSERT(code);
+  const char *err = tmq_err2str(code);
+  char* tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  ASSERT(tmp != NULL);
+}
+
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -899,6 +930,8 @@ int main(int argc, char* argv[]) {
       g_conf.subTable = true;
     } else if (strcmp(argv[i], "-onlymeta") == 0) {
       g_conf.meta = 1;
+    } else if (strcmp(argv[i], "-bt") == 0) {
+      g_conf.btMeta = true;
     }
   }
 
@@ -917,4 +950,5 @@ int main(int argc, char* argv[]) {
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
   taosCloseFile(&g_fp);
+  testDetailError();
 }

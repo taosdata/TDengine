@@ -344,6 +344,8 @@ typedef struct {
   int    flush_count;
 } SCacheFlushState;
 
+typedef struct SCompMonitor SCompMonitor;
+
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -360,8 +362,11 @@ struct STsdb {
   TdThreadMutex        biMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
-  // compact monitor
-  struct SCompMonitor *pCompMonitor;
+  SCompMonitor        *pCompMonitor;
+  struct {
+    SVHashTable *ht;
+    SArray      *arr;
+  } *commitInfo;
 };
 
 struct TSDBKEY {
@@ -846,9 +851,16 @@ typedef struct {
   SColVal colVal;
 } SLastCol;
 
+typedef struct {
+  int8_t  lflag;
+  TSKEY   ts;
+  SColVal colVal;
+} SLastUpdateCtx;
+
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *row);
+int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow, SRow **aRow);
+int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);

@@ -48,7 +48,7 @@ typedef struct SDnodeMgmt {
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-void    dmSendNotifyReq(SDnodeMgmt *pMgmt);
+void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

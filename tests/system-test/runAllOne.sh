@@ -22,6 +22,7 @@ python3 ./test.py -f 1-insert/update_data_muti_rows.py -P
 python3 ./test.py -f 1-insert/db_tb_name_check.py -P
 python3 ./test.py -f 1-insert/InsertFuturets.py -P
 python3 ./test.py -f 1-insert/insert_wide_column.py -P
+python3 ./test.py -f 1-insert/insert_column_value.py -P
 python3 ./test.py -f 2-query/nestedQuery.py -P
 python3 ./test.py -f 2-query/nestedQuery_str.py -P
 python3 ./test.py -f 2-query/nestedQuery_math.py -P

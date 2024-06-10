@@ -19,7 +19,7 @@
 #include "tgeosctx.h"
 #include "tlog.h"
 
-#define QUEUE_THRESHOLD 1000 * 1000
+#define QUEUE_THRESHOLD (1000 * 1000)
 
 static void longQueuedMsgToDebug(const char *qname, int64_t st) {
   if (st == 0) return;

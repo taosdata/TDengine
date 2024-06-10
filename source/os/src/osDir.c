@@ -224,7 +224,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess) {
 #ifdef WINDOWS
       code = _mkdir(temp, mode);
 #elif defined(DARWIN)
-      code = mkdir(dirname, 0777);
+      code = mkdir(temp, 0777);
 #else
       code = mkdir(temp, mode);
 #endif

@@ -353,6 +353,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DB_ALIVE_STMT,
   QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
   QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
+  QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT,
   QUERY_NODE_RESTORE_DNODE_STMT,
   QUERY_NODE_RESTORE_QNODE_STMT,
   QUERY_NODE_RESTORE_MNODE_STMT,
@@ -2089,10 +2090,11 @@ int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistrib
 void    tFreeSRedistributeVgroupReq(SRedistributeVgroupReq* pReq);
 
 typedef struct {
-  int32_t useless;
+  int32_t reserved;
+  int32_t vgId;
   int32_t sqlLen;
   char*   sql;
-  int32_t vgId;
+  char    db[TSDB_DB_FNAME_LEN];
 } SBalanceVgroupLeaderReq;
 
 int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
@@ -2414,6 +2416,7 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int8_t  resetOffsetCfg;
+  int8_t  enableBatchMeta;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2433,6 +2436,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI8(buf, pReq->autoCommit);
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
+  tlen += taosEncodeFixedI8(buf, pReq->enableBatchMeta);
 
   return tlen;
 }
@@ -2456,6 +2460,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
   buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
+  buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
   return buf;
 }
 
@@ -2703,6 +2708,7 @@ typedef struct {
 
 int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
 int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
+void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
@@ -2783,8 +2789,10 @@ typedef struct {
   char*    tagName;
   int8_t   isNull;
   int8_t   tagType;
+  int8_t   tagFree;
   uint32_t nTagVal;
   uint8_t* pTagVal;
+  SArray*  pTagArray;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;
@@ -3629,6 +3637,7 @@ typedef struct {
   int64_t      consumerId;
   int64_t      timeout;
   STqOffsetVal reqOffset;
+  int8_t       enableBatchMeta;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -3676,6 +3685,7 @@ typedef struct {
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
 int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
+void    tDeleteMqMetaRsp(SMqMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead   head;
@@ -3714,6 +3724,20 @@ typedef struct {
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp);
 void    tDeleteSTaosxRsp(STaosxRsp* pRsp);
+
+typedef struct SMqBatchMetaRsp {
+  SMqRspHead   head;         // not serialize
+  STqOffsetVal rspOffset;
+  SArray*      batchMetaLen;
+  SArray*      batchMetaReq;
+  void*        pMetaBuff;    // not serialize
+  uint32_t     metaBuffLen;  // not serialize
+} SMqBatchMetaRsp;
+
+int32_t tEncodeMqBatchMetaRsp(SEncoder* pEncoder, const SMqBatchMetaRsp* pRsp);
+int32_t tDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
+void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead head;

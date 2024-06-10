@@ -326,7 +326,7 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ signed_literal(D).              { A = createAlterTableSetTag(pCxt, B, &C, D); }
+  full_table_name(B) SET TAG column_name(C) NK_EQ tags_literal(D).                { A = createAlterTableSetTag(pCxt, B, &C, D); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -335,7 +335,7 @@ multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).    
 
 create_subtable_clause(A) ::=
   not_exists_opt(B) full_table_name(C) USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP expression_list(F) NK_RP table_options(G).      { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP table_options(G).    { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
@@ -649,6 +649,7 @@ cmd ::= KILL COMPACT NK_INTEGER(A).                                             
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
 cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
+cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A).                                { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
@@ -678,6 +679,196 @@ cmd ::= insert_query(A).                                                        
 insert_query(A) ::= INSERT INTO full_table_name(D) 
   NK_LP col_name_list(B) NK_RP query_or_subquery(C).                              { A = createInsertStmt(pCxt, D, B, C); }
 insert_query(A) ::= INSERT INTO full_table_name(C) query_or_subquery(B).          { A = createInsertStmt(pCxt, C, NULL, B); }
+
+/************************************************ tags_literal *************************************************************/
+tags_literal(A) ::= NK_INTEGER(B).                                                { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
+tags_literal(A) ::= NK_INTEGER(B) NK_PLUS duration_literal(C).                    {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_INTEGER(B) NK_MINUS duration_literal(C).                   {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_INTEGER(C).                                     {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_INTEGER NK_PLUS duration_literal(C).            {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_INTEGER NK_MINUS duration_literal(C).           {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_INTEGER(C).                                    {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_INTEGER NK_PLUS duration_literal(C).           {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_INTEGER NK_MINUS duration_literal(C).          {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_FLOAT(B).                                                  { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B, NULL); }
+tags_literal(A) ::= NK_PLUS(B) NK_FLOAT(C).                                       {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_FLOAT(C).                                      {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t, NULL);
+                                                                                  }
+
+tags_literal(A) ::= NK_BIN(B).                                                    { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
+tags_literal(A) ::= NK_BIN(B) NK_PLUS duration_literal(C).                        {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_BIN(B) NK_MINUS duration_literal(C).                       {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_BIN(C).                                         {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_BIN NK_PLUS duration_literal(C).                {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_BIN NK_MINUS duration_literal(C).               {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_BIN(C).                                        {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_BIN NK_PLUS duration_literal(C).               {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_BIN NK_MINUS duration_literal(C).              {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_HEX(B).                                                    { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
+tags_literal(A) ::= NK_HEX(B) NK_PLUS duration_literal(C).                        {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_HEX(B) NK_MINUS duration_literal(C).                       {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_HEX(C).                                         {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_HEX NK_PLUS duration_literal(C).                {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_PLUS(B) NK_HEX NK_MINUS duration_literal(C).               {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_HEX(C).                                        {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t, NULL);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_HEX NK_PLUS duration_literal(C).               {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_HEX NK_MINUS duration_literal(C).              {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+
+tags_literal(A) ::= NK_STRING(B).                                                 { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B, NULL); }
+tags_literal(A) ::= NK_STRING(B) NK_PLUS duration_literal(C).                     {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_STRING(B) NK_MINUS duration_literal(C).                    {
+                                                                                    SToken l = B;
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
+                                                                                  }
+tags_literal(A) ::= NK_BOOL(B).                                                   { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B, NULL); }
+tags_literal(A) ::= NULL(B).                                                      { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B, NULL); }
+
+tags_literal(A) ::= literal_func(B).                                              { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BINARY, NULL, B); }
+tags_literal(A) ::= literal_func(B) NK_PLUS duration_literal(C).                  {
+                                                                                    SToken l = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, B, C);
+                                                                                  }
+tags_literal(A) ::= literal_func(B) NK_MINUS duration_literal(C).                 {
+                                                                                    SToken l = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken r = getTokenFromRawExprNode(pCxt, C);
+                                                                                    l.n = (r.z + r.n) - l.z;
+                                                                                    A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, B, C);
+                                                                                  }
+
+%type tags_literal_list                                                           { SNodeList* }
+%destructor tags_literal_list                                                     { nodesDestroyList($$); }
+tags_literal_list(A) ::= tags_literal(B).                                         { A = createNodeList(pCxt, B); }
+tags_literal_list(A) ::= tags_literal_list(B) NK_COMMA tags_literal(C).           { A = addNodeToList(pCxt, B, C); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }
@@ -852,6 +1043,7 @@ function_expression(A) ::= literal_func(B).                                     
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= TODAY(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 %type noarg_func                                                                  { SToken }
 %destructor noarg_func                                                            { }

@@ -428,6 +428,11 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
+    taosThreadMutexUnlock(&clientHbMgr.lock);
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    tFreeClientHbBatchRsp(&pRsp);
+    return -1;
   }
 
   if (rspNum) {
@@ -622,7 +627,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
 _return:
   releaseTscObj(connKey->tscRid);
   if (code) {
-    tscError("hb got user auth info failed since %s", terrstr(code));
+    tscError("hb got user auth info failed since %s", tstrerror(code));
   }
 
   return code;

@@ -129,6 +129,7 @@ function runSimCases() {
 	echo "=== Run sim cases ==="
 	
 	cd $TDENGINE_DIR/tests/script
+	sed -i "s/-9/-15/g" sh/stop_dnodes.sh
 	runCasesOneByOne ../parallel_test/cases.task sim
 	
 	totalSuccess=`grep 'sim success' $TDENGINE_COVERAGE_REPORT | wc -l`
@@ -145,6 +146,8 @@ function runSimCases() {
 function runPythonCases() {
 	echo "=== Run python cases ==="
 
+	sed -i 's/-9/-15/g' $TDENGINE_DIE/tests/pytest/util/dnodes.py 
+	
 	cd $TDENGINE_DIR/tests/parallel_test
 	sed -i '/compatibility.py/d' cases.task
 		

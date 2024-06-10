@@ -1,0 +1,66 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 3000,
+    "prepared_rand": 3000,
+    "thread_count": 2,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "db",
+                "drop": "yes",
+                "vgroups": 2,
+                "replica": 3,
+                "wal_retention_period": 10,
+                "wal_retention_size": 100,
+                "keep": "60d,120d,365d",
+                "stt_trigger": 1,
+                "wal_level": 2,
+                "WAL_FSYNC_PERIOD": 3300,
+                "cachemodel": "'last_value'",
+                "TABLE_PREFIX":1,
+                "comp": 1
+            },
+            "super_tables": [
+                {
+                    "name": "stb",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 100000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":"now-360d",
+                    "columns": [
+                        { "type": "bool",        "name": "bc","max": 1,"min": 1},
+                        { "type": "float",       "name": "fc" ,"max": 101,"min": 101},
+                        { "type": "double",      "name": "dc" ,"max": 102,"min": 102},
+                        { "type": "tinyint",     "name": "ti" ,"max": 103,"min": 103},
+                        { "type": "smallint",    "name": "si" ,"max": 104,"min": 104},
+                        { "type": "int",         "name": "ic" ,"max": 105,"min": 105},
+                        { "type": "bigint",      "name": "bi" ,"max": 106,"min": 106},
+                        { "type": "utinyint",    "name": "uti","max": 107,"min": 107},
+                        { "type": "usmallint",   "name": "usi","max": 108,"min": 108},
+                        { "type": "uint",        "name": "ui" ,"max": 109,"min": 109},
+                        { "type": "ubigint",     "name": "ubi","max": 110,"min": 110},
+                        { "type": "binary",      "name": "bin", "len": 16},
+                        { "type": "nchar",       "name": "nch", "len": 32}
+                    ],
+                    "tags": [
+                        {"type": "tinyint", "name": "groupid","max": 100,"min": 100},
+                        {"name": "location","type": "binary", "len": 16, "values":
+                           ["San Francisco", "Los Angles", "San Diego", "San Jose", "Palo Alto", "Campbell", "Mountain View","Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

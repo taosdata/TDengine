@@ -33,7 +33,7 @@ class TDTestCase:
             for i in range(ctbNum):
                 tagValue = 'beijing'
                 if (i % 10 == 0):
-                    sql += f" {dbName}.%s%d using %s (name,fleet,driver,device_version,load_capacity,fuel_capacity,nominal_fuel_consumption)  tags('truck_%d', 'South%d','Trish%d','v2.%d', 1500+%d*20, 150+%d*2, 5+%d)"%(ctbPrefix,i,stbName,i,i,i,i,(1500+i*20),(150+i*2),(5+i))
+                    sql += f" {dbName}.%s%d using %s (name,fleet,driver,device_version,load_capacity,fuel_capacity,nominal_fuel_consumption)  tags('truck_%d', 'South%d','Trish%d','v2.%d', %d, %d, %d)"%(ctbPrefix,i,stbName,i,i,i,i,1500+(1500+i*20)*20,150+(150+i*2)*2,5+(5+i))
                 else:
                     model = 'H-%d'%i
                     sql += f" {dbName}.%s%d using %s tags('truck_%d', 'South%d','Trish%d','%s','v2.%d', %d, %d,%d)"%(ctbPrefix,i,stbName,i,i,i,model,i,(1500+i*20),(150+i*2),(5+i))

@@ -476,6 +476,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
+  rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -527,6 +528,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
+    rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
     SCH_ERR_JRET(code);
   }
 
@@ -937,6 +939,10 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
 
   SMsgSendInfo *pMsgSendInfo = NULL;
   bool          isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
+
+  if (isHb && persistHandle && trans->pHandle == 0) {
+    trans->pHandle = rpcAllocHandle();
+  } 
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));
 

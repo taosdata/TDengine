@@ -505,7 +505,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
-    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0, &pHandle->api.metaFn);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
@@ -534,7 +534,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
-      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0, &pHandle->api.metaFn);
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1863,11 +1863,11 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
 
       if (hasResult) {
-        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
-               pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
         STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
         setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        qDebug("doQueueScan get data from log %" PRId64 " rows, after filter rows: %" PRId64 ", version:%" PRId64,
+               pRes->info.rows,pInfo->pRes->info.rows,pTaskInfo->streamInfo.currentOffset.version);
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
@@ -2363,8 +2363,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
   SStreamRawScanInfo* pInfo = pOperator->info;
   int32_t             code = TSDB_CODE_SUCCESS;
-  pTaskInfo->streamInfo.metaRsp.metaRspLen = 0;  // use metaRspLen !=0 to judge if data is meta
-  pTaskInfo->streamInfo.metaRsp.metaRsp = NULL;
+  pTaskInfo->streamInfo.btMetaRsp.batchMetaReq = NULL;  // use batchMetaReq != NULL to judge if data is meta
+  pTaskInfo->streamInfo.btMetaRsp.batchMetaLen = NULL;
 
   qDebug("tmqsnap doRawScan called");
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -2407,27 +2407,59 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
-    void*         data = NULL;
-    int32_t       dataLen = 0;
-    int16_t       type = 0;
-    int64_t       uid = 0;
-    if (pAPI->snapshotFn.getTableInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
-      qError("tmqsnap getTableInfoFromSnapshot error");
-      taosMemoryFreeClear(data);
-      return NULL;
-    }
+    for(int32_t i = 0; i < tmqRowSize; i++) {
+      void*         data = NULL;
+      int32_t       dataLen = 0;
+      int16_t       type = 0;
+      int64_t       uid = 0;
+      if (pAPI->snapshotFn.getTableInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
+        qError("tmqsnap getTableInfoFromSnapshot error");
+        taosMemoryFreeClear(data);
+        break;
+      }
 
-    if (!sContext->queryMeta) {  // change to get data next poll request
-      STqOffsetVal offset = {0};
-      tqOffsetResetToData(&offset, 0, INT64_MIN);
-      qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
-    } else {
-      tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
-      pTaskInfo->streamInfo.metaRsp.resMsgType = type;
-      pTaskInfo->streamInfo.metaRsp.metaRspLen = dataLen;
-      pTaskInfo->streamInfo.metaRsp.metaRsp = data;
-    }
+      if (!sContext->queryMeta) {  // change to get data next poll request
+        STqOffsetVal offset = {0};
+        tqOffsetResetToData(&offset, 0, INT64_MIN);
+        qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
+        break;
+      } else {
+        tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
+        SMqMetaRsp tmpMetaRsp = {0};
+        tmpMetaRsp.resMsgType = type;
+        tmpMetaRsp.metaRspLen = dataLen;
+        tmpMetaRsp.metaRsp = data;
+        if (!pTaskInfo->streamInfo.btMetaRsp.batchMetaReq) {
+          pTaskInfo->streamInfo.btMetaRsp.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+          pTaskInfo->streamInfo.btMetaRsp.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+        }
+        int32_t  code = TSDB_CODE_SUCCESS;
+        uint32_t len = 0;
+        tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, code);
+        if (TSDB_CODE_SUCCESS != code) {
+          qError("tmqsnap tEncodeMqMetaRsp error");
+          taosMemoryFreeClear(data);
+          break;
+        }
 
+        int32_t tLen = sizeof(SMqRspHead) + len;
+        void*   tBuf = taosMemoryCalloc(1, tLen);
+        void*   metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
+        SEncoder encoder = {0};
+        tEncoderInit(&encoder, metaBuff, len);
+        code = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
+        if (code < 0) {
+          qError("tmqsnap tEncodeMqMetaRsp error");
+          tEncoderClear(&encoder);
+          taosMemoryFreeClear(tBuf);
+          taosMemoryFreeClear(data);
+          break;
+        }
+        taosMemoryFreeClear(data);
+        taosArrayPush(pTaskInfo->streamInfo.btMetaRsp.batchMetaReq, &tBuf);
+        taosArrayPush(pTaskInfo->streamInfo.btMetaRsp.batchMetaLen, &tLen);
+      }
+    }
     return NULL;
   }
   return NULL;
@@ -3090,7 +3122,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
   char        str[512] = {0};
   int32_t     count = 0;
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, 0, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);

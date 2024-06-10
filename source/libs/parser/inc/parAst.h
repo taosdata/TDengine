@@ -101,6 +101,8 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
 
 SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
+SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode *pNode);
+SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode *pLeft, SNode *pRight);
 SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
@@ -236,6 +238,7 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
 SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);

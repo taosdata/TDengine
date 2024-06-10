@@ -119,8 +119,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
 
   int8_t validChkp = 0;
   if (chkpId != 0) {
-    sprintf(tdir, "%s%s%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "stream", TD_DIRSEP, "checkpoints", TD_DIRSEP,
-            chkpId);
+    sprintf(tdir, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
     if (taosIsDir(tdir)) {
       validChkp = 1;
       qInfo("%s start to read snap %s", STREAM_STATE_TRANSFER, tdir);
@@ -132,7 +131,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
 
   // no checkpoint specified or not exists invalid checkpoint, do checkpoint at default path and translate it
   if (validChkp == 0) {
-    sprintf(tdir, "%s%s%s%s%s", path, TD_DIRSEP, "stream", TD_DIRSEP, "state");
+    sprintf(tdir, "%s%s%s", path, TD_DIRSEP, "state");
     char* chkpdir = taosMemoryCalloc(1, len + 256);
     sprintf(chkpdir, "%s%s%s", tdir, TD_DIRSEP, "tmp");
     taosMemoryFree(tdir);

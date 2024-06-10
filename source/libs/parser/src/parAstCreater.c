@@ -167,7 +167,7 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb)
     }
   } else {
     trimEscape(pDbName);
-    if (pDbName->n >= TSDB_DB_NAME_LEN) {
+    if (pDbName->n >= TSDB_DB_NAME_LEN || pDbName->n == 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
     }
   }
@@ -176,7 +176,7 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb)
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
   trimEscape(pTableName);
-  if (NULL != pTableName && pTableName->n >= TSDB_TABLE_NAME_LEN) {
+  if (NULL != pTableName && pTableName->type != TK_NK_NIL && (pTableName->n >= TSDB_TABLE_NAME_LEN || pTableName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
     return false;
   }
@@ -185,7 +185,7 @@ static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
 
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
   trimEscape(pColumnName);
-  if (NULL != pColumnName && pColumnName->n >= TSDB_COL_NAME_LEN) {
+  if (NULL != pColumnName && pColumnName->type != TK_NK_NIL && (pColumnName->n >= TSDB_COL_NAME_LEN || pColumnName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
     return false;
   }
@@ -203,7 +203,7 @@ static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
 
 static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {
   trimEscape(pTopicName);
-  if (pTopicName->n >= TSDB_TOPIC_NAME_LEN) {
+  if (pTopicName->n >= TSDB_TOPIC_NAME_LEN || pTopicName->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTopicName->z);
     return false;
   }
@@ -221,7 +221,7 @@ static bool checkCGroupName(SAstCreateContext* pCxt, SToken* pCGroup) {
 
 static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
   trimEscape(pStreamName);
-  if (pStreamName->n >= TSDB_STREAM_NAME_LEN) {
+  if (pStreamName->n >= TSDB_STREAM_NAME_LEN || pStreamName->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pStreamName->z);
     return false;
   }
@@ -345,6 +345,80 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   val->isDuration = false;
   val->translate = false;
+  return (SNode*)val;
+}
+
+SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+
+  if (!(val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE))) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+  if (pLiteral) {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+  } else if (pNode) {
+    SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+    if (!nodesIsExprNode(pRawExpr->pNode)) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pRawExpr->p);
+      goto _exit;
+    }
+    val->literal = strndup(pRawExpr->p, pRawExpr->n);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
+    goto _exit;
+  }
+  if (!val->literal) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+_exit:
+  nodesDestroyNode(pNode);
+  if (pCxt->errCode != 0) {
+    nodesDestroyNode((SNode*)val);
+    return NULL;
+  }
+  return (SNode*)val;
+}
+
+SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pLeft,
+                             SNode* pRight) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+
+  if (!(val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE))) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+    goto _exit;
+  }
+  if (pLiteral) {
+    if (!(val->literal = strndup(pLiteral->z, pLiteral->n))) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY, "Out of memory");
+      goto _exit;
+    }
+  } else {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR, "Invalid parameters");
+    goto _exit;
+  }
+
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+_exit:
+  nodesDestroyNode(pLeft);
+  nodesDestroyNode(pRight);
+  if (pCxt->errCode != 0) {
+    nodesDestroyNode((SNode*)val);
+    return NULL;
+  }
   return (SNode*)val;
 }
 
@@ -1529,6 +1603,7 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkColumnName(pCxt, pTagName)) {
+    nodesDestroyNode(pVal);
     return NULL;
   }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
@@ -1540,6 +1615,7 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken
 }
 
 SNode* setAlterSuperTableType(SNode* pStmt) {
+  if (!pStmt) return NULL;
   setNodeType(pStmt, QUERY_NODE_ALTER_SUPER_TABLE_STMT);
   return pStmt;
 }
@@ -1886,6 +1962,7 @@ SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, c
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
+    nodesDestroyNode(pQuery);
     return NULL;
   }
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
@@ -2131,6 +2208,8 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
                               SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkStreamName(pCxt, pStreamName)) {
+    nodesDestroyNode(pQuery);
+    nodesDestroyNode(pOptions);
     return NULL;
   }
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
@@ -2215,6 +2294,16 @@ SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgI
   CHECK_OUT_OF_MEM(pStmt);
   if (NULL != pVgId && NULL != pVgId->z) {
     pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
+  return (SNode*)pStmt;
+}
+
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName){
+  CHECK_PARSER_STATUS(pCxt);
+  SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  if (NULL != pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   }
   return (SNode*)pStmt;
 }

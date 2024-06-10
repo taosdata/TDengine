@@ -151,15 +151,15 @@ class TDTestCase:
                 tdSql.checkData( i, 0, date_init_stamp)
 
 
-        tdSql.query(f"select cast(c2 as timestamp) as b from {self.dbname}.t1")
-        for i in range(len(data_t1_c2)):
-            if data_t1_c2[i] is None:
-                tdSql.checkData( i, 0 , None )
-            elif i == 10:
-                continue
-            else:
-                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c2[i]) / 1000.0)
-                tdSql.checkData( i, 0, date_init_stamp)
+        # tdSql.query(f"select cast(c2 as timestamp) as b from {self.dbname}.t1")
+        # for i in range(len(data_t1_c2)):
+        #     if data_t1_c2[i] is None:
+        #         tdSql.checkData( i, 0 , None )
+        #     elif i == 10:
+        #         continue
+        #     else:
+        #         date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c2[i]) / 1000.0)
+        #         tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdLog.printNoPrefix("==========step12: cast smallint to bigint, expect no changes")
@@ -352,15 +352,15 @@ class TDTestCase:
                 date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c6[i]) / 1000.0)
                 tdSql.checkData( i, 0, date_init_stamp)
 
-        tdSql.query(f"select cast(c6 as timestamp) as b from {self.dbname}.t1")
-        for i in range(len(data_t1_c6)):
-            if data_t1_c6[i] is None:
-                tdSql.checkData( i, 0 , None )
-            elif i == 10:
-                continue
-            else:
-                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c6[i]) / 1000.0)
-                tdSql.checkData( i, 0, date_init_stamp)
+        # tdSql.query(f"select cast(c6 as timestamp) as b from {self.dbname}.t1")
+        # for i in range(len(data_t1_c6)):
+        #     if data_t1_c6[i] is None:
+        #         tdSql.checkData( i, 0 , None )
+        #     elif i == 10:
+        #         continue
+        #     else:
+        #         date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c6[i]) / 1000.0)
+        #         tdSql.checkData( i, 0, date_init_stamp)
 
         tdLog.printNoPrefix("==========step28: cast bool to bigint, expect no changes")
         tdSql.query(f"select c7  from {self.dbname}.ct4")

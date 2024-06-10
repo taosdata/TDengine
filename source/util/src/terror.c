@@ -27,8 +27,12 @@ typedef struct {
 } STaosError;
 
 static threadlocal int32_t tsErrno;
+static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
+static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
+char*    taosGetErrMsg() { return tsErrMsgDetail; }
+char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
@@ -275,7 +279,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_IN_DROPPING,        "Dnode in dropping sta
 // mnode-trans
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,      "Transaction already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,          "Transaction not exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,      "Invalid stage to kill")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,      "Invalid transaction stage")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT,           "Conflict transaction not completed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CLOG_IS_NULL,       "Transaction commitlog is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction and will continue in the background")
@@ -574,7 +578,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,      "Window query not su
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_COL,           "No columns can be dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COL_JSON,           "Only tag can be json type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VALUE_TOO_LONG,             "Value too long for column/tag")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalidate varbinary type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalid varbinary type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DELETE_WHERE,       "The DELETE statement must have a definite time window range")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,      "Fill not allowed")

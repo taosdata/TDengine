@@ -37,7 +37,7 @@ static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     dTrace("msg:%p, get from snode-write queue", pMsg);
     int32_t code = sndProcessWriteMsg(pMgmt->pSnode, pMsg, NULL);
     if (code < 0) {
-      dGError("snd, msg:%p failed to process write since %s", pMsg, terrstr(code));
+      dGError("snd, msg:%p failed to process write since %s", pMsg, tstrerror(code));
       if (pMsg->info.handle != NULL) {
         tmsgSendRsp(pMsg);
       }
@@ -58,7 +58,7 @@ static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from snode-stream queue", pMsg);
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
-    dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr(code));
+    dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
     smSendRsp(pMsg, terrno);
   }
 

@@ -52,15 +52,15 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
 int32_t tsNumOfCommitThreads = 2;
-int32_t tsNumOfTaskQueueThreads = 4;
-int32_t tsNumOfMnodeQueryThreads = 4;
+int32_t tsNumOfTaskQueueThreads = 16;
+int32_t tsNumOfMnodeQueryThreads = 16;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
-int32_t tsNumOfVnodeQueryThreads = 4;
+int32_t tsNumOfVnodeQueryThreads = 16;
 float   tsRatioOfVnodeStreamThreads = 4.0;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
-int32_t tsNumOfQnodeQueryThreads = 4;
+int32_t tsNumOfQnodeQueryThreads = 16;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
@@ -134,6 +134,7 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
+int32_t tmqRowSize = 4096;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
@@ -488,10 +489,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "keepAliveIdle", tsKeepAliveIdle, 1, 7200000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
-  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
-  if (tsNumOfTaskQueueThreads >= 10) {
-    tsNumOfTaskQueueThreads = 10;
-  }
+  tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT) != 0) return -1;
 
   return 0;
@@ -575,7 +573,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   tsNumOfVnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 16);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, CFG_SCOPE_SERVER) != 0)
@@ -590,7 +588,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
-  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 16);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   //  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
@@ -767,7 +765,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfVnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeQueryThreads = numOfCores * 2;
-    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
+    tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 16);
     pItem->i32 = tsNumOfVnodeQueryThreads;
     pItem->stype = stype;
   }
@@ -797,7 +795,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfQnodeQueryThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfQnodeQueryThreads = numOfCores * 2;
-    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
+    tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 16);
     pItem->i32 = tsNumOfQnodeQueryThreads;
     pItem->stype = stype;
   }

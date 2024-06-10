@@ -88,14 +88,6 @@ int32_t tqMetaOpen(STQ* pTq) {
     return -1;
   }
 
-//  if (tqMetaRestoreHandle(pTq) < 0) {
-//    return -1;
-//  }
-
-  if (tqMetaRestoreCheckInfo(pTq) < 0) {
-    return -1;
-  }
-
   return 0;
 }
 
@@ -387,6 +379,147 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   tqInfo("tqCreateHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
+
+static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pExecStoreOld, TTB* pExecStoreNew){
+  TBC* pCur = NULL;
+  if (tdbTbcOpen(pExecStoreOld, &pCur, NULL) < 0) {
+    return -1;
+  }
+
+  TXN* txn;
+  if (tdbBegin(pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    return -1;
+  }
+
+  void*    pKey = NULL;
+  int      kLen = 0;
+  void*    pVal = NULL;
+  int      vLen = 0;
+
+  tdbTbcMoveToFirst(pCur);
+  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+    if (tdbTbUpsert(pExecStoreNew, pKey, kLen, pVal, vLen, txn) < 0) {
+      tqError("transform sub info error");
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCur);
+      return -1;
+    }
+  }
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+
+  if (tdbCommit(pMetaDB, txn) < 0) {
+    return -1;
+  }
+
+  if (tdbPostCommit(pMetaDB, txn) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
+int32_t tqMetaTransform(STQ* pTq) {
+  int32_t len = strlen(pTq->path) + 64;
+  char*   maindb = taosMemoryCalloc(1, len);
+  sprintf(maindb, "%s%s%s", pTq->path, TD_DIRSEP, TDB_MAINDB_NAME);
+
+  if(!taosCheckExistFile(maindb)){
+    taosMemoryFree(maindb);
+    char* tpath = taosMemoryCalloc(1, len);
+    if(tpath == NULL){
+      return -1;
+    }
+    sprintf(tpath, "%s%s%s", pTq->path, TD_DIRSEP, "subscribe");
+    taosMemoryFree(pTq->path);
+    pTq->path = tpath;
+    return tqMetaOpen(pTq);
+  }
+
+  int32_t code = 0;
+  TDB*    pMetaDB = NULL;
+  TTB*    pExecStore = NULL;
+  TTB*    pCheckStore = NULL;
+  char*   offsetNew = NULL;
+  char*   offset = tqOffsetBuildFName(pTq->path, 0);
+  if(offset == NULL){
+    code = -1;
+    goto END;
+  }
+
+
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pMetaDB, 0) < 0) {
+    code = -1;
+    goto END;
+  }
+
+  if (tdbTbOpen("tq.db", -1, -1, NULL, pMetaDB, &pExecStore, 0) < 0) {
+    code = -1;
+    goto END;
+  }
+
+  if (tdbTbOpen("tq.check.db", -1, -1, NULL, pMetaDB, &pCheckStore, 0) < 0) {
+    code = -1;
+    goto END;
+  }
+
+  char*   tpath = taosMemoryCalloc(1, len);
+  if(tpath == NULL){
+    code = -1;
+    goto END;
+  }
+  sprintf(tpath, "%s%s%s", pTq->path, TD_DIRSEP, "subscribe");
+  taosMemoryFree(pTq->path);
+  pTq->path = tpath;
+  if (tqMetaOpen(pTq) < 0) {
+    code = -1;
+    goto END;
+  }
+
+  if( tqMetaTransformInfo(pTq->pMetaDB, pExecStore, pTq->pExecStore) < 0){
+    code = -1;
+    goto END;
+  }
+
+  if(tqMetaTransformInfo(pTq->pMetaDB, pCheckStore, pTq->pCheckStore) < 0){
+    code = -1;
+    goto END;
+  }
+
+  tdbTbClose(pExecStore);
+  pExecStore = NULL;
+  tdbTbClose(pCheckStore);
+  pCheckStore = NULL;
+  tdbClose(pMetaDB);
+  pMetaDB = NULL;
+
+  offsetNew = tqOffsetBuildFName(pTq->path, 0);
+  if(offsetNew == NULL){
+    code = -1;
+    goto END;
+  }
+  if(taosCheckExistFile(offset) && taosCopyFile(offset, offsetNew) < 0){
+    tqError("copy offset file error");
+    code = -1;
+    goto END;
+  }
+
+  taosRemoveFile(maindb);
+  taosRemoveFile(offset);
+
+END:
+  taosMemoryFree(maindb);
+  taosMemoryFree(offset);
+  taosMemoryFree(offsetNew);
+
+  tdbTbClose(pExecStore);
+  tdbTbClose(pCheckStore);
+  tdbClose(pMetaDB);
+
+  return code;
+}
+
 
 int32_t tqMetaRestoreHandle(STQ* pTq) {
   int  code = 0;

@@ -135,4 +135,177 @@ endi
 print =========================== td-24781
 sql select DISTINCT (`precision`) from `information_schema`.`ins_databases` PARTITION BY `precision`
 
+print =========================ins_stables
+
+print create database test vgroups 4;
+sql create database test vgroups 4;
+sql use test;
+sql create stable st1(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st2(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st3(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st4(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st5(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st6(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st7(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st8(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st9(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st10(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st11(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st12(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st13(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st14(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st15(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st16(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st17(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st18(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st19(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st20(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st21(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st22(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st23(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st24(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st25(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st26(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st27(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st28(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st29(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st30(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st31(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st32(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st33(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st34(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st35(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st36(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st37(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st38(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st39(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st40(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st41(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st42(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st43(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st44(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st45(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st46(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st47(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st48(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st49(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st50(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st51(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st52(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st53(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st54(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st55(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st56(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st57(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st58(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st59(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st60(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st61(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st62(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st63(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st64(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st65(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st66(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st67(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st68(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st69(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st70(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+
+print create database test1 vgroups 4;
+sql create database test1 vgroups 4;
+sql use test1;
+
+sql create stable st1(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st2(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st3(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st4(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st5(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st6(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st7(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st8(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st9(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st10(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st11(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st12(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st13(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st14(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st15(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st16(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st17(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st18(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st19(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st20(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st21(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st22(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st23(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st24(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st25(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st26(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st27(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st28(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st29(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st30(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st31(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st32(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st33(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st34(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st35(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st36(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st37(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st38(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st39(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st40(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st41(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st42(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st43(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st44(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st45(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st46(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st47(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st48(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st49(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st50(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st51(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st52(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st53(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st54(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st55(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st56(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st57(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st58(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st59(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st60(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st61(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st62(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st63(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st64(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st65(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st66(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st67(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st68(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st69(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create stable st70(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+
+sleep 1000
+
+sql select * from information_schema.ins_stables where db_name = "test" limit 68,32;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from information_schema.ins_stables where db_name = "test1" limit 68,32;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+
+if $rows != 2 then
+  return -1
+endi
+
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

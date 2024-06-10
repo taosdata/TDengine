@@ -41,6 +41,12 @@
 #define LOG_BUF_SIZE(x)   ((x)->buffSize)
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
+#ifdef TD_ENTERPRISE
+#define LOG_EDITION_FLG ("E")
+#else
+#define LOG_EDITION_FLG ("C")
+#endif
+
 typedef struct {
   char         *buffer;
   int32_t       buffStart;
@@ -234,6 +240,7 @@ void taosCloseLog() {
     taosMemoryFreeClear(tsLogObj.logHandle->buffer);
     taosThreadMutexDestroy(&tsLogObj.logMutex);
     taosMemoryFreeClear(tsLogObj.logHandle);
+    tsLogObj.logHandle = NULL;
   }
 }
 
@@ -277,8 +284,11 @@ static void taosKeepOldLog(char *oldName) {
     taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
   }
 }
-
-static void *taosThreadToOpenNewFile(void *param) {
+typedef struct {
+  TdFilePtr pOldFile;
+  char      keepName[LOG_FILE_NAME_LEN + 20];
+} OldFileKeeper;
+static OldFileKeeper *taosOpenNewFile() {
   char keepName[LOG_FILE_NAME_LEN + 20];
   sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
@@ -304,13 +314,26 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  taosSsleep(20);
-  taosCloseLogByFd(pOldFile);
+  OldFileKeeper* oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
+  if (oldFileKeeper == NULL) {
+    uError("create old log keep info faild! mem is not enough.");
+    return NULL;
+  }
+  oldFileKeeper->pOldFile = pOldFile;
+  memcpy(oldFileKeeper->keepName, keepName, LOG_FILE_NAME_LEN + 20);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  taosKeepOldLog(keepName);
+  return oldFileKeeper;
+}
 
+static void *taosThreadToCloseOldFile(void* param) {
+  if(!param)  return NULL;
+  OldFileKeeper* oldFileKeeper = (OldFileKeeper*)param;
+  taosSsleep(20);
+  taosCloseLogByFd(oldFileKeeper->pOldFile);
+  taosKeepOldLog(oldFileKeeper->keepName);
+  taosMemoryFree(oldFileKeeper);
   return NULL;
 }
 
@@ -326,7 +349,8 @@ static int32_t taosOpenNewLogFile() {
     taosThreadAttrInit(&attr);
     taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    taosThreadCreate(&thread, &attr, taosThreadToOpenNewFile, NULL);
+    OldFileKeeper* oldFileKeeper = taosOpenNewFile();
+    taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper);
     taosThreadAttrDestroy(&attr);
   }
 
@@ -336,17 +360,14 @@ static int32_t taosOpenNewLogFile() {
 }
 
 void taosResetLog() {
-  char lastName[LOG_FILE_NAME_LEN + 20];
-  sprintf(lastName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-
   // force create a new log file
   tsLogObj.lines = tsLogObj.maxLines + 10;
 
-  taosOpenNewLogFile();
-  (void)taosRemoveFile(lastName);
-
-  uInfo("==================================");
-  uInfo("   reset log file ");
+  if (tsLogObj.logHandle) {
+    taosOpenNewLogFile();
+    uInfo("==================================");
+    uInfo("   reset log file ");
+  }
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
@@ -493,8 +514,9 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL);
 
-  return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
+  return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s", ptm->tm_mon + 1, ptm->tm_mday,
+                 ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(),
+                 LOG_EDITION_FLG, flags);
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
@@ -807,7 +829,12 @@ static void *taosAsyncOutputLog(void *param) {
       updateCron = 0;
     }
 
-    if (pLogBuf->stop || pSlowBuf->stop) break;
+    if (pLogBuf->stop || pSlowBuf->stop) {
+      pLogBuf->lastDuration = LOG_MAX_WAIT_MSEC;
+      taosWriteLog(pLogBuf);
+      taosWriteLog(pSlowBuf);
+      break;
+    }
   }
 
   return NULL;

@@ -829,7 +829,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
 
   // validate req
-  metaReaderDoInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
     if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
       terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
@@ -849,6 +849,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   metaReaderClear(&mr);
 
   bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
+
+  if (!sysTbl && ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0)) goto _err;
 
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;

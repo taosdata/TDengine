@@ -58,9 +58,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
-      case TK_NK_HEX:
-      case TK_NK_OCT:
-      case TK_NK_BIN: {
+      case TK_NK_OCT: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
         cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
@@ -494,6 +492,10 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
 static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS,
                                          pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                                   ((SValueNode*)pStmt->pTbName)->literal, pCxt->pMetaCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
   }

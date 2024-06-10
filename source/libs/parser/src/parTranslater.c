@@ -1261,12 +1261,13 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
 
       void*    data = NULL;
       uint32_t size = 0;
-      bool     isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      uint32_t vlen = strlen(pVal->literal);
+      bool     isHexChar = isHex(pVal->literal, vlen);
       if (isHexChar) {
-        if (!isValidateHex(pVal->literal, strlen(pVal->literal))) {
+        if (!isValidateHex(pVal->literal, vlen)) {
           return TSDB_CODE_PAR_INVALID_VARBINARY;
         }
-        if (taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0) {
+        if (taosHex2Ascii(pVal->literal, vlen, &data, &size) < 0) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
       } else {
@@ -1290,14 +1291,15 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_GEOMETRY: {
-      if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      int32_t vlen = IS_VAR_DATA_TYPE(pVal->node.resType.type) ? pVal->node.resType.bytes : strlen(pVal->literal);
+      if (strict && (vlen > targetDt.bytes - VARSTR_HEADER_SIZE)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_VALUE_TOO_LONG, pVal->literal);
       }
-      pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
+      int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, vlen);
+      pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
-      int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, pVal->node.resType.bytes);
       varDataSetLen(pVal->datum.p, len);
       strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
       break;
@@ -1864,7 +1866,6 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias && !pFunc->node.asParam) {
     strcpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias);
-    strcpy(pFunc->node.aliasName, pFunc->node.userAlias);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -7746,6 +7747,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
+  if(pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -7974,6 +7976,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
       break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
+      break;
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
@@ -8409,6 +8414,33 @@ static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
+  STableMeta* pTableMeta = NULL;
+  int32_t     code =
+      getTableMeta(pCxt, ((SValueNode*)pShow->pDbName)->literal, ((SValueNode*)pShow->pTbName)->literal, &pTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    goto _exit;
+  }
+  if (TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
+    goto _exit;
+  }
+
+_exit:
+  taosMemoryFreeClear(pTableMeta);
+  return code;
+}
+
+static int32_t rewriteShowTags(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowTags(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
+  }
+  return code;
+}
+
 static SNode* createTagsFunction() {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -8767,75 +8799,6 @@ static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SData
   return code;
 }
 
-static int32_t createTagValFromExpr(STranslateContext* pCxt, SDataType targetDt, SNode* pNode, SValueNode** pVal) {
-  SNode*  pCast = NULL;
-  int32_t code = createCastFuncForTag(pCxt, pNode, targetDt, &pCast);
-  SNode*  pNew = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = scalarCalculateConstants(pCast, &pNew);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pCast = pNew;
-    if (QUERY_NODE_VALUE != nodeType(pCast)) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pVal = (SValueNode*)pCast;
-  } else {
-    nodesDestroyNode(pCast);
-  }
-  return code;
-}
-
-static int32_t createTagValFromVal(STranslateContext* pCxt, SDataType targetDt, SNode* pNode, SValueNode** pVal) {
-  SValueNode* pTempVal = (SValueNode*)nodesCloneNode(pNode);
-  if (NULL == pTempVal) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pTempVal, targetDt, true)) {
-    nodesDestroyNode((SNode*)pTempVal);
-    return pCxt->errCode;
-  }
-  *pVal = pTempVal;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema* pSchema, SNode* pNode,
-                            SValueNode** pVal) {
-  if (QUERY_NODE_VALUE == nodeType(pNode)) {
-    return createTagValFromVal(pCxt, schemaToDataType(precision, pSchema), pNode, pVal);
-  } else {
-    return createTagValFromExpr(pCxt, schemaToDataType(precision, pSchema), pNode, pVal);
-  }
-}
-
-static int32_t buildJsonTagVal(STranslateContext* pCxt, SSchema* pTagSchema, SValueNode* pVal, SArray* pTagArray,
-                               STag** ppTag) {
-  if (pVal->literal && strlen(pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-    return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pVal->literal);
-  }
-
-  return parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
-}
-
-static int32_t buildNormalTagVal(STranslateContext* pCxt, SSchema* pTagSchema, SValueNode* pVal, SArray* pTagArray) {
-  if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
-    void*   nodeVal = nodesGetValueFromNode(pVal);
-    STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-    //    strcpy(val.colName, pTagSchema->name);
-    if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
-      val.pData = varDataVal(nodeVal);
-      val.nData = varDataLen(nodeVal);
-    } else {
-      memcpy(&val.i64, nodeVal, pTagSchema->bytes);
-    }
-    taosArrayPush(pTagArray, &val);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableClause* pStmt, STableMeta* pSuperTableMeta,
                                      STag** ppTag, SArray* tagName) {
   int32_t numOfTags = getNumOfTags(pSuperTableMeta);
@@ -8851,32 +8814,42 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  bool       isJson = false;
-  SNodeList* pVals = NULL;
-  SNode *    pTag = NULL, *pNode = NULL;
-  FORBOTH(pTag, pStmt->pSpecificTags, pNode, pStmt->pValsOfTags) {
-    SColumnNode* pCol = (SColumnNode*)pTag;
-    SSchema*     pSchema = getTagSchema(pSuperTableMeta, pCol->colName);
-    if (NULL == pSchema) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pCol->colName);
-    }
-    SValueNode* pVal = NULL;
+  bool        isJson = false;
+  SNode *     pTagNode = NULL, *pNode = NULL;
+  uint8_t     precision = pSuperTableMeta->tableInfo.precision;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = NULL;
+  FORBOTH(pTagNode, pStmt->pSpecificTags, pNode, pStmt->pValsOfTags) {
+    tagStr = ((SValueNode*)pNode)->literal;
+    NEXT_TOKEN_WITH_PREV(tagStr, token);
+
+    SSchema* pSchema = NULL;
     if (TSDB_CODE_SUCCESS == code) {
-      code = createTagVal(pCxt, pSuperTableMeta->tableInfo.precision, pSchema, pNode, &pVal);
+      if ((pSchema = getTagSchema(pSuperTableMeta, ((SColumnNode*)pTagNode)->colName))) {
+        code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
+        if (TK_NK_VARIABLE == token.type && TSDB_CODE_SUCCESS == code) {
+          code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+        }
+      } else {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, ((SColumnNode*)pTagNode)->colName);
+      }
     }
+
     if (TSDB_CODE_SUCCESS == code) {
       if (pSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
-        code = buildJsonTagVal(pCxt, pSchema, pVal, pTagArray, ppTag);
-        taosArrayPush(tagName, pCol->colName);
-      } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
-        code = buildNormalTagVal(pCxt, pSchema, pVal, pTagArray);
-        taosArrayPush(tagName, pCol->colName);
+      }
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
       }
     }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeAppend(&pVals, (SNode*)pVal);
-    }
+
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
@@ -8886,7 +8859,12 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     code = tTagNew(pTagArray, 1, false, ppTag);
   }
 
-  nodesDestroyList(pVals);
+  for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
+    STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   taosArrayDestroy(pTagArray);
   return code;
 }
@@ -8904,51 +8882,52 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  bool       isJson = false;
-  int32_t    index = 0;
-  SSchema*   pTagSchemas = getTableTagSchema(pSuperTableMeta);
-  SNodeList* pVals = NULL;
-  SNode*     pNode;
+  bool        isJson = false;
+  SNode*      pNode;
+  uint8_t     precision = pSuperTableMeta->tableInfo.precision;
+  SSchema*    pTagSchema = getTableTagSchema(pSuperTableMeta);
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = NULL;
   FOREACH(pNode, pStmt->pValsOfTags) {
-    SValueNode* pVal = NULL;
-    SSchema*    pTagSchema = pTagSchemas + index;
-    code = createTagVal(pCxt, pSuperTableMeta->tableInfo.precision, pTagSchema, pNode, &pVal);
+    tagStr = ((SValueNode*)pNode)->literal;
+    NEXT_TOKEN_WITH_PREV(tagStr, token);
+
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pTagSchema->type);
+    if (TK_NK_VARIABLE == token.type && TSDB_CODE_SUCCESS == code) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+
     if (TSDB_CODE_SUCCESS == code) {
       if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
-        code = buildJsonTagVal(pCxt, pTagSchema, pVal, pTagArray, ppTag);
-        if (TSDB_CODE_SUCCESS != code) {
-          nodesDestroyNode((SNode*)pVal);
-        }
-        taosArrayPush(tagName, pTagSchema->name);
-      } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL && !pVal->isNull) {
-        char*   tmpVal = nodesGetValueFromNode(pVal);
-        STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-        //        strcpy(val.colName, pTagSchema->name);
-        if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
-          val.pData = varDataVal(tmpVal);
-          val.nData = varDataLen(tmpVal);
-        } else {
-          memcpy(&val.i64, tmpVal, pTagSchema->bytes);
-        }
-        taosArrayPush(pTagArray, &val);
-        taosArrayPush(tagName, pTagSchema->name);
+      }
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
       }
     }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeAppend(&pVals, (SNode*)pVal);
-    }
+
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
-    ++index;
+    ++pTagSchema;
   }
 
   if (TSDB_CODE_SUCCESS == code && !isJson) {
     code = tTagNew(pTagArray, 1, false, ppTag);
   }
 
-  nodesDestroyList(pVals);
+  for (int32_t i = 0; i < TARRAY_SIZE(pTagArray); ++i) {
+    STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   taosArrayDestroy(pTagArray);
   return code;
 }
@@ -9209,58 +9188,68 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s",
                                    pStmt->colName);
   }
-
   pReq->tagName = taosStrdup(pStmt->colName);
   if (NULL == pReq->tagName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
+  if (NULL == pReq->pTagArray) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pReq->colId = pSchema->colId;
+  pReq->tagType = pSchema->type;
 
-  SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
+  int32_t code = 0;
 
-  if (QUERY_NODE_VALUE != pStmt->pVal->node.type) {
-    SValueNode* pVal = NULL;
-    pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
-    if (pCxt->errCode) {
-      return pCxt->errCode;
-    }
-
-    nodesDestroyNode((SNode*)pStmt->pVal);
-    pStmt->pVal = pVal;
-  } else if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
-    return pCxt->errCode;
-  }
-
-  pReq->tagType = targetDt.type;
-  if (targetDt.type == TSDB_DATA_TYPE_JSON) {
-    if (pStmt->pVal->literal &&
-        strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-      return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pStmt->pVal->literal);
-    }
-    SArray* pTagVals = taosArrayInit(1, sizeof(STagVal));
-    int32_t code = TSDB_CODE_SUCCESS;
-    STag*   pTag = NULL;
-    code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pTag, &pCxt->msgBuf);
-    taosArrayDestroy(pTagVals);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    pReq->nTagVal = pTag->len;
-    pReq->pTagVal = (uint8_t*)pTag;
-    pStmt->pVal->datum.p = (char*)pTag;  // for free
-  } else {
-    pReq->isNull = pStmt->pVal->isNull;
-    pReq->nTagVal = pStmt->pVal->node.resType.bytes;
-    pReq->pTagVal = nodesGetValueFromNode(pStmt->pVal);
-
-    // data and length are seperated for new tag format STagVal
-    if (IS_VAR_DATA_TYPE(pStmt->pVal->node.resType.type)) {
-      pReq->nTagVal = varDataLen(pReq->pTagVal);
-      pReq->pTagVal = varDataVal(pReq->pTagVal);
+  STag*   pTag = NULL;
+  SToken  token;
+  char    tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = pStmt->pVal->literal;
+  NEXT_TOKEN_WITH_PREV(tagStr, token);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
+    if (TK_NK_VARIABLE == token.type && TSDB_CODE_SUCCESS == code) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
+                         pReq->pTagArray, &pTag);
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
+      pReq->tagFree = true;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && tagStr) {
+    NEXT_VALID_TOKEN(tagStr, token);
+    if (token.n != 0) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+      pReq->nTagVal = pTag->len;
+      pReq->pTagVal = (uint8_t*)pTag;
+      pStmt->pVal->datum.p = (char*)pTag;  // for free
+    } else {
+      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
+      if (pTagVal) {
+        pReq->isNull = false;
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          pReq->nTagVal = pTagVal->nData;
+          pReq->pTagVal = pTagVal->pData;
+        } else {
+          pReq->nTagVal = pSchema->bytes;
+          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
+        }
+      } else {
+        pReq->isNull = true;
+      }
+    }
+  }
+
+  return code;
 }
 
 static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
@@ -9484,6 +9473,14 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->colNewName);
   taosMemoryFree(pReq->tagName);
   taosMemoryFree(pReq->newComment);
+  for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pReq->pTagArray);
+  if(pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
@@ -9641,9 +9638,11 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-    case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      code = rewriteShowTags(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       code = rewriteShowVgroups(pCxt, pQuery);
@@ -9815,6 +9814,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
     if (nodeType(pQuery->pRoot) == QUERY_NODE_SELECT_STMT) {
       pQuery->precision = extractResultTsPrecision((SSelectStmt*)pQuery->pRoot);
+    } else if (nodeType(pQuery->pRoot) == QUERY_NODE_SET_OPERATOR) {
+      pQuery->precision = ((SSetOperator*)pQuery->pRoot)->precision;
     }
   }
 

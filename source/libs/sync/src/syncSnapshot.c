@@ -285,10 +285,11 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
       pBlk->seq = pSender->seq;
 
       // read data
-      int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
-                                                               &pBlk->pBlock, &pBlk->blockLen);
-      if (ret != 0) {
-        sSError(pSender, "snapshot sender read failed since %s", terrstr());
+      code = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader, &pBlk->pBlock,
+                                                        &pBlk->blockLen);
+      if (code != 0) {
+        terrno = code;
+        sSError(pSender, "snapshot sender read failed since %s", tstrerror(code));
         goto _OUT;
       }
 
@@ -357,7 +358,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   }
 
   if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if (snapshotSend(pSender) != 0) {
+    if ((code = snapshotSend(pSender)) != 0) {
       goto _out;
     }
   }
@@ -1093,6 +1094,14 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   int32_t   code = -1;
   SSnapshot snapshot = {0};
 
+  if (pMsg->snapBeginIndex > pSyncNode->commitIndex) {
+    sSError(pSender,
+            "snapshot begin index is greater than commit index. snapBeginIndex:%" PRId64 ", commitIndex:%" PRId64,
+            pMsg->snapBeginIndex, pSyncNode->commitIndex);
+    terrno = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+    return -1;
+  }
+
   taosThreadMutexLock(&pSender->pSndBuf->mutex);
   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
@@ -1189,15 +1198,13 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   }
 
   while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
-    if (snapshotSend(pSender) != 0) {
-      code = terrno;
+    if ((code = snapshotSend(pSender)) != 0) {
       goto _out;
     }
   }
 
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if (snapshotSend(pSender) != 0) {
-      code = terrno;
+    if ((code = snapshotSend(pSender)) != 0) {
       goto _out;
     }
   }
@@ -1226,7 +1233,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   }
 
   if (!snapshotSenderIsStart(pSender)) {
-    sSError(pSender, "snapshot sender not started yet. sender startTime:%" PRId64 ", msg startTime:%" PRId64,
+    sSError(pSender, "snapshot sender stopped. sender startTime:%" PRId64 ", msg startTime:%" PRId64,
             pSender->startTime, pMsg->startTime);
     return -1;
   }
