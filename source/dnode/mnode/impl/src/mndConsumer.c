@@ -92,7 +92,7 @@ void mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SR
 }
 
 static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser,
-                              bool enableReplay) {
+                              bool enableReplay, const char* cgroup) {
   SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
 
@@ -135,7 +135,7 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
       }
     }
 
-    mndTransSetDbName(pTrans, pOneTopic, NULL);
+    mndTransSetDbName(pTrans, pTopic->db, cgroup);
     if (mndTransCheckConflict(pMnode, pTrans) != 0) {
       code = -1;
       goto FAILED;
@@ -177,12 +177,12 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
     goto END;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "recover-csm");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pMsg, "recover-csm");
   if (pTrans == NULL) {
     code = -1;
     goto END;
   }
-  code = validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false);
+  code = validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false, pConsumer->cgroup);
   if (code != 0) {
     goto END;
   }
@@ -675,13 +675,13 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     goto _over;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pMsg, "subscribe");
   if (pTrans == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _over;
   }
 
-  code = validateTopics(pTrans, subscribe.topicNames, pMnode, pMsg->info.conn.user, subscribe.enableReplay);
+  code = validateTopics(pTrans, subscribe.topicNames, pMnode, pMsg->info.conn.user, subscribe.enableReplay, subscribe.cgroup);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }

@@ -346,7 +346,7 @@ end:
   return code;
 }
 
-int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle, int64_t snapshotVer){
+int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   int32_t  vgId = TD_VID(pTq->pVnode);
 
   memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
@@ -365,12 +365,12 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle, int64_t sn
     handle->execHandle.execTb.qmsg = taosStrdup(req->qmsg);
   }
 
-  handle->snapshotVer = snapshotVer;
+  handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
 
   if(buildHandle(pTq, handle) < 0){
     return -1;
   }
-  tqInfo("tqCreateHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
+  tqInfo("tqCreateHandle %s consumer 0x%" PRIx64 " vgId:%d, snapshotVer:%" PRId64, handle->subKey, handle->consumerId, vgId, handle->snapshotVer);
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
