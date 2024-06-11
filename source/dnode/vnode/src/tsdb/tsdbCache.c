@@ -2773,7 +2773,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       }
 
       state->state = SFSNEXTROW_INDEXLIST;
-      state->iBrinIndex = indexSize;
+      state->iBrinIndex = 1;
     }
 
   _check_stt_data:
