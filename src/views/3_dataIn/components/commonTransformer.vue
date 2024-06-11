@@ -587,13 +587,12 @@
       </section>
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
-        :visible.sync="showCreateDIalog"
+        :visible.sync="showCreateDialog"
         width="1000px"
         center
         :append-to-body="true"
         @close="closeDialog"
         :close-on-click-modal="false"
-        v-if="showCreateDIalog"
       >
         <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
         <div class="buttons">
@@ -757,7 +756,7 @@ export default {
         ],
       },
 
-      showCreateDIalog: false,
+      showCreateDialog: false,
       stableLists: [],
       sruleForm: {
         s_name: "",
@@ -1874,7 +1873,7 @@ export default {
     },
     closeDialog() {
       this.dialogForm.st_name = "";
-      this.showCreateDIalog = false;
+      this.showCreateDialog = false;
     },
     //创建或者查询
     async createST() {
@@ -1967,7 +1966,7 @@ export default {
         this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
       }
 
-      this.showCreateDIalog = true;
+      this.showCreateDialog = true;
     },
     //回显数据调用mapping接口
     echoFetchMap() {
