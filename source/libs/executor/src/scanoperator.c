@@ -1314,6 +1314,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint6
   pTableScanInfo->tableEndIndex = -1;
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
+  pTableScanInfo->scanMode = TABLE_SCAN__BLOCK_ORDER;
 }
 
 static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
@@ -1363,6 +1364,12 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
 }
 
 bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal) {
+  // coverity scan
+  ASSERTS(pVal != NULL, "pVal should not be NULL");
+  if (!pVal) {
+    qError("failed to compare primary key, since primary key is null");
+    return false;
+  }
   void* pData = colDataGetData(pCol, rowId);
   if (IS_VAR_DATA_TYPE(pCol->info.type)) {
     int32_t colLen = varDataLen(pData);
@@ -1469,8 +1476,13 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   }
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
-  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey, pInfo->pUpdateInfo->maxDataVersion);
-  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
+  // coverity scan
+  ASSERTS(pInfo->pUpdateInfo != NULL, "Failed to set data version, since pInfo->pUpdateInfo is NULL");
+  if (pInfo->pUpdateInfo) {
+    qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey,
+           pInfo->pUpdateInfo->maxDataVersion);
+    resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
+  }
   pInfo->pTableScanOp->status = OP_OPENED;
   return true;
 }

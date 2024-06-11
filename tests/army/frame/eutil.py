@@ -19,3 +19,10 @@ import sys
 import os
 import time
 import datetime
+import psutil
+
+
+# cpu frequent as random
+def cpuRand(max):
+    decimal = int(str(psutil.cpu_freq().current).split(".")[1])
+    return decimal % max

@@ -269,6 +269,10 @@ class TDTestCase:
 
     def ins_grants_check(self):
         grant_name_dict = {
+            'service':'Service Time',
+            'timeseries':'Timeseries',
+            'dnodes':'Dnodes',
+            'cpu_cores':'CPU Cores',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
@@ -293,6 +297,7 @@ class TDTestCase:
             'mysql':'MySQL',
             'postgres':'PostgreSQL',
             'oracle':'Oracle',
+            'mssql':'SqlServer'
         }
 
         tdSql.execute('drop database if exists db2')
@@ -304,7 +309,7 @@ class TDTestCase:
             if result[i][0] in grant_name_dict:
                 tdSql.checkEqual(result[i][1], grant_name_dict[result[i][0]])
                 index += 1
-        tdSql.checkEqual(index, 24)
+        tdSql.checkEqual(index, len(grant_name_dict))
         tdSql.query(f'select * from information_schema.ins_grants_logs')
         result = tdSql.queryResult
         tdSql.checkEqual(True, len(result) >= 0)
