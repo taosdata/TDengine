@@ -68,7 +68,7 @@ class TDTestCase:
         # create stream
         tdSql.execute("use db", queryTimes=100)
         tdSql.execute("create stream stream1 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
-        time.sleep(5)
+        time.sleep(10)
 
         sql = "select count(*) from sta"
         # loop wait max 60s to check count is ok

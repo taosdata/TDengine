@@ -1154,6 +1154,7 @@ static int32_t mndCheckTaskAndNodeStatus(SMnode *pMnode) {
   }
 
   removeTasksInBuf(pInvalidList, &execInfo);
+  taosArrayDestroy(pInvalidList);
 
   taosThreadMutexUnlock(&execInfo.lock);
   return ready ? 0 : -1;
