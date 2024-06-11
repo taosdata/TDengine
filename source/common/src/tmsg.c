@@ -9737,6 +9737,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
 
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);
+        rows[i] = NULL;
       }
       taosArrayDestroy(pTbData->aRowP);
     }
