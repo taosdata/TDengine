@@ -587,10 +587,9 @@
       </section>
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
-        :visible.sync="showCreateDIalog"
+        :visible.sync="showCreateDialog"
         width="1000px"
         center
-        destroy-on-close
         :append-to-body="true"
         @close="closeDialog"
         :close-on-click-modal="false"
@@ -757,7 +756,7 @@ export default {
         ],
       },
 
-      showCreateDIalog: false,
+      showCreateDialog: false,
       stableLists: [],
       sruleForm: {
         s_name: "",
@@ -1201,6 +1200,8 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
+        this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",this.columnsArr)
+
         // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
         this.handelExtractArr(this.columnsArr,this.extractArr)
         this.showIndentifyResulttb();
@@ -1882,7 +1883,7 @@ export default {
     },
     closeDialog() {
       this.dialogForm.st_name = "";
-      this.showCreateDIalog = false;
+      this.showCreateDialog = false;
     },
     //创建或者查询
     async createST() {
@@ -1970,8 +1971,12 @@ export default {
       } else {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 2);
       }
+      // 获取最新的拆分后的列
+      if (this.$refs.extract && this.$refs.extract.length > 0) {
+        this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
+      }
 
-      this.showCreateDIalog = true;
+      this.showCreateDialog = true;
     },
     //回显数据调用mapping接口
     echoFetchMap() {

@@ -290,7 +290,7 @@ export default {
   },
   mixins: [VersionMixin],
   watch: {
-    "columnsArr": {
+    "$store.state.app.stbDefaultColumns": {
       handler(columnsArr_new) {
         if (columnsArr_new.length > 0) {
           let arr = columnsArr_new;
