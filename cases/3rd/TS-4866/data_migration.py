@@ -20,6 +20,10 @@ import os
 import subprocess
 import json
 import time
+import psutil
+import time
+from datetime import datetime, timedelta
+
 
 @dataclass
 class CmdOption:
@@ -462,7 +466,7 @@ class DataMigration(DB):
             print("Command execution failed:", e)
             return False
 
-    def wait_stream_finished(self, stream_name):
+    def wait_stream_finished(self, stream_name, pid):
         """
         Waits for the specified stream to finish its tasks in the database.
 
@@ -472,34 +476,126 @@ class DataMigration(DB):
         Returns:
             int: The number of seconds waited for the stream to finish. Returns None if the timeout is reached.
         """
+        try:
+            process = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            print(f"No process found with PID {pid}.")
+            return
         cnt = 0
         cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         res = self.conn.query(cmd)
+        cpu_list = list()
+        mem_list = list()
         while len(res.fetch_all()) != 1 or res.fetch_all()[0][0] is not None:
             time.sleep(1)
             res = self.conn.query(cmd)
+            cpu_usage = process.cpu_percent(interval=1)
+            memory_info = process.memory_info().rss
+            cpu_list.append(cpu_usage)
+            mem_list.append(memory_info)
+            print(cpu_list)
+            print(mem_list)
             if cnt < self.timeout:
                 cnt += 1
             else:
+                return cnt, cpu_list, mem_list
                 return
-        return cnt
-                
+        return cnt, cpu_list, mem_list
+
+    def find_process_pid(self, process_name):
+        """
+        Find the PID of a process by its name.
+        
+        :param process_name: str. Name of the process to find.
+        :return: list of PIDs matching the process name.
+        """
+        pids = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            if proc.info['name'] == process_name:
+                pids.append(proc.info['pid'])
+        
+        return pids
+
+# class Monitor:
+#     def __init__(self):
+#         pass
+
+#     def find_process_pid(self, process_name):
+#         """
+#         Find the PID of a process by its name.
+        
+#         :param process_name: str. Name of the process to find.
+#         :return: list of PIDs matching the process name.
+#         """
+#         pids = []
+#         for proc in psutil.process_iter(['pid', 'name']):
+#             if proc.info['name'] == process_name:
+#                 pids.append(proc.info['pid'])
+        
+#         return pids
+
+#     def monitor_process_cpu(self, pid, start_time, end_time):
+#         """
+#         Monitor CPU usage of a process between start_time and end_time.
+        
+#         :param pid: int. Process ID of the target process.
+#         :param start_time: datetime. When to start monitoring.
+#         :param end_time: datetime. When to stop monitoring.
+#         """
+#         try:
+#             process = psutil.Process(pid)
+#         except psutil.NoSuchProcess:
+#             print(f"No process with PID {pid} found.")
+#             return
+
+#         while datetime.now() < start_time:
+#             time.sleep((start_time - datetime.now()).total_seconds())
+
+#         print(f"Starting to monitor PID {pid} at {datetime.now()}")
+
+#         usage = []
+        
+#         while datetime.now() < end_time:
+#             try:
+#                 cpu_usage = process.cpu_percent(interval=1)
+#                 print("CPU Usage: ", cpu_usage)
+#                 usage.append(cpu_usage)
+#                 print(f"Time: {datetime.now()}, CPU Usage: {cpu_usage}%")
+#             except psutil.NoSuchProcess:
+#                 print(f"Process with PID {pid} terminated before end_time.")
+#                 break
+
+#         if usage:
+#             average_usage = sum(usage) / len(usage)
+#             print(f"Average CPU Usage from {start_time} to {end_time}: {average_usage}%")
+#             return average_usage
+#         else:
+#             print("No CPU usage data collected.")
+
+
 if __name__ == "__main__":
+    
     pars = Parser()
     parser = pars.buildCmdLineParser()
     opts = pars.get_opts(parser.parse_args())
     dmg = DataMigration(opts.host, opts.port, opts.config_dir)
-    dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
-    dmg.prepare_data()
-    time.sleep(10)
+    # dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
+    # dmg.prepare_data()
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
-    rtn = dmg.wait_stream_finished(opts.stream_name)
-    if not rtn:
+    taosd_pid = dmg.find_process_pid("taosd")
+    rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0])
+    if not rtn[0]:
         print("Stream task is not finished in 12s.")
     else:
         res = dmg.conn.query(f'select count(*) from {opts.target_dbname}.{opts.target_stbname};')
-        perftime = res.fetch_all()[0][0]/rtn
-        print(f"Stream task finished in {rtn}s and cal-perf is {perftime}rows/s.")
+        perftime = res.fetch_all()[0][0]/rtn[0]
+        print(f"Stream task finished in {rtn[0]}s and cal-perf is {perftime}rows/s.")
+        print(f"AVG CPU Usage: {sum(rtn[1])/len(rtn[1]):.2f}%")
+        print(f"AVG MEM Usage: {sum(rtn[2])/len(rtn[2])/1024/1024:.2f}MB")
+    # monitor = Monitor()
+    # taosd_pid = monitor.find_process_pid("taosd")
+    # print(taosd_pid)
+    # monitor.monitor_process_cpu(taosd_pid[0], start_time, end_time)
     
 
 
