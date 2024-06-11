@@ -786,7 +786,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     goto end;
   }
 
-  mndTransSetDbName(pTrans, pTopic->name, NULL);
+  mndTransSetDbName(pTrans, pTopic->db, NULL);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto end;
