@@ -10,7 +10,7 @@ char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settag
 
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
-    *pBuf = pTblBuf->pCurBuff + pTblBuf->buffOffset;
+    *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
     pTblBuf->buffOffset += pTblBuf->buffUnit;
   } else if (pTblBuf->buffIdx < taosArrayGetSize(pTblBuf->pBufList)) {
     pTblBuf->pCurBuff = taosArrayGetP(pTblBuf->pBufList, pTblBuf->buffIdx++);
