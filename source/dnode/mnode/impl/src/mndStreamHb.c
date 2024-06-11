@@ -328,7 +328,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     mndDropOrphanTasks(pMnode, pOrphanTasks);
   }
 
-  mndStreamStartUpdateCheckpointInfo(pMnode);
+  if (pMnode != NULL) {  // make sure that the unit test case can work
+    mndStreamStartUpdateCheckpointInfo(pMnode);
+  }
 
   taosThreadMutexUnlock(&execInfo.lock);
   tCleanupStreamHbMsg(&req);

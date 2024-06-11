@@ -801,14 +801,15 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
   }
 
-  if (taosArrayGetSize(pDropped) > 0) {
-    for (int32_t i = 0; i < taosArrayGetSize(pDropped); ++i) {
+  int32_t size = taosArrayGetSize(pDropped);
+  if (size > 0) {
+    for (int32_t i = 0; i < size; ++i) {
       int64_t streamId = *(int64_t *)taosArrayGet(pDropped, i);
       taosHashRemove(execInfo.pChkptStreams, &streamId, sizeof(streamId));
     }
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
-    mDebug("drop %d stream(s) in checkpoint-report list, remain:%d", numOfStreams);
+    mDebug("drop %d stream(s) in checkpoint-report list, remain:%d", size, numOfStreams);
   }
 
   taosArrayDestroy(pDropped);

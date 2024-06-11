@@ -2629,7 +2629,7 @@ static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq) {
 }
 
 void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
-  if (pExecInfo->initTaskList) {
+  if (pExecInfo->initTaskList || pMnode == NULL) {
     return;
   }
 
