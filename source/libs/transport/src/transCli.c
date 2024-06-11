@@ -76,6 +76,9 @@ typedef struct SCliConn {
 
   SDelayTask* task;
 
+  uint32_t clientIp;
+  uint32_t serverIp;
+
   char* dstAddr;
   char  src[32];
   char  dst[32];
@@ -1093,7 +1096,7 @@ void cliSendBatch(SCliConn* pConn) {
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
 
-    if (pHead->comp == 0) {
+    if (pHead->comp == 0 && pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp) {
       if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
         msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
         pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
@@ -1171,7 +1174,7 @@ void cliSend(SCliConn* pConn) {
     uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
   }
 
-  if (pHead->comp == 0) {
+  if (pHead->comp == 0 && pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp) {
     if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
       msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
@@ -1402,6 +1405,12 @@ void cliConnCb(uv_connect_t* req, int status) {
   addrlen = sizeof(sockname);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
   transSockInfo2Str(&sockname, pConn->src);
+
+  struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
+  struct sockaddr_in saddr = *(struct sockaddr_in*)&peername;
+
+  pConn->clientIp = addr.sin_addr.s_addr;
+  pConn->serverIp = saddr.sin_addr.s_addr;
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (pConn->pBatch != NULL) {

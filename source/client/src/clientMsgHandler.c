@@ -25,6 +25,7 @@
 #include "tglobal.h"
 #include "tname.h"
 #include "tversion.h"
+#include "command.h"
 
 extern SClientHbMgr clientHbMgr;
 
@@ -499,7 +500,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
     return code;
   }
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
     blockDataDestroy(pBlock);
@@ -510,14 +511,20 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->completed = 1;
   (*pRsp)->precision = 0;
   (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
+
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, SHOW_VARIABLES_RESULT_COLS);
   blockDataDestroy(pBlock);
 
-  if (len != rspSize - sizeof(SRetrieveTableRsp)) {
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -611,7 +618,7 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
     return code;
   }
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
     blockDataDestroy(pBlock);
@@ -623,13 +630,20 @@ static int32_t buildRetriveTableRspForCompactDb(SCompactDbRsp* pCompactDb, SRetr
   (*pRsp)->precision = 0;
   (*pRsp)->compressed = 0;
   (*pRsp)->compLen = 0;
+  (*pRsp)->payloadLen = 0;
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data, COMPACT_DB_RESULT_COLS);
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, COMPACT_DB_RESULT_COLS);
   blockDataDestroy(pBlock);
 
-  if (len != rspSize - sizeof(SRetrieveTableRsp)) {
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
     uError("buildRetriveTableRspForCompactDb error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
            (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
     return TSDB_CODE_TSC_INVALID_INPUT;

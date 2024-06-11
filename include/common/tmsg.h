@@ -2117,6 +2117,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int8_t  streamBlockType;
+  int32_t payloadLen;
   int32_t compLen;
   int32_t numOfBlocks;
   int64_t numOfRows;  // from int32_t change to int64_t
@@ -2128,6 +2129,14 @@ typedef struct {
   char    parTbName[TSDB_TABLE_NAME_LEN];  // for stream
   char    data[];
 } SRetrieveTableRsp;
+
+#define PAYLOAD_PREFIX_LEN ((sizeof(int32_t)) << 1)
+
+#define SET_PAYLOAD_LEN(_p, _compLen, _fullLen) \
+  do {                                          \
+    ((int32_t*)(_p))[0] = (_compLen);           \
+    ((int32_t*)(_p))[1] = (_fullLen);           \
+  } while (0);
 
 typedef struct {
   int64_t version;
@@ -2145,6 +2154,7 @@ typedef struct {
   int8_t  compressed;
   int32_t compLen;
   int32_t numOfRows;
+  int32_t fullLen;
   char    data[];
 } SRetrieveMetaTableRsp;
 
@@ -2500,6 +2510,7 @@ typedef struct SSubQueryMsg {
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
+  int8_t   compress;
   uint32_t sqlLen;
   char*    sql;
   uint32_t msgLen;

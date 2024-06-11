@@ -35,7 +35,7 @@ extern "C" {
 #define QW_DEFAULT_SHORT_RUN_TIMES  2
 #define QW_DEFAULT_HEARTBEAT_MSEC   5000
 #define QW_SCH_TIMEOUT_MSEC         180000
-#define QW_MIN_RES_ROWS             4096
+#define QW_MIN_RES_ROWS             16384
 
 enum {
   QW_PHASE_PRE_QUERY = 1,

@@ -374,6 +374,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
   taosMemoryFreeClear(pResInfo->convertJson);
+  taosMemoryFreeClear(pResInfo->decompBuf);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
@@ -763,7 +764,6 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
-  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 

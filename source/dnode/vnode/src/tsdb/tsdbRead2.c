@@ -4257,9 +4257,6 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     blockDataEnsureCapacity(pResBlock, capacity);
   }
 
-  // for debug purpose
-//  capacity = 7;
-
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;

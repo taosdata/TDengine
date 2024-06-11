@@ -62,6 +62,7 @@ typedef struct SRpcHandleInfo {
   SRpcConnInfo conn;
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
+  int8_t       compressed;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {

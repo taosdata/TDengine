@@ -7046,6 +7046,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   if (tEncodeI8(&encoder, pReq->taskType) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->explain) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->needFetch) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->compress) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->msgLen) < 0) return -1;
@@ -7086,6 +7087,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   if (tDecodeI8(&decoder, &pReq->taskType) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->explain) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->needFetch) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->compress) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->msgLen) < 0) return -1;
