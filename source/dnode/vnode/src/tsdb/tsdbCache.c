@@ -1070,10 +1070,10 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
 
     rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
     for (int i = 0; i < num_keys; ++i) {
-      SIdxKey *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
+      SIdxKey        *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       SLastUpdateCtx *updCtx = (SLastUpdateCtx *)taosArrayGet(updCtxArray, i);
-      SRowKey *pRowKey = &updCtx->tsdbRowKey.key;
-      SColVal *pColVal = &updCtx->colVal;
+      SRowKey        *pRowKey = &updCtx->tsdbRowKey.key;
+      SColVal        *pColVal = &updCtx->colVal;
 
       SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i], values_list_sizes[i]);
       SLastCol *PToFree = pLastCol;
@@ -1156,9 +1156,9 @@ int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int6
   // 1. prepare last
   TSDBROW lRow = {.type = TSDBROW_ROW_FMT, .pTSRow = aRow[nRow - 1], .version = version};
 
-  STSchema *pTSchema = NULL;
-  int32_t   sver = TSDBROW_SVERSION(&lRow);
-  SArray   *ctxArray = NULL;
+  STSchema  *pTSchema = NULL;
+  int32_t    sver = TSDBROW_SVERSION(&lRow);
+  SArray    *ctxArray = NULL;
   SSHashObj *iColHash = NULL;
 
   code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema);
@@ -1577,7 +1577,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (/*!pTmpColArray*/ lastTmpIndexArray && !lastTmpColArray) {
       continue;
     }
-    if (/*!pTmpColArray*/ lastrowTmpIndexArray && lastrowTmpColArray) {
+    if (/*!pTmpColArray*/ lastrowTmpIndexArray && !lastrowTmpColArray) {
       continue;
     }
 
