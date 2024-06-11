@@ -82,6 +82,8 @@ use self::{
     ipc_metric::IpcMetrics,
     lush::{LushModelConfig, TableTagCache},
 };
+use arrow_compute_ext::RecordBatchExt;
+
 pub mod flat;
 pub mod ipc_metric;
 pub mod lush;
@@ -594,7 +596,7 @@ async fn consume_lush_record(
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
-        LushMessage::Tables(tables) => {
+        LushMessage::Tables(tables, _) => {
             let taos = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
@@ -901,14 +903,6 @@ async fn consume_lush_record(
     Ok(())
 }
 
-// Cargill 无数据静态超级表，可能作为树的某个节点存在，只需要同步表结构
-const STATIC_SUPER_TABLES: [&str; 4] = [
-    "technology",
-    "l1__site",
-    "cockpit_kpi_corn_wet_mill",
-    "cockpit_kpi",
-];
-
 #[instrument(skip_all, name = "consume", fields(trace.id = %data_trace_id))]
 async fn consume_lush_record_with_transform(
     pool: &TaosPool,
@@ -921,57 +915,91 @@ async fn consume_lush_record_with_transform(
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
-        LushMessage::Tables(tables) => {
-            // 临时增加代码，为了让没有数据的表也能在目标库看到
-            let stable_name = tables[0].stable_name();
-            if stable_name.is_some() {
-                let stable_name = stable_name.unwrap();
-                tracing::debug!("Cache tables of super-table: {stable_name}");
-                if STATIC_SUPER_TABLES.contains(&stable_name.as_str()) {
-                    let super_table_sql = lush_model_config
-                        .super_table_sqls
-                        .as_ref()
-                        .unwrap()
-                        .get(stable_name.as_str());
-                    if let Some(super_table_sql) = super_table_sql {
-                        tracing::debug!("super_table_sql: {super_table_sql}");
-                        let mut taos = Some(pool.get().await.context("Target connection error")?);
-                        // 创建超级表
-                        let _ = lush::assert_create_table(
-                            pool,
-                            &mut taos,
-                            &super_table_sql,
-                            &req_id,
-                            true,
-                            metrics_arc.ipc(),
-                        )
-                        .await;
-                        // 创建子表
-                        for table in &tables {
-                            let table_sql = table.to_sql(None);
-                            if let Some(table_sql) = table_sql {
-                                tracing::debug!("table_sql: {table_sql}");
-                                let _ = lush::assert_create_table(
-                                    pool,
-                                    &mut taos,
-                                    &table_sql,
-                                    &req_id,
-                                    false,
-                                    metrics_arc.ipc(),
-                                )
-                                .await;
-                            }
-                        }
-                    }
-                }
-            }
-            let len = tables.len();
+        LushMessage::Tables(tables, full_record) => {
+            // 默认超级表名(transform 前)
+            let default_super_table = tables[0].stable_name();
+            let default_super_table = default_super_table.unwrap().as_str();
+            let super_table = lush_model_config
+                .super_table_name_mapping
+                .get(default_super_table);
+            let super_table = super_table.ok_or_else(|| {
+                anyhow!(
+                    "super table {} not found in model_config.super_table_name_mapping",
+                    default_super_table
+                )
+            })?;
+            let super_table = super_table.to_owned();
+            // let len = tables.len();
+            // let mut cached_table_names = String::new();
+            // 缓存子表 tag 值
             for table in tables {
+                // cached_table_names.push_str(table.table_name());
+                // cached_table_names.push_str(",");
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
             }
-            tracing::debug!("Cached tables message: {}", len);
+            // tracing::trace!(
+            //     "Cached tables message: {}, cached_table_names={}",
+            //     len,
+            //     cached_table_names
+            // );
+            // 获取 tranfrom::Parser
+            let parser: &transform::Parser = lush_model_config
+                .super_table_parsers
+                .get(super_table.as_str())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "super table {} not found in model_config.super_table_parsers",
+                        super_table
+                    )
+                })?;
+            // 创建超级表
+            let super_table_sql = lush_model_config
+                .super_table_sqls
+                .get(super_table.as_str())
+                .with_context(|| {
+                    format!(
+                        "super table {} not found in model_config.super_table_sqls",
+                        super_table
+                    )
+                })?;
+            let mut taos = Some(pool.get().await.context("Target connection error")?);
+            let _ = lush::assert_create_table(
+                pool,
+                &mut taos,
+                &super_table_sql,
+                &req_id,
+                true,
+                metrics_arc.ipc(),
+            )
+            .await;
+            let modeler = parser.modeler();
+            let is_labels_only = LushModelConfig::is_labels_only_stable(modeler);
+            if is_labels_only {
+                tracing::info!("Super table {} is labels-only", super_table);
+                // transform tables 消息
+                let message: transform::Message = parser
+                    .parse_message_from_records(&full_record, false)
+                    .with_context(|| {
+                        format!(
+                            "failed to transform Tables message, super table: {}",
+                            super_table
+                        )
+                    })?;
+                // 创建子表
+                if let transform::Message::Records(tables) = message {
+                    lush::create_sub_tables(
+                        pool,
+                        &mut taos,
+                        super_table.as_str(),
+                        &req_id,
+                        &tables,
+                        metrics_arc.ipc(),
+                    )
+                    .await?;
+                }
+            }
         }
         LushMessage::Insert(record) => {
             let pool = pool.clone();
@@ -993,8 +1021,8 @@ async fn consume_lush_record_with_transform(
             // for record in record {
             let span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
-                let _ = span.entered();
                 record.into_par_iter().try_for_each_with(tx, |tx, record| {
+                let _enter = span.enter();
                 let num_rows = record.num_rows();
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
@@ -1023,9 +1051,7 @@ async fn consume_lush_record_with_transform(
                 }
                 let tags_records: RecordBatch = tags_records.unwrap();
                 // 左右合并 RecordBatch
-                let combined_records: RecordBatch =
-                    lush::join_record_batch(&tags_records, values_records);
-
+                let combined_records: RecordBatch = tags_records.concat_by_columns(values_records).unwrap();
                 // 类型转换
                 let parsed_records: RecordBatch = combined_records;
 
@@ -1068,13 +1094,13 @@ async fn consume_lush_record_with_transform(
                     .get(super_table.as_str())
                     .ok_or_else(|| {
                         anyhow!(
-                            "super_table {} not found in model_config.super_table_parsers",
+                            "super table {} not found in model_config.super_table_parsers",
                             super_table
                         )
                     })?;
                 let message: transform::Message =
-                        parser.parse_message_from_records(&record_batch).with_context(|| {
-                            format!("lush_parser parse message from records failed, super_table: {}", super_table)
+                        parser.parse_message_from_records(&record_batch, true).with_context(|| {
+                            format!("transform failed for super table: {}", super_table)
                         })?;
 
                 let transform_elapsed = timer.elapsed();
@@ -2631,7 +2657,7 @@ async fn consume_flat_record(
     for message in record.records() {
         let batch = message.record();
         let num_rows = batch.num_rows();
-        let batch = parser.parse_message_from_records(batch)?;
+        let batch = parser.parse_message_from_records(batch, true)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -3494,8 +3520,6 @@ impl IpcStreamWorker {
                         loop {
                             let tables = tables_messages_in_progress.load(Ordering::SeqCst);
                             if tables == 0 {
-                                // @dingbo 这行日志意义不大暂时注释掉
-                                // tracing::debug!("parallel insert records");
                                 break;
                             } else {
                                 tracing::debug!(tables, "waiting for tables caches to be ready");

@@ -26,13 +26,15 @@ use tracing::error;
 
 use crate::{
     ack::{AckType, AckWriter},
-    constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
         flat::FlatMessage,
         point::{PointMessage, RecordMessage},
     },
 };
+
+use arrow_compute_ext::RecordBatchExt;
 
 #[derive(Debug, Clone)]
 pub struct IpcParser {
@@ -59,16 +61,8 @@ impl IpcParser {
                 match v {
                     LushMessageType::Table => todo!(),
                     LushMessageType::Children => {
-                        // 通过 __tables__ 列的索引位置获取列的值
-                        let tables = record.column(__TABLES__INDEX__);
-
-                        let tables = (0..tables.len())
-                            .flat_map(|i| {
-                                let tables = tables.slice(i, 1);
-                                self.parse_tables(tables).into_iter()
-                            })
-                            .collect_vec();
-                        return Ok(Box::new(LushMessage::Tables(tables)));
+                        let (tables, full_records) = self.parse_children(record);
+                        return Ok(Box::new(LushMessage::Tables(tables, full_records)));
                     }
                     LushMessageType::Insert => {
                         if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -150,6 +144,46 @@ impl IpcParser {
     }
 
     pub fn lush_message_iter(&self) {}
+
+    fn parse_children(&self, record: RecordBatch) -> (Vec<LushInsertAttrs>, RecordBatch) {
+        let tables = record.column(__TABLES_INDEX__);
+        let tables_clone = tables.clone();
+        let values = record.column_by_name(__RECORDS__).unwrap();
+        let tables = (0..tables.len())
+            .flat_map(|i| {
+                let tables = tables.slice(i, 1);
+                self.parse_tables(tables).into_iter()
+            })
+            .collect_vec();
+        let tables_record = tables_clone.slice(0, 1);
+        let values_record = values.slice(0, 1);
+
+        fn struct_array_to_record_batch(value: Arc<dyn Array>) -> RecordBatch {
+            let s = value
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .expect("parse records list");
+            let v = s.value(0);
+            let s = v
+                .as_any()
+                .downcast_ref::<StructArray>()
+                .expect("parse records struct");
+            let names = s.column_names();
+            let columns = s.columns();
+            RecordBatch::try_from_iter(
+                names
+                    .into_iter()
+                    .zip(columns)
+                    .map(|(name, value)| (name, value.clone())),
+            )
+            .unwrap()
+        }
+        let tables_record = struct_array_to_record_batch(tables_record);
+        let values_record = struct_array_to_record_batch(values_record);
+        let full_record = tables_record.concat_by_columns(&values_record).unwrap();
+
+        (tables, full_record)
+    }
 
     fn parse_tables(&self, arrow: Arc<dyn Array>) -> Vec<LushInsertAttrs> {
         let s = arrow.as_any().downcast_ref::<ListArray>().unwrap().value(0);
@@ -1599,13 +1633,13 @@ pub struct LushMessageTable {}
 
 #[derive(Debug)]
 pub enum LushMessage {
-    Tables(Vec<LushInsertAttrs>),
+    Tables(Vec<LushInsertAttrs>, RecordBatch),
     Insert(Vec<LushMessageInsert>),
 }
 
 impl LushMessage {
     pub fn is_tables(&self) -> bool {
-        matches!(self, LushMessage::Tables(_))
+        matches!(self, LushMessage::Tables(_, _))
     }
 }
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
@@ -1680,7 +1714,7 @@ fn file_reader() -> anyhow::Result<()> {
                     dbg!(&sqls);
                 }
             }
-            LushMessage::Tables(tables) => {
+            LushMessage::Tables(tables, _) => {
                 for record in tables {
                     let map_data = record.to_sql(None);
                     dbg!(&map_data);

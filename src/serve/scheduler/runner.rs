@@ -635,10 +635,7 @@ impl TaskState {
         let strategy = if let Some(v) = task.trigger.as_ref() {
             v
         } else {
-            if task.from.starts_with("csv")
-                || task.from.starts_with("pi://")
-                || task.from.starts_with("pibackfill://")
-            {
+            if task.from.starts_with("csv") {
                 local_strategy = local_strategy.never_resume();
             }
             &local_strategy

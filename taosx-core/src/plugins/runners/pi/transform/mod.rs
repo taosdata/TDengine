@@ -44,6 +44,7 @@ use std::iter::{Peekable, SkipWhile};
 use std::str::Lines;
 use taosx_ipc::stream::writer::IpcDataType;
 
+const PRE_ADDED_LABELS_FOR_ELEMENT: [&str; 3] = ["element_name", "path", "categories"];
 /// 单列模型配置对象
 /// 从配置对象可以生成 csv 配置文件，反之亦然。
 /// 从配置对象也可以生成 transform 相关对象。
@@ -304,47 +305,51 @@ impl PIElementModelConfig {
                 });
                 // 追加普通列
                 let attributes = template["Attributes"].as_array().unwrap();
-                for attribute in attributes {
-                    let column_name =
-                        Self::attribute_name_to_column_name(attribute["Name"].as_str().unwrap());
+                if attributes.is_empty() {
+                    // 添加一个伪列，否则无法建表
                     schema.push(SchemaRow {
-                        column_name: column_name.clone(),
-                        column_type: ColumnType::COLUMN,
-                        column_data_type: attribute["Type"].as_str().unwrap().to_string(),
-                        column_map: format!("${}", column_name),
-                    });
-                    schema.push(SchemaRow {
-                        column_name: column_name.clone() + "_status",
+                        column_name: "_c1".to_string(),
                         column_type: ColumnType::COLUMN,
                         column_data_type: "INT".to_string(),
-                        column_map: format!("${}_status", column_name),
+                        column_map: "0".to_string(),
+                    });
+                } else {
+                    for attribute in attributes {
+                        let column_name = Self::attribute_name_to_column_name(
+                            attribute["Name"].as_str().unwrap(),
+                        );
+                        schema.push(SchemaRow {
+                            column_name: column_name.clone(),
+                            column_type: ColumnType::COLUMN,
+                            column_data_type: attribute["Type"].as_str().unwrap().to_string(),
+                            column_map: format!("${}", column_name),
+                        });
+                        schema.push(SchemaRow {
+                            column_name: column_name.clone() + "_status",
+                            column_type: ColumnType::COLUMN,
+                            column_data_type: "INT".to_string(),
+                            column_map: format!("${}_status", column_name),
+                        });
+                    }
+                }
+                // 追加固定 TAG 列
+                for label in &PRE_ADDED_LABELS_FOR_ELEMENT {
+                    schema.push(SchemaRow {
+                        column_name: label.to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "VARCHAR(100)".to_string(),
+                        column_map: format!("${}", label),
                     });
                 }
-                // 追加固定 Tag 列： element_name, path
-                schema.push(SchemaRow {
-                    column_name: "element_name".to_string(),
-                    column_type: ColumnType::TAG,
-                    column_data_type: "VARCHAR(100)".to_string(),
-                    column_map: "$element_name".to_string(),
-                });
-                schema.push(SchemaRow {
-                    column_name: "path".to_string(),
-                    column_type: ColumnType::TAG,
-                    column_data_type: "VARCHAR(200)".to_string(),
-                    column_map: "$path".to_string(),
-                });
-                schema.push(SchemaRow {
-                    column_name: "categories".to_string(),
-                    column_type: ColumnType::TAG,
-                    column_data_type: "VARCHAR(100)".to_string(),
-                    column_map: "$categories".to_string(),
-                });
                 // 追加其它静态属性作为 Tag 列
                 let static_attributes = template["StaticAttributes"].as_array().unwrap();
                 for attribute in static_attributes {
                     let column_name =
                         Self::attribute_name_to_column_name(attribute["Name"].as_str().unwrap());
                     let lower_name = column_name.to_lowercase();
+                    if PRE_ADDED_LABELS_FOR_ELEMENT.contains(&lower_name.as_str()) {
+                        continue;
+                    }
                     if lower_name.contains("path") {
                         schema.push(SchemaRow {
                             column_name: column_name.clone(),

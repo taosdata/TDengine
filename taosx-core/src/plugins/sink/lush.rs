@@ -1,6 +1,9 @@
 use std::{collections::HashMap, time::Duration};
 
-use super::{flat::Records, transform::Parser};
+use super::{
+    flat::Records,
+    transform::{modeler::Modeler, Parser},
+};
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
@@ -41,7 +44,7 @@ pub struct LushModelConfig {
     /// value: parser for the super-table.
     pub super_table_parsers: HashMap<String, Parser>,
 
-    pub super_table_sqls: Option<HashMap<String, String>>,
+    pub super_table_sqls: HashMap<String, String>,
 
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
@@ -91,6 +94,22 @@ impl LushModelConfig {
             map.insert(super_table.super_table_name.clone(), super_table);
         }
         map
+    }
+
+    /// 判断一个超级表是不是只有标签列。
+    /// _c1 是我们为了创建超级表，添加的伪列。
+    pub fn is_labels_only_stable(modeler: &Modeler) -> bool {
+        // 对于 LushModelConfig 的 Parser 的 modeler，有且仅有一个 table
+        let table = modeler.get(0).unwrap();
+        let columns = table.columns.as_ref().unwrap();
+        if columns.len() == 2 {
+            for column in columns {
+                if column == "_c1" {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -154,8 +173,10 @@ impl From<PIPointModelConfig> for LushModelConfig {
     fn from(config: PIPointModelConfig) -> Self {
         let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
+        let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
+            super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
             super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
         }
         let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
@@ -165,7 +186,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
-            super_table_sqls: None,
+            super_table_sqls,
             super_table_name_mapping: sub_super_mapping,
             skip_null: false,
         }
@@ -205,7 +226,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
         LushModelConfig {
             table_name_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
-            super_table_sqls: Some(super_table_sqls),
+            super_table_sqls,
             super_table_name_mapping,
             skip_null: true,
         }
@@ -513,6 +534,61 @@ pub async fn write(
     }
     let write_time = timer.elapsed();
     Ok((written_rows, gen_sql_time, write_time))
+}
+
+pub async fn create_sub_tables(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    stable: &str,
+    req_id: &RequestID,
+    messages: &Vec<MessageArrowRecords>,
+    metrics: &IpcMetrics,
+) -> anyhow::Result<()> {
+    for m in messages {
+        let sql = m.table_sql();
+        let table_name = m.table_name();
+        tracing::info!("Creating table {}", table_name);
+        let mut retry = 0;
+        let mut error = Ok(());
+        loop {
+            if retry > 12 {
+                tracing::error!("Create sub table {table_name} retry exceeded {retry}");
+                return error;
+            }
+            if let Err(err) = assert_create_table(pool, taos, &sql, req_id, false, metrics)
+                .in_current_span()
+                .await
+            {
+                match err {
+                    WriteError::ContainerLengthTooShort(field) => {
+                        // 尝试修改超级表
+                        if let Err(alter) =
+                            alter_table(pool, taos, stable, &field, &messages, req_id)
+                                .in_current_span()
+                                .await
+                        {
+                            tracing::error!(stable, field, "Alter table error: {alter:#}");
+                            let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                            if error.is_err() {
+                                error = error.context(context);
+                            } else {
+                                error = Err(WriteError::ContainerLengthTooShort(field))
+                                    .context(context);
+                            }
+                        }
+                        // 无论成功失败都重试建表
+                    }
+                    _ => Err(err)?,
+                }
+            } else {
+                // 成功创建子表则退出循环
+                tracing::info!("Created table {}", table_name);
+                break;
+            }
+            retry += 1;
+        }
+    }
+    Ok(())
 }
 
 async fn alter_table(

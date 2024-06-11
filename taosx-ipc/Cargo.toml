@@ -24,6 +24,7 @@ tonic = { workspace = true }
 shadow-rs = { workspace = true }
 taosx-metrics = { path = "../taosx-metrics" }
 metrics = "0.21.0"
+arrow-compute-ext = { workspace = true }
 [dev-dependencies]
 actix-web = "4"
 tokio = { version = "1", features = [

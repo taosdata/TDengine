@@ -358,7 +358,6 @@ async fn get_all_points(
         Ok(data) => {
             let point_count = data.len();
             let data = match from.driver.as_str() {
-                "pi" | "pibackfill" => data[0].id.clone(), // 临时使用 data.id 存放连接器所有返回数据
                 "opcda" => {
                     let mut result = get_opcda_csv_header(&lang, false);
 

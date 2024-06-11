@@ -1018,7 +1018,7 @@ async fn consume_flat_record_with_sink(
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
-        let batch = parser.parse_message_from_records(batch)?;
+        let batch = parser.parse_message_from_records(batch, true)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),

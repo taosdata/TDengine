@@ -1068,7 +1068,11 @@ impl Parser {
         })
     }
 
-    pub fn parse_message_from_records(&self, records: &RecordBatch) -> Result<Message, Error> {
+    pub fn parse_message_from_records(
+        &self,
+        records: &RecordBatch,
+        filter_ts: bool,
+    ) -> Result<Message, Error> {
         let batch = self.transform_records(&records)?;
         let schema = batch.schema();
         let batches = vec![batch];
@@ -1159,25 +1163,31 @@ impl Parser {
                 )
             };
 
-            let tables = (0..batch.num_rows())
-                .filter(|row| {
-                    let is_valid_primary_key = !columns.column(0).is_null(*row);
-                    if !is_valid_primary_key {
-                        let mut str = Vec::new();
-                        let mut cursor = std::io::Cursor::new(&mut str);
-                        let mut writer = arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
-                        let _ = writer.write(&columns.slice(*row, 1));
-
-                        tracing::warn!(
-                            lost = %String::from_utf8_lossy(&str),
-                            "Primary key is null, skip row {}",
-                            row,
-                        );
-                    }
-                    is_valid_primary_key
-                })
-                .map(|row| (template.render("name", &json[row]).unwrap(), row))
-                .into_group_map();
+            let tables = if filter_ts {
+                (0..batch.num_rows())
+                    .filter(|row| {
+                        let is_valid_primary_key = !columns.column(0).is_null(*row);
+                        if !is_valid_primary_key {
+                            let mut str = Vec::new();
+                            let mut cursor = std::io::Cursor::new(&mut str);
+                            let mut writer =
+                                arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
+                            let _ = writer.write(&columns.slice(*row, 1));
+                            tracing::warn!(
+                                lost = %String::from_utf8_lossy(&str),
+                                "Primary key is null, skip row {}",
+                                row,
+                            );
+                        }
+                        is_valid_primary_key
+                    })
+                    .map(|row| (template.render("name", &json[row]).unwrap(), row))
+                    .into_group_map()
+            } else {
+                (0..batch.num_rows())
+                    .map(|row| (template.render("name", &json[row]).unwrap(), row))
+                    .into_group_map()
+            };
 
             for (name, indices) in tables {
                 let ranges = indices_to_ranges(&indices);
