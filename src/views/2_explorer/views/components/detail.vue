@@ -74,13 +74,32 @@
   }
   .detail ::v-deep .flexCenter .el-select .el-input__inner {
     border-color: #dcdfe6;
-    border-right: none;
+    border-left: none;
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+  }
+  .detail ::v-deep .flexCenter .el-select:first-of-type .el-input__inner  {
+    border-left: 1px solid #dcdfe6;
+    border-right: none;
   }
   .detail ::v-deep .flexCenter .el-input .el-input__inner {
     border-color: #dcdfe6;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
+  }
+  .detail ::v-deep .flexCenter .action-btn {
+    display: flex;
+    margin-left: 10px;
+    .el-button + .el-button {
+      margin-left: 0px;
+      border-left-style: none;
+    }
+  }
+
+  .detail .action-btn ::v-deep .el-button--small {
+    padding: 9px 10px;
+  }
+  .detail ::v-deep .el-tag {
+    border-left: none;
   }
 </style>

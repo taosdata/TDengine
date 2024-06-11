@@ -57,9 +57,10 @@
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
                 :disabled="typeHasSpe(column.type) || index == 0"
+                @change="() => handleTypeChange(column, index)"
               >
                 <el-option
-                  v-for="item in column.typeList"
+                  v-for="item in handleTypeList(column.type, 'dataType')"
                   :key="item.value"
                   v-bind="item"
                 ></el-option>
@@ -86,23 +87,87 @@
                 v-model="column.field"
                 :placeholder="$t('data.columnNameTip')"
               >
-                <template slot="append">
-                  <el-button
-                    icon="el-icon-minus"
-                    @click="minusColumn(index, column)"
-                  ></el-button>
-                  <el-button
-                    icon="el-icon-plus"
-                    v-if="!isEdit"
-                    @click="addColumn(index)"
-                  ></el-button>
-                  <el-button
-                    v-if="isEdit"
-                    icon="el-icon-check"
-                    @click="columnTypeChange(column)"
-                  ></el-button>
-                </template>
               </el-input>
+              <el-tag effect="plain" type="info" v-if="index == 1">
+              <el-checkbox 
+                :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
+                v-model="column.primaryKey" 
+                >PRIMARY KEY</el-checkbox>
+            </el-tag>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.encode')">
+              <el-select
+                size="small"
+                default-first-option
+                v-model="column.encode"
+                placeholder="ENCODE"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['encodeList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+            </el-tooltip>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.compress')">
+              <el-select
+                size="small"
+                default-first-option
+                v-model="column.compress"
+                placeholder="COMPRESS"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['compressList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+            </el-tooltip>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="100"
+              :content="$t('console.level')">
+              <el-select
+                size="small"
+                default-first-option
+                v-model="column.level"
+                placeholder="LEVEL"
+                class="columnWidth120"
+                clearable
+              >
+                <el-option
+                  v-for="item in levelList"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option> 
+              </el-select>
+            </el-tooltip>
+            <span class="action-btn">
+              <el-button
+                icon="el-icon-minus"
+                size="small"
+                :disabled="!index || (isEdit && column.primaryKey)"
+                @click="minusColumn(index, column)"
+              ></el-button>
+              <el-button
+                icon="el-icon-plus"
+                size="small"
+                v-if="!isEdit"
+                @click="addColumn(index)"
+              ></el-button>
+              <el-button
+                v-if="isEdit"
+                icon="el-icon-check"
+                size="small"
+                @click="columnTypeChange(column)"
+              ></el-button>
+            </span>
             </div>
             <!-- 添加用的column -->
             <div class="flexCenter input_row" v-if="columnEdit && isEdit">
@@ -112,6 +177,7 @@
                 default-first-option
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
+                @change="handleEditTypeChange(currentData)"
               >
                 <el-option
                   v-for="item in dataType"
@@ -141,21 +207,76 @@
                 v-model="currentData.field"
                 :placeholder="$t('data.columnNameTip')"
               >
-                <template slot="append">
-                  <el-button
-                    icon="el-icon-close"
-                    @click="
-                      columnEdit = false;
-                      currentData = {};
-                    "
-                  ></el-button>
-                  <el-button
-                    :disabled="loading"
-                    @click="add"
-                    icon="el-icon-check"
-                  ></el-button>
-                </template>
               </el-input>
+              <el-tooltip
+                placement="top" effect="light" :open-delay="100"
+                :content="$t('console.encode')">
+                <el-select
+                  size="small"
+                  default-first-option
+                  v-model="currentData.encode"
+                  placeholder="ENCODE"
+                  class="columnWidth120"
+                  clearable>
+                  <el-option
+                    v-for="item in handleEncodeList(currentData.type)['encodeList']"
+                    :key="item.value"
+                    v-bind="item"
+                  ></el-option>
+                </el-select>
+              </el-tooltip>
+              <el-tooltip
+                placement="top" effect="light" :open-delay="100"
+                :content="$t('console.compress')">
+                <el-select
+                  size="small"
+                  default-first-option
+                  v-model="currentData.compress"
+                  placeholder="COMPRESS"
+                  class="columnWidth120"
+                  clearable
+                >
+                  <el-option
+                    v-for="item in handleEncodeList(currentData.type)['compressList']"
+                    :key="item.value"
+                    v-bind="item"
+                  ></el-option>
+                </el-select>
+              </el-tooltip>
+              <el-tooltip
+                placement="top" effect="light" :open-delay="100"
+                :content="$t('console.level')">
+                <el-select
+                  size="small"
+                  default-first-option
+                  v-model="currentData.level"
+                  placeholder="LEVEL"
+                  class="columnWidth120"
+                  clearable
+                >
+                  <el-option
+                    v-for="item in levelList"
+                    :key="item.value"
+                    v-bind="item"
+                  ></el-option>
+                </el-select>
+              </el-tooltip>
+              <span class="action-btn">
+                <el-button
+                  icon="el-icon-close"
+                  size="small"
+                  @click="
+                    columnEdit = false;
+                    currentData = {};
+                  "
+                ></el-button>
+                <el-button
+                  size="small"
+                  :disabled="loading"
+                  @click="add"
+                  icon="el-icon-check"
+                ></el-button>
+              </span>
             </div>
             <el-button
               v-if="isEdit"
@@ -236,10 +357,11 @@
  */
 import { mapState } from "vuex";
 // import { sendSQLReq } from '@/api/sql'
-import { dataType, tagType } from "../../utils";
-import { changeTableStruct, getTagValue } from "@/api/gateway/data/tables";
+import { dataType, tagType, parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive } from "../../utils";
+import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/gateway/data/tables";
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
+import { Message } from "element-ui";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -252,6 +374,9 @@ export default {
   data() {
     this.tagType = tagType;
     this.dataType = dataType;
+    this.parmaryKeyType = parmaryKeyType;
+    this.storageCompression = storageCompression;
+    this.levelList = levelList;
     return {
       isColumnsFold: false,
       isTagsFold: false,
@@ -349,22 +474,37 @@ export default {
           field: "",
           varcharLength:8,
           ncharLength:8,
-          typeList: dataType
+          typeList: dataType,
+          encode: "simple8b", 
+          compress: "lz4", 
+          level: "medium",
         });
       }
       this.columnEdit = true;
-      this.currentData = { field: "", type: "INT",varcharLength:8,
-          ncharLength:8 };
+      this.currentData = { 
+        field: "", 
+        type: "INT",
+        varcharLength:8,
+        ncharLength:8,
+        encode: "simple8b", 
+        compress: "lz4", 
+        level: "medium", 
+      };
     },
     columnTypeChange(column) { 
       let params = null
       let rename_params = null
+      let other_params = null
       if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
         params = {
           operation: "modify column",
           first_field: column.field_old,
-          second_field: column.type,
-        };
+          second_field: column.type === 'VARCHAR' 
+            ? column.type + `(${column.varcharLength})`
+            : column.type === 'NCHAR' 
+            ? column.type + `(${column.ncharLength})` 
+            : column.type,
+        }
       } 
       if(column.field_old !== column.field) {
         rename_params = {
@@ -373,10 +513,23 @@ export default {
           second_field: column.field, // new_col_name
         };
       }
-      this.updateTypeField(params, rename_params);  
+      if (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level) {
+        other_params = {
+          operation: "modify column",
+          first_field: column.field,
+          second_field: `${column.encode ? ' ENCODE ' + `'${column.encode}'` : ''}${column.compress ? ' COMPRESS ' + `'${column.compress}'` : ''}${column.level ? ' LEVEL ' + `'${column.level}'` : ''}`
+        }
+      }
+      this.updateTypeField(params, rename_params, other_params);  
     },
     minusColumn(index, data) {
-      if (!this.isEdit) return this.table_form.columns.remove(index);
+      if (!this.isEdit) {
+        this.table_form.columns.remove(index)
+        if (index == 1) {
+          this.$set(this.table_form.columns[index], "primaryKey", false);
+        }
+        return 
+      }
       this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
@@ -420,9 +573,10 @@ export default {
             stableName: this.table_form.stbTmpl,
           })
           .catch(() => false);
+        this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       }
     },
-    async updateTypeField(params, rename_params) {
+    async updateTypeField(params, rename_params, other_params) {
       if (this.loading) return;
       this.loading = true;
       let second_params = "`" + this.selected_db + "`" + "." + "`" + this.table_form.name + "`"
@@ -437,6 +591,13 @@ export default {
         await changeTableStruct(rename_params,second_params)
           .then(async () => {
             this.$message.success(this.$t('data.renameColumn') + this.$t("operateSucc"));
+          })
+          .catch((err) => this.$error(err?.desc));
+      }
+      if(other_params) {
+        await changeTableStruct(other_params,second_params)
+          .then(async () => {
+            this.$message.success(this.$t("operateSucc"));
           })
           .catch((err) => this.$error(err?.desc));
       }
@@ -464,6 +625,14 @@ export default {
     handleCreateTable() {
       this.$refs.table_form.validate((valid) => {
         if (valid) {
+          for (let i = 0; i < this.table_form.columns.length; i++) {
+            const element = this.table_form.columns[i];
+            if (!element.field) {
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
+            }
+          }
           this.handleData();
           this.$store.dispatch("tables/submitTableForm").then(() => {
             this.$message.success(this.$t("createSucc"));
@@ -508,20 +677,74 @@ export default {
       if (!this.currentData.field || !this.currentData.type) {
         return this.$error(this.$t("data.checkFail"));
       }
-      let params = {
-        operation: "add column",
-        first_field: this.currentData.field,
-        second_field: this.currentData.type === 'VARCHAR' 
+      let second_field = this.currentData.type === 'VARCHAR' 
         ? this.currentData.type + `(${this.currentData.varcharLength})`
         : this.currentData.type === 'NCHAR' 
         ? this.currentData.type + `(${this.currentData.ncharLength})` 
-        : this.currentData.type,
+        : this.currentData.type
+      let other = `${this.currentData.encode ? ' ENCODE ' + `'${this.currentData.encode}'` : ''}${this.currentData.compress ? ' COMPRESS ' + `'${this.currentData.compress}'` : ''}${this.currentData.level ? ' LEVEL ' + `'${this.currentData.level}'` : ''}`
+      let params = {
+        operation: "add column",
+        first_field: this.currentData.field,
+        second_field: second_field + other,
+
       };
       this.columnEdit = false;
       this.updateData(params);
     },
     cancel() {
       this.$store.commit("console/CANCEL_DETAIL");
+    },
+    handleEncodeList(type) {
+      if (!type) return this.storageCompression.empty
+      if (groupOne.includes(type)) {
+        return this.storageCompression.groupOne
+      } else if (groupTwo.includes(type)) {
+        return this.storageCompression.groupTwo
+      } else if (groupThree.includes(type)) {
+        return this.storageCompression.groupThree
+      } else if (groupFour.findIndex((item) => type.startsWith(item)) !== -1) {
+        return this.storageCompression.groupFour
+      } else if (groupFive.includes(type)) {
+        return this.storageCompression.groupFive
+      } else {
+        return this.storageCompression.groupSix
+      }
+    },
+    handleTypeChange(column, index) {
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.table_form.columns[index], "encode", defaultEncode);
+      this.$set(this.table_form.columns[index], "compress", defaultCompress);
+      this.$set(this.table_form.columns[index], "level", 'medium');
+      // 如果不支持 primary key 
+      if (index == 1 && 
+        column.primaryKey && 
+        this.parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1) 
+      {
+        this.$set(this.table_form.columns[index], "primaryKey", false);
+      }
+    },
+    handleEditTypeChange(column, index) {
+      const data = this.handleEncodeList(column.type)
+      const { defaultEncode, defaultCompress } = data
+      this.$set(this.currentData, "encode", defaultEncode);
+      this.$set(this.currentData, "compress", defaultCompress);
+      this.$set(this.currentData, "level", 'medium');
+    },
+    handleTypeList(currentType, name) {
+      if (!this.isEdit) return this[name];
+      // 当数据类型为BINARY和NCHAR才会进行过滤并且是修改状态下的时候
+      let index = VariableTableColumnType.findIndex((item) =>
+        currentType.startsWith(item)
+      );
+      if (index == -1) return this[name];
+      return this[name].filter((item) => {
+        let cur = item.value.match(/\d+/);
+        return (
+          item.value.startsWith(VariableTableColumnType[index]) 
+        );
+      });
     },
   },
 };
@@ -535,7 +758,7 @@ export default {
 
 .formWrapper {
   padding-right: 18px;
-  max-width: 680px;
+  // max-width: 680px;
 }
 
 .name_input {
@@ -545,6 +768,11 @@ export default {
 .columnPrepend {
   width: 130px;
   cursor: auto;
+}
+
+.columnWidth120 {
+  width: 110px;
+  flex-shrink: 0;
 }
 
 .columnPrependBtn {
@@ -578,6 +806,8 @@ export default {
   font-size: 14px;
 }
 .custom-length {
+  width: 110px;
+  flex-shrink: 0;
   ::v-deep {
     .el-input-number__decrease {
       height: 16px;
