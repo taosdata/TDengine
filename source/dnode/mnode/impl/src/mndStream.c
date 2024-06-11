@@ -2569,7 +2569,7 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
     if (pStream != NULL) {
       bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
       if (conflict) {
-        mDebug("stream:%x%"PRIx64" active checkpoint trans not finished yet, wait", req.streamId);
+        mDebug("stream:0x%"PRIx64" active checkpoint trans not finished yet, wait", req.streamId);
       } else {
         int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, *pReqTaskList);
         if (code == TSDB_CODE_SUCCESS) { // remove this entry

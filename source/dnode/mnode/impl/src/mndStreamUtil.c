@@ -789,7 +789,7 @@ void scanCheckpointReportInfo(SMnode* pMnode) {
                  pInfo->streamId);
         }
       } else {
-        mDebug("stream:%x%"PRIx64" active checkpoint trans not finished yet, wait", pInfo->streamId);
+        mDebug("stream:0x%"PRIx64" active checkpoint trans not finished yet, wait", pInfo->streamId);
       }
     } else {
       mDebug("stream:0x%" PRIx64 " %s %d/%d tasks send checkpoint-report, %d not send", pInfo->streamId, pStream->name,
