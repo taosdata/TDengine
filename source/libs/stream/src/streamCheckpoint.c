@@ -40,26 +40,8 @@ static void    checkpointTriggerMonitorFn(void* param, void* tmrId);
 
 static SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId, int32_t transId);
 
-bool streamTaskIsAllUpstreamSendTrigger(SStreamTask* pTask) {
-  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
-  int32_t numOfUpstreams = taosArrayGetSize(pTask->upstreamInfo.pList);
-  bool allSend = true;
-
-  taosThreadMutexLock(&pActiveInfo->lock);
-  int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
-
-  if (numOfRecv < numOfUpstreams) {
-    stDebug("s-task:%s received checkpoint-trigger block, idx:%d, %d upstream tasks not send yet, total:%d",
-            pTask->id.idStr, pTask->info.selfChildId, (numOfUpstreams - numOfRecv), numOfUpstreams);
-    allSend = false;
-  }
-
-  taosThreadMutexUnlock(&pActiveInfo->lock);
-  return allSend;
-}
-
 SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
-    int32_t transId) {
+                                          int32_t transId) {
   SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pChkpoint == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

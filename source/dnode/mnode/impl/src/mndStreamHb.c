@@ -22,6 +22,8 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
+static void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
+
 static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
   for (int32_t j = 0; j < numOfNodes; ++j) {
@@ -326,7 +328,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     mndDropOrphanTasks(pMnode, pOrphanTasks);
   }
 
-  scanCheckpointReportInfo(pMnode);
+  mndStreamStartUpdateCheckpointInfo(pMnode);
 
   taosThreadMutexUnlock(&execInfo.lock);
   tCleanupStreamHbMsg(&req);
@@ -345,4 +347,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doCheckpointmsg
+  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+  if (pMsg != NULL) {
+    int32_t size = sizeof(SMStreamDoCheckpointMsg);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
 }

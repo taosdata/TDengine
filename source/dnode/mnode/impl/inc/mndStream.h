@@ -130,7 +130,7 @@ int32_t     mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamO
 int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream);
 int32_t     mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
-void        scanCheckpointReportInfo(SMnode *pMnode);
+int32_t     mndScanCheckpointReportInfo(SRpcMsg *pReq);
 void        removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);

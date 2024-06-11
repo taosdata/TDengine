@@ -754,8 +754,11 @@ int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj
   return 0;
 }
 
-void scanCheckpointReportInfo(SMnode* pMnode) {
-  void* pIter = NULL;
+int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  void   *pIter = NULL;
+  SArray *pDropped = taosArrayInit(4, sizeof(int64_t));
+
   mDebug("start to scan checkpoint report info");
 
   while ((pIter = taosHashIterate(execInfo.pChkptStreams, pIter)) != NULL) {
@@ -764,8 +767,8 @@ void scanCheckpointReportInfo(SMnode* pMnode) {
     STaskChkptInfo* pInfo = taosArrayGet(pList, 0);
     SStreamObj* pStream = mndGetStreamObj(pMnode, pInfo->streamId);
     if (pStream == NULL) {
-      mError("failed to acquire stream:0x%"PRIx64" remove it from checkpoint-report list", pInfo->streamId);
-      taosHashRemove(execInfo.pChkptStreams, &pInfo->streamId, sizeof(pInfo->streamId));
+      mDebug("failed to acquire stream:0x%" PRIx64 " remove it from checkpoint-report list", pInfo->streamId);
+      taosArrayPush(pDropped, &pInfo->streamId);
       continue;
     }
 
@@ -780,14 +783,13 @@ void scanCheckpointReportInfo(SMnode* pMnode) {
       if (!conflict) {
         int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, pList);
         if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) { // remove this entry
-          taosHashRemove(execInfo.pChkptStreams, &pInfo->streamId, sizeof(pInfo->streamId));
-
-          int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
-          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", pInfo->streamId, numOfStreams);
+          taosArrayPush(pDropped, &pInfo->streamId);
+          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", pInfo->streamId);
         } else {
-          mDebug("stream:0x%" PRIx64 " not launch chkpt update trans, due to checkpoint not finished yet",
+          mDebug("stream:0x%" PRIx64 " not launch chkpt-meta update trans, due to checkpoint not finished yet",
                  pInfo->streamId);
         }
+        break;
       } else {
         mDebug("stream:0x%"PRIx64" active checkpoint trans not finished yet, wait", pInfo->streamId);
       }
@@ -799,4 +801,16 @@ void scanCheckpointReportInfo(SMnode* pMnode) {
     sdbRelease(pMnode->pSdb, pStream);
   }
 
+  if (taosArrayGetSize(pDropped) > 0) {
+    for (int32_t i = 0; i < taosArrayGetSize(pDropped); ++i) {
+      int64_t streamId = *(int64_t *)taosArrayGet(pDropped, i);
+      taosHashRemove(execInfo.pChkptStreams, &streamId, sizeof(streamId));
+    }
+
+    int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
+    mDebug("drop %d stream(s) in checkpoint-report list, remain:%d", numOfStreams);
+  }
+
+  taosArrayDestroy(pDropped);
+  return TSDB_CODE_SUCCESS;
 }
