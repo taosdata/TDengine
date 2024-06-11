@@ -784,7 +784,7 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
         int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, pList);
         if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) { // remove this entry
           taosArrayPush(pDropped, &pInfo->streamId);
-          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", pInfo->streamId);
+          mDebug("stream:0x%" PRIx64 " removed", pInfo->streamId);
         } else {
           mDebug("stream:0x%" PRIx64 " not launch chkpt-meta update trans, due to checkpoint not finished yet",
                  pInfo->streamId);
