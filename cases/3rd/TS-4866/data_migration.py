@@ -279,7 +279,7 @@ class DB:
         self.port = port
         self.config_dir = config_dir
         self.conn = self.get_connection()
-        self.timeout = 12
+        self.timeout = 600
 
     def get_connection(self):
         """
@@ -585,7 +585,7 @@ if __name__ == "__main__":
     taosd_pid = dmg.find_process_pid("taosd")
     rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0])
     if not rtn[0]:
-        print("Stream task is not finished in 12s.")
+        print(f"Stream task is not finished in {dmg.timeout}s.")
     else:
         res = dmg.conn.query(f'select count(*) from {opts.target_dbname}.{opts.target_stbname};')
         perftime = res.fetch_all()[0][0]/rtn[0]
