@@ -47,4 +47,4 @@ target_sources(tmsgTest
         "../src/tmsg.c"
 )
 target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
-target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)
+target_link_libraries(tmsgTest PUBLIC os util common gtest gtest_main)
