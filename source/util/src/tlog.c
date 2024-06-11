@@ -365,7 +365,7 @@ static int32_t taosOpenNewLogFile() {
     taosThreadAttrInit(&attr);
     taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    OldFileKeeper *oldFileKeeper = taosOpenNewFile();
+    OldFileKeeper* oldFileKeeper = taosOpenNewFile();
     taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper);
     taosThreadAttrDestroy(&attr);
   }
