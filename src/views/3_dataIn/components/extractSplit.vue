@@ -356,7 +356,6 @@ export default {
             let newItem = {...addObj, ...item};
             resultData.push(newItem)
           });
-          console.log('colLists',colLists);
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);

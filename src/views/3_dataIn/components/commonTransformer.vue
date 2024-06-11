@@ -1192,7 +1192,6 @@ export default {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
         this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",this.columnsArr)
-        console.log('this.columnsArr',this.columnsArr);
 
         // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
         this.handelExtractArr(this.columnsArr,this.extractArr)
@@ -1962,6 +1961,10 @@ export default {
         return;
       } else {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 2);
+      }
+      // 获取最新的拆分后的列
+      if (this.$refs.extract && this.$refs.extract.length > 0) {
+        this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
       }
 
       this.showCreateDIalog = true;
