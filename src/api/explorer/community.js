@@ -885,6 +885,7 @@ export function getDataSources(lang) {
               "params": [
                 {
                   "name": "auth_certificate",
+                  "required": true,
                   "display": "Authentication Certificate",
                   "hint": {
                     "type": "file"
@@ -892,6 +893,7 @@ export function getDataSources(lang) {
                 },
                 {
                   "name": "auth_private_key",
+                  "required": true,
                   "display": "Private key of Certificate",
                   "hint": {
                     "type": "file"
@@ -4488,6 +4490,7 @@ export function getDataSources(lang) {
               "params": [
                 {
                   "name": "auth_certificate",
+                  "required": true,
                   "display": "认证证书文件",
                   "hint": {
                     "type": "file"
@@ -4495,6 +4498,7 @@ export function getDataSources(lang) {
                 },
                 {
                   "name": "auth_private_key",
+                  "required": true,
                   "display": "认证证书私钥",
                   "hint": {
                     "type": "file"

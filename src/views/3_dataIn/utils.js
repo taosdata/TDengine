@@ -277,30 +277,10 @@ function handleAuthentication(authentication, paramsConfig) {
           label: display,
           description,
           placeholder,
-          required: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              return checkValue(authenticationData.certificates.security_mode) && 
-                authenticationData.certificates.security_mode !== opcuaSecuritymodeValue && index > 1
-            } else {
-              return required
-            }
-          },
+          required,
           field: name,
           defaultValue: defaultValue ?? '',
           accept: '.pem,.der,.cert,.key,.crt',
-          disabled: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              // 特殊处理 opcua 安全策略
-              if ( authenticationData.certificates.security_mode == opcuaSecuritymodeValue) {
-                authenticationData.certificates.security_policy = ''
-              }
-              return authenticationData.certificates.security_mode == opcuaSecuritymodeValue && index == 1
-            } else {
-              return false
-            }
-          },
         };
         if (name == 'orgId') {
           config.pattern = /^[0-9a-fA-F]+$/
@@ -384,14 +364,37 @@ function handleOptions(options, paramsConfig) {
       description,
       field: key,
       placeholder,
-      required,
+      // required,
       pattern: pattern || null,
       patternMsg,
       defaultValue: value ?? '',
       if: currentData => {
         if (!currentData.system_configuration || key == 'host') return true;
         return currentData.system_configuration == piOptionShowValue;
-      }
+      },
+      required: (_, originalData,currentDefinition) => {
+        if (currentDefinition?.id?.startsWith('opcua')) {
+          let authenticationData = originalData[optionsField];
+          return checkValue(authenticationData.security_mode) && 
+            authenticationData.security_mode !== opcuaSecuritymodeValue &&
+            ['private_key','security_policy','certificate'].includes(key)
+        } else {
+          return required
+        }
+      },
+       disabled: (_, originalData,currentDefinition) => {
+        if (currentDefinition?.id?.startsWith('opcua')) {
+          let authenticationData = originalData[optionsField];
+          // 特殊处理 opcua 安全策略
+          if ( authenticationData.security_mode == opcuaSecuritymodeValue) {
+            authenticationData.security_policy = '';
+          }
+          return authenticationData.security_mode == opcuaSecuritymodeValue &&
+            ['security_policy'].includes(key)
+        } else {
+          return false
+        }
+      },
     };
     if (key == 'host') {
       config.display_order = 1;
