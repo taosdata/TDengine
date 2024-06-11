@@ -5,6 +5,8 @@ use std::{fs, io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
+use serde_json::json;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -13,6 +15,7 @@ use tracing::{instrument, Span};
 
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
+use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
 use crate::utils::monitor::send_sub_process_info;
@@ -22,6 +25,8 @@ use crate::{
 };
 
 mod config;
+
+pub const MQTT_ID: &'static str = "mqtt";
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -59,6 +64,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
+/// Run the mqtt DataIn task
 #[instrument(skip_all)]
 pub async fn mqtt_to_taos(
     from: Dsn,
@@ -89,6 +95,7 @@ pub async fn mqtt_to_taos(
         config_path.display(),
         toml
     );
+
     // save the temporary file to task dir
     match task_id {
         Some(task_id) => {
@@ -215,6 +222,7 @@ pub async fn mqtt_to_taos(
     Ok(())
 }
 
+/// Check the connectivity of the mqtt server
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = MqttConnectConfig::from_dsn(dsn);
     match config {
@@ -234,7 +242,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 topics: HashMap::new(),
                 dump: None,
             };
-            let valid = validate_mqtt(mqtt_config).await;
+            let valid = is_valid_impl(mqtt_config).await;
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "mqtt".to_string(),
@@ -250,7 +258,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidation> {
+async fn is_valid_impl(config: MqttConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -293,6 +301,41 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
             ),
         ))
     }
+}
+
+/// get sample data from mqtt server
+pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
+    let sample_list: Vec<String> = get_sample_impl(dsn, limit, timeout).await?;
+
+    let mut sample_vec: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
+    for payload in sample_list {
+        let mut p = LinkedHashMap::new();
+        p.insert("payload".to_string(), json!(payload));
+        sample_vec.push(p);
+    }
+
+    let sample_json = json!({
+        "input": sample_vec,
+        "parser": {}
+    });
+
+    let sample: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse mqtt sample data: {:?}, cause: {:?}",
+            sample_json,
+            err
+        )
+    })?;
+
+    Ok(sample)
+}
+
+async fn get_sample_impl(
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<String>> {
+    todo!()
 }
 
 #[cfg(test)]

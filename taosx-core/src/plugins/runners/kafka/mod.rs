@@ -41,7 +41,7 @@ use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
-pub const KAFKA_ID: &str = "kafka";
+pub const KAFKA_ID: &'static str = "kafka";
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_valid_impl(dsn) {
