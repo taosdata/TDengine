@@ -1140,12 +1140,11 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
-
-    STMT_ERR_RET(stmtCreateRequest(pStmt));
   }
 
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtCreateRequest(pStmt));
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
@@ -1625,8 +1624,9 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
     STMT_ERR_RET(stmtCreateRequest(pStmt));
   }
 
+  STMT_ERRI_JRET(stmtCreateRequest(pStmt));
+
   if (pStmt->bInfo.needParse) {
-    STMT_ERRI_JRET(stmtCreateRequest(pStmt));
     STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
@@ -1657,6 +1657,7 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   }
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
+  
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
