@@ -12,7 +12,7 @@
         plain
         type="primary"
         @click="handleBeforeUpload"
-        :disabled="$COMMUNITY"
+        :disabled="$COMMUNITY || disabled"
         >{{ $t('support.selectFile') }}</el-button
       >
     </el-tooltip>
@@ -44,7 +44,7 @@
         icon="el-icon-upload2"
         type="primary"
         ref="uploadButton"
-        :disabled="$COMMUNITY"
+        :disabled="$COMMUNITY || disabled"
       >{{ btnText || $t('support.selectFile') }}</el-button>
     </el-upload>
   </el-tooltip>
