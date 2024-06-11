@@ -11,6 +11,8 @@ using TDPIConnector.TDEngine.Helper;
 using System.Threading.Tasks;
 using System.Net.Sockets;
 using Newtonsoft.Json;
+using System.Linq;
+using System.Collections;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
@@ -95,14 +97,30 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = new List<KeyValuePair<string, string>>
+
+            var tagDic = new Dictionary<string, string>();
+            if (tags != null)
             {
-                new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, IpcDataTypes.VarCharType),
-                new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, IpcDataTypes.VarCharType)
-            };
+                tagDic = tags.ToDictionary(pair => pair.Key, pair => pair.Value);
+            }
+            builder.tagNames = new List<KeyValuePair<string, string>> { };
+            if (!tagDic.ContainsKey(TaosxConstants.ELEMENTID))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(TaosxConstants.ELEMENTNAME))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(StaticConfig.Default.AFTreeTagName))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(StaticConfig.Default.ElementCategories))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, IpcDataTypes.VarCharType));
+            }
             builder.tagNames.AddRange(tags);
-            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, IpcDataTypes.VarCharType));
-            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, IpcDataTypes.VarCharType));
 
             builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();

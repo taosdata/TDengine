@@ -189,13 +189,16 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     if (tagNum > 0) {
                         foreach (var tb in messageBuilder.tagVals)
                         {
-                            Dictionary<string, string> unsortTag = new Dictionary<string, string>();
-                            foreach (var tag in tb.Value)
+                        Dictionary<string, string> unsortTag = new Dictionary<string, string>();
+                        foreach (var tag in tb.Value)
+                        {
+                            if (!unsortTag.ContainsKey(tag.Key))
                             {
                                 unsortTag.Add(tag.Key, tag.Value);
                             }
+                        }
 
-                            int i = 0;
+                        int i = 0;
                             foreach (var tagFiled in messageBuilder.tagStruct.Fields) {
                                 if (unsortTag.ContainsKey(tagFiled.Name))
                                 {

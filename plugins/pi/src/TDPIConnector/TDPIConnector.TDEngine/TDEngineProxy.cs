@@ -167,6 +167,10 @@ namespace TDPIConnector.TDEngine
         {
             return taosxCommonClient.ChangeTagValueForAFElements(db, tbName, attriName, value);
         }
+        // public virtual Task<TDEngineResponse> DropElementTable(string db, string tbName)
+        // {
+        //     return taosxCommonClient.DropElementTable(db, tbName);
+        // }
         public virtual Task<TDEngineResponse> UpdateAFElementAttributeNULL(string db, string elementName, string attriName, string ts)
         {
             return taosxCommonClient.UpdateAFElementAttributeNULL(db, elementName, attriName, ts);
@@ -292,6 +296,8 @@ namespace TDPIConnector.TDEngine
                 var tags = new List<KeyValuePair<string, string>>();
                 tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.ID));
                 tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name));
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
+                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories));
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())
@@ -303,9 +309,6 @@ namespace TDPIConnector.TDEngine
                         tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue.Trim()));
                     }
                 }
-                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
-                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories));
-
                 taosxClient.AddAFElementTableTag(element.ID, tags);
             }
             taosxClient.InitTables();
