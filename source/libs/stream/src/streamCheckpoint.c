@@ -418,6 +418,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   int32_t          code = 0;
   const char*      id = pTask->id.idStr;
   SCheckpointInfo* pInfo = &pTask->chkInfo;
+  STaskId          hTaskId = {0};
 
   taosThreadMutexLock(&pTask->lock);
 
@@ -433,12 +434,11 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
       // drop task should not in the meta-lock, and drop the related fill-history task now
       streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
-        streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+        streamMetaUnregisterTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                 id, vgId, pReq->taskId, numOfTasks);
       }
-
       streamMetaWLock(pMeta);
     }
 
@@ -476,8 +476,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   }
 
   if (pReq->dropRelHTask) {
+    hTaskId = pTask->hTaskInfo.id;
     stDebug("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
-            pReq->taskId, vgId, pReq->hTaskId);
+            pReq->taskId, vgId, hTaskId.taskId);
     CLEAR_RELATED_FILLHISTORY_TASK(pTask);
   }
 
@@ -498,9 +499,10 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
     int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId, (int32_t) pReq->hTaskId, numOfTasks);
+    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
+            (int32_t)hTaskId.taskId, numOfTasks);
   }
 
   streamMetaWLock(pMeta);

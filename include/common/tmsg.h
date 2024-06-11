@@ -3473,8 +3473,6 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  checkpointTs;
   int32_t  transId;
   int8_t   dropRelHTask;
-  int64_t  hStreamId;
-  int64_t  hTaskId;
 } SVUpdateCheckpointInfoReq;
 
 typedef struct {

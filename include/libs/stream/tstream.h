@@ -734,6 +734,9 @@ int32_t      streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32
 void         streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs);
 void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
                                         int64_t startTs);
+void         streamMetaClearUpdateTaskList(SStreamMeta* pMeta);
+void         streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId);
+
 void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
