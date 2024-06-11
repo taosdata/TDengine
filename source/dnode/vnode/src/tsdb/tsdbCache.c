@@ -1578,7 +1578,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (/*!pTmpColArray*/ lastTmpIndexArray && !lastTmpColArray) {
       continue;
     }
-    if (/*!pTmpColArray*/ lastrowTmpIndexArray && lastrowTmpColArray) {
+    if (/*!pTmpColArray*/ lastrowTmpIndexArray && !lastrowTmpColArray) {
       continue;
     }
 
