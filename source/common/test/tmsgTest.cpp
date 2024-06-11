@@ -18,7 +18,7 @@ TEST(td_msg_test, simple_msg_test) {
   // std::cout << TMSG_INFO(TDMT_MND_CREATE_SUPER_TABLE) << std::endl;
 
   int32_t msgSize = sizeof(tMsgTypeInfo) / sizeof(SMsgTypeInfo);
-  for (size_t i = 0; i < msgSize; ++i) {
+  for (int32_t i = 0; i < msgSize; ++i) {
     SMsgTypeInfo *pInfo = &tMsgTypeInfo[i];
     std::cout << i * 2 + 1 << " " << pInfo->name << " " << pInfo->type << std::endl;
     std::cout << i * 2 + 2 << " " << pInfo->rspName << " " << pInfo->rspType << std::endl;
