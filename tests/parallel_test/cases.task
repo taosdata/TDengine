@@ -1452,6 +1452,7 @@
 ,,y,script,./test.sh -f tsim/view/view.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim 
 ,,y,script,./test.sh -f tsim/query/const.sim 
+,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
 
 
 #develop test
