@@ -66,6 +66,7 @@ typedef struct {
   int32_t       lines;
   int32_t       flag;
   int32_t       openInProgress;
+  int64_t       lastFileSec;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
   SLogBuff     *logHandle;
@@ -275,6 +276,11 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
 
   int32_t code = 0;
   int64_t fileSec = taosGetTimestampSec();
+  if (tsLogObj.lastFileSec < fileSec) {
+    tsLogObj.lastFileSec = fileSec;
+  } else {
+    fileSec = ++tsLogObj.lastFileSec;
+  }
   snprintf(keepName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
   if ((code = taosRenameFile(oldName, keepName))) {
     keepName[0] = 0;
