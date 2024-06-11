@@ -202,7 +202,6 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     }
   } else {
     tqDebug("s-task:%s vgId:%d recv trans to update nodeEp from mnode, transId:%d", idstr, vgId, req.transId);
-    streamMetaInitUpdateTaskList(pMeta, req.transId);
   }
 
   // duplicate update epset msg received, discard this redundant message
