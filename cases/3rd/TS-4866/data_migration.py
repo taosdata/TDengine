@@ -214,7 +214,7 @@ class Parser:
             '-stn',
             '--stream-name',
             action='store',
-            default="stream_tb",
+            default="test_stream",
             type=str,
             metavar="stream_name",
             help='stream, default is test_strem.'
@@ -442,7 +442,7 @@ class DataMigration(DB):
             target_dbname (str): The name of the target database.
             target_stbname (str): The name of the target stable table.
         """
-        cmd = f'CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} as select _wstart, last(current),last(voltage),last(phase) from {source_dbname}.{source_stbname} interval(60s)'
+        cmd = f'CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} TAGS(loc binary(16)) as select _wstart, last(current) as last_current,last(voltage) as last_voltage,last(phase) as last_phase from {source_dbname}.{source_stbname} partition by location as loc interval(60s)'
         self.conn.execute(cmd)
 
     def exec_cmd(self, cmd):
@@ -579,8 +579,8 @@ if __name__ == "__main__":
     parser = pars.buildCmdLineParser()
     opts = pars.get_opts(parser.parse_args())
     dmg = DataMigration(opts.host, opts.port, opts.config_dir)
-    # dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
-    # dmg.prepare_data()
+    dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
+    dmg.prepare_data()
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
     taosd_pid = dmg.find_process_pid("taosd")
     rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0])
