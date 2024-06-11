@@ -267,21 +267,31 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   }
 }
 
-static void taosKeepOldLog(char *oldName) {
-  if (tsLogKeepDays == 0) return;
-
-  int64_t fileSec = taosGetTimestampSec();
-  char    fileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
-
-  (void)taosRenameFile(oldName, fileName);
-
-  char compressFileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
-  if (taosCompressFile(fileName, compressFileName) == 0) {
-    (void)taosRemoveFile(fileName);
+static void taosReserveOldLog(char *oldName, char *keepName) {
+  if (tsLogKeepDays == 0) {
+    keepName[0] = 0;
+    return;
   }
 
+  int32_t code = 0;
+  int64_t fileSec = taosGetTimestampSec();
+  snprintf(keepName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+  if ((code = taosRenameFile(oldName, keepName))) {
+    keepName[0] = 0;
+    uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+  }
+}
+
+static void taosKeepOldLog(char *oldName) {
+  if (oldName[0] == '\0') goto _end;
+
+  char compressFileName[LOG_FILE_NAME_LEN + 20];
+  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.gz", oldName);
+  if (taosCompressFile(oldName, compressFileName) == 0) {
+    (void)taosRemoveFile(oldName);
+  }
+
+_end:
   if (tsLogKeepDays > 0) {
     taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
   }
@@ -316,13 +326,13 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  OldFileKeeper* oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
+  OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;
-  memcpy(oldFileKeeper->keepName, keepName, LOG_FILE_NAME_LEN + 20);
+  taosReserveOldLog(keepName, oldFileKeeper->keepName);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
