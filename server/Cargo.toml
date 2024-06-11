@@ -37,7 +37,7 @@ rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
 
-taos = { version = "0.10.19", default-features = false, features = [
+taos = { version = "0.12.3", default-features = false, features = [
 	"ws-rustls",
 	"optin",
 	"deadpool",
@@ -46,6 +46,7 @@ taos = { version = "0.10.19", default-features = false, features = [
 const-str = "0.5.4"
 const_format = "0.2.30"
 shadow-rs = "0.24.1"
+geos = "9.0.0"
 
 [build-dependencies]
 shadow-rs = "0.24.1"
