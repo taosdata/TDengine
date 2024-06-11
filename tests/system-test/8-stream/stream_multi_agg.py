@@ -42,7 +42,7 @@ class TDTestCase:
         tdSql.execute("use test", queryTimes=100)
         tdSql.query("create stream if not exists s1 trigger at_once  ignore expired 0 ignore update 0  fill_history 1 into st1 as select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s)")
         tdLog.debug("========create stream and insert data ok========")
-        time.sleep(15)
+        time.sleep(20)
 
         tdSql.query("select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s) order by groupid,_wstart")
         rowCnt = tdSql.getRows()
