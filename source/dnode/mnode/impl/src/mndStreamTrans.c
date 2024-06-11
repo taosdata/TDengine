@@ -159,7 +159,7 @@ STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
     return NULL;
   }
 
-  mInfo("s-task:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
+  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
