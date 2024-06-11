@@ -931,6 +931,10 @@ impl Args {
                         taos::Value::Timestamp(ts) => {
                             serde_json::Value::String(ts.to_datetime_with_tz().to_rfc3339())
                         }
+                        taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
+                            "\\x{}",
+                            hex::encode(vb).to_uppercase()
+                        )),
                         taos::Value::Geometry(geo) => {
                             serde_json::Value::String(parse_geometry_from_bytes(&geo))
                         }
