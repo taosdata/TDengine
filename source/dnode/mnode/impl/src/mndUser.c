@@ -648,6 +648,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.pIpWhiteList = createDefaultIpWhiteList();
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
+    userObj.createdb = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -817,7 +818,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->sysInfo, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pUser->reserve, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pUser->flag, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->authVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->passVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
@@ -1001,7 +1002,8 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->sysInfo, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pUser->reserve, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pUser->flag, _OVER)
+  if (pUser->superUser) pUser->createdb = 1;
   SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
   if (sver >= 4) {
     SDB_GET_INT32(pRaw, dataPos, &pUser->passVersion, _OVER)
@@ -1395,6 +1397,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->passVersion = pNew->passVersion;
   pOld->sysInfo = pNew->sysInfo;
   pOld->enable = pNew->enable;
+  pOld->flag = pNew->flag;
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   TSWAP(pOld->readDbs, pNew->readDbs);
   TSWAP(pOld->writeDbs, pNew->writeDbs);
@@ -1445,6 +1448,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
+  userObj.createdb = 0;
 
   if (pCreate->numIpRanges == 0) {
     userObj.pIpWhiteList = createDefaultIpWhiteList();
@@ -1790,6 +1794,9 @@ static char *mndUserAuditTypeStr(int32_t type) {
   if (type == TSDB_ALTER_USER_SYSINFO) {
     return "userSysInfo";
   }
+  if (type == TSDB_ALTER_USER_CREATEDB) {
+    return "userCreateDB";
+  }
   return "error";
 }
 
@@ -2009,6 +2016,10 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.sysInfo = alterReq.sysInfo;
   }
 
+  if(alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
+    newUser.createdb = alterReq.createdb;
+  }
+
   if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
     if (0 != mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser)) goto _OVER;
   }
@@ -2110,14 +2121,15 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
     char detail[1000] = {0};
-    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, tabName:%s, password:xxx",
+    sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
             mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-            alterReq.tabName);
+            alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
   }
   else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER ||
           alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
-          alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
+          alterReq.alterType == TSDB_ALTER_USER_SYSINFO || 
+          alterReq.alterType == TSDB_ALTER_USER_CREATEDB){
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, alterReq.sql, alterReq.sqlLen);
   }
   else if(ALTER_USER_ADD_READ_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
@@ -2290,6 +2302,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   SUserObj *pUser = NULL;
   int32_t   cols = 0;
+  int8_t    flag = 0;
   char     *pWrite;
 
   while (numOfRows < rows) {
@@ -2313,6 +2326,11 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->sysInfo, false);
+
+    cols++;
+    flag = pUser->createdb ? 1 : 0;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&flag, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);

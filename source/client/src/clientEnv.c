@@ -334,6 +334,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
+    releaseTscObj(connId);
     doDestroyRequest(pRequest);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
