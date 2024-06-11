@@ -578,6 +578,7 @@ void mndInitExecInfo() {
   execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
 
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
+  taosHashSetFreeFp(execInfo.pChkptStreams, freeTaskList);
 }
 
 void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
