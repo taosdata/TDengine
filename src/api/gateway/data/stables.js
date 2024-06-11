@@ -27,22 +27,28 @@ export function deleteStableReq(payload) {
 }
 
 export function getStableStructReq(payload) {
-  let { selected_db, stableName } = payload;
+  let { selected_db, stableName, type } = payload;
   return sendSQLReq(`DESCRIBE  \`${selected_db}\`` +'.'+`\`${stableName}\`;`, true)
     .then(list => {
       let ts_field_name = list[0]?.field;
+      let encode = list[0]?.encode;
+      let compress = list[0]?.compress;
+      let level = list[0]?.level;
       let columns = [];
       let tags = [];
-      for (let i = 1; i < list.length; i++) {
+      for (let i = type ? 0 : 1; i < list.length; i++) {
         const item = list[i];
         if (item.note == "TAG") {
-          tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          tags.push({ ...item, type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {
-          columns.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY', type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         }
       }
       return {
         ts_field_name: ts_field_name,
+        encode,
+        compress,
+        level,
         columns: columns,
         tags: tags,
       };
@@ -60,17 +66,19 @@ export function handleBinaryType(type, length) {
 
 export function createStableReq(payload) {
   let { selected_db, stable_form } = payload;
-  let { name, columns, tags, ts_field_name, rollup,varcharLength=8,ncharLength=8 } = stable_form;
+  let { name, columns, tags, ts_field_name, rollup } = stable_form;
   let rollupValue = "";
   if (rollup.length) {
     rollupValue = `rollup (${rollup})`;
   }
   return sendSQLReq(
-    `CREATE STABLE \`${selected_db}\`.${name} (${ts_field_name} TIMESTAMP,${columns
-      .map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
-      'NCHAR('+`${item.ncharLength}`+')':item.type}`)
-      .join(",")}) TAGS (${tags.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
-      'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")}) ${rollupValue};`
+    `CREATE STABLE \`${selected_db}\`.${name} (${columns
+      .map(item => `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type+'('+`${item.length}`+')'
+      :item.type}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
+      ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
+      ${item.primaryKey ? ' PRIMARY KEY': ''}`)
+      .join(",")}) TAGS (${tags.map(item => `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type+'('+`${item.length}`+')':
+      item.type}`).join(",")}) ${rollupValue};`
   ).catch(err => {
     return Promise.reject(err);
   });
@@ -78,10 +86,24 @@ export function createStableReq(payload) {
 
 // TODO 待定修改
 // 修改超级表的表结构
+// 一次只能改类型长度或者修改压缩方法
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
   sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
+  return sendSQLReq(sql).catch(err => {
+    return Promise.reject(err);
+  });
+}
+
+export function changeStableStructOther(data, stableName) {
+  let { operation, first_field = "", second_field = "", encode = "", compress = "", level = "", isVariable } = data;
+  let sql = "";
+  if (operation.startsWith('add')) {
+    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field} ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+  } else {
+    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+  }
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });

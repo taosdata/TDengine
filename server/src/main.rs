@@ -150,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
                 "/api/-/verification-code",
                 web::post().to(check_verification_code),
             )
+            .route("/api/-/taosd-info", web::post().to(report_taosd_info))
             .route("/api/-/isbinding", web::to(check_binding))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .service(web::redirect("/docs", "/docs/"))
@@ -350,7 +351,15 @@ struct VerificationReqBody {
     verification_code: Option<String>,
     captcha: Option<String>,
     lang: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaosdInfoBody {
+    phone_email: Option<String>,
+    lang: Option<String>,
     taosd_version: Option<String>,
+    cluster_id: Option<String>,
 }
 
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
@@ -437,14 +446,13 @@ async fn check_verification_code(
             Some("zh") => "zh_CN",
             _ => "en_US",
         };
-        let taosd_version = body.taosd_version.as_deref().unwrap_or("unknown");
 
         let report_result = verification::report_verification_status_to_cloud(
             args.cloud_open_api.clone(),
             str_phone_email,
             str_verification_code,
             lang_code,
-            taosd_version,
+            body.name.as_ref().unwrap(),
         )
         .await;
         if report_result.is_err() {
@@ -456,6 +464,34 @@ async fn check_verification_code(
     }
 
     HttpResponse::Ok().json(R::success(result))
+}
+
+// restapi: 上报 taosd 信息
+async fn report_taosd_info(
+    args: web::Data<Args>,
+    body: web::Json<TaosdInfoBody>,
+) -> impl Responder {
+    let lang_code = match body.lang.as_deref() {
+        Some("zh") => "zh_CN",
+        _ => "en_US",
+    };
+
+    let report_result = verification::report_taosd_info_to_cloud(
+        args.cloud_open_api.clone(),
+        body.phone_email.as_ref().unwrap(),
+        lang_code,
+        body.cluster_id.as_ref().unwrap(),
+        body.taosd_version.as_ref().unwrap(),
+    )
+    .await;
+    if report_result.is_err() {
+        log::error!(
+            "Failed to report taosd info to cloud: {:?}",
+            report_result.err()
+        );
+    }
+
+    HttpResponse::Ok().json(R::success(""))
 }
 
 #[post("/rest/sql")]
@@ -614,16 +650,42 @@ async fn rest_proxy(
     payload: web::Payload,
 ) -> impl Responder {
     let x = args.profile.cluster.as_deref().unwrap();
-    let query = req.query_string();
-    let url = if query.is_empty() {
-        format!("{x}/rest/{path}")
-    } else {
-        format!("{x}/rest/{path}?{query}")
-    };
+    // use proxy if cluster is a url, otherwise use native query.
+    if x.starts_with("http://") || x.starts_with("https://") {
+        let query = req.query_string();
+        let url = if query.is_empty() {
+            format!("{x}/rest/{path}")
+        } else {
+            format!("{x}/rest/{path}?{query}")
+        };
 
-    proxy(req, payload, client, &url)
-        .await
-        .map_err(RestErrResponse::new)
+        proxy(req, payload, client, &url)
+            .await
+            .map_err(RestErrResponse::new)
+    } else {
+        let header = req
+            .headers()
+            .get(AUTHORIZATION)
+            .and_then(|header| header.to_str().ok())
+            .unwrap_or_default();
+        let sql = get_body_from_payload(payload).await?;
+
+        Ok(match args.query(header, &sql).await {
+            Ok(ok) => HttpResponse::Ok().json(ok),
+            Err(err) => HttpResponse::InternalServerError().json(err),
+        })
+    }
+}
+
+async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, RestErrResponse> {
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = payload.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+    String::from_utf8(bytes.to_vec()).map_err(|e| {
+        eprintln!("Error converting body bytes to string: {:?}", e);
+        RestErrResponse::new("Error converting body bytes to string")
+    })
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -745,11 +807,11 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     const_format::concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-",
+        " (core-",
         build::PKG_VERSION,
-        " ",
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -758,11 +820,11 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     const_format::concatcp!(
         "version: ",
         build::TD_VERSION,
-        "\ngit: ",
-        build::COMMIT_HASH,
-        "\nbuild: core-dirty-",
+        " (core-dirty-",
         build::PKG_VERSION,
-        " ",
+        ")\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: ",
         build::BUILD_OS,
         " ",
         build::BUILD_TIME

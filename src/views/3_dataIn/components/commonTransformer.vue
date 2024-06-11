@@ -43,31 +43,45 @@
               name="second"
               :class="['mt5','msg-right']"
             >
-              <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL" @click="getMsgBody">{{
-                $t("datasource.transformer.msgbodytypes.retrieve")
-              }}</el-button>
+              <el-tooltip
+                placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+              >
+                <template slot="content">
+                  <span v-html="$t('communityTip')"></span>
+                </template>
+                <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL || $COMMUNITY" @click="getMsgBody">{{
+                  $t("datasource.transformer.msgbodytypes.retrieve")
+                }}</el-button>
+              </el-tooltip>
             </el-col>
             <el-col
               name="third"
               :class="['mt5','msg-right']"
               v-if="!$store.state.app.supportSQL"
             >
-              <el-upload
-                class="upload-demo"
-                :action="uploadUrl"
-                :data="{req_id: 'taosx-demo-file'}"
-                :before-remove="beforeRemove"
-                :on-success="handleSuccess"
-                :on-progress="handleStart"
-                :on-error="handleError"
-                :on-exceed="handleExceed"
-                :file-list="fileList"
-                :show-file-list="false"
-              >
-                <el-button size="small" type="primary" plain :loading="request">{{
-                  $t("datasource.transformer.msgbodytypes.type3")
-                }}</el-button>
-              </el-upload>
+              <el-tooltip
+                  placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+                >
+                  <template slot="content">
+                    <span v-html="$t('communityTip')"></span>
+                  </template>
+                  <el-upload
+                    class="upload-demo"
+                    :action="uploadUrl"
+                    :data="{req_id: 'taosx-demo-file'}"
+                    :before-remove="beforeRemove"
+                    :on-success="handleSuccess"
+                    :on-progress="handleStart"
+                    :on-error="handleError"
+                    :on-exceed="handleExceed"
+                    :file-list="fileList"
+                    :show-file-list="false"
+                  >
+                    <el-button size="small" type="primary" plain :loading="request" :disabled="$COMMUNITY">{{
+                      $t("datasource.transformer.msgbodytypes.type3")
+                    }}</el-button>
+                  </el-upload>
+              </el-tooltip> 
             </el-col>
             <el-col
               name="first"
@@ -100,7 +114,7 @@
             <span style="margin-left: 6px"
               slot="reference"
               v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
-              ><i class="el-icon-info" @click="handleClickPop('1')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -114,6 +128,7 @@
                 size="small"
                 :placeholder="$t('datasource.transformer.filter_type')"
                 v-model="parseruleForm.type"
+                @change="handleTypeChange"
               >
                 <el-option
                   v-for="item in parseTypes"
@@ -139,46 +154,54 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
-              <!-- <el-select v-else
-                multiple
-                size="small"
-                v-model="parseruleForm.expression"
-                @visible-change="handleChange"
-              >
-                <el-option
-                  v-for="item in allProperties"
-                  :key="item.defaultValue"
-                  :value="item.defaultValue"
-                >
-                <template #default>
-                  <el-checkbox class="my-checkbox" v-model="item.checked">
-                    <span style="float: left">{{ item.defaultValue }}</span>
-                    <el-input style="margin-left: 4px; width: 100px; float: right" size="mini" v-model="item.rename" @focus="focus" @mousedown.native="handleInput" ref="inputRef"></el-input>
-                  </el-checkbox>
-                </template>
-                </el-option>
-              </el-select> -->
               <cusSelect
-                v-else
+                v-else-if="parseruleForm.type == 'json'"
                 v-model="parseruleForm.expression"
                 :allProperties="allProperties"
                 :selectJson="selectJson"
                 @updateData="updateData"
               />
+              <div v-else style="display: inline-flex; align-items: start; width: 100%;">
+                <el-input 
+                  size="small"
+                  v-model="parseruleForm.expression"
+                  type="textarea" 
+                  :autosize="{ minRows: 1, maxRows: 7}"></el-input>
+                <el-upload 
+                  size="small" 
+                  @click="createST" 
+                  style="margin-left: 10px"
+                  :action="uploadUrl"
+                  :data="uploadData"
+                  :before-remove="beforeRemove"
+                  :on-success="handleSuccessUdt"
+                  :on-error="handleError"
+                  :file-list="fileList"
+                  :show-file-list="false">
+                  <el-button size="small" plain type="primary" style="width: auto; padding: 0 6px; margin-top: 0;" :disabled="$COMMUNITY">
+                    {{ $t("datasource.transformer.uploadCode") }}
+                  </el-button>
+                </el-upload>
+              </div>
             </el-form-item>
-            <!-- <el-button v-if="parseruleForm.type == 'json'" @click="selectJson">
-              <Icon
-                :name="'json'"
-                class="transform-json-icon"
-              ></Icon>
-            </el-button> -->
-            <el-button
-              size="small"
-              icon="el-icon-PREVIEW"
-              @click="submitParse"
-              style="display: flex"
-              :disabled="msgForm.msgbody == ''"
-            ></el-button>
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+            >
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                size="small"
+                icon="el-icon-PREVIEW"
+                @click="submitParse"
+                style="display: flex"
+                :disabled="
+                  msgForm.msgbody == '' || 
+                  ((parseruleForm.type == 'udt' || parseruleForm.type == 'regex') && parseruleForm.expression == '') || 
+                  $COMMUNITY
+                  "
+              ></el-button>
+            </el-tooltip>
           </el-form>
         </div>
       </section>
@@ -222,7 +245,7 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              ><i class="el-icon-info" @click="handleClickPop('2')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -240,17 +263,24 @@
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
-        <el-button 
-          type="primary"
-          icon="el-icon-plus" 
-          size="small" 
-          class="btn-icon-small"
-          plain
-          @click="addNewExtract" 
-          :disabled="columnsArr.length == 0"
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
         >
-          {{ $t("datasource.transformer.addExtract") }}
-        </el-button>
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button 
+            type="primary"
+            icon="el-icon-plus" 
+            size="small" 
+            class="btn-icon-small"
+            plain
+            @click="addNewExtract" 
+            :disabled="columnsArr.length == 0 || $COMMUNITY"
+          >
+            {{ $t("datasource.transformer.addExtract") }}
+          </el-button>
+        </el-tooltip>
       </section>
       <section class="filter">
         <div class="block-title">
@@ -265,7 +295,7 @@
             </div>
             <span style="margin-left: 6px"
               slot="reference"
-              ><i class="el-icon-info" @click="handleClickPop('3')"></i>
+              ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </el-popover>
         </div>
@@ -282,17 +312,24 @@
             ref="filter"
           ></FilterExpression>
         </template>
-        <el-button
-            type="primary"
-            icon="el-icon-plus"
-            size="small"
-            class="btn-icon-small"
-            plain
-            @click="addNewFilter"
-            :disabled="filterArr.length >= 1 || columnsArr.length == 0"
-          >
-            {{ $t("datasource.transformer.addfilter") }}
-        </el-button>
+        <el-tooltip
+          placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+        >
+          <template slot="content">
+            <span v-html="$t('communityTip')"></span>
+          </template>
+          <el-button
+              type="primary"
+              icon="el-icon-plus"
+              size="small"
+              class="btn-icon-small"
+              plain
+              @click="addNewFilter"
+              :disabled="filterArr.length >= 1 || columnsArr.length == 0 || $COMMUNITY"
+            >
+              {{ $t("datasource.transformer.addfilter") }}
+          </el-button>
+        </el-tooltip>
       </section>
       <section>
         <div class="block-title">
@@ -325,17 +362,24 @@
                 </el-form-item>
               </el-form>
             </div>
-            <el-button
-              type="primary"
-              class="btn-icon-small"
-              size="small"
-              icon="el-icon-plus"
-              plain
-              @click="createStable"
-              :disabled="$store.state.app.currentDBName == ''"
+            <el-tooltip
+              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
             >
-              {{ $t("datasource.transformer.createstb") }}
-            </el-button>
+              <template slot="content">
+                <span v-html="$t('communityTip')"></span>
+              </template>
+              <el-button
+                type="primary"
+                class="btn-icon-small"
+                size="small"
+                icon="el-icon-plus"
+                plain
+                @click="createStable"
+                :disabled="$store.state.app.currentDBName == '' || $COMMUNITY"
+              >
+                {{ $t("datasource.transformer.createstb") }}
+              </el-button>
+            </el-tooltip>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
             <el-table :data="pageTableData" border style="width: 100%">
@@ -357,6 +401,12 @@
                       class="console-tree-icon"
                       style="width: 20px; height: 20px"
                       v-if="params_tags.includes(scope.row['Name'])"
+                    ></Icon>
+                    <Icon
+                      :name="'key'"
+                      class="console-tree-icon"
+                      style="width: 20px; height: 20px"
+                      v-if="scope.row.PrimaryKey"
                     ></Icon>
 
                     <span>{{ scope.row["Name"] }}</span>
@@ -381,7 +431,7 @@
                       :content="$t('datasource.transformer.expressiondesc')"
                     />
                   </template>
-                  <span>Expression <i class="el-icon-info" style="color: #4259ce"></i></span>
+                  <span>Expression <Icon name="label_info" class="info_icon_custom"></Icon></span>
                 </el-tooltip>
               </template>
                 <div class="box-expression" slot-scope="scope">
@@ -538,7 +588,7 @@
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
         :visible.sync="showCreateDIalog"
-        width="40%"
+        width="1000px"
         center
         :append-to-body="true"
         @close="closeDialog"
@@ -555,22 +605,46 @@
           </el-button>
         </div>
       </el-dialog>
-      <el-dialog
-        :title="$t('datasource.transformer.jsonExtractTip')"
+      <!-- <el-dialog
+        :title="$t('datasource.transformer.udtTip')"
         :visible.sync="dialogVisible"
-        width="30%"
-        >
-        <div>
-          <el-checkbox class="my-checkbox" v-for="proper in allProperties" :key="proper.defaultValue" v-model="proper.checked">
-            <span style="width: 200px;display: inline-block">{{ proper.defaultValue }}</span>
-            <el-input style="margin-left: 4px; width: 100px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
-          </el-checkbox>
+        width="1000px"
+        destroy-on-close
+        :append-to-body="true"
+        @close="closeDialog"
+        :close-on-click-modal="false"
+      >
+        <el-input 
+          type="textarea" 
+          class="udt" 
+          :autosize="{ minRows: 10, maxRows: 10}"
+          v-model="parseruleForm.expression"></el-input>
+        <div class="flexBetween">
+          <a>下载示例代码</a>
+          <span class="flexStart">
+            <el-button size="small" @click="createST" plain type="primary">
+              {{ $t("preview") }}
+            </el-button>
+            <el-upload 
+              size="small" 
+              @click="createST" 
+              style="margin-left: 10px"
+              :action="uploadUrl"
+              :before-remove="beforeRemove"
+              :on-success="handleSuccess"
+              :on-error="handleError"
+              :file-list="fileList"
+              :show-file-list="false">
+              <el-button size="small" plain type="primary">
+                {{ $t("datasource.transformer.uploadCode") }}
+              </el-button>
+            </el-upload>
+            <el-button size="small" type="primary" @click="closeDialog" style="margin-left: 10px">
+              {{ $t("confirm") }}
+            </el-button>
+          </span>
         </div>
-        <span slot="footer" class="dialog-footer">
-          <el-button size="mini" @click="dialogVisible = false">{{ $t('cancel') }}</el-button>
-          <el-button size="mini" type="primary" @click="handleCheckedProperties">{{ $t('confirm') }}</el-button>
-        </span>
-      </el-dialog>
+      </el-dialog> -->
     </template>
   </div>
 </template>
@@ -586,7 +660,8 @@ import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import { extractAllProperties, deepClone } from "@/utils"
-import cusSelect from "./cusSelect.vue"
+import cusSelect from "./cusSelect.vue";
+import VersionMixin from "@/mixins/version";
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -612,11 +687,12 @@ export default {
       },
     },
   },
+  mixins: [VersionMixin],
   data() {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["regex", "json"],
+      parseTypes: ["regex", "json", "udt"],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
       parseruleForm: {
@@ -868,6 +944,11 @@ export default {
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
       );
+      if (result && Object.hasOwnProperty.call(result,'code')) {
+        this.$message.error(result.message)
+        this.msgForm.msgbody = '';
+        return
+      }
       this.msgForm.msgbody = JSON.stringify(result);
       await this.submitParse();
     },
@@ -933,6 +1014,19 @@ export default {
     
       reader.readAsText(file.raw); // 读取文本文件
     },
+    handleSuccessUdt(_, file, fileList) {
+      const reader = new FileReader();
+      const _this = this;
+      this.parseruleForm.expression = "";
+      
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        _this.parseruleForm.expression += contents + "\n";
+        _this.request = false;
+      };
+    
+      reader.readAsText(file.raw); // 读取文本文件
+    },
     beforeRemove(file, fileList) {
       return this.$confirm(`确定移除 ${file.name}？`);
     },
@@ -982,6 +1076,8 @@ export default {
                       ? this.parseruleForm.expression
                       : this.parseruleForm.type == "split"
                       ? this.$store.state.app.splitExpresList
+                      : this.parseruleForm.type == "udt"
+                      ? this.parseruleForm.expression
                       : this.parseruleForm.expression
                       ? this.parseruleForm.expression
                           .split(";")
@@ -1188,6 +1284,11 @@ export default {
           encodeURIComponent(dsn),
           this.sourceParent.sourceForm.agent
         );
+        if (result && Object.hasOwnProperty.call(result,'code')) {
+          this.$message.error(result.message)
+          this.msgForm.msgbody = '';
+          return
+        }
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;
       } else {
@@ -1445,6 +1546,11 @@ export default {
       let mutateMap = {};
   
       this.tableData.forEach((item) => {
+        // 主键列不能为空
+        if (item["PrimaryKey"] && !item["Expression"]) {
+          Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
+          this.isbreak = true;
+        }
         if (item["Expression"]) {
           if (
             this.params_columns.includes(item["Name"])
@@ -1779,11 +1885,11 @@ export default {
           try {
             const { ts_field_name, tags, columns } =
               this.$refs.createstb.stable_form;
-            if (!ts_field_name) {
-              return Message.warning(
-                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
-              );
-            }
+            // if (!ts_field_name) {
+            //   return Message.warning(
+            //     this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+            //   );
+            // }
             for (let i = 0; i < columns.length; i++) {
               const element = columns[i];
               if (!element.field) {
@@ -1802,6 +1908,17 @@ export default {
                 );
               }
             }
+            if (!this.version_gt_3300) {
+              this.$refs.createstb.stable_form.columns = this.$refs.createstb.stable_form.columns.map((item) => {
+                return {
+                  ...item,
+                  encode: '',
+                  compress: '',
+                  level: ''
+                }
+              });
+            }
+            
             let payload = {
               selected_db: this.$store.state.app.currentDBName,
               stable_form: this.$refs.createstb.stable_form,
@@ -1950,7 +2067,7 @@ export default {
         this.pageCount = res.data.length + 1;
         this.tableData = res.data.map((val, index) => {
           const tableRow = { Name: val[0], exprname: "mapping" };
-          if (!val[3] && index > 0) {
+          if (val[3] !== 'TAG' && index > 0) {
             this.params_columns.push(val[0]); //存储非主键列
             const dataRange = getDataRange(val[1]);
             dataRange && (tableRow.dataRange = dataRange);
@@ -1972,6 +2089,7 @@ export default {
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"];
           tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
+          tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || (val[1] == "TIMESTAMP" && !index)
           
           return tableRow;
         });
@@ -2174,6 +2292,9 @@ export default {
       
 
       return inputString;
+    },
+    handleTypeChange() {
+      this.parseruleForm.expression = ""
     }
   },
   watch: {
@@ -2243,11 +2364,6 @@ export default {
         }
       },
     },
-    "parseruleForm.type": {
-      handler() {
-        this.parseruleForm.expression = ""
-      }
-    }
   },
 };
 </script>
@@ -2454,7 +2570,7 @@ export default {
     .el-form {
       display: flex !important;
       flex: 1;
-      align-items: center;
+      align-items: flex-start;
       .el-form-item {
         margin-bottom: 0px;
         margin-right: 15px;
@@ -2472,7 +2588,7 @@ export default {
       align-items: center;
       border-radius: 6px;
       padding: 12px 20px;
-      margin-top: 2px;
+      margin-top: 5px;
     }
     .split-expression {
       margin-top: 5px;
@@ -2535,5 +2651,8 @@ export default {
   height: 16px;
   flex-shrink: 0;
   margin-top: 4px;
+}
+.udt {
+  margin-bottom: 16px;
 }
 </style>

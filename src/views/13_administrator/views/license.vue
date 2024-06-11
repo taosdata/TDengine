@@ -3,6 +3,7 @@
     <div class="flexEnd">
       <el-button
         plain
+        type="primary"
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
@@ -10,7 +11,7 @@
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
+      <el-button plain type="primary" @click="add" size="small" style="font-size: 14px" :disabled="$COMMUNITY">{{
         $t("taosuser.activationLicense")
       }}</el-button>
     </div>
@@ -343,7 +344,7 @@ export default {
             } 
             // 3.3.0.1 之后增加 oracle
             if (this.version_greater_than_3301){
-              this.tableData = allData;
+              this.tableData = allData.filter(v => !['__future_datain__'].includes(v.grant));
             } 
             this.advancedTableData = array
               .filter((item) => item.limits.indexOf("{") == -1)

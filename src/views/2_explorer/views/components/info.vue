@@ -1,35 +1,16 @@
 <template>
   <div class="info">
-    <el-form label-width="180px" :action="'#'" label-position="right">
+    <!-- 数据库 超级表 字表 表  -->
+    <el-form label-width="180px" :action="'#'" label-position="right" v-if="infoType == 'database'">
       <section class="info-content">
         <section class="left">
           <el-form-item v-for="item in leftField" :key="item" :label="item + ':'">
             {{ infoData[item] }}
           </el-form-item>
-          <el-form-item v-if="infoType !== 'database'" :label="infoData.stable_name ? 'tags:' : 'columns:'">
-            <el-table tooltip-effect="light" style="width: 80%" size="mini" :data="tags">
-              <el-table-column :show-overflow-tooltip="true" min-width="100" label="name" prop="name">
-              </el-table-column>
-
-              <el-table-column :show-overflow-tooltip="true"
-                :label="infoType == 'stable' ? 'type' : (infoData.stable_name ? 'value' : 'type')"
-                :prop="infoType == 'stable' ? 'value' : (infoData.stable_name ? 'value' : 'type')"
-                :width="infoType == 'stable' ? 100 : 150">
-              </el-table-column>
-            </el-table>
-          </el-form-item>
         </section>
         <section class="right">
           <el-form-item v-for="item in rightField" :key="item" :label="item + ':'">
             {{ infoData[item] }}
-          </el-form-item>
-          <el-form-item v-if="infoType == 'stable'" label="columns:">
-            <el-table tooltip-effect="light" style="width: 80%" size="mini" :data="columns">
-              <el-table-column :show-overflow-tooltip="true" min-width="100" label="name" prop="name">
-              </el-table-column>
-              <el-table-column :show-overflow-tooltip="true" width="100" label="type" prop="value">
-              </el-table-column>
-            </el-table>
           </el-form-item>
         </section>
         <section class="dsn" v-if="infoType === 'database'">
@@ -51,6 +32,25 @@
         </section>
       </section>
     </el-form>
+    <section v-else>
+      <el-descriptions size=“mini” :column="2">
+        <el-descriptions-item v-for="item in infoField" :label="$t(`console.${item}`)" :key="item">{{ infoData[item] }}</el-descriptions-item>
+      </el-descriptions>
+      <el-table tooltip-effect="light" size="mini" :data="tableData" border>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.category')" prop="category" width="90px">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.name')" prop="name" min-width="200">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.type')" prop="type" min-width="100">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.encode')" prop="encode" width="90px" v-if="version_gt_3300">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.compress')" prop="compress" width="180px" v-if="version_gt_3300">
+        </el-table-column>
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.level')" prop="level" width="150px" v-if="version_gt_3300">
+        </el-table-column>
+      </el-table>
+    </section>
   </div>
 </template>
 
@@ -62,18 +62,22 @@ import { copy } from "@/utils/index";
 import { getStableStructReq } from "@/api/gateway/data/stables";
 import { getTagValue, getMatrixStructReq } from "@/api/gateway/data/tables";
 import { getDSN } from "@/utils/index";
+import VersionMixin from "@/mixins/version";
 const customKey = ["noOperate", "parent", "node-key", "typeName"];
 export default {
   data() {
     this.displayMap = {
-      stable: ["name", "create_time"],
-      table: ["table_name", "create_time", "stable_name", "columns"],
+      stable: ["stable_name", "create_time", "columns", "tags"],
+      CHILD_TABLE: ["table_name", "create_time", "stable_name", "columns", "tags"],
+      NORMAL_TABLE: ["table_name", "create_time", "columns"],
     };
     return {
       columns: [],
       tags: [],
+      tableData: []
     };
   },
+  mixins: [VersionMixin],
   computed: {
     infoType() {
       return this.$store.state.console.currentInfoType;
@@ -118,7 +122,8 @@ export default {
         case "stable":
           this.getStableStruct();
           break;
-        case "table":
+        case "CHILD_TABLE":
+        case "NORMAL_TABLE":
           this.getTableStruct();
           break;
         default:
@@ -135,13 +140,25 @@ export default {
         columns: [],
         tags: [],
       }));
-      this.columns = [{ name: data.ts_field_name, value: "timestamp" }].concat(
-        data.columns.map((item) => ({ name: item.field, value: item.type }))
+
+      const { encode, compress, level } = data;
+      this.columns = [{ name: data.ts_field_name, type: "timestamp", category: 'Column', encode, compress, level }].concat(
+        data.columns.map((item) => ({ 
+          ...item, 
+          name: item.field, 
+          type: item.note ? item.type + '(' + item.note + ')' : item.type, 
+          category: 'Column',
+        }))
       );
+
       this.tags = data.tags.map((item) => ({
+        ...item,
         name: item.field,
-        value: item.type,
+        type: item.type,
+        category: 'Tag'
       }));
+
+      this.tableData = this.columns.concat(this.tags)
     },
     //普通表没有tag
     async getTableStruct() {
@@ -149,22 +166,24 @@ export default {
         selected_db: this.infoData.parent.split(".")[0],
         selected_tb: this.infoData.name,
       }));
-      let tags = []
-      if (this.infoData.stable_name) {
-        tags = result.filter((item) => item.typeName == "tag")
-      } else {
-        tags = result
+      
+      if (this.infoType == 'CHILD_TABLE') {
+        this.infoData.tags = result.filter((item) => item.typeName == "tag").length
       }
+
       let data = await getTagValue(
-        tags.map((item) => ({ field: item.name })) || [],
+        result.filter((item) => item.typeName == "tag").map((item) => ({ field: item.name })) || [],
         ...this.infoData.parent.split("."),
         this.infoData.name
       ).catch(() => []);
-      this.tags = tags.map((item) => {
+
+      this.tableData = result.map((item) => {
         item.value = data[0] ? data[0][item.name] : item['dataType'];
+        item.name = item.typeName == 'tag' ? item.name + '(' + item.value + ')' : item.name
+        item.type = item.note ? item.type + '(' + item.note + ')' : item.type
+        item.category = item.typeName == 'tag' ? 'Tag' : 'Column'
         return item;
       });
-
     },
   },
 };
@@ -204,20 +223,18 @@ export default {
   color: rgb(144, 147, 153);
 }
 
-.info ::v-deep .el-table {
-  margin-top: -6px;
-
-  & th.el-table__cell>.cell {
-    padding-left: 0;
-    font-size: 16px;
-    font-weight: 500;
-  }
-
-  & td.el-table__cell>.cell {
-    padding-left: 0;
-    @extend .nowrap;
-    font-size: 16px;
-  }
+.info ::v-deep .el-table--border .el-table__cell {
+  border-right: none !important;
+}
+.info ::v-deep .el-descriptions {
+  padding: 0 10px;
+}
+.info ::v-deep .el-descriptions-item__container {
+  align-items: center;
+}
+.info ::v-deep .el-descriptions-item__content {
+  font-size: 16px;
+  color: #4d6992;
 }
 .dsn ::v-deep .el-form-item {
   display: flex;

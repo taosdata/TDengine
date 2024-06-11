@@ -127,7 +127,6 @@ token="{{ token }}"</code></pre>
 
 <script>
 import 'github-markdown-css/github-markdown-light.css';
-import { OfficialSite } from '@/const';
 import {
   addNewAgent,
   editAgent,
@@ -187,8 +186,11 @@ export default {
     agentList() {
       return this.$store.state.app.agentLists.filter(item => item.id !== this.agent?.id);
     },
+    urlPart() {
+      return this.$i18n.locale.includes('en') ?"https://tdengine.com": "https://taosdata.com";
+    },
     downloadUrl() {
-      const assetsUrl = OfficialSite + '/assets-download/3.0/taosx-agent-'+localStorage.getItem('agent_version')+'-';
+      const assetsUrl = this.urlPart + '/assets-download/3.0/taosx-agent-'+localStorage.getItem('agent_version')+'-';
       return {
         linuxDL: assetsUrl + 'linux-x64.tar.gz',
         windowDL: assetsUrl + 'windows-x64-installer.exe'

@@ -1,4 +1,14 @@
+export function getDataSource(lang, type) {
+  let allDataSources = getDataSources(lang);
 
+  for (let i = 0; i < allDataSources.length; i++) {
+    if (allDataSources[i].id === type) {
+      return JSON.parse(JSON.stringify(allDataSources[i]));
+    }
+  }
+
+  return null;
+}
 
 export function getDataSources(lang) {
   if (lang && lang === 'en') {
@@ -45,8 +55,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "Group ID is a random string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.",
-                "description": "Group ID is a random string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.\n"
+                "short_description": "Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      ",
+                "description": "Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      \n"
               },
               {
                 "name": "client.id",
@@ -54,8 +64,9 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "Client ID is a random string used to identify the client, with a maximum length of 192.",
-                "description": "Client ID is a random string used to identify the client, with a maximum length of 192.\n"
+                "short_description": "Client ID is a string used to identify the client, with a maximum length of 192.",
+                "description": "Client ID is a string used to identify the client, with a maximum length of 192.\n",
+                "required": true
               },
               {
                 "name": "timeout",
@@ -498,33 +509,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
-          "display": "Data Sets",
-          "description": "Single column configuration file for point names.\n",
-          "params": [
+          "name": "Data Model Configuration",
+          "display": "Data Model",
+          "description": "Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "One Table Per Point",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "Single column mode",
+              "short_description": "The single column mode creates a super table based on the UOM of the point, with each point creating a sub table.",
+              "target": {
+                "name": "single-column",
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Point configuration file",
+                "btnText": "Upload configuration file",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a single column mode point list file in CSV format.",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "One Table per PI Point from AF Element Template",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "Multi column mode",
+              "short_description": "The multi column pattern creates a super table based on the AF Template, with each AF element creating a sub table.",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "One Table per AF Element from AF Element Template",
-              "hint": {
-                "type": "file"
-              },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Model configuration file",
+                "required": true,
+                "btnText": "Upload configuration file",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a multi column pattern model configuration file in CSV format.",
+              }]
             }
           ]
         }
@@ -561,21 +616,9 @@ export function getDataSources(lang) {
               {
                 "name": "BackfillStartTime",
                 "display": "Backfill Start Time",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "Choose start time",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "start from the latest timestamp of records stored in TDengine",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
+                "hint": {
+                  "type": "time"
+                },
                 "short_description": "The start time for backfilling data.",
                 "description": "The start time for backfilling data.\n\nIf not provided, the start time will be the earliest time available(10 days ago from now).\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss"
@@ -583,31 +626,12 @@ export function getDataSources(lang) {
               {
                 "name": "BackfillEndTime",
                 "display": "Backfill End Time",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "Choose end time",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "end at the earliest timestamp of records stored in TDengine",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
+                "hint": {
+                  "type": "time"
+                },
                 "short_description": "The end time for backfilling data. The default is now.",
                 "description": "The end time for backfilling data. The default is now.\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss",
-                "conflicts_with": [
-                  {
-                    "name": "BackfillStartTime",
-                    "value": "auto",
-                    "when": "auto"
-                  }
-                ]
               }
             ]
           }
@@ -685,33 +709,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
-          "display": "Data Sets",
-          "description": "Single column configuration file for point names.\n",
-          "params": [
+          "name": "Data Model Configuration",
+          "display": "Data Model",
+          "description": "Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "One Table Per Point",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "Single column mode",
+              "short_description": "The single column mode creates a super table based on the UOM of the point, with each point creating a sub table.",
+              "target": {
+                "name": "single-column",
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Point configuration file",
+                "btnText": "Upload configuration file",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a single column mode point list file in CSV format.",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "One Table per PI Point from AF Element Template",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "Multi column mode",
+              "short_description": "The multi column pattern creates a super table based on the AF Template, with each AF element creating a sub table.",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "One Table per AF Element from AF Element Template",
-              "hint": {
-                "type": "file"
-              },
-              "description": "The CSV config file is a CSV file with one single column without header:\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "Dataset filtering",
+                "placeholder": "Wildcard * matches 0 or more characters, wildcard ? exactly match one character",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "Download default configuration",
+                "description": "Filter conditions can be specified, download default template<br>- point: filter using point names<br>- element: filter using AF element names<br>- template: filter using AF template names<br>Filter conditions can use wildcard * to match 0 or multiple characters, use wildcard? Exactly match one character",
+              }, {
+                "name": "transform_config_file",
+                "display": "Model configuration file",
+                "required": true,
+                "btnText": "Upload configuration file",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "Upload a multi column pattern model configuration file in CSV format.",
+              }]
             }
           ]
         }
@@ -843,18 +911,6 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
-                "name": "interval",
-                "display": "Collect interval",
-                "hint": {
-                  "type": "integer",
-                  "min": 1,
-                  "max": 60
-                },
-                "short_description": "Collect data interval in second",
-                "description": "Collect data interval in second",
-                "value": "10"
-              },
-              {
                 "name": "collect_mode",
                 "display": "Collect Mode",
                 "hint": {
@@ -870,6 +926,18 @@ export function getDataSources(lang) {
                 "value": "subscribe"
               },
               {
+                "name": "interval",
+                "display": "Collect interval",
+                "hint": {
+                  "type": "integer",
+                  "min": 1,
+                  "max": 60
+                },
+                "short_description": "Collect data interval in second",
+                "description": "Collect data interval in second",
+                "value": "10"
+              },
+              {
                 "name": "request_timeout",
                 "display": "Request Timeout",
                 "hint": {
@@ -881,6 +949,33 @@ export function getDataSources(lang) {
                 "description": "Timeout for a request to endpoint in seconds",
                 "placeholder": "10",
                 "value": "1"
+              },
+              {
+                "name": "update_mode",
+                "display": "Point Update Mode",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "none",
+                    "append",
+                    "update"
+                  ]
+                },
+                "short_description": "Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.",
+                "description": "Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.\n",
+                "value": "none"
+              },
+              {
+                "name": "update_interval",
+                "display": "Point Update Interval",
+                "hint": {
+                  "type": "integer",
+                  "min": 60,
+                  "max": 2147483647
+                },
+                "short_description": "Update the OPC data points interval in seconds.",
+                "description": "Update the OPC data points interval in seconds.\n",
+                "value": "600"
               }
             ]
           }
@@ -980,10 +1075,10 @@ export function getDataSources(lang) {
             {
               "category": "csv_config_file",
               "display": "Upload CSV",
-              "description": "You can either download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.\n\nThe rules for configuring OPC UA data points through a CSV file are as follows:\n\n1.File Encoding\n\nPlease upload a CSV file encoded in UTF-8 or UTF-8 with BOM.\n\n2.Header Rules\n\nThe first line of the CSV file is the Header. Please configure the Header according to the following rules:\n\n(1) point_id: The id of the data point on the OPC UA server, required;\n\n(2) stable: The super table for the data point in TDengine, required;\n\n(3) tbname: The sub-table for the data point in TDengine, required;\n\n(4) enable: Whether to collect data for this point, optional. If the enable column is not configured, a uniform default value of 1 will be used as the value of enable;\n\n(5) value_col: The column name of the data point's collected value in TDengine, optional. If the value_col is not configured, a uniform default value of val will be used as the value of value_col;\n\n(6) value_transform: The transform function executed in taosX for the data point's collected value, optional. If value_transform is not configured, transform will not be applied uniformly;\n\n(7) type: The data type of the data point's collected value, optional. If the type column is not configured, the original type of the collected value will be used as the data type in TDengine;\n\n(8) quality_col: The column name of the data point's collected value quality in TDengine, optional. If quality_col is not configured, the quality column will not be added in TDengine;\n\n(9) ts_col: The original timestamp of the data point corresponding to the timestamp column in TDengine, optional. If both ts_col and received_ts_col are present, ts_col will be as the timestamp column in TDengine; If only ts_col is present, it will be used as the timestamp column in TDengine;\n\n(10) received_ts_col: The timestamp column in TDengine corresponding to the time when the data point's collected value was received, optional. If both received_ts_col and ts_col are present, received_ts_col will be used as the timestamp column in TDengine; If only received_ts_col is present, it will be used as the timestamp column in TDengine;\n\n(11) If ts_col and received_ts_col are both not present, the data point's original timestamp will be used as the timestamp column in TDengine, and the column name will be the default value `ts`;\n\n(12) ts_transform: The transform function executed in taosX for the data point's timestamp, optional. If ts_transform is not configured, there will be no transform applied uniformly for the data point's original timestamp;\n\n(13) received_ts_transform: The transform function executed in taosX for the data point's received timestamp. If the received_ts_transform column is not configured, there will be no transform applied uniformly for the data point's received timestamp;\n\n(14) tag::VARCHAR(200)::name: Tag column corresponding to the data point in the TDengine. `tag` is reserved keyword, indicating that the column is a tag column. `VARCHAR(200)` indicates the type of the tag in TDengine. `name` is the actual name of the tag.\n\n(15) The tag columns are optional. If more than one tag column is configured in the CSV, the configured tag columns is used.\n\n(16) If no tag column is configured and stable exists in TDengine, use the tag of stable in TDengine.\n\n(17) If no tag column is configured and the stable does not exist in the TDengine, the following two tag columns are automatically added by default: `tag::VARCHAR(256)::point_id` and `tag::VARCHAR(256)::point_name`\n\n(18) The CSV Header cannot contain duplicate columns.\n\n(19) In the CSV Header, you can configure multiple columns such as `tag::VARCHAR(200)::name`, which correspond to multiple tags in the TDengine, but the Tag names must be unique.\n\n(20) In the CSV Header, the column order does not affect the CSV file verification rule.\n\n(21) The CSV Header contains columns that are not in the preceding table, such as serial number. These columns are automatically ignored.\n\n3.Row rules\n\nThe second row of the CSV file starts with a data row. Each row corresponds to the configuration information of a data point. Configure the Row according to the following rules.\n\nIn a Row, the relationship with the Header column is as follows:\n\n(1) point_id: string like: `ns=3;i=1005`;\n\n(2) stable: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{type}` exists and the type value is not empty, `{type}` is replaced with the value of type. If `{type}` exists and the type value is empty, `{type}` is replaced with the original type of the collected value.\n\n(3) tbname: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{ns}` exists, `{ns}` is replaced with the ns value in point_id; if `{id}` exists, the `{id}` is replaced with the id value in point_id;\n\n(4) enable: 0 or 1, 0 means does not collect the data point and deletes the sub-table corresponding to the data point in the TDengine before the OPC DataIn task starts. 1 means collect the data point and do not delete the sub-table before the OPC DataIn task starts.\n\n(5) value_col: a column name that complies with the TDengine naming convention\n\n(6) value_transform: a calculation expression that conforms to the Rhai engine, for example: (val + 10) / 1000 () 2.0, log(val) + 10, etc.;\n\n(7) type: Supports the following types: b/bool, i8/tinyint, i16/smallint, i32/int, i64/bigint, u8/tinyint unsigned, u16/smallint unsigned, u32/int unsigned, u64/bigint unsigned, f32/float, f64/double, timestamp/timestamp(ms), timestamp(us), timestamp(ns), json\n\n(8) quality_col: a column name that complies with the TDengine naming convention\n\n(9) ts_col: a column name that complies with the TDengine naming convention\n\n(10) received_ts_col: a column name that complies with the TDengine naming convention\n\n(11) ts_transform and received_ts_transform: Support +, -, *, /, % operators, such as ts / 1000 * 1000, set the last 3 positions of a ms timestamp to 0; ts + 8 (3600 * 1000, adding 8 hours to a timestamp with ms accuracy; ts-8 * 3600 * 1000, an ms precision timestamp, minus 8 hours;\n\n(12) tag::VARCHAR(200)::name: tag in TDengine. If the tag type is VARCHAR, the value can be Chinese.\n\nAt the same time, multiple rows also need to meet:\n\n(13) point_id is unique throughout the DataIn task, that is, in an OPC DataIn task, a data point can only be written to one sub-table of the TDengine. If you need to write a data point to multiple sub-tables, you need to create multiple OPC DataIn tasks;\n\n(14) If point_id is different but tbname is the same, value_col must be different. This configuration can write data from multiple points of different data types to different columns in the same sub-table. This method corresponds to the application scenario of OPC data entering TDengine Wide table.\n\n4.Other rules\n\n(1) If the number of columns in Header and Row is inconsistent, the verification fails, and the required row number is displayed.\n\n(2) Header Contains the first line and cannot be empty.\n\n(3) Row indicates more than one row.\n",
+              "description": "OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) point_id: required, the id of the data point on the OPC UA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is '1', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) ts_col/received_ts_col: required. TDengine timestamp primary key definition: If only ts_col exists, the original timestamp is used as the primary key. If only received_ts_col exists, the collection timestamp is used as the primary key. If both columns exist, the first timestamp column is used as the primary key.\n\n(10) ts_transform: optional, the original timestamp transform function, refer to the description of the transform numerical calculation expression expr;\n\n(11) received_ts_transform: optional, collect data timestamp transform function, refer to the description of Transform numerical calculation expression expr;\n\n(12) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target=\"_blank\" href=\"/docs-en/enterprise/datain/opcua\">enterprise version document</a>.\n",
               "target": {
                 "name": "csv_config_file",
-                "description": "OPC UA point configuration list.\n",
+                "description": "Upload a csv file to define the mapping rules for each data point to the TDengine table.\n",
                 "required": true,
                 "multiple": true,
                 "editable": true,
@@ -1034,18 +1129,14 @@ export function getDataSources(lang) {
                   "description": "Match the data point name or id"
                 },
                 {
-                  "name": "table_primary_key",
-                  "display": "Primary Key",
+                  "name": "super_table_expression",
+                  "display": "Super Table Name",
                   "hint": {
-                    "type": "str",
-                    "choices": [
-                      "received_ts",
-                      "original_ts"
-                    ]
+                    "type": "str"
                   },
-                  "description": "The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.\n",
+                  "description": "Support <super table prefix>_{type} pattern, {type} is the data type of the OPC point.\n",
                   "required": true,
-                  "value": "original_ts"
+                  "value": "opc_{type}"
                 },
                 {
                   "name": "child_table_expression",
@@ -1053,9 +1144,33 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <child table prefix>_{ns}_{id} pattern\n",
+                  "description": "Support <child table prefix>_{tagname} pattern, {tagname} is the name of the OPC point.\n",
                   "required": true,
-                  "value": "t_{ns}_{id}"
+                  "value": "t_{tagname}"
+                },
+                {
+                  "name": "table_primary_key",
+                  "display": "Primary Key",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "original_ts",
+                      "received_ts"
+                    ]
+                  },
+                  "description": "The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.\n",
+                  "required": false,
+                  "value": "original_ts"
+                },
+                {
+                  "name": "table_primary_key_alias",
+                  "display": "Primary Key Name",
+                  "hint": {
+                    "type": "str"
+                  },
+                  "description": "The primary key column name in the target table.\n",
+                  "required": false,
+                  "value": "ts"
                 }
               ]
             }
@@ -1131,6 +1246,33 @@ export function getDataSources(lang) {
                 "short_description": "Collect data interval in second",
                 "description": "Collect data interval in second",
                 "value": "1"
+              },
+              {
+                "name": "update_mode",
+                "display": "Point Update Mode",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "none",
+                    "append",
+                    "update"
+                  ]
+                },
+                "short_description": "Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.",
+                "description": "Update the OPC data points. none: do not update points. append: append new points. update: append new points and delete off-line points.\n",
+                "value": "none"
+              },
+              {
+                "name": "update_interval",
+                "display": "Point Update Interval",
+                "hint": {
+                  "type": "integer",
+                  "min": 60,
+                  "max": 2147483647
+                },
+                "short_description": "Update the OPC data points interval in seconds.",
+                "description": "Update the OPC data points interval in seconds.\n",
+                "value": "600"
               }
             ]
           }
@@ -1230,7 +1372,7 @@ export function getDataSources(lang) {
             {
               "category": "csv_config_file",
               "display": "Upload CSV",
-              "description": "You can either download the empty CSV template file first, configure data points according the format designed by the template, then upload the CSV file to configure the data points, or download data points according to the specified filter rules, and download in the format designed by the CSV template.\n\nThe rules for configuring OPC DA data points through a CSV file are as follows:\n\n1.File Encoding\n\nPlease upload a CSV file encoded in UTF-8 or UTF-8 with BOM.\n\n2.Header Rules\n\nThe first line of the CSV file is the Header. Please configure the Header according to the following rules:\n\n(1) tag_name: The id of the data point on the OPC DA server, required;\n\n(2) stable: The super table for the data point in TDengine, required;\n\n(3) tbname: The sub-table for the data point in TDengine, required;\n\n(4) enable: Whether to collect data for this point, optional. If the enable column is not configured, a uniform default value of 1 will be used as the value of enable;\n\n(5) value_col: The column name of the data point's collected value in TDengine, optional. If the value_col is not configured, a uniform default value of val will be used as the value of value_col;\n\n(6) value_transform: The transform function executed in taosX for the data point's collected value, optional. If value_transform is not configured, transform will not be applied uniformly;\n\n(7) type: The data type of the data point's collected value, optional. If the type column is not configured, the original type of the collected value will be used as the data type in TDengine;\n\n(8) quality_col: The column name of the data point's collected value quality in TDengine, optional. If quality_col is not configured, the quality column will not be added in TDengine;\n\n(9) ts_col: The original timestamp of the data point corresponding to the timestamp column in TDengine, optional. If both ts_col and received_ts_col are present, ts_col will be as the timestamp column in TDengine; If only ts_col is present, it will be used as the timestamp column in TDengine;\n\n(10) received_ts_col: The timestamp column in TDengine corresponding to the time when the data point's collected value was received, optional. If both received_ts_col and ts_col are present, received_ts_col will be used as the timestamp column in TDengine; If only received_ts_col is present, it will be used as the timestamp column in TDengine;\n\n(11) If ts_col and received_ts_col are both not present, the data point's original timestamp will be used as the timestamp column in TDengine, and the column name will be the default value `ts`;\n\n(12) ts_transform: The transform function executed in taosX for the data point's timestamp, optional. If ts_transform is not configured, there will be no transform applied uniformly for the data point's original timestamp;\n\n(13) received_ts_transform: The transform function executed in taosX for the data point's received timestamp. If the received_ts_transform column is not configured, there will be no transform applied uniformly for the data point's received timestamp;\n\n(14) tag::VARCHAR(200)::name: Tag column corresponding to the data point in the TDengine. `tag` is reserved keyword, indicating that the column is a tag column. `VARCHAR(200)` indicates the type of the tag in TDengine. `name` is the actual name of the tag.\n\n(15) The tag columns are optional. If more than one tag column is configured in the CSV, the configured tag columns is used.\n\n(16) If no tag column is configured and stable exists in TDengine, use the tag of stable in TDengine.\n\n(17) If no tag column is configured and the stable does not exist in the TDengine, the following two tag columns are automatically added by default: `tag::VARCHAR(256)::point_id` and `tag::VARCHAR(256)::point_name`\n\n(18) The CSV Header cannot contain duplicate columns.\n\n(19) In the CSV Header, you can configure multiple columns such as `tag::VARCHAR(200)::name`, which correspond to multiple tags in the TDengine, but the Tag names must be unique.\n\n(20) In the CSV Header, the column order does not affect the CSV file verification rule.\n\n(21) The CSV Header contains columns that are not in the preceding table, such as serial number. These columns are automatically ignored.\n\n3.Row rules\n\nThe second row of the CSV file starts with a data row. Each row corresponds to the configuration information of a data point. Configure the Row according to the following rules.\n\nIn a Row, the relationship with the Header column is as follows:\n\n(1) tag_name: string like: `root.parent.temperature`;\n\n(2) stable: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{type}` exists and the type value is not empty, `{type}` is replaced with the value of type. If `{type}` exists and the type value is empty, `{type}` is replaced with the original type of the collected value.\n\n(3) tbname: any string that complies with the TDengine table naming convention. If there are special characters`.`, replace with `_`; If `{tag_name}` exists, `{tag_name}` is replaced with the tag_name value in tag_name column;\n\n(4) enable: 0 or 1, 0 means does not collect the data point and deletes the sub-table corresponding to the data point in the TDengine before the OPC DataIn task starts. 1 means collect the data point and do not delete the sub-table before the OPC DataIn task starts.\n\n(5) value_col: a column name that complies with the TDengine naming convention\n\n(6) value_transform: a calculation expression that conforms to the Rhai engine, for example: (val + 10) / 1000 * 2.0, log(val) + 10, etc.;\n\n(7) type: Supports the following types: b/bool, i8/tinyint, i16/smallint, i32/int, i64/bigint, u8/tinyint unsigned, u16/smallint unsigned, u32/int unsigned, u64/bigint unsigned, f32/float, f64/double, timestamp/timestamp(ms), timestamp(us), timestamp(ns), json\n\n(8) quality_col: a column name that complies with the TDengine naming convention\n\n(9) ts_col: a column name that complies with the TDengine naming convention\n\n(10) received_ts_col: a column name that complies with the TDengine naming convention\n\n(11) ts_transform and received_ts_transform: Support +, -, *, /, % operators, such as ts / 1000 * 1000, set the last 3 positions of a ms timestamp to 0; ts + 8 * 3600 * 1000, adding 8 hours to a timestamp with ms accuracy; ts-8 * 3600 * 1000, an ms precision timestamp, minus 8 hours;\n\n(12) tag::VARCHAR(200)::name: tag in TDengine. If the tag type is VARCHAR, the value can be Chinese.\n\nAt the same time, multiple rows also need to meet:\n\n(13) tag_name is unique throughout the DataIn task, that is, in an OPC DataIn task, a data point can only be written to one sub-table of the TDengine. If you need to write a data point to multiple sub-tables, you need to create multiple OPC DataIn tasks;\n\n(14) If tag_name is different but tbname is the same, value_col must be different. This configuration can write data from multiple points of different data types to different columns in the same sub-table. This method corresponds to the application scenario of OPC data entering TDengine Wide table.\n\n4.Other rules\n\n(1) If the number of columns in Header and Row is inconsistent, the verification fails, and the required row number is displayed.\n\n(2) Header Contains the first line and cannot be empty.\n\n(3) Row indicates more than one row.\n",
+              "description": "OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) tag_name: required, the id of the data point on the OPC DA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is '1', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) ts_col/received_ts_col: required. TDengine timestamp primary key definition: If only ts_col exists, the original timestamp is used as the primary key. If only received_ts_col exists, the collection timestamp is used as the primary key. If both columns exist, the first timestamp column is used as the primary key.\n\n(10) ts_transform: optional, the original timestamp transform function, refer to the description of the transform numerical calculation expression expr;\n\n(11) received_ts_transform: optional, collect data timestamp transform function, refer to the description of Transform numerical calculation expression expr;\n\n(12) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target=\"_blank\" href=\"/docs-en/enterprise/datain/opcda\">enterprise version document</a>.\n",
               "target": {
                 "name": "csv_config_file",
                 "description": "OPC DA point configuration list.\n",
@@ -1271,18 +1413,14 @@ export function getDataSources(lang) {
                   "description": "Match the data point TagName.\n"
                 },
                 {
-                  "name": "table_primary_key",
-                  "display": "Primary Key",
+                  "name": "super_table_expression",
+                  "display": "Super Table Name",
                   "hint": {
-                    "type": "str",
-                    "choices": [
-                      "received_ts",
-                      "original_ts"
-                    ]
+                    "type": "str"
                   },
-                  "description": "The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.\n",
+                  "description": "Support <super table prefix>_{type} pattern, {type} is the data type of the OPC point.\n",
                   "required": true,
-                  "value": "original_ts"
+                  "value": "opc_{type}"
                 },
                 {
                   "name": "child_table_expression",
@@ -1290,9 +1428,33 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "Support <child table prefix>_{TagName} pattern\n",
+                  "description": "Support <child table prefix>_{tag_name} pattern, {tag_name} is the name of the OPC point.\n",
                   "required": true,
-                  "value": "t_{TagName}"
+                  "value": "t_{tag_name}"
+                },
+                {
+                  "name": "table_primary_key",
+                  "display": "Primary Key",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "original_ts",
+                      "received_ts"
+                    ]
+                  },
+                  "description": "The selected value will be the primary key of target table, original_ts represents the time when OPC service receive data from data points, and received_ts represents the time when the taosX task received data from OPC server.\n",
+                  "required": false,
+                  "value": "original_ts"
+                },
+                {
+                  "name": "table_primary_key_alias",
+                  "display": "Primary Key Name",
+                  "hint": {
+                    "type": "str"
+                  },
+                  "description": "The primary key column name in the target table.\n",
+                  "required": false,
+                  "value": "ts"
                 }
               ]
             }
@@ -1765,13 +1927,17 @@ export function getDataSources(lang) {
         "name": "MQTT",
         "description": "MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use. It is ideal for connecting devices with limited resources, such as battery-powered devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is important, such as real-time control systems.\n\nMQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices from each other, and to scale up applications as needed.\n\nMQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms, and there are many open source and commercial implementations available.\n\ntaosX could subscribe data from MQTT broker by a connector plugin.\n\nCheck the help message in each part to see the details.\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
-            "display": "MQTT Server endpoint",
-            "description": "MQTT server endpoint. e.g: 127.0.0.1:1883\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n",
-            "placeholder": "127.0.0.1:1883",
-            "pattern": "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$",
-            "patternMsg": "Input format error, please refer to: `host:port`, port range is 1-65535."
+            "display": "MQTT host",
+            "description": "MQTT server endpoint. e.g: 127.0.0.1\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "MQTT port",
+            "description": "MQTT server port",
+            "placeholder": "1883"
           }
         },
         "authentication": {
@@ -2039,8 +2205,54 @@ export function getDataSources(lang) {
         },
         "groups": [
           {
-            "name": "Enable SSL",
+            "name": "SASL Authentication",
             "display_order": 1,
+            "short_description": "Simple Authentication and Security Layer.",
+            "description": "Simple Authentication and Security Layer.",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "sasl_mechanism",
+                "display": "Mechanism",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "PLAIN",
+                    "SCRAM-SHA-256"
+                  ]
+                },
+                "short_description": "SASL authentication mechanism.",
+                "description": "SASL authentication mechanism.",
+                "required": true,
+                "value": "PLAIN"
+              },
+              {
+                "name": "sasl_username",
+                "display": "Username",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The username for SASL authentication mechanism.",
+                "description": "The username for SASL authentication mechanism.",
+                "required": true
+              },
+              {
+                "name": "sasl_password",
+                "display": "Password",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The password for SASL authentication mechanism.",
+                "description": "The password for SASL authentication mechanism.",
+                "required": true
+              }
+            ]
+          },
+          {
+            "name": "Enable SSL",
+            "display_order": 2,
             "short_description": "Use self-signed certificate file and private key.",
             "description": "Use self-signed certificate file and private key.",
             "collapsible": true,
@@ -2053,35 +2265,45 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "file"
                 },
-                "short_description": "CA file.",
-                "description": "CA file.",
+                "short_description": "CA certificate file(PEM format) for verifying the broker's key.",
+                "description": "CA certificate file(PEM format) for verifying the broker's key.",
+                "required": true
+              },
+              {
+                "name": "ca_password",
+                "display": "CA Password",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "CA private key passphrase.",
+                "description": "CA private key passphrase.",
                 "required": true
               },
               {
                 "name": "cert",
-                "display": "Client certificate file",
+                "display": "Client certificate",
                 "hint": {
                   "type": "file"
                 },
-                "short_description": "Client certificate file.",
-                "description": "Client certificate file.",
+                "short_description": "Client's public key file(PEM format) used for authentication.",
+                "description": "Client's public key file(PEM format) used for authentication.",
                 "required": true
               },
               {
                 "name": "cert_key",
-                "display": "Client key file",
+                "display": "Client key",
                 "hint": {
                   "type": "file"
                 },
-                "short_description": "Client key file.",
-                "description": "Client key file.",
+                "short_description": "Client's private key file(PEM format) used for authentication.",
+                "description": "Client's private key file(PEM format) used for authentication.",
                 "required": true
               }
             ]
           },
           {
             "name": "Collect",
-            "display_order": 2,
+            "display_order": 3,
             "short_description": "Configurations for collecting data.",
             "description": "Configurations for collecting data.",
             "collapsible": false,
@@ -2156,6 +2378,17 @@ export function getDataSources(lang) {
               },
               "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
               "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "Batch Size",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "value": "1000"
             }
           ]
         },
@@ -2548,7 +2781,7 @@ export function getDataSources(lang) {
           ]
         },
         "parser": {
-          "display": "Data Mapping",
+          "display": "Payload Transformation",
           "required": true,
           "description": "taosX could let users to specify the data model in the database, for example, the table name pattern <br>\nand stable name pattern, field names as tags or field names as columns.\n",
           "fields": [
@@ -2692,7 +2925,7 @@ export function getDataSources(lang) {
                 "value": "utf8"
               },
               {
-                "name": "ssl",
+                "name": "ssl_mode",
                 "display": "SSL Mode",
                 "hint": {
                   "type": "str",
@@ -2723,10 +2956,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying.",
-                "description": "SQL statement used for querying.\n",
-                "required": false,
-                "placeholder": "SELECT * FROM table WHERE time >= $start AND time < $end"
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
               },
               {
                 "name": "start",
@@ -2734,8 +2967,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "Start time applied to the query statement.",
-                "description": "Start time applied to the query statement.\n",
+                "short_description": "Start time for migrating data.",
+                "description": "Start time for migrating data.\n",
                 "required": true,
                 "placeholder": "for example: 2023-01-01 00:00:00"
               },
@@ -2745,8 +2978,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "End time applied to the query statement.",
-                "description": "End time applied to the query statement.\n",
+                "short_description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.",
+                "description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.\n",
                 "required": false,
                 "placeholder": "for example: 2024-01-01 00:00:00"
               },
@@ -2756,10 +2989,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "Time interval used for segmented queries.",
-                "description": "Time interval used for segmented queries.\n",
+                "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
+                "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1h"
+                "placeholder": "1d"
               },
               {
                 "name": "delay",
@@ -2767,10 +3000,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "Waiting time for synchronizing future data.",
-                "description": "Waiting time for synchronizing future data.\n",
+                "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
+                "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "0s"
+                "placeholder": "10s"
               }
             ]
           }
@@ -2800,7 +3033,7 @@ export function getDataSources(lang) {
                 "min": 1,
                 "max": 100000
               },
-              "description": "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               "value": "10000"
             }
           ]
@@ -2874,7 +3107,7 @@ export function getDataSources(lang) {
             "connection_option": true,
             "params": [
               {
-                "name": "applicationName",
+                "name": "application_name",
                 "display": "Application Name",
                 "hint": {
                   "type": "str"
@@ -2884,7 +3117,7 @@ export function getDataSources(lang) {
                 "placeholder": "for example: TDengine"
               },
               {
-                "name": "ssl",
+                "name": "ssl_mode",
                 "display": "SSL Mode",
                 "hint": {
                   "type": "str",
@@ -2916,10 +3149,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "The SQL statement used for querying.",
-                "description": "The SQL statement used for querying.\n",
-                "required": false,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
               },
               {
                 "name": "start",
@@ -2927,8 +3160,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "Start time applied to the query statement.",
-                "description": "Start time applied to the query statement.\n",
+                "short_description": "Start time for migrating data.",
+                "description": "Start time for migrating data.\n",
                 "required": true,
                 "placeholder": "for example: 2023-01-01 00:00:00"
               },
@@ -2938,8 +3171,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "End time applied to the query statement.",
-                "description": "End time applied to the query statement.\n",
+                "short_description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.",
+                "description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.\n",
                 "required": false,
                 "placeholder": "for example: 2024-01-01 00:00:00"
               },
@@ -2949,10 +3182,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "The time interval for querying data.",
-                "description": "The time interval for querying data.\n",
+                "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
+                "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1h"
+                "placeholder": "1d"
               },
               {
                 "name": "delay",
@@ -2960,10 +3193,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "The waiting time for synchronizing future data.",
-                "description": "The waiting time for synchronizing future data.\n",
+                "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
+                "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "0s"
+                "placeholder": "10s"
               }
             ]
           }
@@ -2993,7 +3226,7 @@ export function getDataSources(lang) {
                 "min": 1,
                 "max": 100000
               },
-              "description": "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               "value": "10000"
             }
           ]
@@ -3027,7 +3260,7 @@ export function getDataSources(lang) {
             "required": true,
             "display": "port",
             "description": "The port of Oracle.",
-            "placeholder": "3306"
+            "placeholder": "1521"
           },
           "subject": {
             "required": true,
@@ -3072,10 +3305,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "SQL statement used for querying.",
-                "description": "SQL statement used for querying.\n",
-                "required": false,
-                "placeholder": "SELECT * FROM table WHERE time >= $start AND time < $end"
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
               },
               {
                 "name": "start",
@@ -3083,8 +3316,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "Start time applied to the query statement.",
-                "description": "Start time applied to the query statement.\n",
+                "short_description": "Start time for migrating data.",
+                "description": "Start time for migrating data.\n",
                 "required": true,
                 "placeholder": "for example: 2023-01-01 00:00:00"
               },
@@ -3094,8 +3327,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "End time applied to the query statement.",
-                "description": "End time applied to the query statement.\n",
+                "short_description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.",
+                "description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.\n",
                 "required": false,
                 "placeholder": "for example: 2024-01-01 00:00:00"
               },
@@ -3105,10 +3338,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "Time interval used for segmented queries.",
-                "description": "Time interval used for segmented queries.\n",
+                "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
+                "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1h"
+                "placeholder": "1d"
               },
               {
                 "name": "delay",
@@ -3116,10 +3349,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "Waiting time for synchronizing future data.",
-                "description": "Waiting time for synchronizing future data.\n",
+                "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
+                "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "0s"
+                "placeholder": "10s"
               }
             ]
           }
@@ -3149,7 +3382,231 @@ export function getDataSources(lang) {
                 "min": 1,
                 "max": 100000
               },
-              "description": "The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Data Mapping",
+          "required": true,
+          "description": "taosX could let users to specify the data model in the database, for example, the table name pattern and stable name pattern, field names as tags or field names as columns.\n",
+          "fields": [
+            {
+              "name": "DateTime",
+              "description": "The timestamp of the returned value.",
+              "type": "timestamp"
+            }
+          ]
+        }
+      },
+      {
+        "id": "mssql",
+        "type": "uri",
+        "name": "Microsoft SQL Server",
+        "description": "Microsoft SQL Server is a relational database management system developed by Microsoft Corporation. It has the advantages of easy use, good scalability, and high integration with related software.\n\nTDengine can efficiently read data from Microsoft SQL Server and write it to TDengine to achieve historical data migration or real-time data synchronization.\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "host",
+            "description": "The access address of SQL Server.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "port",
+            "description": "The port of SQL Server.",
+            "placeholder": "1433"
+          },
+          "subject": {
+            "required": true,
+            "display": "Database",
+            "description": "The name of the SQL Server database to connect to.",
+            "placeholder": "for example: db1"
+          }
+        },
+        "authentication": {
+          "display": "Authentication",
+          "description": "Authentication is the process of verifying the identity before granting access to SQL Server.",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "Username and Password",
+              "username": {
+                "required": true,
+                "display": "Username",
+                "placeholder": "username"
+              },
+              "password": {
+                "required": true,
+                "display": "Password",
+                "placeholder": "password"
+              }
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "Connection options",
+            "display_order": 1,
+            "short_description": "Other connection options.",
+            "description": "Other connection options.",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "instance_name",
+                "display": "Instance Name",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The name of the SQL Server instance.",
+                "description": "The name of the SQL Server instance.",
+                "placeholder": "for example: MSSQLSERVER"
+              },
+              {
+                "name": "application_name",
+                "display": "Application Name",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The name of the application.",
+                "description": "The name of the application.",
+                "placeholder": "for example: TDengine"
+              },
+              {
+                "name": "encryption",
+                "display": "Encryption",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "Off",
+                    "On",
+                    "NotSupported",
+                    "Required"
+                  ]
+                },
+                "short_description": "Set whether to encrypt the connection.",
+                "description": "Set whether to encrypt the connection.",
+                "placeholder": "Please select the type of encryption",
+                "value": "Off"
+              },
+              {
+                "name": "trust_cert",
+                "display": "Trust Certificate",
+                "hint": {
+                  "type": "bool"
+                },
+                "short_description": "Set whether to trust the server certificate.",
+                "description": "Set whether to trust the server certificate.",
+                "placeholder": "Please select whether to trust the server certificate",
+                "value": "false"
+              },
+              {
+                "name": "trust_cert_ca",
+                "display": "Trust Certificate CA",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "The certificate of the CA if you trust the server certificate.",
+                "description": "The certificate of the CA if you trust the server certificate.",
+                "placeholder": "Please upload the certificate of the CA"
+              }
+            ]
+          },
+          {
+            "name": "Data Collection",
+            "display_order": 2,
+            "short_description": "Data collection related configuration items.",
+            "description": "Data collection related configuration items.",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "sql",
+                "display": "SQL Template",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+              },
+              {
+                "name": "start",
+                "display": "Start Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "Start time for migrating data.",
+                "description": "Start time for migrating data.\n",
+                "required": true,
+                "placeholder": "for example: 2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "End Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.",
+                "description": "End time for migrating data, can be left blank. If set, the migration task will stop automatically after the task is executed to the end time; if left blank, the real-time data will be synchronized continuously, and the task will not stop automatically.\n",
+                "required": false,
+                "placeholder": "for example: 2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "Query Interval",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
+                "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
+                "required": false,
+                "placeholder": "1d"
+              },
+              {
+                "name": "delay",
+                "display": "Delay",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
+                "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
+                "required": false,
+                "placeholder": "10s"
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "Advanced Options",
+          "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave these options as default to use the recommended settings.\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "Read Concurrency",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "Batch Size",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
               "value": "10000"
             }
           ]
@@ -3183,90 +3640,82 @@ export function getDataSources(lang) {
             "placeholder": "Topic 示例: tmq+ws://root:taosdata@localhost:6041/topic"
           }
         },
-        "groups": [
-          {
-            "name": "订阅设置",
-            "display_order": 2,
-            "short_description": "TDengine TMQ 订阅设置。",
-            "description": "TDengine TMQ 订阅设置。",
-            "collapsible": false,
-            "connection_option": false,
-            "params": [
-              {
-                "name": "auto.offset.reset",
-                "display": "订阅初始位置",
-                "hint": {
-                  "type": "str",
-                  "choices": [
-                    "earliest",
-                    "latest"
-                  ]
-                },
-                "short_description": "订阅初始位置定义了拉取数据范围。",
-                "description": "订阅初始位置定义了拉取数据范围。\n有以下可选项：\n- *earliest*: 相当于拉取全量数据，包括新增的数据；\n- *latest*: 从最新的数据开始订阅。\n",
-                "value": "earliest"
-              },
-              {
-                "name": "group.id",
-                "display": "订阅组 ID",
-                "hint": {
-                  "type": "str"
-                },
-                "short_description": "订阅组 ID 是用于标识一个订阅组的任意字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。",
-                "description": "订阅组 ID 是用于标识一个订阅组的任意字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。\n"
-              },
-              {
-                "name": "client.id",
-                "display": "客户端 ID",
-                "hint": {
-                  "type": "str"
-                },
-                "short_description": "客户端 ID 是一个用于标识客户端的任意字符串，最大长度为 192。",
-                "description": "客户端 ID 是一个用于标识客户端的任意字符串，最大长度为 192。\n",
-                "required": true
-              },
-              {
-                "name": "timeout",
-                "display": "超时",
-                "hint": {
-                  "type": "timeout"
-                },
-                "short_description": "超时时间范围内没有新增数据，同步任务将自动结束。",
-                "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `never`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
-                "placeholder": "5s"
-              },
-              {
-                "name": "experimental.snapshot.enable",
-                "display": "同步已落盘数据",
-                "hint": {
-                  "type": "bool"
-                },
-                "short_description": "如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。",
-                "description": "如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。\n",
-                "value": "true"
-              },
-              {
-                "name": "with.meta.drop",
-                "display": "同步删表操作",
-                "hint": {
-                  "type": "bool"
-                },
-                "short_description": "如启用则会同步删表操作到目标数据库。",
-                "description": "如启用则会同步删表操作到目标数据库。\n",
-                "value": "true"
-              },
-              {
-                "name": "with.meta.delete",
-                "display": "同步删数据操作",
-                "hint": {
-                  "type": "bool"
-                },
-                "short_description": "如启用则会同步删数据操作到目标数据库。",
-                "description": "如启用则会同步删数据操作到目标数据库。\n",
-                "value": "true"
-              }
-            ]
+        "groups": [{
+          "name": "订阅设置",
+          "display_order": 2,
+          "short_description": "TDengine TMQ 订阅设置。",
+          "description": "TDengine TMQ 订阅设置。",
+          "collapsible": false,
+          "connection_option": false,
+          "params": [{
+            "name": "auto.offset.reset",
+            "display": "订阅初始位置",
+            "hint": {
+              "type": "str",
+              "choices": [
+                "earliest",
+                "latest"
+              ]
+            },
+            "short_description": "订阅初始位置定义了拉取数据范围。",
+            "description": "订阅初始位置定义了拉取数据范围。\n有以下可选项：\n- *earliest*: 相当于拉取全量数据，包括新增的数据；\n- *latest*: 从最新的数据开始订阅。\n",
+            "value": "earliest"
+          }, {
+            "name": "group.id",
+            "display": "订阅组 ID",
+            "hint": {
+              "type": "str"
+            },
+            "short_description": "订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。",
+            "description": "订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。\n"
+          }, {
+            "name": "client.id",
+            "display": "客户端 ID",
+            "hint": {
+              "type": "str"
+            },
+            "short_description": "客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。",
+            "description": "客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。\n",
+            "required": true
+          }, {
+            "name": "timeout",
+            "display": "超时",
+            "hint": {
+              "type": "timeout"
+            },
+            "short_description": "超时时间范围内没有新增数据，同步任务将自动结束。",
+            "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `never`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
+            "placeholder": "5s"
+          }, {
+            "name": "experimental.snapshot.enable",
+            "display": "同步已落盘数据",
+            "hint": {
+              "type": "bool"
+            },
+            "short_description": "如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。",
+            "description": "如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。\n",
+            "value": "true"
+          }, {
+            "name": "with.meta.drop",
+            "display": "同步删表操作",
+            "hint": {
+              "type": "bool"
+            },
+            "short_description": "如启用则会同步删表操作到目标数据库。",
+            "description": "如启用则会同步删表操作到目标数据库。\n",
+            "value": "true"
+          }, {
+            "name": "with.meta.delete",
+            "display": "同步删数据操作",
+            "hint": {
+              "type": "bool"
+            },
+            "short_description": "如启用则会同步删数据操作到目标数据库。",
+            "description": "如启用则会同步删数据操作到目标数据库。\n",
+            "value": "true"
           }
+          ]
+        }
         ]
       },
       {
@@ -3666,33 +4115,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
+          "name": "数据模型配置",
           "display": "监测点集",
-          "description": "不同类型的点位配置文件，这将决定入库的数据模型。\n",
-          "params": [
+          "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "单列模式点位列表",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "单列模式",
+              "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
+              "target": {
+                "name": "single-column",
               },
-              "description": "一个单列点位名称列表文件。\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "点位配置文件",
+                "btnText": "上传配置文件",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "单列模式 AF 模板列表",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "多列模式",
+              "short_description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "单列点位名称（AF 模板）列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "AF 模式模板列表",
-              "hint": {
-                "type": "file"
-              },
-              "description": "单列模板名称列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "模型配置文件",
+                "required": true,
+                "btnText": "上传配置文件",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             }
           ]
         }
@@ -3725,59 +4218,25 @@ export function getDataSources(lang) {
             "description": "Backfill 参数设置",
             "collapsible": false,
             "connection_option": false,
-            "params": [
-              {
-                "name": "BackfillStartTime",
-                "display": "Backfill 开始时间",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "请选择开始时间",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "从TDengine存储的记录的最晚时间戳开始",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
-                "short_description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。",
-                "description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。\n",
-                "placeholder": "YYYY-MM-DD HH:mm:ss"
+            "params": [{
+              "name": "BackfillStartTime",
+              "display": "Backfill 开始时间",
+              "hint": {
+                "type": "time",
               },
-              {
-                "name": "BackfillEndTime",
-                "display": "Backfill 结束时间",
-                "hint": [
-                  {
-                    "selected": true,
-                    "display": "请选择开始时间",
-                    "type": "time",
-                    "value": null,
-                    "default": null
-                  },
-                  {
-                    "selected": false,
-                    "display": "到TDengine存储的记录的最早的时间戳结束",
-                    "type": "constant",
-                    "value": "auto"
-                  }
-                ],
-                "short_description": "导入历史数据以该时间结束，默认是当前时间。",
-                "description": "导入历史数据以该时间结束，默认是当前时间。\n",
-                "placeholder": "YYYY-MM-DD HH:mm:ss",
-                "conflicts_with": [
-                  {
-                    "name": "BackfillStartTime",
-                    "value": "auto",
-                    "when": "auto"
-                  }
-                ]
-              }
-            ]
+              "short_description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。",
+              "description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。\n",
+              "placeholder": "YYYY-MM-DD HH:mm:ss"
+            }, {
+              "name": "BackfillEndTime",
+              "display": "Backfill 结束时间",
+              "hint": {
+                "type": "time"
+              },
+              "short_description": "导入历史数据以该时间结束，默认是当前时间。",
+              "description": "导入历史数据以该时间结束，默认是当前时间。\n",
+              "placeholder": "YYYY-MM-DD HH:mm:ss"
+            }]
           }
         ],
         "advanced": {
@@ -3853,33 +4312,77 @@ export function getDataSources(lang) {
           }
         ],
         "datasets": {
-          "name": "Data Sets",
+          "name": "数据模型配置",
           "display": "监测点集",
-          "description": "不同类型的点位配置文件，这将决定入库的数据模型。\n",
-          "params": [
+          "description": "使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。",
+          "value": "single-column",
+          "categories": [
             {
-              "name": "point_file",
-              "display": "单列模式点位列表",
-              "hint": {
-                "type": "file"
+              "category": "single-column",
+              "display": "单列模式",
+              "short_description": "单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。",
+              "target": {
+                "name": "single-column",
               },
-              "description": "一个单列点位名称列表文件。\n\n| |\n| ------------------- |\n| meter_10001_current |\n| meter_10001_voltage |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "点位配置文件",
+                "btnText": "上传配置文件",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传单列模式点位列表文件，文件格式为 CSV。",
+              }]
             },
             {
-              "name": "template_for_pi_point_file",
-              "display": "单列模式 AF 模板列表",
-              "hint": {
-                "type": "file"
+              "category": "multi-column",
+              "display": "多列模式",
+              "short_description": "多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。",
+              "target": {
+                "name": "multi-column",
+                "selectable": false
               },
-              "description": "单列点位名称（AF 模板）列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
-            },
-            {
-              "name": "template_for_af_element_file",
-              "display": "AF 模式模板列表",
-              "hint": {
-                "type": "file"
-              },
-              "description": "单列模板名称列表文件。\n\n| |\n| ------------------- |\n| MeterTemplate  |\n| MeterTemplate1 |\n"
+              "params": [{
+                "name": "filter_value",
+                "display": "数据集过滤",
+                "placeholder": "通配符*匹配0或者多个字符，通配符?精确匹配一个字符",
+                "hint": {
+                  "type": "compose",
+                  "choices": [
+                    "point",
+                    "element",
+                    "template"
+                  ]
+                },
+                "action": "download",
+                "action_text": "下载默认配置",
+                "description": "可指定过滤条件，下载默认模板<br> - point: 使用点位名称过滤<br> - element: 使用AF element 名称过滤<br> - template: 使用AF template 名称过滤<br> 过滤条件可以使用通配符*匹配0或者多个字符，使用通配符?精确匹配一个字符",
+              }, {
+                "name": "transform_config_file",
+                "display": "模型配置文件",
+                "required": true,
+                "btnText": "上传配置文件",
+                "hint": {
+                  "type": "file"
+                },
+                "description": "上传多列模式模型配置文件，文件格式为 CSV。",
+              }]
             }
           ]
         }
@@ -4011,18 +4514,6 @@ export function getDataSources(lang) {
             "connection_option": false,
             "params": [
               {
-                "name": "interval",
-                "display": "采集间隔",
-                "hint": {
-                  "type": "integer",
-                  "min": 1,
-                  "max": 60
-                },
-                "short_description": "数据点位采集间隔，单位为：秒。",
-                "description": "数据点位采集间隔，单位为：秒。",
-                "value": "10"
-              },
-              {
                 "name": "collect_mode",
                 "display": "采集模式",
                 "hint": {
@@ -4038,6 +4529,18 @@ export function getDataSources(lang) {
                 "value": "subscribe"
               },
               {
+                "name": "interval",
+                "display": "采集间隔",
+                "hint": {
+                  "type": "integer",
+                  "min": 1,
+                  "max": 60
+                },
+                "short_description": "数据点位采集间隔，单位为：秒。",
+                "description": "数据点位采集间隔，单位为：秒。",
+                "value": "10"
+              },
+              {
                 "name": "request_timeout",
                 "display": "采集超时",
                 "hint": {
@@ -4049,6 +4552,33 @@ export function getDataSources(lang) {
                 "description": "数据采集请求超时间隔，单位为：秒 (s)。",
                 "placeholder": "10",
                 "value": "10"
+              },
+              {
+                "name": "update_mode",
+                "display": "点位更新模式",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "none",
+                    "append",
+                    "update"
+                  ]
+                },
+                "short_description": "点位更新模式，在使用“选择数据点位”时，可以开启动态点位更新。none：不开启动态点位更新；append：开启动态点位更新，但只追加；update：开启动态点位更新，追加或删除。",
+                "description": "点位更新模式，在使用“选择数据点位”时，可以开启动态点位更新。none：不开启动态点位更新；append：开启动态点位更新，但只追加；update：开启动态点位更新，追加或删除。\n",
+                "value": "none"
+              },
+              {
+                "name": "update_interval",
+                "display": "点位更新间隔",
+                "hint": {
+                  "type": "integer",
+                  "min": 60,
+                  "max": 2147483647
+                },
+                "short_description": "动态点位更新间隔，在“点位更新模式”为 append 和 update 时生效，以秒为单位。",
+                "description": "动态点位更新间隔，在“点位更新模式”为 append 和 update 时生效，以秒为单位。\n",
+                "value": "600"
               }
             ]
           }
@@ -4148,9 +4678,10 @@ export function getDataSources(lang) {
             {
               "category": "csv_config_file",
               "display": "上传 CSV 配置文件",
-              "description": "您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。\n\n通过 CSV 文件配置 OPC UA 点位的规则如下：\n\n1.文件编码\n\n请上传编码为 UTF-8 或 UTF-8 BOM 的 CSV 文件；\n\n2.Header 的规则\n\nCSV 文件的第一行为 Header，请按照如下规则配置 Header：\n\n(1) point_id：数据点位在 OPC UA 服务器上的 id，必填；\n\n(2) stable：数据点位在 TDengine 对应的超级表，必填；\n\n(3) tbname：数据点位在 TDengine 对应的子表，必填；\n\n(4) enable：是否采集该点位数据，可选，不配置 enable 列时，使用统一的默认值1作为 enable 的值；\n\n(5) value_col：数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值；\n\n(6) value_transform：数据点位采集值在 taosX 中执行的变换函数，可选，不配置 value_transform 列时，统一不进行采集值的 transform；\n\n(7) type：数据点位采集值的数据类型，可选，不配置 type 列时，统一使用采集值的原始类型作为 TDengine 中的数据类型；\n\n(8) quality_col：数据点位采集值质量在 TDengine 中对应的列名，可选，不配置 quality_col 时，统一不在 TDengine 添加 quality 列；\n\n(9) ts_col：数据点位的原始时间戳在 TDengine 中对应的时间戳列，可选，ts_col，received_ts_col 按顺序同时存在，使用 ts_col 作 TDengine 中的时间戳列；ts_col 存在，使用 ts_col 作 TDengine 中的时间戳列；\n\n(10) received_ts_col：接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列，可选，received_ts_col，ts_col 按顺序同时存在，使用 received_ts_col 作 TDengine 中的时间戳列；received_ts_col 存在，使用 received_ts_col 作 TDengine 中的时间戳列；\n\n(11) ts_col 和 received_ts_col 同时不存在，使用数据点位原始时间戳作 TDengine 中的时间戳列，且列名为默认值ts。\n\n(12) ts_transform：数据点位时间戳在 taosX 中执行的变换函数，可选，不配置 ts_transform 列时，统一不进行数据点位原始时间戳的 transform；\n\n(13) received_ts_transform：数据点位接收时间戳在 taosX 中执行的变换函数，可选，不配置 received_ts_transform 列时，统一不进行数据点位接收时间戳的 transform；\n\n(14) tag::VARCHAR(200)::name：数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的实际名称。\n\n(15) tag 列是可选的，当 CSV 中配置 1 个以上的 tag 列，则使用配置的 tag 列；\n\n(16) 当没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；\n\n(17) 没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name\n\n(18) CSV Header 中，不能有重复的列；\n\n(19) CSV Header 中，类似 tag::VARCHAR(200)::name 这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。\n\n(20) CSV Header 中，列的顺序不影响 CSV 文件校验规则；\n\n(21) CSV Header 中，可以配置不在上表中的列，例如：序号，这些列会被自动忽略。\n\n3.Row 的规则\n\nCSV 文件的第二行开始为数据行，每一行对应一个数据点位的配置信息。请按照下面的规则配置 Row。\n\n一个 Row 中，与 Header 列对应的关系如下：\n\n(1) point_id：类似ns=3;i=1005这样的字符串，必填；\n\n(2) stable：符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{type}，则：CSV 文件的 type 不为空，使用 type 的值进行替换；CSV 文件的 type 为空，使用采集值的原始类型进行替换；\n\n(3) tbname：符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{ns}，使用 point_id 中的 ns 替换，如果存在{id}，使用 point_id 中的 id 替换；\n\n(4) enable：0，不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1，采集该点位，在 OPC DataIn 任务开始前，不删除子表。\n\n(5) value_col：符合 TDengine 命名规范的列名\n\n(6) value_transform：符合 Rhai 引擎的计算表达式，例如：(val + 10) / 1000 * 2.0，log(val) + 10等；\n\n(7) type：支持类型包括：b/bool，i8/tinyint，i16/smallint，i32/int，i64/bigint，u8/tinyint unsigned，u16/smallint unsigned，u32/int unsigned，u64/bigint unsigned，f32/float，f64/double，timestamp/timestamp(ms)，timestamp(us)，timestamp(ns)，json\n\n(8) quality_col：符合 TDengine 命名规范的列名\n\n(9) ts_col：符合 TDengine 命名规范的列名\n\n(10) received_ts_col：符合 TDengine 命名规范的列名\n\n(11) ts_transform 和 received_ts_transform：支持 +、-、*、/、% 操作符，例如：ts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；\n\n(12) tag::VARCHAR(200)::name：tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文。\n\n同时，多个Row之间还需要满足：\n\n(13) point_id 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；\n\n(14) 当 point_id 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应 “OPC 数据入 TDengine 宽表”的使用场景。\n\n4.其他规则\n\n(1) 如果 Header 和 Row 的列数不一致，校验失败，提示用户不满足要求的行号；\n\n(2) Header 在首行，且不能为空；\n\n(3) Row 为 1 行以上；\n",
+              "description": "OPC 数据写入使用 csv 文件定义每一个数据点位到 TDengine 数据子表的映射规则：\n\n(1) point_id：必填，数据点位在 OPC UA 服务器上的 id；\n\n(2) stable：必填，数据点位对应的 TDengine 超级表；\n\n(3) tbname：必填，数据点位对应的 TDengine 子表；\n\n(4) enable：可选，默认值 '1'，指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表；\n\n(5) value_col：可选，默认值 'val'。数据点位采集值在 TDengine 中对应的列名；\n\n(6) value_transform：可选，数据点位采集值在 taosX 中执行的变换函数，目前仅支持数值计算表达式，详见 transform 文档的 expr 表达式说明；\n\n(7) type：可选，默认值取源数据类型。数据点位采集值的数据类型，可用于替换超级表名称中的占位符 {type}；\n\n(8) quality_col：可选，数据点位采集值质量在 TDengine 中对应的列名；\n\n(9) ts_col/received_ts_col：必填，TDengine 时间戳主键定义：只存在 ts_col 时使用原始时间戳作为主键，只存在 received_ts_col 时使用采集时间戳作为主键，两列都存在时，居前的时间戳列作为主键；\n\n(10) ts_transform：可选，原始时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(11) received_ts_transform：可选，采集数据时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(12) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。\n\n更多填写规则请参考<a target=\"_blank\" href=\"/docs/enterprise/datain/opcua\">企业版文档</a>。\n",
               "target": {
                 "name": "csv_config_file",
+                "description": "上传 CSV 配置文件，定义数据点位到 TDengine 数据子表的映射规则。\n",
                 "required": true,
                 "multiple": true,
                 "editable": true,
@@ -4200,18 +4731,14 @@ export function getDataSources(lang) {
                   "description": "数据点位名称或 id 需要满足设置的正则表达式。\n"
                 },
                 {
-                  "name": "table_primary_key",
-                  "display": "主键列",
+                  "name": "super_table_expression",
+                  "display": "超级表名称",
                   "hint": {
-                    "type": "str",
-                    "choices": [
-                      "received_ts",
-                      "original_ts"
-                    ]
+                    "type": "str"
                   },
-                  "description": "目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。\n",
+                  "description": "支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。\n",
                   "required": true,
-                  "value": "original_ts"
+                  "value": "opc_{type}"
                 },
                 {
                   "name": "child_table_expression",
@@ -4219,9 +4746,33 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <child table prefix>_{ns}_{id} 格式，如果 NodeId 中不存在 ns 或 id 将置为空\n",
+                  "description": "支持 <child table prefix>_{ns}_{id} 格式，{ns} 表示点位的namespace，{id} 为点位的 id。\n",
                   "required": true,
                   "value": "t_{ns}_{id}"
+                },
+                {
+                  "name": "table_primary_key",
+                  "display": "主键列",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "original_ts",
+                      "received_ts"
+                    ]
+                  },
+                  "description": "目标数据表主键将使用选择的值作为时间戳主键列，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。\n",
+                  "required": false,
+                  "value": "original_ts"
+                },
+                {
+                  "name": "table_primary_key_alias",
+                  "display": "主键别名",
+                  "hint": {
+                    "type": "str"
+                  },
+                  "description": "在目标数据表中的主键列名称。\n",
+                  "required": false,
+                  "value": "ts"
                 }
               ]
             }
@@ -4297,6 +4848,33 @@ export function getDataSources(lang) {
                 "short_description": "数据点位采集间隔，单位为：秒。",
                 "description": "数据点位采集间隔，单位为：秒。",
                 "value": "1"
+              },
+              {
+                "name": "update_mode",
+                "display": "点位更新模式",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "none",
+                    "append",
+                    "update"
+                  ]
+                },
+                "short_description": "点位更新模式，在使用“选择数据点位”时，可以开启动态点位更新。none：不开启动态点位更新；append：开启动态点位更新，但只追加；update：开启动态点位更新，追加或删除。",
+                "description": "点位更新模式，在使用“选择数据点位”时，可以开启动态点位更新。none：不开启动态点位更新；append：开启动态点位更新，但只追加；update：开启动态点位更新，追加或删除。\n",
+                "value": "none"
+              },
+              {
+                "name": "update_interval",
+                "display": "点位更新间隔",
+                "hint": {
+                  "type": "integer",
+                  "min": 60,
+                  "max": 2147483647
+                },
+                "short_description": "动态点位更新间隔，在“点位更新模式”为 append 和 update 时生效，以秒为单位。",
+                "description": "动态点位更新间隔，在“点位更新模式”为 append 和 update 时生效，以秒为单位。\n",
+                "value": "600"
               }
             ]
           }
@@ -4396,7 +4974,7 @@ export function getDataSources(lang) {
             {
               "category": "csv_config_file",
               "display": "上传 CSV 配置文件",
-              "description": "您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。\n\n通过 CSV 文件配置 OPC DA 点位的规则如下：\n\n1.文件编码\n\n请上传编码为 UTF-8 或 UTF-8 BOM 的 CSV 文件；\n\n2.Header 的规则\n\nCSV 文件的第一行为 Header，请按照如下规则配置 Header：\n\n(1) tag_name：数据点位在 OPC DA 服务器上的 id，必填；\n\n(2) stable：数据点位在 TDengine 对应的超级表，必填；\n\n(3) tbname：数据点位在 TDengine 对应的子表，必填；\n\n(4) enable：是否采集该点位数据，可选，不配置 enable 列时，使用统一的默认值1作为 enable 的值；\n\n(5) value_col：数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值；\n\n(6) value_transform：数据点位采集值在 taosX 中执行的变换函数，可选，不配置 value_transform 列时，统一不进行采集值的 transform；\n\n(7) type：数据点位采集值的数据类型，可选，不配置 type 列时，统一使用采集值的原始类型作为 TDengine 中的数据类型；\n\n(8) quality_col：数据点位采集值质量在 TDengine 中对应的列名，可选，不配置 quality_col 时，统一不在 TDengine 添加 quality 列；\n\n(9) ts_col：数据点位的原始时间戳在 TDengine 中对应的时间戳列，可选，ts_col，received_ts_col 按顺序同时存在，使用 ts_col 作 TDengine 中的时间戳列；ts_col 存在，使用 ts_col 作 TDengine 中的时间戳列；\n\n(10) received_ts_col：接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列，可选，received_ts_col，ts_col 按顺序同时存在，使用 received_ts_col 作 TDengine 中的时间戳列；received_ts_col 存在，使用 received_ts_col 作 TDengine 中的时间戳列；\n\n(11) ts_col 和 received_ts_col 同时不存在，使用数据点位原始时间戳作 TDengine 中的时间戳列，且列名为默认值ts。\n\n(12) ts_transform：数据点位时间戳在 taosX 中执行的变换函数，可选，不配置 ts_transform 列时，统一不进行数据点位原始时间戳的 transform；\n\n(13) received_ts_transform：数据点位接收时间戳在 taosX 中执行的变换函数，可选，不配置 received_ts_transform 列时，统一不进行数据点位接收时间戳的 transform；\n\n(14) tag::VARCHAR(200)::name：数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的实际名称。\n\n(15) tag 列是可选的，当 CSV 中配置 1 个以上的 tag 列，则使用配置的 tag 列；\n\n(16) 当没有配置任何 tag 列，且 stable 在 TDengine 中存在，使用 TDengine 中的 stable 的 tag；\n\n(17) 没有配置任何 tag 列，且 stable 在 TDengine 中不存在，则默认自动添加以下 2 个 tag 列：tag::VARCHAR(256)::point_id 和 tag::VARCHAR(256)::point_name\n\n(18) CSV Header 中，不能有重复的列；\n\n(19) CSV Header 中，类似 tag::VARCHAR(200)::name 这样的列可以配置多个，对应 TDengine 中的多个 Tag，但 Tag 的名称不能重复。\n\n(20) CSV Header 中，列的顺序不影响 CSV 文件校验规则；\n\n(21) CSV Header 中，可以配置不在上表中的列，例如：序号，这些列会被自动忽略。\n\n3.Row 的规则\n\nCSV 文件的第二行开始为数据行，每一行对应一个数据点位的配置信息。请按照下面的规则配置 Row。\n\n一个 Row 中，与 Header 列对应的关系如下：\n\n(1) tag_name：类似`root.parent.temperature`这样的字符串，必填；\n\n(2) stable：符合 TDengine 超级表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{type}，则：CSV 文件的 type 不为空，使用 type 的值进行替换；CSV 文件的 type 为空，使用采集值的原始类型进行替换；\n\n(3) tbname：符合 TDengine 子表命名规范的任何字符串；如果存在特殊字符.，使用下划线替换；如果存在{tag_name}，使用 tag_name 替换；\n\n(4) enable：0，不采集该点位，且在 OPC DataIn 任务开始前，删除 TDengine 中点位对应的子表；1，采集该点位，在 OPC DataIn 任务开始前，不删除子表。\n\n(5) value_col：符合 TDengine 命名规范的列名\n\n(6) value_transform：符合 Rhai 引擎的计算表达式，例如：(val + 10) / 1000 * 2.0，log(val) + 10等；\n\n(7) type：支持类型包括：b/bool，i8/tinyint，i16/smallint，i32/int，i64/bigint，u8/tinyint unsigned，u16/smallint unsigned，u32/int unsigned，u64/bigint unsigned，f32/float，f64/double，timestamp/timestamp(ms)，timestamp(us)，timestamp(ns)，json\n\n(8) quality_col：符合 TDengine 命名规范的列名\n\n(9) ts_col：符合 TDengine 命名规范的列名\n\n(10) received_ts_col：符合 TDengine 命名规范的列名\n\n(11) ts_transform 和 received_ts_transform：支持 +、-、*、/、% 操作符，例如：ts / 1000 * 1000，将一个 ms 单位的时间戳的最后 3 位置为 0；ts + 8 * 3600 * 1000，将一个 ms 精度的时间戳，增加 8 小时；ts - 8 * 3600 * 1000，将一个 ms 精度的时间戳，减去 8 小时；\n\n(12) tag::VARCHAR(200)::name：tag 里的值，当 tag 的类型是 VARCHAR 时，可以是中文。\n\n同时，多个Row之间还需要满足：\n\n(13) tag_name 在整个 DataIn 任务中是唯一的，即：在一个 OPC DataIn 任务中，一个数据点位只能被写入到 TDengine 的一张子表。如果需要将一个数据点位写入多张子表，需要建多个 OPC DataIn 任务；\n\n(14) 当 tag_name 不同，但 tbname 相同时，value_col 必须不同。这种配置能够将不同数据类型的多个点位的数据写入同一张子表中不同的列。这种方式对应 “OPC 数据入 TDengine 宽表”的使用场景。\n\n4.其他规则\n\n(1) 如果 Header 和 Row 的列数不一致，校验失败，提示用户不满足要求的行号；\n\n(2) Header 在首行，且不能为空；\n\n(3) Row 为 1 行以上；\n",
+              "description": "OPC 数据写入使用 csv 文件定义每一个数据点位到 TDengine 数据子表的映射规则：\n\n(1) tag_name：必填，数据点位在 OPC DA 服务器上的 id；\n\n(2) stable：必填，数据点位对应的 TDengine 超级表；\n\n(3) tbname：必填，数据点位对应的 TDengine 子表；\n\n(4) enable：可选，默认值 '1'，指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表；\n\n(5) value_col：可选，默认值 'val'。数据点位采集值在 TDengine 中对应的列名；\n\n(6) value_transform：可选，数据点位采集值在 taosX 中执行的变换函数，目前仅支持数值计算表达式，详见 transform 文档的 expr 表达式说明；\n\n(7) type：可选，默认值取源数据类型。数据点位采集值的数据类型，可用于替换超级表名称中的占位符 {type}；\n\n(8) quality_col：可选，数据点位采集值质量在 TDengine 中对应的列名；\n\n(9) ts_col/received_ts_col：必填，TDengine 时间戳主键定义：只存在 ts_col 时使用原始时间戳作为主键，只存在 received_ts_col 时使用采集时间戳作为主键，两列都存在时，居前的时间戳列作为主键；\n\n(10) ts_transform：可选，原始时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(11) received_ts_transform：可选，采集数据时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(12) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。\n\n更多填写规则请参考<a target=\"_blank\" href=\"/docs/enterprise/datain/opcda\">企业版文档</a>。  \n",
               "target": {
                 "name": "csv_config_file",
                 "required": true,
@@ -4435,18 +5013,14 @@ export function getDataSources(lang) {
                   "description": "数据点位 TagName 需要满足设置的正则表达式。\n"
                 },
                 {
-                  "name": "table_primary_key",
-                  "display": "主键列",
+                  "name": "super_table_expression",
+                  "display": "超级表名称",
                   "hint": {
-                    "type": "str",
-                    "choices": [
-                      "received_ts",
-                      "original_ts"
-                    ]
+                    "type": "str"
                   },
-                  "description": "目标数据表主键将使用选择的值作为时间戳主键名称，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。\n",
+                  "description": "支持 <super table prefix>_{type} 格式，{type} 表示点位的数据类型。\n",
                   "required": true,
-                  "value": "original_ts"
+                  "value": "opc_{type}"
                 },
                 {
                   "name": "child_table_expression",
@@ -4454,9 +5028,33 @@ export function getDataSources(lang) {
                   "hint": {
                     "type": "str"
                   },
-                  "description": "支持 <child table prefix>_{TagName} 的格式\n",
+                  "description": "支持 <child table prefix>_{tag_name} 格式，{tag_name} 表示点位名称。\n",
                   "required": true,
-                  "value": "t_{TagName}"
+                  "value": "t_{tag_name}"
+                },
+                {
+                  "name": "table_primary_key",
+                  "display": "主键列",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "original_ts",
+                      "received_ts"
+                    ]
+                  },
+                  "description": "目标数据表主键将使用选择的值作为时间戳主键列，original_ts 表示使用数据点位上报 OPC 服务时间，received_ts 表示 taosX 任务接收数据的时间。\n",
+                  "required": false,
+                  "value": "original_ts"
+                },
+                {
+                  "name": "table_primary_key_alias",
+                  "display": "主键别名",
+                  "hint": {
+                    "type": "str"
+                  },
+                  "description": "在目标数据表中的主键列名称。\n",
+                  "required": false,
+                  "value": "ts"
                 }
               ]
             }
@@ -4929,13 +5527,17 @@ export function getDataSources(lang) {
         "name": "MQTT",
         "description": "MQTT 表示 Message Queuing Telemetry Transport （消息队列遥测传输）。它是一种轻量级的消息协议，易于实现和使用。它非常适合连接资源有限的设备，例如电池供电的设备或带宽较低的设备。MQTT也是实时控制系统等延迟重要的应用程序的不错选择。\n\nMQTT 通过使用发布/订阅模型来工作。这意味着设备可以将消息发布到主题，其他设备可以订阅这些主题以接收消息。这使得轻松将设备解耦，并根据需要扩展应用程序。\n\nMQTT 是物联网应用程序的流行选择。它得到了广泛的设备和平台支持，并提供许多开源和商业实现。\n\ntaosX 可以通过连接器插件从 MQTT 代理订阅数据。请查看每个部分的帮助消息以了解详细信息。\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
             "display": "MQTT 地址",
-            "description": "MQTT 服务器地址。如: “127.0.0.1:1883”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
-            "placeholder": "127.0.0.1:1883",
-            "pattern": "^[0-9A-Za-z.]+:(?:[0-9]{1,5})$",
-            "patternMsg": "输入格式有误，请按照格式 `host:port`，port 范围为 1-65535。"
+            "description": "MQTT 服务器地址。如: “127.0.0.1”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "MQTT 端口",
+            "description": "MQTT 服务器端口",
+            "placeholder": "1883"
           }
         },
         "authentication": {
@@ -5215,8 +5817,54 @@ export function getDataSources(lang) {
         },
         "groups": [
           {
-            "name": "SSL 证书",
+            "name": "SASL 认证机制",
             "display_order": 1,
+            "short_description": "用来认证服务器与客户端的一种认证机制。",
+            "description": "用来认证服务器与客户端的一种认证机制。",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "sasl_mechanism",
+                "display": "认证机制",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "PLAIN",
+                    "SCRAM-SHA-256"
+                  ]
+                },
+                "short_description": "SASL 的认证机制",
+                "description": "SASL 的认证机制",
+                "required": true,
+                "value": "PLAIN"
+              },
+              {
+                "name": "sasl_username",
+                "display": "用户名",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于 SASL 认证机制的用户名",
+                "description": "用于 SASL 认证机制的用户名",
+                "required": true
+              },
+              {
+                "name": "sasl_password",
+                "display": "密码",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于 SASL 认证机制的密码",
+                "description": "用于 SASL 认证机制的密码",
+                "required": true
+              }
+            ]
+          },
+          {
+            "name": "SSL 证书",
+            "display_order": 2,
             "short_description": "使用证书和私钥建立连接以启用 SSL。",
             "description": "使用证书和私钥建立连接以启用 SSL。",
             "collapsible": true,
@@ -5229,8 +5877,18 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "file"
                 },
-                "short_description": "CA 证书文件",
-                "description": "CA 证书文件",
+                "short_description": "CA 证书文件(PEM格式), 用于验证 broker 的密钥。",
+                "description": "CA 证书文件(PEM格式), 用于验证 broker 的密钥。",
+                "required": true
+              },
+              {
+                "name": "ca_password",
+                "display": "CA 密码",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "CA 私钥密码",
+                "description": "CA 私钥密码",
                 "required": true
               },
               {
@@ -5239,8 +5897,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "file"
                 },
-                "short_description": ".cert 文件",
-                "description": ".cert 文件",
+                "short_description": "用于身份验证的客户端公钥文件(PEM格式)。",
+                "description": "用于身份验证的客户端公钥文件(PEM格式)。",
                 "required": true
               },
               {
@@ -5249,15 +5907,15 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "file"
                 },
-                "short_description": "私钥文件",
-                "description": "私钥文件",
+                "short_description": "用于身份验证的客户端私钥文件(PEM格式)。",
+                "description": "用于身份验证的客户端私钥文件(PEM格式)。",
                 "required": true
               }
             ]
           },
           {
             "name": "采集配置",
-            "display_order": 2,
+            "display_order": 3,
             "short_description": "数据采集相关配置项。",
             "description": "数据采集相关配置项。",
             "collapsible": false,
@@ -5332,6 +5990,17 @@ export function getDataSources(lang) {
               },
               "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
               "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "1000"
             }
           ]
         },
@@ -5722,7 +6391,7 @@ export function getDataSources(lang) {
           ]
         },
         "parser": {
-          "display": "数据映射",
+          "display": "Payload 转换",
           "required": true,
           "description": "taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等\n",
           "fields": [
@@ -5866,7 +6535,7 @@ export function getDataSources(lang) {
                 "value": "utf8"
               },
               {
-                "name": "ssl",
+                "name": "ssl_mode",
                 "display": "SSL 模式",
                 "hint": {
                   "type": "str",
@@ -5897,10 +6566,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "用于查询的 SQL 语句。",
-                "description": "用于查询的 SQL 语句。\n",
-                "required": false,
-                "placeholder": "SELECT * FROM table WHERE time >= $start AND time < $end"
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
               },
               {
                 "name": "start",
@@ -5908,8 +6577,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "应用于查询语句的起始时间。",
-                "description": "应用于查询语句的起始时间。\n",
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
                 "required": true,
                 "placeholder": "如：2023-01-01 00:00:00"
               },
@@ -5919,8 +6588,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "应用于查询语句的结束时间。",
-                "description": "应用于查询语句的结束时间。\n",
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
                 "required": false,
                 "placeholder": "如：2024-01-01 00:00:00"
               },
@@ -5930,10 +6599,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "用于分段查询的时间间隔。",
-                "description": "用于分段查询的时间间隔。\n",
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1h"
+                "placeholder": "1d"
               },
               {
                 "name": "delay",
@@ -5941,10 +6610,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "用于同步未来时刻数据的等待时长。",
-                "description": "用于同步未来时刻数据的等待时长。\n",
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "0s"
+                "placeholder": "10s"
               }
             ]
           }
@@ -6048,7 +6717,7 @@ export function getDataSources(lang) {
             "connection_option": true,
             "params": [
               {
-                "name": "applicationName",
+                "name": "application_name",
                 "display": "应用名称",
                 "hint": {
                   "type": "str"
@@ -6058,7 +6727,7 @@ export function getDataSources(lang) {
                 "placeholder": "示例: TDengine"
               },
               {
-                "name": "ssl",
+                "name": "ssl_mode",
                 "display": "SSL 模式",
                 "hint": {
                   "type": "str",
@@ -6090,10 +6759,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "用于查询的 SQL 语句。",
-                "description": "用于查询的 SQL 语句。\n",
-                "required": false,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= $start AND time < $end"
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
               },
               {
                 "name": "start",
@@ -6101,8 +6770,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "应用于查询语句的起始时间。",
-                "description": "应用于查询语句的起始时间。\n",
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
                 "required": true,
                 "placeholder": "如：2023-01-01 00:00:00"
               },
@@ -6112,8 +6781,8 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "应用于查询语句的结束时间。",
-                "description": "应用于查询语句的结束时间。\n",
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
                 "required": false,
                 "placeholder": "如：2024-01-01 00:00:00"
               },
@@ -6123,10 +6792,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "用于分段查询的时间间隔。",
-                "description": "用于分段查询的时间间隔。\n",
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1h"
+                "placeholder": "1d"
               },
               {
                 "name": "delay",
@@ -6134,10 +6803,390 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "duration"
                 },
-                "short_description": "用于同步未来时刻数据的等待时长。",
-                "description": "用于同步未来时刻数据的等待时长。\n",
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "0s"
+                "placeholder": "10s"
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "最大读取并发数",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "数据映射",
+          "required": true,
+          "description": "taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等\n",
+          "fields": [
+            {
+              "name": "DateTime",
+              "description": "值对应的时间戳。",
+              "type": "timestamp"
+            }
+          ]
+        }
+      },
+      {
+        "id": "oracle",
+        "type": "uri",
+        "name": "Oracle",
+        "description": "Oracle 数据库系统是世界上流行的关系数据库管理系统，系统可移植性好、使用方便、功能强，适用于各类大、中、小微机环境。它是一种高效率的、可靠性好的、适应高吞吐量的数据库方案。\nTDengine 可以高效地从 Oracle 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "服务地址",
+            "description": "Oracle 的服务器地址",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "Oracle 的端口",
+            "placeholder": "1521"
+          },
+          "subject": {
+            "required": true,
+            "display": "数据库",
+            "description": "Oracle 数据库名称",
+            "placeholder": "示例: db1"
+          }
+        },
+        "authentication": {
+          "display": "认证",
+          "description": "使用用户名和密码访问 Oracle 数据库",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "用户名密码访问",
+              "username": {
+                "required": true,
+                "display": "用户",
+                "placeholder": "username"
+              },
+              "password": {
+                "required": true,
+                "display": "密码",
+                "placeholder": "password"
+              }
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "SQL 查询",
+            "display_order": 2,
+            "short_description": "数据采集相关配置项。",
+            "description": "数据采集相关配置项。",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "sql",
+                "display": "SQL 模板",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+              },
+              {
+                "name": "start",
+                "display": "起始时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "结束时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "查询间隔",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
+                "required": false,
+                "placeholder": "1d"
+              },
+              {
+                "name": "delay",
+                "display": "延迟时长",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
+                "required": false,
+                "placeholder": "10s"
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "最大读取并发数",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "数据映射",
+          "required": true,
+          "description": "taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等\n",
+          "fields": [
+            {
+              "name": "DateTime",
+              "description": "值对应的时间戳。",
+              "type": "timestamp"
+            }
+          ]
+        }
+      },
+      {
+        "id": "mssql",
+        "type": "uri",
+        "name": "Microsoft SQL Server",
+        "description": "Microsoft SQL Server 是一种关系型数据库管理系统，由 Microsoft 公司开发，具有使用方便可伸缩性好与相关软件集成程度高等优点。\n\nTDengine 可以高效地从 Microsoft SQL Server 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "服务地址",
+            "description": "SQL Server 的服务器地址",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "SQL Server 的端口",
+            "placeholder": "1433"
+          },
+          "subject": {
+            "required": true,
+            "display": "数据库",
+            "description": "SQL Server 数据库名称",
+            "placeholder": "示例: db1"
+          }
+        },
+        "authentication": {
+          "display": "认证",
+          "description": "使用用户名和密码访问 SQL Server 数据库",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "用户名密码访问",
+              "username": {
+                "required": true,
+                "display": "用户",
+                "placeholder": "username"
+              },
+              "password": {
+                "required": true,
+                "display": "密码",
+                "placeholder": "password"
+              }
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "连接选项",
+            "display_order": 1,
+            "short_description": "其他数据库连接选项。",
+            "description": "其他数据库连接选项。",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "instance_name",
+                "display": "实例名称",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "SQL Server 实例名称",
+                "description": "SQL Server 实例名称",
+                "placeholder": "示例: MSSQLSERVER"
+              },
+              {
+                "name": "application_name",
+                "display": "应用名称",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "设置应用程序名称，用于标识连接的应用程序。",
+                "description": "设置应用程序名称，用于标识连接的应用程序。",
+                "placeholder": "示例: TDengine"
+              },
+              {
+                "name": "encryption",
+                "display": "加密",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "Off",
+                    "On",
+                    "NotSupported",
+                    "Required"
+                  ]
+                },
+                "short_description": "设置是否使用加密连接。",
+                "description": "设置是否使用加密连接。",
+                "placeholder": "请选择加密方式",
+                "value": "Off"
+              },
+              {
+                "name": "trust_cert",
+                "display": "信任证书",
+                "hint": {
+                  "type": "bool"
+                },
+                "short_description": "设置是否信任服务器证书。",
+                "description": "设置是否信任服务器证书。",
+                "placeholder": "请选择是否信任证书",
+                "value": "false"
+              },
+              {
+                "name": "trust_cert_ca",
+                "display": "信任证书 CA",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "设置是否信任服务器证书 CA。",
+                "description": "设置是否信任服务器证书 CA。",
+                "placeholder": "如果信任请上传证书 CA"
+              }
+            ]
+          },
+          {
+            "name": "SQL 查询",
+            "display_order": 2,
+            "short_description": "数据采集相关配置项。",
+            "description": "数据采集相关配置项。",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "sql",
+                "display": "SQL 模板",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+              },
+              {
+                "name": "start",
+                "display": "起始时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "结束时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "查询间隔",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
+                "required": false,
+                "placeholder": "1d"
+              },
+              {
+                "name": "delay",
+                "display": "延迟时长",
+                "hint": {
+                  "type": "duration"
+                },
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
+                "required": false,
+                "placeholder": "10s"
               }
             ]
           }
@@ -6187,5 +7236,5 @@ export function getDataSources(lang) {
       }
     ]
   }
-    
+
 }

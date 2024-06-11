@@ -12,6 +12,7 @@
     <section
       v-show="isAll != '*'"
       class="flexStart mb20"
+      :style="{'cursor': $COMMUNITY ? 'not-allowed' : 'pointer'}"
     >
       <uploadCsv
         v-model="value"
@@ -27,6 +28,7 @@
         <a
           v-if="config.templateUrl"
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click="handleDownEmptyTemplate"
         >
           <i class="el-icon-download"></i>
@@ -41,6 +43,7 @@
           v-if="config.templateUrl"
           class="ml20"
           :href="config.templateUrl"
+          :class="{'disabled': $COMMUNITY }"
           download
         >
           <i class="el-icon-download"></i>
@@ -54,6 +57,7 @@
         v-if="isOpc">
         <a
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click.prevent="openDialog"
         >
           <i class="el-icon-download"></i>
@@ -70,6 +74,7 @@
         v-else>
         <a
           class="ml20"
+          :class="{'disabled': $COMMUNITY }"
           @click.prevent="downloadAllPointFile"
         >
           <i class="el-icon-download"></i>
@@ -96,6 +101,16 @@
           </el-tooltip>
         </div>
       </section>
+      <el-button
+        v-if="value"
+        :loading="loading"
+        :disabled="loading"
+        type="primary"
+        size="mini"
+        class="ml15"
+        @click="search"
+        >{{ $t('datasource.transformer.preview') }}</el-button
+      >
     </section>
     <el-dialog
       :title="$t('dataIn.filterPointTitle')"
@@ -156,7 +171,8 @@ import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTick
 import { getDsnData } from '../utils';
 import { downloadFileBlob } from '@/utils/file';
 import { handleDownload } from '../utils';
-import DocsContent from '@/views/support/components/editorContentDisplay.vue'
+import DocsContent from '@/views/support/components/editorContentDisplay.vue';
+import mixinItem from '../mixins/opcPreviewPoint.js';
 
 export default {
   props: {
@@ -169,6 +185,7 @@ export default {
       default: () => ({})
     }
   },
+  mixins: [mixinItem],
   inject: ['getCurrentDefinition', 'sourceParent'],
   components: { uploadCsv, DocsContent },
   data() {
@@ -184,7 +201,7 @@ export default {
       },
       ticket: '',
       percentage: 5,
-      complete: false,
+      completed: false,
     };
   },
   computed: {
@@ -195,7 +212,7 @@ export default {
       return this.getCurrentDefinition();
     },
     downloadPointsText() {
-      const isPi = this.currentDefinition.id === 'pi';
+      const isPi = (this.currentDefinition.id === 'pi' || this.currentDefinition.id === 'pibackfill');
       const piText = {
         point_file: 'allPoints',
         template_for_pi_point_file: 'afElementTemplate',
@@ -216,7 +233,7 @@ export default {
       );
     },
     downloadPontTipText() {
-      const isPi = this.currentDefinition.id === 'pi';
+      const isPi = (this.currentDefinition.id === 'pi' || this.currentDefinition.id === 'pibackfill');
       return this.$t(
         // 'dataIn.' +
           (isPi
@@ -281,7 +298,7 @@ export default {
     }
   },
   watch: {
-    complete(val) {
+    completed(val) {
       if (val) {
         this.timer && clearInterval(this.timer)
         this.percentage = 100
@@ -333,7 +350,8 @@ export default {
     async submit() {
       let type = this.sourceParent.sourceForm.type
       let via = this.sourceParent.sourceForm.agent
-      const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
+      let url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
+      url = url.replace(/&csv_config_file=[^&]*/i, '')
       if (!/:\/\/\w+?/.test(url)) return this.$error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       try {
@@ -353,7 +371,7 @@ export default {
   
         this.timer = setInterval(async () => {
           let { complete } = await checkReadyFile(result.ticket)
-          this.complete = complete
+          this.completed = complete
           const randomNum = Math.floor(Math.random() * 4);
 
           if (!complete) {
@@ -372,7 +390,7 @@ export default {
         return this.$error(res.message)
       }
       downloadFileBlob(res, this.allCategoryText + '.csv');
-      this.complete = false;
+      this.completed = false;
       this.requestIng = false
       setTimeout(() => {
         this.progressVisble = false;
@@ -449,5 +467,11 @@ export default {
   font-weight: 500;
   font-size: 20px;
   color: #4d6992;
+}
+.disabled {
+  pointer-events: none;
+  filter: alpha(opacity=50);
+  -moz-opacity: 0.5;
+  opacity: 0.5;
 }
 </style>

@@ -36,13 +36,21 @@ const mutations = {
     state.stable_form = form || {
       name: "",
       rollup: "",
-      columns: [{
-        type: "INT", field: "", value: "",
-        varcharLength: 8, ncharLength: 8
-      }],
+      columns: [
+        { type: "TIMESTAMP", field: "", value: "",
+          encode: "delta-i", 
+          compress: "lz4", level: "medium", primaryKey: false,
+          length: 8 
+        },
+        {
+          type: "INT", field: "", value: "",
+          encode: "simple8b", compress: "lz4", level: "medium",
+          primaryKey: false, length: 8 
+        }
+      ],
       tags: [{
         type: "INT", field: "", value: "",
-        varcharLength: 8, ncharLength: 8
+        length: 8
       }],
       ts_field_name: "",
     };
@@ -82,10 +90,12 @@ const actions = {
       commit("console/CHANGE_TREE_KEY", null, { root: true });
     });
   },
-  getStatleStruct({ commit, rootState }, stableName) {
+  getStatleStruct({ commit, rootState }, payload) {
+    let { stableName, type } = payload;
     return getStableStructReq({
       selected_db: rootState.dbs.selected_db,
       stableName: stableName,
+      type: type
     }).then(res => {
       let { ts_field_name, columns, tags } = res;
       state.tagDuplicate = JSON.parse(JSON.stringify(tags));
@@ -108,10 +118,10 @@ const actions = {
       })
       .catch((err) => {
         if (!state.stable_form.columns.length) {
-          state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
+          state.stable_form.columns.push({ type: "INT", field: "", value: "", length: 8,encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false});
         }
         if (!state.stable_form.tags.length) {
-          state.stable_form.tags.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
+          state.stable_form.tags.push({ type: "INT", field: "", value: "", length: 8 });
         }
         return Promise.reject(err);
       });

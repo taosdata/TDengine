@@ -1,6 +1,6 @@
 [package]
 name = "taos-explorer"
-version = "1.6.0"
+version = "1.6.1"
 edition = "2021"
 description = "TDengine Explorer UI"
 
@@ -36,7 +36,6 @@ sha1 = "0.10.6"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
-cargo_metadata = "0.18.1"
 
 taos = { version = "0.10.19", default-features = false, features = [
 	"ws-rustls",

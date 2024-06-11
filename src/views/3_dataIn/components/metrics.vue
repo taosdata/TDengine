@@ -88,7 +88,7 @@
             min-width="130"
           >
           <template slot-scope="{ row }">
-            <span>{{ formatDuration(row.from_last_ts - row.to_last_ts, row.from_last_ts, row.to_last_ts ) || 0 }}</span>
+            <span>{{ formatDuration(row.from_last_ts, row.to_last_ts ) || 0 }}</span>
           </template>
           </el-table-column>
           <el-table-column
@@ -252,23 +252,23 @@ export default {
       } else if (['points_per_second','rows_per_second','total_points_per_second','total_rows_per_second'].includes(data.name)) {
         return Number(data.value).toFixed(2)
       } else if (/execute_time/i.test(data.name)) {
-        return this.formatDuration(data.value)
+        return this.formatDurationMs(data.value)
       } else {
         return data.value;
       }
     },
     convertTsToMilliseconds(timestamp) {
       // 判断时间戳位数
-      if (timestamp.toString().length >= 19) {
-        return timestamp / 1000000; 
-      } else if (timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
-        return timestamp / 1000;
+      if (timestamp && timestamp.toString().length >= 19) {
+        return Number(String((timestamp / 1000000)).split('.')[0]); 
+      } else if (timestamp && timestamp.toString().length > 13 && timestamp.toString().length <= 16) {
+        return Number(String((timestamp / 1000)).split('.')[0]);
       } else {
         return timestamp; 
       }
     },
     
-    formatDuration(durationInMs, from_last_ts, to_last_ts) {
+    formatDurationMs(durationInMs) {
       if (!durationInMs) return '';
       const duration = moment.duration(durationInMs);
       const years = Math.floor(duration.asYears());
@@ -301,9 +301,19 @@ export default {
       if (milliseconds > 0) {
         formattedDuration += milliseconds + this.$t('milliseconds');
       }
+      return formattedDuration;
+    },
 
+    formatDuration(from_last_ts, to_last_ts) {
+      let from_time = this.convertTsToMilliseconds(from_last_ts)
+      let to_time = this.convertTsToMilliseconds(to_last_ts)
+      let diff_time = from_time - to_time
+      let formattedDuration = this.formatDurationMs(diff_time)
+      
       if (from_last_ts && from_last_ts.toString().length > 13 && from_last_ts.toString().length <= 16) {
-        let diffMicroseconds = from_last_ts - to_last_ts;
+        if (!to_last_ts) return ''
+        let diffMicroseconds = Number(BigInt(String(from_last_ts)) - BigInt(String(to_last_ts))); // eslint-disable-line
+
         diffMicroseconds = diffMicroseconds % 1000;
         if (diffMicroseconds > 0) {
           formattedDuration += diffMicroseconds + this.$t('microseconds')
@@ -311,8 +321,16 @@ export default {
       }
 
       if (from_last_ts && from_last_ts.toString().length >=19) {
-        let diffNanoseconds = from_last_ts - to_last_ts;
-        diffNanoseconds = diffNanoseconds % 1000000;
+        if (!to_last_ts) return ''
+        let diffNanoseconds = Number(BigInt(String(from_last_ts)) - BigInt(String(to_last_ts)));// eslint-disable-line
+        let diffMicroseconds = Number(String((diffNanoseconds / 1000)).split('.')[0]) % 1000;
+
+        console.log('diffNanoseconds',diffNanoseconds);
+        
+        if (diffMicroseconds > 0) {
+          formattedDuration += diffMicroseconds + this.$t('microseconds')
+        } 
+        diffNanoseconds = diffNanoseconds % 1000;
         if (diffNanoseconds > 0) {
           formattedDuration += diffNanoseconds + this.$t('nanoseconds')
         } 

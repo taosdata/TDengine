@@ -32,7 +32,8 @@
           <span>
             <span>{{ labelText }}</span>
             <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <i class="el-icon-info"></i>
+              <!-- <i class="el-icon-info"></i> -->
+              <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>
         </el-tooltip>
@@ -91,10 +92,35 @@
         :type="config.dateType"
         style="width: 100%"
       ></TimezoneDatePicker>
+
+      <div v-if="config.type == 'compose'">
+        <el-input  :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
+            <el-option v-for="item in getOptions()"
+              :key="item.value"
+              v-bind="item"
+              :title="item.description"
+              :disabled="item.disabled"
+            ></el-option>
+          </el-select>
+        </el-input>
+        <el-button v-if="config.action"
+          v-loading.fullscreen.lock="fullscreenLoading"
+          plain
+          style="margin-top: 10px;"
+          type="primary" 
+          @click="submitAction"
+          :icon="`el-icon-${config.action}`">
+          {{ config.action_text }}
+        </el-button>
+      </div>
+
       <UploadCsv
         v-if="config.type == 'file'"
         v-model="data[field]"
         :config="config"
+        :btnText="config.btnText"
+        :disabled="disabled()"
       >
       </UploadCsv>
       <Dataset
@@ -174,8 +200,10 @@
 <script>
 import { hasOwn } from "@/utils/util";
 import { marked } from "marked";
-import { parsinginZone } from "@/utils/index";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName } from "../utils";
+import { TimeFormats, getGroupsObj, getFieldClassMarkName, getDsnData, getActiveTabValueObject, getActiveTabKey, handleDownload } from "../utils";
+import {
+  generatePIDefaultConfigFile,
+} from "@/api/explorer/datain";
 
 export default {
   props: {
@@ -216,6 +244,7 @@ export default {
       selectOptions: [],
       date1: 0,
       date2: 0,
+      fullscreenLoading: false,
     };
   },
   computed: {
@@ -237,6 +266,14 @@ export default {
       if (typeof this.config.if === "function") {
         return this.config.if(this.data, this.sourceParent.sourceForm.data);
       }
+      if (typeof this.config.if === "string") {
+        if (this.config.if.startsWith("!")) {
+          return !this.data[this.config.if.substring(1)];
+        } else {
+          return this.data[this.config.if];
+        }
+      } 
+      
       return this.config.if;
     },
     doscShow() {
@@ -321,6 +358,13 @@ export default {
           this.isEdit && !this.isCopyable
         );
       }
+      if (typeof this.config.disabled === "string") {
+        if (this.config.disabled.startsWith("!")) {
+          return !this.data[this.config.disabled.substring(1)];
+        } else {
+          return this.data[this.config.disabled];
+        }
+      } 
       return this.config.disabled;
     },
     parseMarked(desc) {
@@ -354,6 +398,8 @@ export default {
         case "taos":
         case "postgres":
         case "mysql":
+        case "oracle":
+        case "mssql":
           this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
           this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;
@@ -366,6 +412,10 @@ export default {
           this.date1 = groupsData?.beginTime ? new Date(groupsData?.beginTime) : 0;
           this.date2 = groupsData?.endTime ? new Date(groupsData?.endTime) : 0;
           break;
+        case "pibackfill": 
+          this.date1 = new Date(groupsData?.BackfillStartTime) ?? 0;
+          this.date2 = new Date(groupsData?.BackfillEndTime) ?? 0;
+          break;
         default:
           break;
       }
@@ -374,6 +424,69 @@ export default {
       } else {
         callback();
       }
+    },
+
+    async downloadPIDefaultConfigFile() {
+      const sourceForm = this.sourceParent.sourceForm;
+      let type = sourceForm.type
+      let via = sourceForm.agent
+      let filter_params = getActiveTabValueObject(sourceForm.data)
+      if (!filter_params.filter_value_type) {
+        filter_params.filter_value_type = 'element'
+      }
+      delete filter_params['filter_point'];
+      delete filter_params['filter_element'];
+      delete filter_params['filter_template'];
+      filter_params[`filter_${filter_params.filter_value_type}`] = filter_params.filter_value
+      filter_params['model'] = getActiveTabKey(sourceForm.data)
+
+      const url = type + getDsnData(sourceForm.data, this.sourceParent.currentDefinition);
+      
+      try {
+        this.fullscreenLoading = true;
+        let defaultFileInfo = await generatePIDefaultConfigFile(url, null, via);
+        console.log("defaultFileInfo", defaultFileInfo)
+        if (typeof defaultFileInfo !== 'string') {
+          if (defaultFileInfo && defaultFileInfo.message) {
+            this.$message.error(defaultFileInfo.message);
+          } else {
+            this.$message.error('Failed to generate default config file');
+          }
+          return;
+        }
+
+        handleDownload(defaultFileInfo);
+        this.fullscreenLoading = false;
+
+        if (filter_params.transform_config_file) {
+          // 已经有配置文件情况下, 则询问是否覆盖
+          this.$confirm(this.$t('datasource.pi.confirmOverwriteConfigFile'), this.$t('tips'), {
+            confirmButtonText: this.$t('yes'),
+            cancelButtonText: this.$t('no'),
+            type: 'warning'
+          }).then(() => {
+            this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
+          });
+        } else {
+          // 如果当前使用默认配置，但是没有配置文件，则直接更新
+          this.$eventBus.$emit("updatePIDefaultConfigFile", defaultFileInfo);
+        }
+      } finally {
+        this.fullscreenLoading = false;
+      }
+    },
+
+    submitAction() {
+      const sourceForm = this.sourceParent.sourceForm;
+      let type = sourceForm.type
+
+      // 目前只有 pi 数据源的 config.action=download 的按钮用到这个方法，不同的数据源需要不同的处理
+      if (['pi', 'pibackfill'].indexOf(type) >= 0 && this.config.action === 'download') {
+        this.downloadPIDefaultConfigFile();
+      } else {
+        console.log('not support, please add your own logic here.')
+      }
+
     },
   },
 };
