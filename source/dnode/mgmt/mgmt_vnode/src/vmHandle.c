@@ -482,7 +482,9 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .diskPrimary = pVnode->diskPrimary,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
-  vmCloseVnode(pMgmt, pVnode, false);
+
+  bool commitAndRemoveWal = vnodeShouldRemoveWal(pVnode->pImpl);
+  vmCloseVnode(pMgmt, pVnode, commitAndRemoveWal);
 
   int32_t diskPrimary = wrapperCfg.diskPrimary;
   char    path[TSDB_FILENAME_LEN] = {0};
