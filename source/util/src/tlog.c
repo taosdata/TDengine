@@ -274,7 +274,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
 }
 
 static void taosReserveOldLog(char *oldName, char *keepName) {
-  if (tsLogKeepDays == 0) {
+  if (tsLogKeepDays <= 0) {
     keepName[0] = 0;
     return;
   }
