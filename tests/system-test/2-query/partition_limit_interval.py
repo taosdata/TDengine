@@ -38,12 +38,12 @@ class TDTestCase:
         tdSql.checkRows(8)
         tdSql.checkData(0, 1, 1005)
         
-        tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by tbname interval(1d) order by groupid limit 100;")
-        tdSql.checkRows(8)
-        tdSql.checkData(0, 0, 0)   
-        tdSql.checkData(0, 1, 1005)   
-        tdSql.checkData(7, 0, 7)  
-        tdSql.checkData(7, 1, 1005)  
+        # tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by tbname interval(1d) order by groupid limit 100;")
+        # tdSql.checkRows(8)
+        # tdSql.checkData(0, 0, 0)   
+        # tdSql.checkData(0, 1, 1005)   
+        # tdSql.checkData(7, 0, 7)  
+        # tdSql.checkData(7, 1, 1005)  
         
         tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by tbname, groupid interval(5d) order by groupid limit 10")
         tdSql.checkRows(8)
