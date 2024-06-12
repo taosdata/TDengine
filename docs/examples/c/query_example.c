@@ -6,12 +6,12 @@
 #include <string.h>
 #include <taos.h>
 
-typedef uint16_t VarDataLenT;
+typedef uint32_t VarDataLenT;
 
-#define TSDB_NCHAR_SIZE sizeof(int32_t)
+#define TSDB_NCHAR_SIZE    sizeof(int32_t)
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
 
-#define GET_FLOAT_VAL(x) (*(float *)(x))
+#define GET_FLOAT_VAL(x)  (*(float *)(x))
 #define GET_DOUBLE_VAL(x) (*(double *)(x))
 
 #define varDataLen(v) ((VarDataLenT *)(v))[0]
@@ -108,7 +108,7 @@ static int printResult(TAOS_RES *res) {
   int         numFields = taos_num_fields(res);
   TAOS_FIELD *fields = taos_fetch_fields(res);
   char        header[256] = {0};
-  int len = 0;
+  int         len = 0;
   for (int i = 0; i < numFields; ++i) {
     len += sprintf(header + len, "%s ", fields[i].name);
   }
@@ -140,6 +140,6 @@ int main() {
 }
 
 // output:
-// ts current voltage phase location groupid 
+// ts current voltage phase location groupid
 // 1648432611249 10.300000 219 0.310000 California.SanFrancisco 2
 // 1648432611749 12.600000 218 0.330000 California.SanFrancisco 2

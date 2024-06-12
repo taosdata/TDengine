@@ -100,7 +100,7 @@ typedef void *UdfcFuncHandle;
   } while (0)
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
-typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
+typedef uint32_t VarDataLenT;  // maxVarDataLen: 65535
 #define VARSTR_HEADER_SIZE     sizeof(VarDataLenT)
 #define varDataLen(v)          ((VarDataLenT *)(v))[0]
 #define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)
@@ -108,9 +108,11 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataCopy(dst, v)    memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
-#define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_VAR_DATA_TYPE(t)                                                                                 \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
+   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+#define IS_STR_DATA_TYPE(t) \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
@@ -198,7 +200,8 @@ static FORCE_INLINE void udfColDataSetNull(SUdfColumn *pColumn, int32_t row) {
     udfColDataSetNull_f(pColumn, row);
   }
   pColumn->hasNull = true;
-  pColumn->colData.numOfRows = ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
+  pColumn->colData.numOfRows =
+      ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentRow, const char *pData, bool isNull) {
@@ -278,8 +281,8 @@ typedef enum EUdfFuncType { UDF_FUNC_TYPE_SCALAR = 1, UDF_FUNC_TYPE_AGG = 2 } EU
 
 typedef struct SScriptUdfInfo {
   const char *name;
-  int32_t version;
-  int64_t createdTime;
+  int32_t     version;
+  int64_t     createdTime;
 
   EUdfFuncType funcType;
   int8_t       scriptType;
