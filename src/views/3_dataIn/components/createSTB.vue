@@ -61,7 +61,7 @@
                 handleChange(newVal, oldVal, column.type, index)
             "
             :min="1"
-            :max="column.type == 'NCHAR' ? 4093 : 65617"
+            :max="column.type == 'NCHAR' ? 4093 : 65517"
             label="Length"
             controls-position="right"
             class="custom-length"
