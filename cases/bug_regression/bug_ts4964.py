@@ -31,13 +31,8 @@ class TestTS4964(TDCase):
             self.tdSql.execute(f'insert into ctb1 values(now+{i}s, {i}, "content{i}", "model{i}");')
         self.tdSql.execute('flush database ts4964_test;')
         self.tdSql.execute(f'create stream stream_test fill_history 1 into ts4964_test.sample as select avg(ident) from ts4964_test.stb interval(1n);')
-        self.tdSql.query('select count(*) from ts4964_test.sample')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0]>0, True)
+        self.tdCom.check_query_data('select `avg(ident)` from ts4964_test.sample', 'select avg(ident) from ts4964_test.stb interval(1n)')
         self.tdSql.query('select `avg(ident)` from ts4964_test.sample')
-        res1 = self.tdSql.query_data
-        self.tdSql.query('select avg(ident) from ts4964_test.stb interval(1n)')
-        res2 = self.tdSql.query_data
-        self.tdSql.checkEqual(res1, res2)
         res = self._remote.cmd(self.taosd_setting["spec"]["dnodes"][0]["endpoint"].split(":")[0], f'grep -ri "Timestamp data out of range" {self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]}/taoslog0.0 | wc -l')
         self.tdSql.checkEqual(int(res), 0)
 
