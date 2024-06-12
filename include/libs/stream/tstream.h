@@ -734,6 +734,9 @@ int32_t      streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32
 void         streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs);
 void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
                                         int64_t startTs);
+void         streamMetaClearUpdateTaskList(SStreamMeta* pMeta);
+void         streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId);
+
 void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
@@ -762,8 +765,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask);
 int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                            int32_t setCode);
-int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, STaskId* pHTaskId,
-                                              SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
+int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask);
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpointInfoReq* pReq);
 SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo();
 

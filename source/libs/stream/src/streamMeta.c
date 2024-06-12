@@ -372,6 +372,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->expandFunc = expandFunc;
   pMeta->stage = stage;
   pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
+  pMeta->updateInfo.transId = -1;
 
   pMeta->startInfo.completeFn = fn;
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -1740,4 +1741,14 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
     stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
             id, vgId, transId, el);
   }
+}
+
+void streamMetaClearUpdateTaskList(SStreamMeta* pMeta) {
+  taosHashClear(pMeta->updateInfo.pTasks);
+  pMeta->updateInfo.transId = -1;
+}
+
+void streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
+  taosHashClear(pMeta->updateInfo.pTasks);
+  pMeta->updateInfo.transId = transId;
 }

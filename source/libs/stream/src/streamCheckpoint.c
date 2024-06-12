@@ -40,26 +40,8 @@ static void    checkpointTriggerMonitorFn(void* param, void* tmrId);
 
 static SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId, int32_t transId);
 
-bool streamTaskIsAllUpstreamSendTrigger(SStreamTask* pTask) {
-  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
-  int32_t numOfUpstreams = taosArrayGetSize(pTask->upstreamInfo.pList);
-  bool allSend = true;
-
-  taosThreadMutexLock(&pActiveInfo->lock);
-  int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
-
-  if (numOfRecv < numOfUpstreams) {
-    stDebug("s-task:%s received checkpoint-trigger block, idx:%d, %d upstream tasks not send yet, total:%d",
-            pTask->id.idStr, pTask->info.selfChildId, (numOfUpstreams - numOfRecv), numOfUpstreams);
-    allSend = false;
-  }
-
-  taosThreadMutexUnlock(&pActiveInfo->lock);
-  return allSend;
-}
-
 SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
-    int32_t transId) {
+                                          int32_t transId) {
   SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pChkpoint == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -436,25 +418,27 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   int32_t          code = 0;
   const char*      id = pTask->id.idStr;
   SCheckpointInfo* pInfo = &pTask->chkInfo;
+  STaskId          hTaskId = {0};
 
   taosThreadMutexLock(&pTask->lock);
 
   if (pReq->checkpointId <= pInfo->checkpointId) {
     stDebug("s-task:%s vgId:%d latest checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " no need to update the checkpoint info, updated checkpointId:%" PRId64 " checkpointVer:%" PRId64 " ignored",
-            id, vgId, pInfo->checkpointId, pInfo->checkpointVer, pReq->checkpointId, pReq->checkpointVer);
+            " no need to update the checkpoint info, updated checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " transId:%d ignored",
+            id, vgId, pInfo->checkpointId, pInfo->checkpointVer, pReq->checkpointId, pReq->checkpointVer,
+            pReq->transId);
     taosThreadMutexUnlock(&pTask->lock);
 
     { // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
       streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
-        streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+        streamMetaUnregisterTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                 id, vgId, pReq->taskId, numOfTasks);
       }
-
       streamMetaWLock(pMeta);
     }
 
@@ -492,8 +476,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
   }
 
   if (pReq->dropRelHTask) {
+    hTaskId = pTask->hTaskInfo.id;
     stDebug("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
-            pReq->taskId, vgId, pReq->hTaskId);
+            pReq->taskId, vgId, hTaskId.taskId);
     CLEAR_RELATED_FILLHISTORY_TASK(pTask);
   }
 
@@ -514,9 +499,10 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
     int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId, (int32_t) pReq->hTaskId, numOfTasks);
+    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
+            (int32_t)hTaskId.taskId, numOfTasks);
   }
 
   streamMetaWLock(pMeta);
@@ -703,9 +689,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   // update the latest checkpoint info if all works are done successfully, for rsma, the pMsgCb is null.
   if (code == TSDB_CODE_SUCCESS && (pTask->pMsgCb != NULL)) {
-    STaskId* pHTaskId = &pTask->hTaskInfo.id;
-    code = streamBuildAndSendCheckpointUpdateMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, pHTaskId, &pTask->chkInfo,
-                                                 dropRelHTask);
+    code = streamSendChkptReportMsg(pTask, &pTask->chkInfo, dropRelHTask);
     if (code == TSDB_CODE_SUCCESS) {
       code = streamTaskRemoteBackupCheckpoint(pTask, ckId, (char*)id);
       if (code != TSDB_CODE_SUCCESS) {
@@ -770,6 +754,18 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
+
+  // checkpoint-trigger recv flag is set, quit
+  if (pActiveInfo->allUpstreamTriggerRecv) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d",
+            pTask->id.idStr, vgId, ref);
+
+    taosThreadMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   taosThreadMutexUnlock(&pTask->lock);
 
   taosThreadMutexLock(&pActiveInfo->lock);
