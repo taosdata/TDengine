@@ -55,30 +55,30 @@ class TestWal(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
-            if self.replica != 1:
-                if param_value == 0:
-                    return
-            dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
-            self.tdCom.createDb(dbname, **kv_dict)
-            # self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
-            self.tdSql.query('select * from information_schema.ins_databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[query_param], param_value)
-            # ! bug TD
-            self.tdSql.query(f'show {dbname}.vgroups')
-            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            for i in self.taosd_setting['spec']['dnodes']:
-                fqdn = i['endpoint'].split(':')[0]
-                vnode_dir = i['config']['dataDir']+ "/vnode"
-                if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
-                    data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-                    break
-                else:
-                    continue
-            self.tdSql.checkEqual(db_field_kv_dict[query_param],int(data['config'][self.cfg["vnode_json_key"]]))
-            self.tdSql.execute(f'drop database {dbname}')
+            if self.replica == 1 or param_value != 0:
+                dbname = self.tdCom.get_long_name()
+                kv_dict = {test_param: param_value}
+                self.tdCom.createDb(dbname, **kv_dict)
+                # self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+                self.tdSql.query('select * from information_schema.ins_databases')
+                db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+                self.tdSql.checkEqual(db_field_kv_dict[query_param], param_value)
+                # ! bug TD
+                self.tdSql.query(f'show {dbname}.vgroups')
+                db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+                for i in self.taosd_setting['spec']['dnodes']:
+                    fqdn = i['endpoint'].split(':')[0]
+                    vnode_dir = i['config']['dataDir']+ "/vnode"
+                    if self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'):
+                        data = json.loads(self.remote.cmd(fqdn,f'cat {vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+                        break
+                    else:
+                        continue
+                self.tdSql.checkEqual(db_field_kv_dict[query_param],int(data['config'][self.cfg["vnode_json_key"]]))
+                self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
+        if self.replica != 1:
+            self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0]} replica {self.replica}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 

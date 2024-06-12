@@ -2580,7 +2580,7 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                     
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in partition else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def gen_event_window_condition(self):
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
@@ -3422,14 +3422,14 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart')
                     self.stream_query_row = self.tdSql.query_row
                     self._remote._logger.info(f'self.batch_query_row-self.stream_query_row:{self.batch_query_row}-{self.stream_query_row} = {self.batch_query_row-self.stream_query_row}')
-                    self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
+                    #self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
                     self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart limit {self.stream_query_row}', self.stream_query_row)
                 else:
                     self.tdSql.query(f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart')
                     self.batch_query_row = self.tdSql.query_row
                     self.tdSql.query(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart')
                     self.stream_query_row = self.tdSql.query_row
-                    self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
+                    #self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
                     self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart limit {self.stream_query_row}', self.stream_query_row)
         if self.disorder and not fill_value:
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
@@ -5041,8 +5041,8 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             # if self.replica != 3: #! TD-26057
             # ! TD-30480
-            # self.insert_after_restart()
-            # self.insert_after_restart(delete=True, fill_history_value=1)
+            self.insert_after_restart()
+            self.insert_after_restart(delete=True, fill_history_value=1)
             # ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()

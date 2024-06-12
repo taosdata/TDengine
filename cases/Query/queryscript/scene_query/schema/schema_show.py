@@ -250,12 +250,12 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_users;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_users')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_users` (`name` VARCHAR(24), `super` TINYINT, `enable` TINYINT, `sysinfo` TINYINT, `create_time` TIMESTAMP, `allowed_host` VARCHAR(49152)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_users` (`name` VARCHAR(24), `super` TINYINT, `enable` TINYINT, `sysinfo` TINYINT, `createdb` TINYINT, `create_time` TIMESTAMP, `allowed_host` VARCHAR(49152)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_grants;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_grants')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(9), `expire_time` VARCHAR(19), `service_time` VARCHAR(19), `expired` VARCHAR(5), `state` VARCHAR(9), `timeseries` VARCHAR(21), `dnodes` VARCHAR(10), `cpu_cores` VARCHAR(13)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(32), `expire_time` VARCHAR(19), `service_time` VARCHAR(19), `expired` VARCHAR(5), `state` VARCHAR(9), `timeseries` VARCHAR(21), `dnodes` VARCHAR(10), `cpu_cores` VARCHAR(13)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vgroups;"
         self.tdSql.query(show_create_sql)          
