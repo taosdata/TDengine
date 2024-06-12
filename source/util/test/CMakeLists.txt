@@ -124,3 +124,11 @@ add_test(
 #    NAME decompressTest 
 #    COMMAND decompressTest
 #)
+
+# terrorTest
+add_executable(terrorTest "terrorTest.cpp")
+target_link_libraries(terrorTest os util common gtest_main)
+add_test(
+    NAME terrorTest
+    COMMAND terrorTest
+)

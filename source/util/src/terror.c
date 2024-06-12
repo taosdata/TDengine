@@ -21,10 +21,10 @@
 
 #define TAOS_ERROR_C
 
-typedef struct {
-  int32_t     val;
-  const char* str;
-} STaosError;
+// typedef struct {
+//   int32_t     val;
+//   const char* str;
+// } STaosError;
 
 static threadlocal int32_t tsErrno;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
@@ -35,7 +35,9 @@ char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
+#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg), .origin = #name},
+STaosError errors[] = {
+    TAOS_DEFINE_ERROR(TSDB_CODE_SUCCESS,          "success")
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
@@ -43,11 +45,6 @@ char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 #define TAOS_SYSTEM_ERROR(code) (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)     ((err) >= 0)
 #define TAOS_FAILED(err)        ((err) < 0)
-
-#ifdef TAOS_ERROR_C
-STaosError errors[] = {
-    {.val = 0, .str = "success"},
-#endif
 
 // rpc
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_UNAVAIL,          "Unable to establish connection")
@@ -784,7 +781,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 
-#ifdef TAOS_ERROR_C
+#if defined(TAOS_ERROR_INFO) || defined(TAOS_ERROR_C)
 };
 #endif
 
@@ -837,3 +834,5 @@ const char* tstrerror(int32_t err) {
 }
 
 const char* terrstr() { return tstrerror(terrno); }
+
+int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }

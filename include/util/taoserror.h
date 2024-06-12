@@ -24,6 +24,12 @@ extern "C" {
 
 // clang-format off
 
+typedef struct {
+  int32_t     val;
+  const char* str;
+  const char* origin;
+} STaosError;
+
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -38,6 +44,7 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
 #define terrMsg                             (taosGetErrMsg())
 
