@@ -555,7 +555,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH) != 0) return -1;
 
-  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
@@ -729,7 +729,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
     pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
   }
