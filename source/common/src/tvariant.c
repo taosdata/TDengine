@@ -88,7 +88,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
       return TSDB_CODE_FAILED;
     }
-    if (val > UINT64_MAX) {
+    if (val > (double)UINT64_MAX) {
       errno = ERANGE;
       return TSDB_CODE_FAILED;
     }
@@ -172,7 +172,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(z, &endPtr));
-      if (!IS_VALID_INT64(val)) {
+      if(val >= (double)INT64_MIN && val <= (double)INT64_MAX){
         return TSDB_CODE_FAILED;
       }
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
@@ -271,7 +271,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(p, &endPtr));
-      if (!IS_VALID_UINT64(val)) {
+      if (val < 0 || val > (double)UINT64_MAX) {
         return TSDB_CODE_FAILED;
       }
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
