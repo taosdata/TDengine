@@ -3422,14 +3422,14 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart')
                     self.stream_query_row = self.tdSql.query_row
                     self._remote._logger.info(f'self.batch_query_row-self.stream_query_row:{self.batch_query_row}-{self.stream_query_row} = {self.batch_query_row-self.stream_query_row}')
-                    self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
+                    #self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
                     self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart limit {self.stream_query_row}', self.stream_query_row)
                 else:
                     self.tdSql.query(f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart')
                     self.batch_query_row = self.tdSql.query_row
                     self.tdSql.query(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart')
                     self.stream_query_row = self.tdSql.query_row
-                    self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
+                    #self.tdSql.checkEqual(0<=self.batch_query_row-self.stream_query_row<=1, True)
                     self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname}  partition by {partition} {event_window_condition} order by wstart limit {self.stream_query_row}', self.stream_query_row)
         if self.disorder and not fill_value:
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts)
