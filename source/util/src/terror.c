@@ -779,7 +779,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 
-#if defined(TAOS_ERROR_INFO) || defined(TAOS_ERROR_C)
+#ifdef TAOS_ERROR_C
 };
 #endif
 
