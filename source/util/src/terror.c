@@ -21,11 +21,6 @@
 
 #define TAOS_ERROR_C
 
-typedef struct {
-  int32_t     val;
-  const char* str;
-} STaosError;
-
 static threadlocal int32_t tsErrno;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
@@ -35,7 +30,7 @@ char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
+#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg), .macro = #name},
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
@@ -46,7 +41,7 @@ char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
 STaosError errors[] = {
-    {.val = 0, .str = "success"},
+    TAOS_DEFINE_ERROR(TSDB_CODE_SUCCESS, "success")
 #endif
 
 // rpc
@@ -735,3 +730,5 @@ const char* tstrerror(int32_t err) {
 }
 
 const char* terrstr() { return tstrerror(terrno); }
+
+int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }
