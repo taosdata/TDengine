@@ -795,10 +795,10 @@ function is_version_compatible() {
   if [ -f ${script_dir}/driver/vercomp.txt ]; then
     min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
   else
-    min_compatible_version=$(${script_dir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 5)
   fi
 
-  exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
+  exist_version=$(${installDir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 3)
   vercomp $exist_version "3.0.0.0"
   case $? in
   2)
