@@ -716,6 +716,8 @@ static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTas
       pReq->checkpointTs = pInfo->ts;
       pReq->dropRelHTask = pInfo->dropHTask;
       pReq->transId = pInfo->transId;
+      pReq->hStreamId = pTask->hTaskInfo.id.streamId;
+      pReq->hTaskId = pTask->hTaskInfo.id.taskId;
     }
   }
 
