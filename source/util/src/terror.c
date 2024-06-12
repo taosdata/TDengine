@@ -21,11 +21,6 @@
 
 #define TAOS_ERROR_C
 
-// typedef struct {
-//   int32_t     val;
-//   const char* str;
-// } STaosError;
-
 static threadlocal int32_t tsErrno;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
@@ -35,9 +30,7 @@ char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg), .origin = #name},
-STaosError errors[] = {
-    TAOS_DEFINE_ERROR(TSDB_CODE_SUCCESS,          "success")
+#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg), .macro = #name},
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
@@ -45,6 +38,11 @@ STaosError errors[] = {
 #define TAOS_SYSTEM_ERROR(code) (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)     ((err) >= 0)
 #define TAOS_FAILED(err)        ((err) < 0)
+
+#ifdef TAOS_ERROR_C
+STaosError errors[] = {
+    TAOS_DEFINE_ERROR(TSDB_CODE_SUCCESS, "success")
+#endif
 
 // rpc
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_UNAVAIL,          "Unable to establish connection")

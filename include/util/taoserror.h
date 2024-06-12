@@ -27,7 +27,7 @@ extern "C" {
 typedef struct {
   int32_t     val;
   const char* str;
-  const char* origin;
+  const char* macro;
 } STaosError;
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
