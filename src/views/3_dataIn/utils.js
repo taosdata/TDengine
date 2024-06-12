@@ -1216,7 +1216,6 @@ function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
   let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
-  console.log('hshshhs----data',endpoint);
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
