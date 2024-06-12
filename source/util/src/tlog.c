@@ -83,6 +83,7 @@ static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
+bool tsForbiddenBackTrace = false;
 #ifdef ASSERT_NOT_CORE
 bool tsAssert = false;
 #else
@@ -162,7 +163,10 @@ int32_t taosInitSlowLog() {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logFileName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logFileName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
     }
@@ -191,7 +195,10 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
     }
@@ -873,7 +880,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, const char 
   taosPrintLogImp(1, 255, buffer, len);
 
   taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
-  taosPrintTrace(flags, level, dflag, -1);
+  if (tsForbiddenBackTrace == false) taosPrintTrace(flags, level, dflag, -1);
 
   if (tsAssert) {
     // taosCloseLog();
@@ -935,13 +942,13 @@ _return:
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
 #ifdef _TD_DARWIN_64
-  taosPrintTrace(flags, level, dflag, 4);
+  if (tsForbiddenBackTrace == false) taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
   taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
                taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
-  taosPrintTrace(flags, level, dflag, 3);
+  if (tsForbiddenBackTrace == false) taosPrintTrace(flags, level, dflag, 3);
 #else
-  taosPrintTrace(flags, level, dflag, 8);
+  if (tsForbiddenBackTrace == false) taosPrintTrace(flags, level, dflag, 8);
 #endif
 
   taosMemoryFree(pMsg);
@@ -1050,7 +1057,7 @@ bool taosAssertRelease(bool condition) {
   int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
 
   taosPrintLog(flags, level, dflag, "tAssert called in release mode, exit:%d", tsAssert);
-  taosPrintTrace(flags, level, dflag, 0);
+  if (tsForbiddenBackTrace == false) taosPrintTrace(flags, level, dflag, 0);
 
   if (tsAssert) {
     taosMsleep(300);
