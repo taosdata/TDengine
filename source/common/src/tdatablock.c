@@ -1362,6 +1362,8 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
     return;
   }
 
+  taosMemoryFreeClear(pDataBlock->pBlockAgg);
+
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);

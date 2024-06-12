@@ -2178,7 +2178,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     return code;
   }
   if (group == NULL || groupByTbname) {
-    if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+    if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
       pTableListInfo->remainGroups =
           taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pTableListInfo->remainGroups == NULL) {
