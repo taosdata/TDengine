@@ -19,6 +19,7 @@ import taos
 import frame
 import frame.etool
 import frame.eos
+import frame.eutil
 
 from frame.log import *
 from frame.cases import *
@@ -46,17 +47,20 @@ for test:
 
 
 class TDTestCase(TBase):
+    index = eutil.cpuRand(20) + 1
+    bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
         's3EndPoint': 'http://192.168.1.52:9000', 
         's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
-        's3BucketName': 'ci-bucket',
+        's3BucketName': f'{bucketName}',
         's3PageCacheSize': '10240',
         "s3UploadDelaySec": "10",
         's3MigrateIntervalSec': '600',
         's3MigrateEnabled': '1'
     }
 
+    tdLog.info(f"assign bucketName is {bucketName}\n")
     maxFileSize = (128 + 10) * 1014 * 1024 # add 10M buffer
 
     def insertData(self):
@@ -241,10 +245,9 @@ class TDTestCase(TBase):
 
     #
     def preDb(self, vgroups):
-
-        cnt = int(time.time())%3 + 1
+        cnt = int(time.time())%2 + 1
         for i in range(cnt):
-             vg = int(time.time()*1000)%10 + 1
+             vg = eutil.cpuRand(9) + 1
              sql = f"create database predb vgroups {vg}"
              tdSql.execute(sql, show=True)
              sql = "drop database predb"

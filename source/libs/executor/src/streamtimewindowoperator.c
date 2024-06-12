@@ -855,7 +855,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   int32_t pkLen = 0;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
-    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->basic.primaryPkIndex);
   }
 
   if (pSDataBlock->info.window.skey != tsCols[0] || pSDataBlock->info.window.ekey != tsCols[endRowId]) {
@@ -1427,7 +1427,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
   }
 
-  removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  if (IS_FINAL_INTERVAL_OP(pOperator) && !pInfo->destHasPrimaryKey) {
+    removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  }
   if (IS_FINAL_INTERVAL_OP(pOperator)) {
     closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval,
                               pInfo->pPullDataMap, pInfo->pUpdatedMap, pInfo->pDelWins, pOperator);
@@ -2142,7 +2144,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   int32_t pkLen = 0;
   SColumnInfoData* pPkColDataInfo = NULL;
   if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
-    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+    pPkColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->basic.primaryPkIndex);
   }
 
   for (int32_t i = 0; i < rows;) {
@@ -2845,7 +2847,9 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   closeSessionWindow(pAggSup->pResultRows, &pInfo->twAggSup, pInfo->pStUpdated);
   closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs);
   copyUpdateResult(&pInfo->pStUpdated, pInfo->pUpdated, sessionKeyCompareAsc);
-  removeSessionDeleteResults(pInfo->pStDeleted, pInfo->pUpdated);
+  if (!pInfo->destHasPrimaryKey) {
+    removeSessionDeleteResults(pInfo->pStDeleted, pInfo->pUpdated);
+  }
   if (pInfo->isHistoryOp) {
     getMaxTsWins(pInfo->pUpdated, pInfo->historyWins);
   }
@@ -4131,7 +4135,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
   }
   pOperator->status = OP_RES_TO_RETURN;
-  removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  if (!pInfo->destHasPrimaryKey) {
+    removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
+  }
   closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL,
                             pInfo->pUpdatedMap, pInfo->pDelWins, pOperator);
   if (pInfo->destHasPrimaryKey && IS_NORMAL_INTERVAL_OP(pOperator)) {

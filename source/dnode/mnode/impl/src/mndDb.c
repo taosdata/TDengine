@@ -874,9 +874,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 #endif
   mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
-    goto _OVER;
-  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -899,6 +896,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     } else {  // TSDB_CODE_APP_ERROR
       goto _OVER;
     }
+  }
+
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
   }
 
   if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {

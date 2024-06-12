@@ -24,6 +24,7 @@
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
 static void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
+static void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo);
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -70,12 +71,12 @@ static void freeItem(void* p) {
 }
 
 static void freeUpstreamItem(void* p) {
-  SStreamChildEpInfo** pInfo = p;
+  SStreamUpstreamEpInfo** pInfo = p;
   taosMemoryFree(*pInfo);
 }
 
-static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
-  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
+static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
+  SStreamUpstreamEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamUpstreamEpInfo));
   if (pEpInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -106,7 +107,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
 
   pTask->info.taskLevel = taskLevel;
   pTask->info.fillHistory = fillHistory;
-  pTask->info.triggerParam = triggerParam;
+  pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
   pTask->status.pSM = streamCreateStateMachine(pTask);
@@ -187,8 +188,9 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  char*                p = NULL;
-  int32_t              taskId = pTask->id.taskId;
+  char*   p = NULL;
+  int32_t taskId = pTask->id.taskId;
+
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
@@ -200,7 +202,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
   taosThreadMutexUnlock(&pTask->lock);
 
-  stDebug("start to free s-task:0x%x, %p, state:%s", taskId, pTask, p);
+  stDebug("start to free s-task:0x%x %p, state:%s", taskId, pTask, p);
 
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
@@ -226,9 +228,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->hTaskInfo.pTimer = NULL;
   }
 
-  if (pTask->msgInfo.pTimer != NULL) {
-    /*bool ret = */taosTmrStop(pTask->msgInfo.pTimer);
-    pTask->msgInfo.pTimer = NULL;
+  if (pTask->msgInfo.pRetryTmr != NULL) {
+    /*bool ret = */taosTmrStop(pTask->msgInfo.pRetryTmr);
+    pTask->msgInfo.pRetryTmr = NULL;
   }
 
   if (pTask->inputq.queue) {
@@ -253,7 +255,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   streamClearChkptReadyMsg(pTask);
-  pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
 
   if (pTask->msgInfo.pData != NULL) {
     clearBufferedDispatchMsg(pTask);
@@ -275,10 +276,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taskDbRemoveRef(pTask->pBackend);
   }
 
-  if (pTask->id.idStr != NULL) {
-    taosMemoryFree((void*)pTask->id.idStr);
-  }
-
   if (pTask->pNameMap) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
@@ -291,6 +288,22 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosThreadMutexDestroy(&pTask->lock);
 
   pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+
+  if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
+    char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
+    sprintf(path, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, pTask->id.idStr);
+    taosRemoveDir(path);
+
+    stInfo("s-task:0x%x vgId:%d remove all backend files:%s", taskId, pTask->pMeta->vgId, path);
+    taosMemoryFree(path);
+  }
+
+  if (pTask->id.idStr != NULL) {
+    taosMemoryFree((void*)pTask->id.idStr);
+  }
+
+  streamTaskDestroyActiveChkptInfo(pTask->chkInfo.pActiveInfo);
+  pTask->chkInfo.pActiveInfo = NULL;
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -404,6 +417,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (pTask->chkInfo.pActiveInfo == NULL) {
+    pTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -423,8 +440,12 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
   }
 }
 
+int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask) {
+  return taosArrayGetSize(pTask->upstreamInfo.pList);
+}
+
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
-  SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
+  SStreamUpstreamEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
   if (pEpInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -443,7 +464,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
 
   int32_t numOfUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < numOfUpstream; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->nodeId == nodeId) {
       bool equal = isEpsetEqual(&pInfo->epSet, pEpSet);
       if (!equal) {
@@ -579,7 +600,7 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
 
   int32_t size = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < size; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     pInfo->stage = -1;
   }
 
@@ -593,7 +614,7 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   }
 
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     pInfo->dataAllowed = true;
   }
 
@@ -602,9 +623,20 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if (pInfo != NULL) {
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if ((pInfo != NULL) && pInfo->dataAllowed) {
     pInfo->dataAllowed = false;
+    int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    ASSERT(t <= streamTaskGetNumOfUpstream(pTask));
+  }
+}
+
+void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if ((pInfo != NULL) && (!pInfo->dataAllowed)) {
+    int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+    ASSERT(t >= 0);
+    pInfo->dataAllowed = true;
   }
 }
 
@@ -686,17 +718,63 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   pReq->head.vgId = vgId;
   pReq->taskId = pTaskId->taskId;
   pReq->streamId = pTaskId->streamId;
-  pReq->resetRelHalt = resetRelHalt;
+  pReq->resetRelHalt = resetRelHalt;  // todo: remove this attribute
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
   int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d failed to send drop task:0x%x msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
-    return code;
+  } else {
+    stDebug("vgId:%d build and send drop task:0x%x msg", vgId, pTaskId->taskId);
   }
 
-  stDebug("vgId:%d build and send drop task:0x%x msg", vgId, pTaskId->taskId);
   return code;
+}
+
+int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
+  int32_t     code;
+  int32_t     tlen = 0;
+  int32_t     vgId = pTask->pMeta->vgId;
+  const char* id = pTask->id.idStr;
+  SActiveCheckpointInfo* pActive = pCheckpointInfo->pActiveInfo;
+
+  SCheckpointReport req = {.streamId = pTask->id.streamId,
+                           .taskId = pTask->id.taskId,
+                           .nodeId = vgId,
+                           .dropHTask = dropRelHTask,
+                           .transId = pActive->transId,
+                           .checkpointId = pActive->activeId,
+                           .checkpointVer = pCheckpointInfo->processedVer,
+                           .checkpointTs = pCheckpointInfo->startTs};
+
+  tEncodeSize(tEncodeStreamTaskChkptReport, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+
+  void* buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
+  }
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeStreamTaskChkptReport(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {0};
+  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_REPORT, buf, tlen);
+  stDebug("s-task:%s vgId:%d build and send task checkpoint-report to mnode", id, vgId);
+
+  tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+  return 0;
 }
 
 STaskId streamTaskGetTaskId(const SStreamTask* pTask) {
@@ -730,6 +808,10 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->stage = pSrc->stage;
   pDst->inputQUsed = pSrc->inputQUsed;
   pDst->inputRate = pSrc->inputRate;
+  pDst->procsTotal = pSrc->procsTotal;
+  pDst->procsThroughput = pSrc->procsThroughput;
+  pDst->outputTotal = pSrc->outputTotal;
+  pDst->outputThroughput = pSrc->outputThroughput;
   pDst->processedVer = pSrc->processedVer;
   pDst->verRange = pSrc->verRange;
   pDst->sinkQuota = pSrc->sinkQuota;
@@ -815,16 +897,34 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   return 0;
 }
 
-SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+SStreamUpstreamEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->taskId == taskId) {
       return pInfo;
     }
   }
 
   stError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
+  return NULL;
+}
+
+SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
+  if (pTask->info.taskLevel == TASK_OUTPUT__FIXED_DISPATCH) {
+    if (pTask->outputInfo.fixedDispatcher.taskId == taskId) {
+      return &pTask->outputInfo.fixedDispatcher.epSet;
+    }
+  } else if (pTask->info.taskLevel == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* pList = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
+    for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+      SVgroupInfo* pVgInfo = taosArrayGet(pList, i);
+      if (pVgInfo->taskId == taskId) {
+        return &pVgInfo->epSet;
+      }
+    }
+  }
+
   return NULL;
 }
 
@@ -865,4 +965,76 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
     return code;
   }
   return streamTrySchedExec(pTask);
+}
+
+void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) {
+  pTask->status.removeBackendFiles = true;
+}
+
+int32_t streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId) {
+  if (pTransId != NULL) {
+    *pTransId = pTask->chkInfo.pActiveInfo->transId;
+  }
+
+  if (pCheckpointId != NULL) {
+    *pCheckpointId = pTask->chkInfo.pActiveInfo->activeId;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeCheckpointId) {
+  pTask->chkInfo.pActiveInfo->activeId = activeCheckpointId;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId) {
+  pTask->chkInfo.pActiveInfo->transId = transId;
+  pTask->chkInfo.pActiveInfo->activeId = checkpointId;
+  pTask->chkInfo.pActiveInfo->failedId = checkpointId;
+  return TSDB_CODE_SUCCESS;
+}
+
+SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo() {
+  SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
+  taosThreadMutexInit(&pInfo->lock, NULL);
+
+  pInfo->pDispatchTriggerList = taosArrayInit(4, sizeof(STaskTriggerSendInfo));
+  pInfo->pReadyMsgList = taosArrayInit(4, sizeof(STaskCheckpointReadyInfo));
+  pInfo->pCheckpointReadyRecvList = taosArrayInit(4, sizeof(STaskDownstreamReadyInfo));
+  return pInfo;
+}
+
+void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+
+  taosThreadMutexDestroy(&pInfo->lock);
+  pInfo->pDispatchTriggerList = taosArrayDestroy(pInfo->pDispatchTriggerList);
+  pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
+  pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
+
+  if (pInfo->pChkptTriggerTmr != NULL) {
+    taosTmrStop(pInfo->pChkptTriggerTmr);
+    pInfo->pChkptTriggerTmr = NULL;
+  }
+
+  if (pInfo->pSendReadyMsgTmr != NULL) {
+    taosTmrStop(pInfo->pSendReadyMsgTmr);
+    pInfo->pSendReadyMsgTmr = NULL;
+  }
+
+  taosMemoryFree(pInfo);
+}
+
+void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
+  pInfo->activeId = 0;  // clear the checkpoint id
+  pInfo->failedId = 0;
+  pInfo->transId = 0;
+  pInfo->allUpstreamTriggerRecv = 0;
+  pInfo->dispatchTrigger = false;
+
+  taosArrayClear(pInfo->pDispatchTriggerList);
+  taosArrayClear(pInfo->pCheckpointReadyRecvList);
 }

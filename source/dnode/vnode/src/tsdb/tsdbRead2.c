@@ -226,14 +226,10 @@ static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) { return pWindow->skey 
 // Update the query time window according to the data time to live(TTL) information, in order to avoid to return
 // the expired data to client, even it is queried already.
 static STimeWindow updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow) {
-  STsdbKeepCfg* pCfg = &pTsdb->keepCfg;
-
-  int64_t now = taosGetTimestamp(pCfg->precision);
-  int64_t earilyTs = now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
-
+  int64_t     earlyTs = tsdbGetEarliestTs(pTsdb);
   STimeWindow win = *pWindow;
-  if (win.skey < earilyTs) {
-    win.skey = earilyTs;
+  if (win.skey < earlyTs) {
+    win.skey = earlyTs;
   }
 
   return win;
@@ -4260,9 +4256,6 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   if (pResBlock != NULL) {
     blockDataEnsureCapacity(pResBlock, capacity);
   }
-
-  // for debug purpose
-//  capacity = 7;
 
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
   if (code != TSDB_CODE_SUCCESS) {

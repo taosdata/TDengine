@@ -155,7 +155,7 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
+int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask) {
   // set the state to be ready
   streamTaskSetReady(pTask);
   streamTaskSetRangeStreamCalc(pTask);

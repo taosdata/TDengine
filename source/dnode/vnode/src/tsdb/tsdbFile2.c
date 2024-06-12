@@ -44,7 +44,7 @@ static const struct {
 };
 
 void remove_file(const char *fname) {
-  taosRemoveFile(fname);
+  (void)taosRemoveFile(fname);
   tsdbInfo("file:%s is removed", fname);
 }
 

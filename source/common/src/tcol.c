@@ -131,6 +131,7 @@ const char* columnEncodeStr(uint8_t type) {
       encode = TSDB_COLUMN_ENCODE_DISABLED;
       break;
     default:
+      encode = TSDB_COLUMN_ENCODE_UNKNOWN;
       break;
   }
   return encode;
@@ -157,8 +158,8 @@ const char* columnCompressStr(uint16_t type) {
     case TSDB_COLVAL_COMPRESS_DISABLED:
       compress = TSDB_COLUMN_COMPRESS_DISABLED;
       break;
-
     default:
+      compress = TSDB_COLUMN_COMPRESS_UNKNOWN;
       break;
   }
   return compress;

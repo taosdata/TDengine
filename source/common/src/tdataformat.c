@@ -383,7 +383,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
-            memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+            if (colValArray[colValIndex].value.nData > 0) {
+              memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+            }
             payloadSize += colValArray[colValIndex].value.nData;
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
@@ -421,6 +423,79 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   } else {
     code = tRowBuildKVRow(aColVal, &sinfo, pTSchema, ppRow);
   }
+  return code;
+}
+
+static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *param) {
+  if (((SBindInfo *)p1)->columnId < ((SBindInfo *)p2)->columnId) {
+    return -1;
+  } else if (((SBindInfo *)p1)->columnId > ((SBindInfo *)p2)->columnId) {
+    return 1;
+  }
+  return 0;
+}
+
+/* build rows to `rowArray` from bind
+ * `infos` is the bind information array
+ * `numOfInfos` is the number of bind information
+ * `infoSorted` is whether the bind information is sorted by column id
+ * `pTSchema` is the schema of the table
+ * `rowArray` is the array to store the rows
+ */
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray) {
+  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!infoSorted) {
+    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo), NULL, tBindInfoCompare);
+  }
+
+  int32_t code = 0;
+  int32_t numOfRows = infos[0].bind->num;
+  SArray *colValArray;
+  SColVal colVal;
+
+  if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
+    taosArrayClear(colValArray);
+
+    for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
+      if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
+        colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
+      } else {
+        SValue value = {
+            .type = infos[iInfo].type,
+        };
+        if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
+          value.nData = infos[iInfo].bind->length[iRow];
+          value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
+        } else {
+          memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
+                 infos[iInfo].bind->buffer_length);
+        }
+        colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
+      }
+      taosArrayPush(colValArray, &colVal);
+    }
+
+    SRow *row;
+    if ((code = tRowBuild(colValArray, pTSchema, &row))) {
+      goto _exit;
+    }
+
+    if ((taosArrayPush(rowArray, &row)) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(colValArray);
   return code;
 }
 
@@ -1316,6 +1391,7 @@ int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
         pVal->val = pSrc->pks[i].val;
       } else {
         pVal->nData = pSrc->pks[i].nData;
+        ASSERT(pSrc->pks[i].pData != NULL);
         memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
       }
     }

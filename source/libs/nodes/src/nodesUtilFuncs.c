@@ -240,6 +240,26 @@ int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAlloc
   return code;
 }
 
+int32_t nodesSimAcquireAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
+  if (NULL == pAllocator) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesSimReleaseAllocator(int64_t allocatorId) {
+  if (allocatorId <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
+}
+
 int32_t nodesAcquireAllocator(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -943,12 +963,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_WHEN_THEN: {
       SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pWhenThen->pWhen);
       nodesDestroyNode(pWhenThen->pThen);
       break;
     }
     case QUERY_NODE_CASE_WHEN: {
       SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pCaseWhen->pCase);
       nodesDestroyNode(pCaseWhen->pElse);
       nodesDestroyList(pCaseWhen->pWhenThenList);
