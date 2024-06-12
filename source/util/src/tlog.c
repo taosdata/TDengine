@@ -66,6 +66,7 @@ typedef struct {
   int32_t       lines;
   int32_t       flag;
   int32_t       openInProgress;
+  int64_t       lastKeepFileSec;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
   SLogBuff     *logHandle;
@@ -267,19 +268,33 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   }
 }
 
-static void taosKeepOldLog(char *oldName) {
-  if (tsLogKeepDays == 0) return;
+static void taosReserveOldLog(char *oldName, char *keepName) {
+  if (tsLogKeepDays <= 0) {
+    keepName[0] = 0;
+    return;
+  }
 
+  int32_t code = 0;
   int64_t fileSec = taosGetTimestampSec();
-  char    fileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+  if (tsLogObj.lastKeepFileSec < fileSec) {
+    tsLogObj.lastKeepFileSec = fileSec;
+  } else {
+    fileSec = ++tsLogObj.lastKeepFileSec;
+  }
+  snprintf(keepName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+  if ((code = taosRenameFile(oldName, keepName))) {
+    keepName[0] = 0;
+    uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+  }
+}
 
-  (void)taosRenameFile(oldName, fileName);
-
-  char compressFileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
-  if (taosCompressFile(fileName, compressFileName) == 0) {
-    (void)taosRemoveFile(fileName);
+static void taosKeepOldLog(char *oldName) {
+  if (oldName[0] != 0) {
+    char compressFileName[LOG_FILE_NAME_LEN + 20];
+    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.gz", oldName);
+    if (taosCompressFile(oldName, compressFileName) == 0) {
+      (void)taosRemoveFile(oldName);
+    }
   }
 
   if (tsLogKeepDays > 0) {
@@ -316,13 +331,13 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  OldFileKeeper* oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
+  OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;
-  memcpy(oldFileKeeper->keepName, keepName, LOG_FILE_NAME_LEN + 20);
+  taosReserveOldLog(keepName, oldFileKeeper->keepName);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");

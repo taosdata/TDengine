@@ -127,7 +127,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* p
   return false;
 }
 
-int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
+int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamId) {
   taosThreadMutexLock(&execInfo.lock);
   int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
   if (num <= 0) {
@@ -136,12 +136,13 @@ int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
   }
 
   mndStreamClearFinishedTrans(pMnode, NULL);
-  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId));
   if (pEntry != NULL) {
     SStreamTransInfo tInfo = *pEntry;
     taosThreadMutexUnlock(&execInfo.lock);
 
-    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0 ||
+        strcmp(tInfo.name, MND_STREAM_CHKPT_UPDATE_NAME) == 0) {
       return tInfo.transId;
     }
   } else {
@@ -159,7 +160,7 @@ STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
     return NULL;
   }
 
-  mInfo("s-task:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
+  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -246,8 +247,9 @@ int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) 
 }
 
 int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                       int32_t retryCode) {
-  STransAction action = {.epSet = *pEpset, .contLen = contLen, .pCont = pCont, .msgType = msgType, .retryCode = retryCode};
+                       int32_t retryCode, int32_t acceptCode) {
+  STransAction action = {.epSet = *pEpset, .contLen = contLen, .pCont = pCont, .msgType = msgType, .retryCode = retryCode,
+                         .acceptableCode = acceptCode};
   return mndTransAppendRedoAction(pTrans, &action);
 }
 

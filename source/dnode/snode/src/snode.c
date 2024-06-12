@@ -136,6 +136,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
       return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
+      return tqStreamProcessChkptReportRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER:
       return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:

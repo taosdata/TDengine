@@ -615,7 +615,7 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
  * appropriate batch of blocks should be handled in 5 to 10 sec.
  */
 static int32_t doStreamExecTask(SStreamTask* pTask) {
-  const char*      id = pTask->id.idStr;
+  const char* id = pTask->id.idStr;
 
   // merge multiple input data if possible in the input queue.
   stDebug("s-task:%s start to extract data block from inputQ", id);
@@ -699,20 +699,15 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
     if (type != STREAM_INPUT__CHECKPOINT) {
       doStreamTaskExecImpl(pTask, pInput);
-    }
-
-    streamFreeQitem(pInput);
-
-    // todo other thread may change the status
+      streamFreeQitem(pInput);
+    } else { // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-    if (type == STREAM_INPUT__CHECKPOINT) {
-      // todo add lock
+      taosThreadMutexLock(&pTask->lock);
       SStreamTaskState* pState = streamTaskGetStatus(pTask);
       if (pState->state == TASK_STATUS__CK) {
         stDebug("s-task:%s checkpoint block received, set status:%s", id, pState->name);
         streamTaskBuildCheckpoint(pTask);
-      } else {
-        // todo refactor
+      } else { // todo refactor
         int32_t code = 0;
         if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           code = streamTaskSendCheckpointSourceRsp(pTask);
@@ -727,6 +722,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         }
       }
 
+      taosThreadMutexUnlock(&pTask->lock);
+      streamFreeQitem(pInput);
       return 0;
     }
   }
