@@ -5041,8 +5041,8 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             # if self.replica != 3: #! TD-26057
             # ! TD-30480
-            # self.insert_after_restart()
-            # self.insert_after_restart(delete=True, fill_history_value=1)
+            self.insert_after_restart()
+            self.insert_after_restart(delete=True, fill_history_value=1)
             # ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()

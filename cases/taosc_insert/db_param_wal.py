@@ -78,7 +78,7 @@ class TestWal(TDCase):
                 self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         if self.replica != 1:
-            self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0]}')
+            self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0]} replica {self.replica}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
