@@ -172,7 +172,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(z, &endPtr));
-      if(val >= (double)INT64_MIN && val <= (double)INT64_MAX){
+      if(val < (double)INT64_MIN || val > (double)INT64_MAX){
         return TSDB_CODE_FAILED;
       }
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
