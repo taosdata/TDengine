@@ -242,7 +242,7 @@ class TDTestCase:
         tdSql.execute('use dbtest')
         tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute('create table tb1 using stb tags(1)')
-        for i in range(10,30):
+        for i in range(1,600, 30):
             tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
         tdSql.execute('flush database dbtest')
         time.sleep(3)
@@ -250,21 +250,26 @@ class TDTestCase:
         tdDnodes.stop(1)
         cfg={
             '/mnt/data1 0 1' : 'dataDir',
-            '/mnt/data2 1 0' : 'dataDir',
-            '/mnt/data3 2 0' : 'dataDir',        
+            '/mnt/data2 1 0 1' : 'dataDir',
+            '/mnt/data3 1 0 0' : 'dataDir',
+            '/mnt/data4 1 0' : 'dataDir',
         }
         tdSql.createDir('/mnt/data2')
         tdSql.createDir('/mnt/data3')
+        tdSql.createDir('/mnt/data4')
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
         checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
         checkFiles('/mnt/data2/vnode/*/tsdb/v*',0)
         checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
+        checkFiles('/mnt/data4/vnode/*/tsdb/v*',0)
         tdSql.execute('alter database dbtest keep 10d,365d,3650d')
         tdSql.execute('trim database dbtest')
         time.sleep(3)
         checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
         checkFiles('/mnt/data2/vnode/*/tsdb/v*',1)
+        checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
+        checkFiles('/mnt/data4/vnode/*/tsdb/v*',1)
 
     def run(self):
         self.basic()

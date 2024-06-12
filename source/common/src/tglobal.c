@@ -221,8 +221,6 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 int64_t  tsMinDiskFreeSize = TFS_MIN_DISK_FREE_SIZE;
 
-int a = sizeof(tsDiskCfg);
-
 // stream scheduler
 bool tsDeployOnSnode = true;
 
