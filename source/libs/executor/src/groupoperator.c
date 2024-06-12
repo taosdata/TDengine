@@ -863,10 +863,15 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SDataGroupInfo* pGroupInfo =
       (pInfo->groupIndex != -1) ? taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex) : NULL;
   if (pInfo->groupIndex == -1 || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
+    if(pGroupInfo != NULL) {
+        SSDataBlock* ret = buildPartitionResultForNotLoadBlock(pGroupInfo);
+        if(ret != NULL) return ret;
+    }
     // try next group data
-    
     if (pInfo->groupIndex + 1 >= taosArrayGetSize(pInfo->sortedGroupArray)) {
-      return buildPartitionResultForNotLoadBlock(pOperator);
+      setOperatorCompleted(pOperator);
+      clearPartitionOperator(pInfo);
+      return NULL;
     }
     ++pInfo->groupIndex;
 
@@ -880,22 +885,22 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
-    if (*(int32_t*)page == 0) {
-      SSDataBlock* ret = buildPartitionResultForNotLoadBlock(pGroupInfo);
-      if (ret != NULL) return ret;
-      releaseBufPage(pInfo->pBuf, page);
-      if (pInfo->pageIndex < taosArrayGetSize(pGroupInfo->pPageList)) {
-        pInfo->pageIndex += 1;
-      } else if (pInfo->groupIndex + 1 < taosArrayGetSize(pInfo->sortedGroupArray)) {
-        pInfo->groupIndex++;
-        pInfo->pageIndex = 0;
-      } else {
-        setOperatorCompleted(pOperator);
-        clearPartitionOperator(pInfo);
-        return NULL;
-      }
-      return buildPartitionResult(pOperator);
+  if (*(int32_t*)page == 0) {
+    SSDataBlock* ret = buildPartitionResultForNotLoadBlock(pGroupInfo);
+    if (ret != NULL) return ret;
+    releaseBufPage(pInfo->pBuf, page);
+    if (pInfo->pageIndex < taosArrayGetSize(pGroupInfo->pPageList)) {
+      pInfo->pageIndex += 1;
+    } else if (pInfo->groupIndex + 1 < taosArrayGetSize(pInfo->sortedGroupArray)) {
+      pInfo->groupIndex++;
+      pInfo->pageIndex = 0;
+    } else {
+      setOperatorCompleted(pOperator);
+      clearPartitionOperator(pInfo);
+      return NULL;
     }
+    return buildPartitionResult(pOperator);
+  }
 
   blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
