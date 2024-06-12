@@ -515,7 +515,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
-  int32_t code = setTransAction(pTrans, buf, tlen, TDMT_STREAM_TASK_DEPLOY, &pTask->info.epSet, 0);
+  int32_t code = setTransAction(pTrans, buf, tlen, TDMT_STREAM_TASK_DEPLOY, &pTask->info.epSet, 0, 0);
   if (code != 0) {
     taosMemoryFree(buf);
     return -1;
@@ -959,7 +959,7 @@ static int32_t doSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask
     return -1;
   }
 
-  code = setTransAction(pTrans, buf, tlen, TDMT_VND_STREAM_CHECK_POINT_SOURCE, &epset, TSDB_CODE_SYN_PROPOSE_NOT_READY);
+  code = setTransAction(pTrans, buf, tlen, TDMT_VND_STREAM_CHECK_POINT_SOURCE, &epset, TSDB_CODE_SYN_PROPOSE_NOT_READY, 0);
   if (code != 0) {
     taosMemoryFree(buf);
   }
@@ -2554,27 +2554,28 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
 
   int32_t total = taosArrayGetSize(*pReqTaskList);
   if (total == numOfTasks) {  // all tasks has send the reqs
-    mInfo("stream:0x%" PRIx64
-          " %s all %d tasks send checkpoint-report, start to update checkpoint meta-info for checkpointId:%" PRId64,
+    mInfo("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, checkpoint meta-info for checkpointId:%" PRId64
+          " will be issued soon",
           req.streamId, pStream->name, total, req.checkpointId);
 
-    if (pStream != NULL) {
-      bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
-      if (conflict) {
-        mDebug("stream:0x%"PRIx64" active checkpoint trans not finished yet, wait", req.streamId);
-      } else {
-        int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, *pReqTaskList);
-        if (code == TSDB_CODE_SUCCESS) { // remove this entry
-          taosHashRemove(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
-
-          int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
-          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", req.streamId, numOfStreams);
-        } else {
-          mDebug("stream:0x%" PRIx64 " not launch chkpt update trans, due to checkpoint not finished yet",
-                 req.streamId);
-        }
-      }
-    }
+    //    if (pStream != NULL) {
+    //      bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
+    //      if (conflict) {
+    //        mDebug("stream:0x%"PRIx64" active checkpoint trans not finished yet, wait", req.streamId);
+    //      } else {
+    //        int32_t code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, *pReqTaskList);
+    //        if (code == TSDB_CODE_SUCCESS) { // remove this entry
+    //          taosHashRemove(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
+    //
+    //          int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
+    //          mDebug("stream:0x%" PRIx64 " removed, remain streams:%d in checkpoint procedure", req.streamId,
+    //          numOfStreams);
+    //        } else {
+    //          mDebug("stream:0x%" PRIx64 " not launch chkpt update trans, due to checkpoint not finished yet",
+    //                 req.streamId);
+    //        }
+    //      }
+    //    }
   }
 
   if (pStream != NULL) {

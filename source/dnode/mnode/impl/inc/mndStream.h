@@ -110,7 +110,7 @@ int32_t  mndGetNumOfStreamTasks(const SStreamObj *pStream);
 SArray  *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
 void     mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                        int32_t retryCode);
+                        int32_t retryCode, int32_t acceptCode);
 STrans  *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, const char *pMsg);
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
