@@ -16,6 +16,8 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 from taostest.util.rest import TDRest
+import os
+
 class TestWal(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
