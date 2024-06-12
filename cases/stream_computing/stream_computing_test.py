@@ -2580,7 +2580,7 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tbname}`')
                         # self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                     
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in partition else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def gen_event_window_condition(self):
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
