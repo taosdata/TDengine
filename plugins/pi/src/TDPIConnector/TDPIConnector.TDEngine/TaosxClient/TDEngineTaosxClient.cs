@@ -352,6 +352,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
+        /// <summary>
+        /// 限制发送数据到 taosX 的速度。
+        /// actualQueueBufferSize 代表允许继续发送的批数，初始值为 30，每发送一批数据减 1，每收到一个确认消息加 1。
+        /// 当 actualQueueBufferSize 小于等于 0 时，不允许发送数，等待 500ms 在检查 actualQueueBufferSize 的值。
+        /// 如果等待是时间超过 20s，将 actualQueueBufferSize 设置为 1，允许继续发送 1 批数据。
+        /// 
+        /// </summary>
         internal void ArrowMsgQueueWait()
         {
             stopwatch.Reset();

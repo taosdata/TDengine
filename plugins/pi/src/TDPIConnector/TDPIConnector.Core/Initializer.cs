@@ -43,18 +43,21 @@ namespace TDPIConnector.Core
                 TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
                 tables.Add(table);
             }
+            // 建子表
             tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);
             tables.Clear();
             if (AppSettings.tomlConfig.ForBackfill)
             {
                 attries.Clear();
                 if (superTable.HasValidColumn()) {
+                    // 添加 backfill 任务
                     backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
                     AppSettings.tomlConfig.BackfillEndTime.UtcDateTime);
                 }
             }
             else
             {
+                // 注册事件
                 elementModeTask.SignUpBatchAttributes(elementTemplate.Name, ref attries);
                 attries.Clear();
                 if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
@@ -62,6 +65,7 @@ namespace TDPIConnector.Core
                     if (superTable.HasValidColumn())
                     {
                         var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
+                        // 添加 backfill 任务
                         backfill.BackfillElementsOfTemplate(elementTemplate.Name, elements, backfillStartLimit, DateTime.UtcNow);
                         log.Info($"Backfill started successfully.");
                     }
@@ -103,6 +107,7 @@ namespace TDPIConnector.Core
             List<AFElementWrapper> elements = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, elementTemplate.Name).ToList();
             log.Info($"Found {elements.Count()} elements in template:{elementTemplate.Name}.");
 
+            // 切分元素列表，每组500个元素
             int chunkSize = 500;
             List<List<AFElementWrapper>> chunks = new List<List<AFElementWrapper>>();
             for (int i = 0; i < elements.Count; i += chunkSize)

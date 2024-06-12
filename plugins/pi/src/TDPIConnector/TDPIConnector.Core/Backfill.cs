@@ -476,8 +476,10 @@ namespace TDPIConnector.Core
                 tdEngineProxy.ArrowMsgQueueWait(element.TemplateName());
                 stopwatch.Reset();
                 stopwatch.Start();
+                // 一个 attributes 对应一个 values
                 IEnumerable<AFValuesWrapper> valuesList = piSystemManager.GetAttributesRecordedValues(attributes, currentStart, endTime, AppSettings.tomlConfig.BackfillBatchSize);
                 bool found = false;
+                // 所有属性的最后时间中最小的时间
                 DateTime smallLastAttributeTime = endTime;
                 int count = 0;
 
@@ -499,12 +501,14 @@ namespace TDPIConnector.Core
                     }
                 }
                 if (!found) break;
+                // table -> column -> values
+                var tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
+                // stable -> table -> column -> values
                 var stables = new Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>>();
-                Dictionary<string, Dictionary<string, List<TDValue>>> tables = new Dictionary<string, Dictionary<string, List<TDValue>>>();
                 var elementTableKey = element.ID.ToString();
                 tables.Add(elementTableKey, elementValues);
                 stables.Add(superTableName, tables);
-                this.tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
+                tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
                 log.Info($"Backfill Element {superTableName}:{element.ID} from {currentStart} row:{elementValues.Count} , written in {stopwatch.ElapsedMilliseconds} ms");
 
                 if (count < AppSettings.tomlConfig.BackfillBatchSize) {

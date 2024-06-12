@@ -101,20 +101,21 @@ namespace TDPIConnector.Core
 
         private void InitObserver()
         {
-            this.eventsSender = new EventsSender(this.tdEngineProxy);
-            this.pointModeObserver = new PointModeObserver(eventsSender);
-            this.elementModeObserver = new ElementModeObserver(eventsSender);
+            eventsSender = new EventsSender(tdEngineProxy);
+            pointModeObserver = new PointModeObserver(eventsSender);
+            elementModeObserver = new ElementModeObserver(eventsSender);
         }
         public async void Start()
         {
             TDEngineClient.OnlyTestConnector = AppSettings.tomlConfig.OnlyTestConnector;
 
             InitializeConnections();
+            // 启动 backfill 任务，一旦有 ElementBackfillTask 添加到队列，就会开始执行
             backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
             eventsSender.SetBackfill(backfillManager);
 
-            this.tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
-            this.initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
+            tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
+            initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
 
             if (piServerManager != null)
             {
@@ -122,7 +123,7 @@ namespace TDPIConnector.Core
                 {
                     piPoints = await tablesCreator.GetPIPointTables(AppSettings.tomlConfig.TDDataBase);
                     // piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
-                    log.Info($"TDengine PI Point tables ({this.piPoints.Count}) has been created.");
+                    log.Info($"TDengine PI Point tables ({piPoints.Count}) has been created.");
                 }
                 catch (Exception e)
                 {
@@ -149,13 +150,13 @@ namespace TDPIConnector.Core
                 }
                 log.Info("InitAFModeTask finished.");
             }
-
-            if ((this.piPoints != null && this.piPoints.Count > 0))
+            
+            if (piPoints != null && piPoints.Count > 0)
             {
                 StartDataPipe();
                 StartBackfill();
-                this.standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
-                this.standByModeTask.Start();
+                standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
+                standByModeTask.Start();
                 log.Info("Started");
             }
         }
