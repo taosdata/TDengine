@@ -519,9 +519,27 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
+  if (pCfg->primary < 0 || pCfg->primary > 1) {
+    fError("failed to mount %s to FS since invalid primary %" PRIi8, pCfg->dir, pCfg->primary);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+
+  if (pCfg->enable < 0 || pCfg->enable > 1) {
+    fError("failed to mount %s to FS since invalid enable %" PRIi8, pCfg->dir, pCfg->enable);
+    terrno = TSDB_CODE_FS_INVLD_CFG;
+    return -1;
+  }
+
   if (pCfg->primary) {
     if (pCfg->level != 0) {
       fError("failed to mount %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
+      terrno = TSDB_CODE_FS_INVLD_CFG;
+      return -1;
+    }
+
+    if (pCfg->enable == 0) {
+      fError("failed to mount %s to FS since disk is primary but enable %" PRIi8 " not 1", pCfg->dir, pCfg->enable);
       terrno = TSDB_CODE_FS_INVLD_CFG;
       return -1;
     }
