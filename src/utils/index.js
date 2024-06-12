@@ -384,10 +384,11 @@ export function getDSN(driver = "tmq", subject = null) {
     } else if (parsed_url.protocol == "https:") {
       scheme = "+wss";
     } else {
-      scheme = "+" + parsed_url.protocol.replace(":", "");
+      // scheme = "+" + parsed_url.protocol.replace(":", "");
+      scheme = "";
     }
 
-    let host = parsed_url.host;
+    let host = parsed_url.host || parsed_url.pathname?.replace('//','');
     let user = localStorage.getItem("username") || "";
     let decrypted = encodeURIComponent(decrypt(localStorage.getItem("pwd")));
     let pass = decrypted || "";

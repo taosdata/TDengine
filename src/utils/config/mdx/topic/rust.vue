@@ -166,10 +166,17 @@ export default {
   },
   computed: {
     tmq() {
-      const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
+      let wsPrefix = ""
+      if (this.url.startsWith("https")) {
+        wsPrefix = "wss"
+      } else if (this.url.startsWith("http")) {
+        wsPrefix = "ws"
+      } else {
+        wsPrefix = ""
+      }
       const uri = this.url.replace(/https?:\/\//, "");
       const tokenStr = this.token;
-      return `taos+${wsPrefix}://${this.user}:${this.password}@${uri}`;
+      return `taos${wsPrefix ? '+' + wsPrefix : '' }://${this.user}:${this.password}@${uri}`;
     },
     org() {
       return this.$store.state.currentOrganization?.orgName || "";

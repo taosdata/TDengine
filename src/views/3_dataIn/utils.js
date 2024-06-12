@@ -1268,7 +1268,11 @@ function handleEndpoint(endpoint) {
   if (url.includes("://")) {
     try {
       let parsed_url = new URL(url);
-      return "tmq+" + parsed_url.toString();
+      if (parsed_url.protocol == "taos:" || parsed_url.protocol == "tmq:") {
+        return parsed_url.toString().replace('taos:','tmq:');
+      } else {
+        return "tmq+" + parsed_url.toString();
+      }
     } catch (error) {
       console.log("Invalid URL: ", url, error);
       // not a valid url, use as is.
