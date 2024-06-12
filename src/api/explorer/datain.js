@@ -114,9 +114,9 @@ function mergeTaskDetailOptions(cfgOptions, data) {
         }
         if (data.id === 'tmq') {
             if (data.username && data.password) {
-                cfgOptions.endpoint.value = `tmq+${data.protocol}://${data.username}:${data.password}@${cfgOptions.endpoint.value}`;
+                cfgOptions.endpoint.value = `tmq${data.protocol ? '+' + data.protocol: ''}://${data.username}:${data.password}@${cfgOptions.endpoint.value}`;
             } else {
-                cfgOptions.endpoint.value = `tmq+${data.protocol}://${cfgOptions.endpoint.value}`;
+                cfgOptions.endpoint.value = `tmq${data.protocol ? '+' + data.protocol: ''}://${cfgOptions.endpoint.value}`;
             }
         }
     }

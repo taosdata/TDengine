@@ -1216,6 +1216,7 @@ function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
   let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
+  console.log('hshshhs----data',endpoint);
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
@@ -1268,7 +1269,11 @@ function handleEndpoint(endpoint) {
   if (url.includes("://")) {
     try {
       let parsed_url = new URL(url);
-      return "tmq+" + parsed_url.toString();
+      if (parsed_url.protocol == "taos:" || parsed_url.protocol == "tmq:") {
+        return parsed_url.toString().replace('taos:','tmq:');
+      } else {
+        return "tmq+" + parsed_url.toString();
+      }
     } catch (error) {
       console.log("Invalid URL: ", url, error);
       // not a valid url, use as is.
