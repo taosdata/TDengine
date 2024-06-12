@@ -247,7 +247,7 @@ typedef struct {
 int32_t compareHeapNode(const HeapNode* a, const HeapNode* b);
 int     transHeapCreate(SHeap* heap, int32_t (*cmpFunc)(const HeapNode* a, const HeapNode* b));
 void    transHeapDestroy(SHeap* heap);
-void    transHeapGet(SHeap* heap, SCliConn** p);
+int     transHeapGet(SHeap* heap, SCliConn** p);
 int     transHeapInsert(SHeap* heap, SCliConn* p);
 int     transHeapDelete(SHeap* heap, SCliConn* p);
 
@@ -1701,8 +1701,6 @@ static SCliConn* getConnFromHeapCache(SHashObj* pConnHeapCache, char* key) {
     SHeap heap = {0};
     transHeapCreate(&heap, compareHeapNode);
     taosHashPut(pConnHeapCache, key, klen, &heap, sizeof(heap));
-
-    p = taosHashGet(pConnHeapCache, key, strlen(key));
     return NULL;
   }
   SCliConn* pConn = NULL;
@@ -2985,18 +2983,19 @@ void transHeapDestroy(SHeap* heap) {
     heapDestroy(heap->heap);
   }
 }
-void transHeapGet(SHeap* heap, SCliConn** p) {
+int transHeapGet(SHeap* heap, SCliConn** p) {
   if (heapSize(heap->heap) == 0) {
     *p = NULL;
-    return;
+    return -1;
   }
   // HeapNode* minNode = headMin(heap->heap);
   HeapNode* minNode = heapMin(heap->heap);
   if (minNode == NULL) {
     *p = NULL;
-    return;
+    return -1;
   }
   *p = container_of(minNode, SCliConn, node);
+  return 0;
 }
 int transHeapInsert(SHeap* heap, SCliConn* p) {
   // impl later
