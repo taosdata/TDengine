@@ -713,13 +713,29 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
     // sasl settings
     if config.use_sasl {
         if let Some(sasl_mechanism) = config.sasl_mechanism {
-            client_config.set("sasl.mechanisms", sasl_mechanism);
-        }
-        if let Some(sasl_username) = config.sasl_username {
-            client_config.set("sasl.username", sasl_username);
-        }
-        if let Some(sasl_password) = config.sasl_password {
-            client_config.set("sasl.password", sasl_password);
+            if sasl_mechanism == "GSSAPI" {
+                client_config.set("sasl.mechanisms", "GSSAPI");
+                if let Some(sasl_kerberos_service_name) = config.sasl_kerberos_service_name {
+                    client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
+                }
+                if let Some(sasl_kerberos_principal) = config.sasl_kerberos_principal {
+                    client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
+                }
+                if let Some(sasl_kerberos_kinit_cmd) = config.sasl_kerberos_kinit_cmd {
+                    client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
+                }
+                if let Some(sasl_kerberos_keytab) = config.sasl_kerberos_keytab {
+                    client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
+                }
+            } else {
+                client_config.set("sasl.mechanisms", sasl_mechanism);
+                if let Some(sasl_username) = config.sasl_username {
+                    client_config.set("sasl.username", sasl_username);
+                }
+                if let Some(sasl_password) = config.sasl_password {
+                    client_config.set("sasl.password", sasl_password);
+                }
+            }
         }
     }
 
