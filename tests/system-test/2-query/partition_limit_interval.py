@@ -15,9 +15,9 @@ class TDTestCase:
         self.stable = "meters"
 
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
-        tdSql.execute(f'''create database db1 MAXROWS 4096 MINROWS 100''')
+        tdSql.execute(f'''create database {self.dbname} MAXROWS 4096 MINROWS 100''')
         tdSql.execute(f'''use {self.dbname}''')
-        tdSql.execute(f'''CREATE STABLE {self.stable} (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` TINYINT, `location` VARCHAR(16))''')
+        tdSql.execute(f'''CREATE STABLE {self.dbname}.{self.stable} (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` TINYINT, `location` VARCHAR(16))''')
         
         for i in range(self.tb_nums):
             tbname = f"{self.dbname}.sub_{self.stable}_{i}"
