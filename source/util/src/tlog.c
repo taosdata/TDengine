@@ -289,15 +289,14 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
 }
 
 static void taosKeepOldLog(char *oldName) {
-  if (oldName[0] == '\0') goto _end;
-
-  char compressFileName[LOG_FILE_NAME_LEN + 20];
-  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.gz", oldName);
-  if (taosCompressFile(oldName, compressFileName) == 0) {
-    (void)taosRemoveFile(oldName);
+  if (oldName[0] != 0) {
+    char compressFileName[LOG_FILE_NAME_LEN + 20];
+    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.gz", oldName);
+    if (taosCompressFile(oldName, compressFileName) == 0) {
+      (void)taosRemoveFile(oldName);
+    }
   }
 
-_end:
   if (tsLogKeepDays > 0) {
     taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
   }
