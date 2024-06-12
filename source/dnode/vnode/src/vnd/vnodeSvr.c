@@ -2021,6 +2021,9 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (pVnode->config.walCfg.level != req.walLevel) {
+    if (pVnode->config.walCfg.level == 0) {
+      pVnode->config.walCfg.clearFiles = 1;
+    }
     pVnode->config.walCfg.level = req.walLevel;
     walChanged = true;
   }
