@@ -16,7 +16,7 @@ pub struct KafkaConnectConfig {
     pub sasl_kerberos_service_name: Option<String>,
     pub sasl_kerberos_principal: Option<String>,
     pub sasl_kerberos_kinit_cmd: Option<String>,
-    pub sasl_kerberos_keytab: Option<i32>,
+    pub sasl_kerberos_keytab: Option<String>,
 }
 
 impl KafkaConnectConfig {
