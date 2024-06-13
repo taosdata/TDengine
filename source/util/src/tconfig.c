@@ -283,7 +283,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
   cfg.level = level ? atoi(level) : 0;
   cfg.primary = primary ? atoi(primary) : 1;
-  cfg.enable = enable ? atoi(enable) : 1;
+  cfg.enable = (enable && enable[0]) ? atoi(enable) : 1;
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
