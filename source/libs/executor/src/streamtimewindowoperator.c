@@ -547,8 +547,8 @@ int32_t setIntervalOutputBuf(void* pState, STimeWindow* win, SRowBuffPos** pResu
 
   // set time window for current result
   res->win = (*win);
-  setResultRowInitCtx(res, pCtx, numOfOutput, rowEntryInfoOffset);
-  return code;
+  if(code != TSDB_CODE_SUCCESS) return code;
+  return setResultRowInitCtx(res, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, STimeWindowAggSupp* pTwSup,
@@ -1968,8 +1968,7 @@ static int32_t initSessionOutputBuf(SResultWindowInfo* pWinInfo, SResultRow** pR
   *pResult = (SResultRow*)pWinInfo->pStatePos->pRowBuff;
   // set time window for current result
   (*pResult)->win = pWinInfo->sessionWin.win;
-  setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
-  return TSDB_CODE_SUCCESS;
+  return setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
 int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* pCurWin, SResultRow** pResult,
