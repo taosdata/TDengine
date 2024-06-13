@@ -610,7 +610,7 @@ if __name__ == "__main__":
     start_time = time.time()
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
     taosd_pid = dmg.find_process_pid("taosd")
-    process = dmg.get_process(taosd_pid)
+    process = dmg.get_process(taosd_pid[0])
     rtn = dmg.wait_stream_finished(opts.stream_name, opts.cal_time, process)
     end_time = time.time()
     time_usage = int(end_time-start_time)
