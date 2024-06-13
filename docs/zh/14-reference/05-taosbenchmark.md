@@ -422,7 +422,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。
