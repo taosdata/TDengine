@@ -54,3 +54,16 @@ In TDengine 3.1.0.0 and later, the root directories of the vnodes on a dnode are
 ## Disk Selection Within Tiers
 
 TDengine uses a round robin policy to select the mount point that it uses to store new data files. This policy can become a problem if certain disks on a tier have less remaining space than others, as TDengine may select a disk that is almost full. You can specify the `minDiskFreeSize` parameter to set a minimum threshold for remaining disk space, after which TDengine will no longer store new data files on disks that do not meet the threshold. Specify a value in bytes. It is recommended that you set this value to 2 GB or higher.
+
+## Related Configurations
+
+### retentionSpeedLimitMB
+
+| Attribute     | Description                                                                          |
+| ------------- | ------------------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                                          |
+| Meaning       | The speed limit for data migration between different levels of disks, measured in MB |
+| Value Range   | 0-1024                                                                               |
+| Default Value | 0                                                                                    |
+
+Note: 0 means no limit.
