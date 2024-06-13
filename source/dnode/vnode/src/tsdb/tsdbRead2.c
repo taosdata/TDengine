@@ -4959,6 +4959,12 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
     pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    if (pResBlock->pBlockAgg == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    for(int i = 0; i < num; ++i) {
+      pResBlock->pBlockAgg[i].colId = -1;
+    }
   }
 
   // do fill all null column value SMA info
@@ -4976,7 +4982,6 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      pResBlock->pBlockAgg[pSup->slotId[j]].colId = -1;
       *allHave = false;
       j += 1;
     }
