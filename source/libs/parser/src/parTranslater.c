@@ -3203,6 +3203,27 @@ static bool fromSingleTable(SNode* table) {
   return false;
 }
 
+static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pFunc2) {
+  if (isTbnameFuction(pFunc1) && isTbnameFuction(pFunc2)) {
+    SValueNode* pVal1 = (SValueNode*)nodesListGetNode(((SFunctionNode*)pFunc1)->pParameterList, 0);
+    SValueNode* pVal2 = (SValueNode*)nodesListGetNode(((SFunctionNode*)pFunc1)->pParameterList, 0);
+    if (!pVal1 && !pVal2) {
+      return true;
+    } else if (pVal1 && pVal2) {
+      return strcmp(pVal1->literal, pVal2->literal) == 0;
+    }
+
+    if (pSelect->pFromTable &&
+        (pSelect->pFromTable->type == QUERY_NODE_REAL_TABLE || pSelect->pFromTable->type == QUERY_NODE_TEMP_TABLE)) {
+      STableNode* pTable = (STableNode*)pSelect->pFromTable;
+      return true;
+    } else {
+      return false;
+    }
+  }
+  return false;
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -3222,6 +3243,9 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
+    if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
   }
   SNode* pPartKey = NULL;
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
@@ -3231,6 +3255,9 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
     if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+    if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
