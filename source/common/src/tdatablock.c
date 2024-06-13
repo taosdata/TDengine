@@ -1161,7 +1161,7 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
  * the all NULL value in this column. It is an internal representation of all NULL value column, and no visible to
  * any users. The length of TSDB_DATA_TYPE_NULL is 0, and it is an special case.
  */
-static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
                                 bool clearPayload) {
   if (numOfRows <= 0 || numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
