@@ -338,7 +338,7 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
 }
 
 static bool uvHandleReq(SSvrConn* pConn) {
-  STrans* pTransInst = pConn->pTransInst;
+  STrans*    pTransInst = pConn->pTransInst;
   SWorkThrd* pThrd = pConn->hostThrd;
 
   STransMsgHead* pHead = NULL;
@@ -364,7 +364,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
@@ -977,7 +977,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->serverIp = saddr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
-    
 
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 

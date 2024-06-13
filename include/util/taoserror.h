@@ -135,6 +135,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_INVALID_CFG_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0133)
 #define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
 
+#define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
 
 //client

@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
+#include "audit.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -25,8 +27,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
-#include "mndCluster.h"
-#include "audit.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -536,7 +536,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != statusReq.ipWhiteVer;;
+  bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
+
+  bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || enableWhiteListChanged;
+  ;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -742,7 +746,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); 
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1022,14 +1026,10 @@ _OVER:
 
 extern int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq);
 
-int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
-  return mndProcessRestoreDnodeReqImpl(pReq);
-}
+int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq) { return mndProcessRestoreDnodeReqImpl(pReq); }
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
-  return 0;
-}
+int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) { return 0; }
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
@@ -1079,7 +1079,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
-    mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1127,15 +1127,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s",
-          dropReq.dnodeId, dropReq.fqdn, dropReq.port, dropReq.force?"true":"false", dropReq.unsafe?"true":"false");
+  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", dropReq.dnodeId, dropReq.fqdn, dropReq.port,
+        dropReq.force ? "true" : "false", dropReq.unsafe ? "true" : "false");
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
   bool force = dropReq.force;
-  if(dropReq.unsafe)
-  {
+  if (dropReq.unsafe) {
     force = true;
   }
 
@@ -1166,12 +1165,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+  bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
 
   if (isonline && force) {
     terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
@@ -1179,7 +1178,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (!isonline && !force && !isEmpty) {
     terrno = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
@@ -1211,6 +1210,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",
       "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
   };
+  static char *enableWhitelist_str = "enableWhitelist";
+
   int32_t optionSize = tListLen(options);
 
   SMCfgDnodeReq cfgReq = {0};
@@ -1288,8 +1289,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (code < 0) return code;
 
     if (flag < 0) {
-      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
-             flag, INT32_MAX);
+      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId, flag,
+             INT32_MAX);
       terrno = TSDB_CODE_INVALID_CFG;
       tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
@@ -1364,6 +1365,22 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return 0;
 #endif
+  } else if (strncasecmp(cfgReq.config, enableWhitelist_str, strlen(enableWhitelist_str)) == 0) {
+    int32_t optLen = strlen(enableWhitelist_str);
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 1) {
+      mError("dnode:%d, failed to config enableWhitelist since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, enableWhitelist_str);
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
