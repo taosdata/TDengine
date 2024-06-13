@@ -257,7 +257,7 @@ class TDTestCase:
         os.system(f'taos -f {sql_file}')
         tdSql.query('select count(c_1) from d2.t2 where c_1 < 10', queryTimes=1)
         tdSql.checkData(0, 0, 0)
-        tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname', queryTimes=1)
+        tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname order by tbname desc', queryTimes=1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, 't3')
