@@ -45,7 +45,6 @@ class CmdOption:
     stream_name: str = None
     cal_time: str = None
 
-
 class Parser:
     """
     A class that builds a command-line argument parser for the DataMigration program.
@@ -306,7 +305,6 @@ class DataMigration(DB):
             host (str): The host address.
             port (int): The port number.
             config_dir (str): The directory path for the configuration.
-
         """
         super().__init__(host, port, config_dir)
         self.taosBenchmark_json = os.path.dirname(__file__) + "/prepare.json"
@@ -429,13 +427,13 @@ class DataMigration(DB):
             return False
 
     def prepare_data(self):
-            """
-            Prepares the data for migration.
+        """
+        Prepares the data for migration.
 
-            Executes the taosBenchmark command with the specified JSON file.
-            """
-            cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
-            self.exec_cmd(cmd)
+        Executes the taosBenchmark command with the specified JSON file.
+        """
+        cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
+        self.exec_cmd(cmd)
 
     def create_stream(self, stream_name, source_dbname, source_stbname, target_dbname, target_stbname):
         """
@@ -521,7 +519,7 @@ class DataMigration(DB):
     def find_process_pid(self, process_name):
         """
         Find the PID of a process by its name.
-        
+
         :param process_name: str. Name of the process to find.
         :return: list of PIDs matching the process name.
         """
@@ -531,7 +529,7 @@ class DataMigration(DB):
                 pids.append(proc.info['pid'])
         
         return pids
-    
+
     def get_process(self, pid):
         try:
             process = psutil.Process(pid)
@@ -540,65 +538,7 @@ class DataMigration(DB):
             print(f"No process found with PID {pid}.")
             return
 
-# class Monitor:
-#     def __init__(self):
-#         pass
-
-#     def find_process_pid(self, process_name):
-#         """
-#         Find the PID of a process by its name.
-        
-#         :param process_name: str. Name of the process to find.
-#         :return: list of PIDs matching the process name.
-#         """
-#         pids = []
-#         for proc in psutil.process_iter(['pid', 'name']):
-#             if proc.info['name'] == process_name:
-#                 pids.append(proc.info['pid'])
-        
-#         return pids
-
-#     def monitor_process_cpu(self, pid, start_time, end_time):
-#         """
-#         Monitor CPU usage of a process between start_time and end_time.
-        
-#         :param pid: int. Process ID of the target process.
-#         :param start_time: datetime. When to start monitoring.
-#         :param end_time: datetime. When to stop monitoring.
-#         """
-#         try:
-#             process = psutil.Process(pid)
-#         except psutil.NoSuchProcess:
-#             print(f"No process with PID {pid} found.")
-#             return
-
-#         while datetime.now() < start_time:
-#             time.sleep((start_time - datetime.now()).total_seconds())
-
-#         print(f"Starting to monitor PID {pid} at {datetime.now()}")
-
-#         usage = []
-        
-#         while datetime.now() < end_time:
-#             try:
-#                 cpu_usage = process.cpu_percent(interval=1)
-#                 print("CPU Usage: ", cpu_usage)
-#                 usage.append(cpu_usage)
-#                 print(f"Time: {datetime.now()}, CPU Usage: {cpu_usage}%")
-#             except psutil.NoSuchProcess:
-#                 print(f"Process with PID {pid} terminated before end_time.")
-#                 break
-
-#         if usage:
-#             average_usage = sum(usage) / len(usage)
-#             print(f"Average CPU Usage from {start_time} to {end_time}: {average_usage}%")
-#             return average_usage
-#         else:
-#             print("No CPU usage data collected.")
-
-
 if __name__ == "__main__":
-    
     pars = Parser()
     parser = pars.buildCmdLineParser()
     opts = pars.get_opts(parser.parse_args())
@@ -611,10 +551,9 @@ if __name__ == "__main__":
     memory_bf_stream = process.memory_info().rss
     time.sleep(10)
     start_time = time.time()
-    
-    
+
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
-    
+
     rtn = dmg.wait_stream_finished(opts.stream_name, opts.cal_time, process)
     end_time = time.time()
     time_usage = int(end_time-start_time)
@@ -626,10 +565,6 @@ if __name__ == "__main__":
         print(f"Stream task finished in {time_usage}s and cal-perf is {perftime}rows/s.")
         print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}, {max(rtn[1]):.2f}]")
         print(f"MEM Usage during stream-computing --- [avg, min, max]: [{(sum(rtn[2])/len(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(min(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(max(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB]")
-    # monitor = Monitor()
-    # taosd_pid = monitor.find_process_pid("taosd")
-    # print(taosd_pid)
-    # monitor.monitor_process_cpu(taosd_pid[0], start_time, end_time)
     
 
 
