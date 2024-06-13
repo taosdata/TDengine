@@ -608,6 +608,18 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   return true;
 }
 
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestoryExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);

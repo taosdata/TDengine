@@ -17,8 +17,10 @@
 #define _TD_MONITOR_INT_H_
 
 #include "monitor.h"
+#include "query.h"
 
 #include "tjson.h"
+#include "thash.h"
 
 typedef struct {
   int64_t    curTime;
@@ -44,7 +46,21 @@ typedef struct {
   SMonSmInfo    smInfo;
   SMonQmInfo    qmInfo;
   SMonBmInfo    bmInfo;
+  SHashObj     *metrics;
 } SMonitor;
+
+void monGenClusterInfoTable(SMonInfo *pMonitor);
+void monGenVgroupInfoTable(SMonInfo *pMonitor);
+void monGenDnodeInfoTable(SMonInfo *pMonitor);
+void monGenDnodeStatusInfoTable(SMonInfo *pMonitor);
+void monGenDataDiskTable(SMonInfo *pMonitor);
+void monGenLogDiskTable(SMonInfo *pMonitor);
+void monGenMnodeRoleTable(SMonInfo *pMonitor);
+void monGenVnodeRoleTable(SMonInfo *pMonitor);
+
+void monSendPromReport();
+void monInitMonitorFW();
+void monCleanupMonitorFW();
 
 #ifdef __cplusplus
 }

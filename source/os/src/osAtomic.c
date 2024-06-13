@@ -16,6 +16,12 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
+typedef union {
+  volatile int64_t i;
+  volatile double  d;
+  //double  d;
+} double_number;
+
 #ifdef WINDOWS
 
 // add
@@ -339,6 +345,21 @@ void atomic_store_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
+double  atomic_store_double(double volatile *ptr, double val){
+  for (;;) {
+    double_number old_num = {0};
+    old_num.d = *ptr;  // current old value
+
+    double_number new_num = {0};
+    new_num.d = val;
+
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+
+    if (ret_num.i == old_num.i) return ret_num.d;
+  }
+}
+
 void atomic_store_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   ((*(void* volatile*)(ptr)) = (void*)(val));
@@ -391,6 +412,23 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 #else
   return __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
+}
+
+double  atomic_exchange_double(double volatile *ptr, int64_t val){
+  for (;;) {
+    double_number old_num = {0};
+    old_num.d = *ptr;  // current old value
+
+    double_number new_num = {0};
+    int64_t iNew = val;
+
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+
+    if (ret_num.i == old_num.i) {
+      return ret_num.d;
+    }
+  }
 }
 
 void* atomic_exchange_ptr(void* ptr, void* val) {
@@ -551,6 +589,21 @@ int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
+double  atomic_fetch_add_double(double volatile *ptr, double val){
+  for (;;) {
+    double_number old_num = {0};
+    old_num.d = *ptr;  // current old value
+
+    double_number new_num = {0};
+    new_num.d = old_num.d + val;
+
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+
+    if (ret_num.i == old_num.i) return ret_num.d;
+  }
+}
+
 void* atomic_fetch_add_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
@@ -655,6 +708,21 @@ int64_t atomic_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 #else
   return __atomic_fetch_sub((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
+}
+
+double atomic_fetch_sub_double(double volatile *ptr, double val){
+  for (;;) {
+    double_number old_num = {0};
+    old_num.d = *ptr;  // current old value
+
+    double_number new_num = {0};
+    new_num.d = old_num.d - val;
+
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+
+    if (ret_num.i == old_num.i) return ret_num.d;
+  }
 }
 
 void* atomic_fetch_sub_ptr(void* ptr, void* val) {
