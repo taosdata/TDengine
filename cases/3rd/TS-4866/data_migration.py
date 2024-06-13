@@ -432,6 +432,7 @@ class DataMigration(DB):
 
         Executes the taosBenchmark command with the specified JSON file.
         """
+        print(f"Preparing data: taosBenchmark -f {self.taosBenchmark_json}")
         cmd = f'taosBenchmark -f {self.taosBenchmark_json}'
         self.exec_cmd(cmd)
 
@@ -446,7 +447,7 @@ class DataMigration(DB):
             target_dbname (str): The name of the target database.
             target_stbname (str): The name of the target stable table.
         """
-        print("creating stream...")
+        print(f"Creating stream: CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} TAGS(loc binary(16)) as select _wstart, last(current) as last_current,last(voltage) as last_voltage,last(phase) as last_phase from {source_dbname}.{source_stbname} partition by location as loc interval(60s)")
         cmd = f'CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} TAGS(loc binary(16)) as select _wstart, last(current) as last_current,last(voltage) as last_voltage,last(phase) as last_phase from {source_dbname}.{source_stbname} partition by location as loc interval(60s)'
         self.conn.execute(cmd)
 
@@ -472,6 +473,17 @@ class DataMigration(DB):
             return False
 
     def wait_fill_history_start(self, stream_name):
+        """
+        Waits for the history task to start filling for the specified stream.
+
+        Args:
+            stream_name (str): The name of the stream.
+
+        Returns:
+            None: If the history task does not start filling within the specified timeout.
+
+        """
+        print(f"Waiting to start fill_history for stream {stream_name}")
         cnt = 0
         cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         res = self.conn.query(cmd)
@@ -496,6 +508,7 @@ class DataMigration(DB):
             int: The number of seconds waited for the stream to finish. Returns None if the timeout is reached.
         """
         self.wait_fill_history_start(stream_name=stream_name)
+        print(f"Waiting for stream {stream_name} to finish.")
         cnt = 0
         cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         res = self.conn.query(cmd)
