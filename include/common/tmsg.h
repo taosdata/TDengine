@@ -3494,6 +3494,8 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  checkpointVer;
   int64_t  checkpointTs;
   int32_t  transId;
+  int64_t  hStreamId;       // add encode/decode
+  int64_t  hTaskId;
   int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
 
