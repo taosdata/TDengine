@@ -2222,7 +2222,8 @@ export function getDataSources(lang) {
                   "type": "str",
                   "choices": [
                     "PLAIN",
-                    "SCRAM-SHA-256"
+                    "SCRAM-SHA-256",
+                    "GSSAPI"
                   ]
                 },
                 "short_description": "SASL authentication mechanism.",
@@ -2249,6 +2250,42 @@ export function getDataSources(lang) {
                 "short_description": "The password for SASL authentication mechanism.",
                 "description": "The password for SASL authentication mechanism.",
                 "required": true
+              },
+              {
+                "name": "sasl_kerberos_service_name",
+                "display": "Kerberos Service Name",
+                "description": "The Kerberos service name for GSSAPI authentication mechanism.",
+                "required": true,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              {
+                "name": "sasl_kerberos_principal",
+                "display":" Kerberos Principal",
+                "description": "The Kerberos principal for GSSAPI authentication mechanism.",
+                "required": true,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              {
+                "name": "sasl_kerberos_kinit_cmd",
+                "display": "Kerberos Init Command",
+                "description": "The Kerberos init command for GSSAPI authentication mechanism.",
+                "required": false,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              {
+                "name": "sasl_kerberos_keytab",
+                "display": "Kerberos Keytab",
+                "description": "The Kerberos keytab for GSSAPI authentication mechanism.",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                }
               }
             ]
           },
@@ -5836,7 +5873,8 @@ export function getDataSources(lang) {
                   "type": "str",
                   "choices": [
                     "PLAIN",
-                    "SCRAM-SHA-256"
+                    "SCRAM-SHA-256",
+                    "GSSAPI"
                   ]
                 },
                 "short_description": "SASL 的认证机制",
@@ -5863,6 +5901,42 @@ export function getDataSources(lang) {
                 "short_description": "用于 SASL 认证机制的密码",
                 "description": "用于 SASL 认证机制的密码",
                 "required": true
+              },
+              {
+                "name": "sasl_kerberos_service_name",
+                "display": "Kerberos 服务名",
+                "description":" 用于 GSSAPI 认证机制的 Kerberos 服务名",
+                "required": true,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              { 
+                "name": "sasl_kerberos_principal",
+                "display": "Kerberos 主体",
+                "description":" 用于 GSSAPI 认证机制的 Kerberos 主体",
+                "required": true,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              { 
+                "name": "sasl_kerberos_kinit_cmd",
+                "display": "Kerberos 初始化命令",
+                "description": "用于 GSSAPI 认证机制的 Kerberos 初始化命令",
+                "required": false,
+                "hint": {
+                  "type": "str"
+                }
+              },
+              {
+                "name": "sasl_kerberos_keytab",
+                "display": "Kerberos 密钥表",
+                "description": "用于 GSSAPI 认证机制的 Kerberos 密钥表",
+                "required": true,
+                "hint": {
+                  "type": "file"
+                }
               }
             ]
           },
