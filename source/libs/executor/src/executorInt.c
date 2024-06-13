@@ -424,7 +424,7 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
         pInput->pColumnDataAgg[j] = &pBlock->pBlockAgg[slotId];
-        if (pInput->pColumnDataAgg[j] == NULL) {
+        if (pInput->pColumnDataAgg[j]->colId == -1) {
           pInput->colDataSMAIsSet = false;
         }
 

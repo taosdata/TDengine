@@ -91,7 +91,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
     return false;
   }
 
-  if (pColAgg != NULL) {
+  if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
       ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;

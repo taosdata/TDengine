@@ -602,17 +602,19 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     SColumnInfoData  colInfo = {.hasNull = true, .info = pSrc->info};
     blockDataAppendColInfo(pDstBlock, &colInfo);
 
+    pDstBlock->pBlockAgg[i].colId = -1;
     SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    int32_t code = doEnsureCapacity(pDst, &pDstBlock->info, pDataBlock->info.rows, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      blockDataDestroy(pDstBlock);
-      return NULL;
-    }
-    colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
-
-    if (pDataBlock->pBlockAgg) {
+    if (pDataBlock->pBlockAgg && pDataBlock->pBlockAgg[slotId].colId != -1) {
       pDstBlock->pBlockAgg[i] = pDataBlock->pBlockAgg[slotId];
+    } else {
+	    int32_t code = doEnsureCapacity(pDst, &pDstBlock->info, pDataBlock->info.rows, false);
+	    if (code != TSDB_CODE_SUCCESS) {
+	      terrno = code;
+	      blockDataDestroy(pDstBlock);
+	      return NULL;
+	    }
+
+      colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
     }
   }
 
@@ -717,7 +719,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
       dataNotLoadBlock->info.id.groupId = pGroupInfo->groupId;
       dataNotLoadBlock->info.dataLoad = 0;
-      pInfo->binfo.pRes->info.rows = pBlock->info.rows;
       taosArrayPush(pGroupInfo->blockForNotLoaded, &dataNotLoadBlock);
       break;
     }
