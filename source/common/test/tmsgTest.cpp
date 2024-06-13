@@ -145,12 +145,12 @@ TEST(td_msg_test, simple_msg_test) {
   // cout << TMSG_INFO(TDMT_MND_DROP_SUPER_TABLE) << endl;
   // cout << TMSG_INFO(TDMT_MND_CREATE_SUPER_TABLE) << endl;
 
-  int32_t msgSize = sizeof(tMsgTypeInfo) / sizeof(SMsgTypeInfo);
-  for (int32_t i = 0; i < msgSize; ++i) {
-    SMsgTypeInfo *pInfo = &tMsgTypeInfo[i];
-    cout << i * 2 + 1 << " " << pInfo->name << " " << pInfo->type << endl;
-    cout << i * 2 + 2 << " " << pInfo->rspName << " " << pInfo->rspType << endl;
-  }
+  // int32_t msgSize = sizeof(tMsgTypeInfo) / sizeof(SMsgTypeInfo);
+  // for (int32_t i = 0; i < msgSize; ++i) {
+  //   SMsgTypeInfo *pInfo = &tMsgTypeInfo[i];
+  //   cout << i * 2 + 1 << " " << pInfo->name << " " << pInfo->type << endl;
+  //   cout << i * 2 + 2 << " " << pInfo->rspName << " " << pInfo->rspType << endl;
+  // }
 
 
   // current msgs: to map
