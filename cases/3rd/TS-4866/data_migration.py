@@ -561,7 +561,9 @@ if __name__ == "__main__":
         print(f"Stream task is not finished in {dmg.timeout}s.")
     else:
         res = dmg.conn.query(f'select count(*) from {opts.target_dbname}.{opts.target_stbname};')
-        perftime = res.fetch_all()[0][0]/time_usage
+        query_result = res.fetch_all()
+        perftime = query_result[0][0]/time_usage
+        print(f"Final stream window is {query_result[0][0]}, it should be {opts.tables*opts.records*10}.")
         print(f"Stream task finished in {time_usage}s and cal-perf is {perftime}rows/s.")
         print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}, {max(rtn[1]):.2f}]")
         print(f"MEM Usage during stream-computing --- [avg, min, max]: [{(sum(rtn[2])/len(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(min(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(max(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB]")
