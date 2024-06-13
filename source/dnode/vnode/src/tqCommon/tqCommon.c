@@ -646,8 +646,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
-
-//  tqStreamRemoveTaskBackend(pMeta, &id);
   return 0;
 }
 
