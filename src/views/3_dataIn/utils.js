@@ -130,15 +130,15 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
 
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
-    handleOptions(options, paramsConfig);
+    handleOptions(options, paramsConfig, id);
     handleAuthentication(authentication, paramsConfig);
     
-    handleGroups(groups, paramsConfig, true);
+    handleGroups(groups, paramsConfig, true, id);
     if (id != 'csv') {
       handleConnectivityCheck(paramsConfig)
     }
     handleDatasets(datasets, paramsConfig);
-    handleGroups(groups, paramsConfig, false);
+    handleGroups(groups, paramsConfig, false, id);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
@@ -352,7 +352,7 @@ function handleAuthentication(authentication, paramsConfig) {
     }
 }
  */
-function handleOptions(options, paramsConfig) {
+function handleOptions(options, paramsConfig, id) {
   if (!options) return;
   const children = paramsConfig[0]?.children ?? [];
   const keys = Object.keys(options);
@@ -372,24 +372,23 @@ function handleOptions(options, paramsConfig) {
         if (!currentData.system_configuration || key == 'host') return true;
         return currentData.system_configuration == piOptionShowValue;
       },
-      required: (_, originalData,currentDefinition) => {
-        if (currentDefinition?.id?.startsWith('opcua')) {
-          let authenticationData = originalData[optionsField];
-          return checkValue(authenticationData.security_mode) && 
-            authenticationData.security_mode !== opcuaSecuritymodeValue &&
-            ['private_key','security_policy','certificate'].includes(key)
+      required: (currentData) => {
+        if (id?.startsWith('opcua')) {
+          return ['private_key','security_policy','certificate'].includes(key)
+            ? checkValue(currentData.security_mode) && 
+              currentData.security_mode !== opcuaSecuritymodeValue 
+            : required
         } else {
           return required
         }
       },
-       disabled: (_, originalData,currentDefinition) => {
-        if (currentDefinition?.id?.startsWith('opcua')) {
-          let authenticationData = originalData[optionsField];
+       disabled: (currentData) => {
+        if (id?.startsWith('opcua')) {
           // 特殊处理 opcua 安全策略
-          if ( authenticationData.security_mode == opcuaSecuritymodeValue) {
-            authenticationData.security_policy = '';
+          if ( currentData.security_mode == opcuaSecuritymodeValue) {
+            currentData.security_policy = '';
           }
-          return authenticationData.security_mode == opcuaSecuritymodeValue &&
+          return currentData.security_mode == opcuaSecuritymodeValue &&
             ['security_policy'].includes(key)
         } else {
           return false
@@ -721,7 +720,7 @@ function handleDatasets(datasets, paramsConfig) {
     }
 ]
  */
-function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
+function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
   if (!groups) return;
   groups = groups.sort((a, b) => a.display_order - b.display_order);
   const children = [];
@@ -754,7 +753,15 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         // if: collapsible ? data => data[valueField] : true,
         if: (currentData, originalData) => {
           const datasetsData = originalData[datasetsField];
-          if (collapsible) return currentData[valueField];
+          if (collapsible) {
+            if (id === 'kafka' && group.display_order == 1) {
+              return (currentData.sasl_mechanism == "GSSAPI" )
+                ? currentData[valueField] && !['sasl_username','sasl_password'].includes(name) 
+                : currentData[valueField] && ['sasl_mechanism','sasl_username','sasl_password'].includes(name)
+            } else {
+              return currentData[valueField];
+            }
+          } 
           // if (!currentData.table) return true;
           if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
             return !['update_interval', 'update_mode'].includes(name)
