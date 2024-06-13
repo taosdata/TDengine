@@ -547,8 +547,8 @@ int32_t setIntervalOutputBuf(void* pState, STimeWindow* win, SRowBuffPos** pResu
 
   // set time window for current result
   res->win = (*win);
-  if(code != TSDB_CODE_SUCCESS) return code;
-  return setResultRowInitCtx(res, pCtx, numOfOutput, rowEntryInfoOffset);
+  setResultRowInitCtx(res, pCtx, numOfOutput, rowEntryInfoOffset);
+  return code;
 }
 
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, STimeWindowAggSupp* pTwSup,
