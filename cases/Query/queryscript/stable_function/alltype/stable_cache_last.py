@@ -15,6 +15,10 @@ import random
 import os
 import time
 import taos
+from taostest.util.common import TDCom
+from taostest import TDCase
+from taostest.components.taosd import TaosD
+from taostest.util.remote import Remote
 from Query.queryutil.createdata import *
 from Query.queryutil.where import *
 from Query.queryutil.stable_func import *
@@ -60,6 +64,16 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
 
+    def restart_dnodes(self):
+        dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()[0]
+        self.restart_dnode_id_list = list(set(self.restart_dnode_id_list).intersection(dnodes_out_mnodes))
+        if len(self.restart_dnode_id_list) > 0:
+            self.restart_dnode_id_list = list(set(self.restart_dnode_id_list))
+            restart_endpoint_list = self.tdCom.get_fqdn_by_dnode_id(self.restart_dnode_id_list)
+            for endpoint in restart_endpoint_list:
+                taosd_setting = copy.deepcopy(self.taosd_setting)
+                self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
+                
     def data_create(self,db):    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
@@ -346,7 +360,8 @@ class TDTestQuery(TDCase):
         self.db_create(self.db)
         self.alter_cachemodel_both(self.db)
         self.table_create(self.db)
-        self.data_insert(self.db)  
+        self.data_insert(self.db) 
+        self.restart_dnodes() 
         self.db_query(self.db)
         self.alter_column(self.db)
         self.db_query(self.db)
@@ -361,6 +376,7 @@ class TDTestQuery(TDCase):
         self.db_query(self.db)
         
         self.alter_replica1_2(self.db)
+        self.restart_dnodes()
         self.alter_cachemodel_last_row(self.db)
         self.table_create(self.db)
         self.data_insert(self.db)  
@@ -382,6 +398,7 @@ class TDTestQuery(TDCase):
         self.alter_cachemodel_last_row(self.db)
         self.table_create(self.db)
         self.data_insert(self.db)  
+        self.restart_dnodes()
         self.taosc_data_insert(self.db) 
         self.data_insert_into_select_null(self.db) 
         self.db_query(self.db)
@@ -407,6 +424,7 @@ class TDTestQuery(TDCase):
         self.db_query(self.db)
         
         self.alter_replica1_2(self.db)
+        self.restart_dnodes()
         self.alter_cachemodel_last_row(self.db)
         self.table_create(self.db)
         self.data_insert(self.db)  
@@ -431,6 +449,7 @@ class TDTestQuery(TDCase):
         self.db_query(self.db)
         self.taosc_alter_column(self.db)
         self.taosc_data_insert(self.db) 
+        self.restart_dnodes()
         self.data_delete(self.db)
         self.db_query(self.db)
                
@@ -543,21 +562,21 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         self.case_test()
-        for i in range(50):
+        for i in range(20):
             self.logger.info("\n\n\n=========num:%d====start=============\n\n\n" %i) 
             self.td_25880()
-            # self.bug_11()
-            # self.bug_23024()
-            # self.bug_23024_1()
+            self.bug_11()
+            self.bug_23024()
+            self.bug_23024_1()
             
-            # self.bug_23005()
-            # self.bug_23029()
-            # self.bug_23032()
-            # self.bug_2832()
-            # self.bug_22909()
-            # self.bug_3010()
-            # self.bug_3875()
-            # self.bug_3875_2()
+            self.bug_23005()
+            self.bug_23029()
+            self.bug_23032()
+            self.bug_2832()
+            self.bug_22909()
+            self.bug_3010()
+            self.bug_3875()
+            self.bug_3875_2()
             self.logger.info("\n\n\n=========num:%d====end=============\n\n\n" %i ) 
         self.data_create(self.db)
          
