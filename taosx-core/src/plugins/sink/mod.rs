@@ -1014,7 +1014,6 @@ async fn consume_lush_record_with_transform(
                 }
                 anyhow::Ok(count)
             });
-            // for record in record {
             let span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
                 record.into_par_iter().try_for_each_with(tx, |tx, record| {
@@ -1023,13 +1022,11 @@ async fn consume_lush_record_with_transform(
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
                     return anyhow::Ok(());
-                    // continue;
                 }
                 let timer = std::time::Instant::now();
                 let name_of_table_name_column = lush_model_config.table_name_column.as_str();
                 // 只包含普通列的值
                 let values_records: &RecordBatch = record.record();
-                // tracing::debug!(?values_record, "values_record"); // debug
                 let table_name_column: &Arc<dyn Array> = values_records
                     .column_by_name(name_of_table_name_column)
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
@@ -1103,7 +1100,6 @@ async fn consume_lush_record_with_transform(
                 if let crate::plugins::transform::Message::Records(message) = message {
                     if message.is_empty() {
                         return Ok(());
-                        // continue;
                     }
                     let table_count = message.len();
                     let pool = pool.clone();
