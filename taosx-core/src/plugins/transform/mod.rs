@@ -16,7 +16,7 @@ use std::{
 };
 
 use arrow::{
-    array::{Array, BinaryArray, StringArray},
+    array::{Array, BinaryArray, StringArray, TimestampMillisecondArray},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -1068,6 +1068,30 @@ impl Parser {
         })
     }
 
+    fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+        batches
+            .iter()
+            .map(|batch| {
+                let schema = batch.schema();
+                let fields = schema.fields();
+
+                RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                    |(idx, data)| {
+                        let dt = fields[idx].data_type();
+                        if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                            arrow::compute::cast(data, &DataType::Utf8)
+                                .ok()
+                                .map(|data| (fields[idx].name(), data))
+                        } else {
+                            Some((fields[idx].name(), data.clone()))
+                        }
+                    },
+                ))
+                .unwrap()
+            })
+            .collect()
+    }
+
     pub fn parse_message_from_records(
         &self,
         records: &RecordBatch,
@@ -1078,30 +1102,8 @@ impl Parser {
         let batches = vec![batch];
         let batch = &batches[0];
         // tracing::info!("Parse message {:?}", batch);
-        fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
-            batches
-                .iter()
-                .map(|batch| {
-                    let schema = batch.schema();
-                    let fields = schema.fields();
 
-                    RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
-                        |(idx, data)| {
-                            let dt = fields[idx].data_type();
-                            if matches!(dt, DataType::Binary | DataType::LargeBinary) {
-                                arrow::compute::cast(data, &DataType::Utf8)
-                                    .ok()
-                                    .map(|data| (fields[idx].name(), data))
-                            } else {
-                                Some((fields[idx].name(), data.clone()))
-                            }
-                        },
-                    ))
-                    .unwrap()
-                })
-                .collect()
-        }
-        let json_batches = to_json_valid_batches(&batches);
+        let json_batches = Parser::to_json_valid_batches(&batches);
 
         let json = arrow::json::writer::record_batches_to_json_rows(
             json_batches.iter().collect_vec().as_slice(),
@@ -1217,6 +1219,7 @@ impl Parser {
         }
         Ok(Message::Records(data))
     }
+
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
         self.self_check()?;
         Ok(self
@@ -1339,12 +1342,31 @@ impl MessageTableMeta {
             tags: tags.into(),
         }
     }
+
+    pub fn get_tag_value_by_name(&self, name: &str) -> Option<&str> {
+        self.tags
+            .as_ref()
+            .and_then(|batch| {
+                let column = batch.column_by_name(name)?;
+                column.as_any().downcast_ref::<StringArray>()
+            })
+            .and_then(|array| Some(array.value(0)))
+    }
 }
 #[derive(Debug)]
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
     pub opts: Arc<TableOptions>,
+}
+
+impl MessageArrowRecords {
+    pub fn get_ts_column(&self) -> Option<&TimestampMillisecondArray> {
+        self.records
+            .column(0)
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]

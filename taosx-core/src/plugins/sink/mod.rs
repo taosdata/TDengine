@@ -1024,19 +1024,19 @@ async fn consume_lush_record_with_transform(
                     return anyhow::Ok(());
                 }
                 let timer = std::time::Instant::now();
-                let name_of_table_name_column = lush_model_config.table_name_column.as_str();
+                let name_of_table_id_column = lush_model_config.table_id_column.as_str();
                 // 只包含普通列的值
                 let values_records: &RecordBatch = record.record();
-                let table_name_column: &Arc<dyn Array> = values_records
-                    .column_by_name(name_of_table_name_column)
+                let table_id_column: &Arc<dyn Array> = values_records
+                    .column_by_name(name_of_table_id_column)
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
-                let table_name_column: &StringArray = table_name_column
+                let table_id_column: &StringArray = table_id_column
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap();
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
-                    lush::create_tags_record(table_name_column, table_cache.clone());
+                    lush::create_tags_record(table_id_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
                     return Ok(());
@@ -1106,6 +1106,7 @@ async fn consume_lush_record_with_transform(
                     let super_table = super_table.clone();
                     let req_id = req_id.clone();
                     let metrics_ref = metrics_arc.clone();
+                    let table_id_column_name = name_of_table_id_column.to_string();
                     if let Err(err) = tx.send(async move {
                         let metrics = metrics_ref.ipc();
                          lush::write(
@@ -1116,6 +1117,7 @@ async fn consume_lush_record_with_transform(
                         message,
                         metrics,
                         skip_null,
+                        table_id_column_name.as_str(),
                     ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                         tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",

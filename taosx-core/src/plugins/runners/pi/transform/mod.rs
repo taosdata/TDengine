@@ -44,7 +44,8 @@ use std::iter::{Peekable, SkipWhile};
 use std::str::Lines;
 use taosx_ipc::stream::writer::IpcDataType;
 
-const PRE_ADDED_LABELS_FOR_ELEMENT: [&str; 3] = ["element_name", "path", "categories"];
+const PRE_ADDED_LABELS_FOR_ELEMENT: [&str; 4] =
+    ["element_id", "element_name", "path", "categories"];
 /// 单列模型配置对象
 /// 从配置对象可以生成 csv 配置文件，反之亦然。
 /// 从配置对象也可以生成 transform 相关对象。
@@ -255,6 +256,7 @@ impl PIElementModelConfig {
         let mut super_tables = Vec::<SuperTableConfig>::new();
         for csv in super_table_csv_lines {
             let super_table = SuperTableConfig::from_csv(csv)?;
+            Self::check_schema(&super_table.schema)?;
             super_tables.push(super_table);
         }
         // let mut elements = Vec::<ElementRow>::new();
@@ -266,6 +268,26 @@ impl PIElementModelConfig {
             super_tables,
             // elements,
         })
+    }
+
+    fn check_schema(schema: &[SchemaRow]) -> anyhow::Result<()> {
+        let mut column_names: LinkedHashMap<&str, ()> = LinkedHashMap::new();
+        let mut has_element_id = false;
+        for row in schema {
+            let column_name = row.column_name.as_str();
+            if column_names.contains_key(column_name) {
+                return Err(anyhow!("Duplicate column name: {}", column_name));
+            }
+            column_names.insert(column_name, ());
+            if column_name == "element_id" && row.column_type == ColumnType::TAG {
+                has_element_id = true;
+            }
+        }
+        if !has_element_id {
+            return Err(anyhow!("Missing element_id in TAGs"));
+        }
+
+        Ok(())
     }
 
     /// 解析多列模型的数据，生成多列模型配置对象
