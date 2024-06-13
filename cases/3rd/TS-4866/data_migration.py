@@ -487,7 +487,7 @@ class DataMigration(DB):
             else:
                 return
     
-    def wait_stream_finished(self, stream_name, pid, cal_time):
+    def wait_stream_finished(self, stream_name, cal_time, process):
         """
         Waits for the specified stream to finish its tasks in the database.
 
@@ -498,11 +498,6 @@ class DataMigration(DB):
             int: The number of seconds waited for the stream to finish. Returns None if the timeout is reached.
         """
         self.wait_fill_history_start(stream_name=stream_name)
-        try:
-            process = psutil.Process(pid)
-        except psutil.NoSuchProcess:
-            print(f"No process found with PID {pid}.")
-            return
         cnt = 0
         cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
         res = self.conn.query(cmd)
@@ -536,6 +531,14 @@ class DataMigration(DB):
                 pids.append(proc.info['pid'])
         
         return pids
+    
+    def get_process(self, pid):
+        try:
+            process = psutil.Process(pid)
+            return process
+        except psutil.NoSuchProcess:
+            print(f"No process found with PID {pid}.")
+            return
 
 # class Monitor:
 #     def __init__(self):
@@ -607,7 +610,8 @@ if __name__ == "__main__":
     start_time = time.time()
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
     taosd_pid = dmg.find_process_pid("taosd")
-    rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0], opts.cal_time)
+    process = dmg.get_process(taosd_pid)
+    rtn = dmg.wait_stream_finished(opts.stream_name, opts.cal_time, process)
     end_time = time.time()
     time_usage = int(end_time-start_time)
     if not rtn[0]:
