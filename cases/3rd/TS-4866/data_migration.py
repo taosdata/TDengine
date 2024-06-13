@@ -606,11 +606,15 @@ if __name__ == "__main__":
     dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
     dmg.conn.execute(f'drop stream if exists {opts.stream_name}')
     dmg.prepare_data()
-    time.sleep(10)
-    start_time = time.time()
-    dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
     taosd_pid = dmg.find_process_pid("taosd")
     process = dmg.get_process(taosd_pid[0])
+    memory_bf_stream = process.memory_info().rss
+    time.sleep(10)
+    start_time = time.time()
+    
+    
+    dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
+    
     rtn = dmg.wait_stream_finished(opts.stream_name, opts.cal_time, process)
     end_time = time.time()
     time_usage = int(end_time-start_time)
@@ -621,7 +625,7 @@ if __name__ == "__main__":
         perftime = res.fetch_all()[0][0]/time_usage
         print(f"Stream task finished in {time_usage}s and cal-perf is {perftime}rows/s.")
         print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}, {max(rtn[1]):.2f}]")
-        print(f"MEM Usage during stream-computing --- [avg, min, max]: [{sum(rtn[2])/len(rtn[2])/1024/1024:.2f}MB, {min(rtn[2])/1024/1024:.2f}MB, {max(rtn[2])/1024/1024:.2f}MB]")
+        print(f"MEM Usage during stream-computing --- [avg, min, max]: [{(sum(rtn[2])/len(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(min(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(max(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB]")
     # monitor = Monitor()
     # taosd_pid = monitor.find_process_pid("taosd")
     # print(taosd_pid)
