@@ -307,7 +307,7 @@ class DataMigration(DB):
             config_dir (str): The directory path for the configuration.
         """
         super().__init__(host, port, config_dir)
-        self.taosBenchmark_json = os.path.dirname(__file__) + "/prepare.json"
+        self.taosBenchmark_json = os.path.dirname(os.path.abspath(__file__)) + "/prepare.json"
 
     def prepare_json(self, thread_count, num_of_records_per_req, source_dbname, source_stbname, target_dbname, vgroups, childtable_count, row_count, timestamp_step):
         """
