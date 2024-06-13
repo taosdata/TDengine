@@ -7275,16 +7275,17 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
   }
-
-  if (pStmt->pOptions->replica > 1) {
+  /*
+  if (pStmt->pOptions->replica > 1 && pStmt->pOptions->walLevel < 1) {
     SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    dbCfg.walLevel = -1;
+    int32_t code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
     if (TSDB_CODE_SUCCESS == code && dbCfg.walLevel == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
   }
-
+  */
   int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
