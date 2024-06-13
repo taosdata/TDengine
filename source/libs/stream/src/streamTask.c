@@ -283,9 +283,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
-  pTask->msgInfo.pRetryList = taosArrayDestroy(pTask->msgInfo.pRetryList);
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
+
+  pTask->msgInfo.pSendInfo = taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  taosThreadMutexDestroy(&pTask->msgInfo.lock);
 
   pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
 
@@ -373,7 +375,13 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   pTask->pMeta = pMeta;
   pTask->pMsgCb = pMsgCb;
-  pTask->msgInfo.pRetryList = taosArrayInit(4, sizeof(int32_t));
+  pTask->msgInfo.pSendInfo = taosArrayInit(4, sizeof(SDispatchEntry));
+  if (pTask->msgInfo.pSendInfo == NULL) {
+    stError("s-task:%s failed to create sendInfo struct for stream task, code:Out of memory", pTask->id.idStr);
+    return terrno;
+  }
+
+  taosThreadMutexInit(&pTask->msgInfo.lock, NULL);
 
   TdThreadMutexAttr attr = {0};
 
