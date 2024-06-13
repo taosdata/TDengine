@@ -1033,7 +1033,7 @@ impl Args {
 fn parse_geometry_from_bytes(geo: &[u8]) -> String {
     let result = Geometry::new_from_wkb(geo);
     match result {
-        Ok(geo) => geo.to_wkt_precision(5).unwrap(),
+        Ok(geo) => geo.to_wkt_precision(6).unwrap(),
         Err(_) => format!("{:?}", geo),
     }
 }
