@@ -332,8 +332,8 @@ TEST(constantTest, bigint_or_double) {
 TEST(constantTest, int_or_binary) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   char   binaryStr[64] = {0};
-  sprintf(&binaryStr[2], "%d", scltRightV);
-  varDataSetLen(binaryStr, strlen(&binaryStr[2]));
+  sprintf(&binaryStr[4], "%d", scltRightV);
+  varDataSetLen(binaryStr, strlen(&binaryStr[4]));
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &scltLeftV);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, binaryStr);
   scltMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
@@ -738,10 +738,10 @@ TEST(constantTest, binary_not_match_binary1) {
 TEST(constantTest, binary_not_match_binary2) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   char   leftv[64] = {0}, rightv[64] = {0};
-  sprintf(&leftv[2], "%s", "abc");
-  varDataSetLen(leftv, strlen(&leftv[2]));
-  sprintf(&rightv[2], "%s", "a[ab]c");
-  varDataSetLen(rightv, strlen(&rightv[2]));
+  sprintf(&leftv[4], "%s", "abc");
+  varDataSetLen(leftv, strlen(&leftv[4]));
+  sprintf(&rightv[4], "%s", "a[ab]c");
+  varDataSetLen(rightv, strlen(&rightv[4]));
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_BINARY, leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_NMATCH, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
@@ -1102,7 +1102,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
              opType == OP_TYPE_NMATCH) {
     printf("op:%s,3result:%d,except:%f\n", operatorTypeStr(opType), *((bool *)colDataGetData(column, 0)), exceptValue);
     assert(*(bool *)colDataGetData(column, 0) == exceptValue);
-//    ASSERT_EQ((int) *((bool *)colDataGetData(column, 0)), (int)exceptValue);
+    //    ASSERT_EQ((int) *((bool *)colDataGetData(column, 0)), (int)exceptValue);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -1506,10 +1506,10 @@ TEST(columnTest, smallint_value_add_int_column) {
 TEST(columnTest, bigint_column_multi_binary_column) {
   SNode  *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int64_t leftv[5] = {1, 2, 3, 4, 5};
-  char    rightv[5][5] = {0};
+  char    rightv[5][7] = {0};
   for (int32_t i = 0; i < 5; ++i) {
-    rightv[i][2] = rightv[i][3] = '0';
-    rightv[i][4] = '0' + i;
+    rightv[i][4] = rightv[i][5] = '0';
+    rightv[i][6] = '0' + i;
     varDataSetLen(rightv[i], 3);
   }
   double       eRes[5] = {0, 2, 6, 12, 20};
@@ -1545,10 +1545,10 @@ TEST(columnTest, bigint_column_multi_binary_column) {
 TEST(columnTest, smallint_column_and_binary_column) {
   SNode  *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t leftv[5] = {1, 2, 3, 4, 5};
-  char    rightv[5][5] = {0};
+  char    rightv[5][7] = {0};
   for (int32_t i = 0; i < 5; ++i) {
-    rightv[i][2] = rightv[i][3] = '0';
-    rightv[i][4] = '0' + i;
+    rightv[i][4] = rightv[i][5] = '0';
+    rightv[i][6] = '0' + i;
     varDataSetLen(rightv[i], 3);
   }
   int64_t      eRes[5] = {0, 0, 2, 0, 4};
@@ -1723,24 +1723,24 @@ TEST(columnTest, binary_column_in_binary_list) {
   SNode       *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   bool         eRes[5] = {true, true, false, false, false};
   SSDataBlock *src = NULL;
-  char         leftv[5][5] = {0};
-  char         rightv[3][5] = {0};
+  char         leftv[5][7] = {0};
+  char         rightv[3][7] = {0};
   for (int32_t i = 0; i < 5; ++i) {
-    leftv[i][2] = 'a' + i;
-    leftv[i][3] = 'b' + i;
-    leftv[i][4] = '0' + i;
+    leftv[i][4] = 'a' + i;
+    leftv[i][5] = 'b' + i;
+    leftv[i][6] = '0' + i;
     varDataSetLen(leftv[i], 3);
   }
   for (int32_t i = 0; i < 2; ++i) {
-    rightv[i][2] = 'a' + i;
-    rightv[i][3] = 'b' + i;
-    rightv[i][4] = '0' + i;
+    rightv[i][4] = 'a' + i;
+    rightv[i][5] = 'b' + i;
+    rightv[i][6] = '0' + i;
     varDataSetLen(rightv[i], 3);
   }
   for (int32_t i = 2; i < 3; ++i) {
-    rightv[i][2] = 'a' + i;
-    rightv[i][3] = 'a' + i;
     rightv[i][4] = 'a' + i;
+    rightv[i][5] = 'a' + i;
+    rightv[i][6] = 'a' + i;
     varDataSetLen(rightv[i], 3);
   }
 
@@ -1781,22 +1781,22 @@ TEST(columnTest, binary_column_in_binary_list) {
 TEST(columnTest, binary_column_like_binary) {
   SNode       *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   char         rightv[64] = {0};
-  char         leftv[5][5] = {0};
+  char         leftv[5][7] = {0};
   SSDataBlock *src = NULL;
   bool         eRes[5] = {true, false, true, false, true};
 
   for (int32_t i = 0; i < 5; ++i) {
-    leftv[i][2] = 'a';
-    leftv[i][3] = 'a';
-    leftv[i][4] = '0' + i % 2;
+    leftv[i][4] = 'a';
+    leftv[i][5] = 'a';
+    leftv[i][6] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }
 
   int32_t rowNum = sizeof(leftv) / sizeof(leftv[0]);
   scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
-  sprintf(&rightv[2], "%s", "__0");
-  varDataSetLen(rightv, strlen(&rightv[2]));
+  sprintf(&rightv[4], "%s", "__0");
+  varDataSetLen(rightv, strlen(&rightv[4]));
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
 
@@ -1825,14 +1825,14 @@ TEST(columnTest, binary_column_like_binary) {
 
 TEST(columnTest, binary_column_is_true) {
   SNode       *pLeft = NULL, *opNode = NULL;
-  char         leftv[5][5] = {0};
+  char         leftv[5][7] = {0};
   SSDataBlock *src = NULL;
   bool         eRes[5] = {false, true, false, true, false};
 
   for (int32_t i = 0; i < 5; ++i) {
-    leftv[i][2] = '0' + i % 2;
-    leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
+    leftv[i][5] = 'a';
+    leftv[i][6] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }
 
@@ -1865,14 +1865,14 @@ TEST(columnTest, binary_column_is_true) {
 
 TEST(columnTest, binary_column_is_null) {
   SNode       *pLeft = NULL, *opNode = NULL;
-  char         leftv[5][5] = {0};
+  char         leftv[5][7] = {0};
   SSDataBlock *src = NULL;
   bool         eRes[5] = {false, false, true, false, true};
 
   for (int32_t i = 0; i < 5; ++i) {
-    leftv[i][2] = '0' + i % 2;
-    leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
+    leftv[i][5] = 'a';
+    leftv[i][6] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }
 
@@ -1909,14 +1909,14 @@ TEST(columnTest, binary_column_is_null) {
 
 TEST(columnTest, binary_column_is_not_null) {
   SNode       *pLeft = NULL, *opNode = NULL;
-  char         leftv[5][5] = {0};
+  char         leftv[5][7] = {0};
   SSDataBlock *src = NULL;
   bool         eRes[5] = {true, true, true, true, false};
 
   for (int32_t i = 0; i < 5; ++i) {
-    leftv[i][2] = '0' + i % 2;
-    leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
+    leftv[i][5] = 'a';
+    leftv[i][6] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }
 
