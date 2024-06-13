@@ -1,12 +1,8 @@
 #include <gtest/gtest.h>
 #include <cassert>
 
-#define TAOS_ERROR_INFO
-
 #include <iostream>
 #include "taoserror.h"
-
-extern STaosError errors[];
 
 using namespace std;
 
