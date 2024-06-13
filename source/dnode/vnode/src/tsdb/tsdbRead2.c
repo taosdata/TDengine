@@ -2240,7 +2240,8 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
   };
 
   SSttDataInfoForTable info = {.pKeyRangeList = taosArrayInit(4, sizeof(SSttKeyRange))};
-  int32_t              code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
+
+  int32_t code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
