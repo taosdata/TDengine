@@ -22,8 +22,6 @@ import json
 import time
 import psutil
 import time
-from datetime import datetime, timedelta
-
 
 @dataclass
 class CmdOption:
@@ -217,7 +215,7 @@ class Parser:
             default="test_stream",
             type=str,
             metavar="stream_name",
-            help='stream, default is test_strem.'
+            help='stream, default is test_stream.'
         )
         return parser
 
@@ -442,6 +440,7 @@ class DataMigration(DB):
             target_dbname (str): The name of the target database.
             target_stbname (str): The name of the target stable table.
         """
+        print("creating stream...")
         cmd = f'CREATE STREAM IF NOT EXISTS {stream_name} TRIGGER at_once IGNORE UPDATE 0 IGNORE EXPIRED 0 FILL_HISTORY 1 INTO {target_dbname}.{target_stbname} TAGS(loc binary(16)) as select _wstart, last(current) as last_current,last(voltage) as last_voltage,last(phase) as last_phase from {source_dbname}.{source_stbname} partition by location as loc interval(60s)'
         self.conn.execute(cmd)
 
@@ -486,7 +485,7 @@ class DataMigration(DB):
         res = self.conn.query(cmd)
         cpu_list = list()
         mem_list = list()
-        while len(res.fetch_all()) != 1 or res.fetch_all()[0][0] is not None:
+        while len(res.fetch_all()) != 0 or (len(res.fetch_all()) != 1 or res.fetch_all()[0][0] is not None):
             time.sleep(1)
             res = self.conn.query(cmd)
             cpu_usage = process.cpu_percent(interval=1)
@@ -495,11 +494,12 @@ class DataMigration(DB):
             mem_list.append(memory_info)
             print(cpu_list)
             print(mem_list)
+            if res.fetch_all()[0][0] is None:
+                return cnt, cpu_list, mem_list
             if cnt < self.timeout:
                 cnt += 1
             else:
                 return cnt, cpu_list, mem_list
-                return
         return cnt, cpu_list, mem_list
 
     def find_process_pid(self, process_name):
