@@ -707,7 +707,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
       dataNotLoadBlock->info.id.groupId = pGroupInfo->groupId;
       dataNotLoadBlock->info.dataLoad = 0;
-      pInfo->binfo.pRes->info.rows = pBlock->info.rows;
       taosArrayPush(pGroupInfo->blockForNotLoaded, &dataNotLoadBlock);
       break;
     }
