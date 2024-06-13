@@ -64,7 +64,7 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
 static void resetBoundingBox(MinMaxEntry *range, int32_t type) {
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     range->dMaxVal = INT64_MIN;
-    range->dMinVal = INT64_MAX;
+    range->dMinVal = (double)INT64_MAX;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
     range->u64MaxVal = 0;
     range->u64MinVal = UINT64_MAX;
