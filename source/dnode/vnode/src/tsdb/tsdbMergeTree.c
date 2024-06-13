@@ -46,6 +46,12 @@ SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, 
   }
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+  if (pLoadInfo->aSttBlk == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(pLoadInfo);
+    return NULL;
+  }
+
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
   pLoadInfo->numOfCols = numOfCols;
