@@ -43,10 +43,8 @@ class CmdOption:
     timestamp_step: int = None
     interlace_rows: int = None
     stream_name: str = None
+    cal_time: str = None
 
-import argparse
-import os
-import textwrap
 
 class Parser:
     """
@@ -217,6 +215,15 @@ class Parser:
             metavar="stream_name",
             help='stream, default is test_stream.'
         )
+        parser.add_argument(
+            '-ot',
+            '--cal-time',
+            action='store',
+            default=7200,
+            type=int,
+            metavar="cal_time",
+            help='max cal time.'
+        )
         return parser
 
     def get_opts(self, parser):
@@ -245,6 +252,7 @@ class Parser:
         opts.timestamp_step = parser.timestamp_step if parser.timestamp_step else 1000
         opts.interlace_rows = parser.interlace_rows if parser.interlace_rows else 0
         opts.stream_name = parser.stream_name if parser.stream_name else "test_stream"
+        opts.cal_time = parser.cal_time if parser.cal_time else "test_stream"
         origin_cmds = sys.argv[1:]
         origin_cmds.insert(0, self.prog)
         str_cmds = ' '.join(origin_cmds)
@@ -277,7 +285,7 @@ class DB:
         self.port = port
         self.config_dir = config_dir
         self.conn = self.get_connection()
-        self.timeout = 600
+        self.timeout = 7200
 
     def get_connection(self):
         """
@@ -465,7 +473,21 @@ class DataMigration(DB):
             print("Command execution failed:", e)
             return False
 
-    def wait_stream_finished(self, stream_name, pid):
+    def wait_fill_history_start(self, stream_name):
+        cnt = 0
+        cmd = f'select distinct history_task_id from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
+        res = self.conn.query(cmd)
+        query_result = res.fetch_all()
+        while len(query_result) == 0 or (len(query_result) > 0 and query_result[0][0]) is None:
+            time.sleep(1)
+            res = self.conn.query(cmd)
+            query_result = res.fetch_all()
+            if cnt < self.timeout:
+                cnt += 1
+            else:
+                return
+    
+    def wait_stream_finished(self, stream_name, pid, cal_time):
         """
         Waits for the specified stream to finish its tasks in the database.
 
@@ -475,6 +497,7 @@ class DataMigration(DB):
         Returns:
             int: The number of seconds waited for the stream to finish. Returns None if the timeout is reached.
         """
+        self.wait_fill_history_start(stream_name=stream_name)
         try:
             process = psutil.Process(pid)
         except psutil.NoSuchProcess:
@@ -492,11 +515,9 @@ class DataMigration(DB):
             memory_info = process.memory_info().rss
             cpu_list.append(cpu_usage)
             mem_list.append(memory_info)
-            print(cpu_list)
-            print(mem_list)
             if res.fetch_all()[0][0] is None:
                 return cnt, cpu_list, mem_list
-            if cnt < self.timeout:
+            if cnt < cal_time:
                 cnt += 1
             else:
                 return cnt, cpu_list, mem_list
@@ -580,18 +601,23 @@ if __name__ == "__main__":
     opts = pars.get_opts(parser.parse_args())
     dmg = DataMigration(opts.host, opts.port, opts.config_dir)
     dmg.prepare_json(opts.thread_count, opts.num_of_records_per_req, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.vgroups, opts.tables, opts.records, opts.timestamp_step)
+    dmg.conn.execute(f'drop stream if exists {opts.stream_name}')
     dmg.prepare_data()
+    time.sleep(10)
+    start_time = time.time()
     dmg.create_stream(opts.stream_name, opts.source_dbname, opts.source_stbname, opts.target_dbname, opts.target_stbname)
     taosd_pid = dmg.find_process_pid("taosd")
-    rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0])
+    rtn = dmg.wait_stream_finished(opts.stream_name, taosd_pid[0], opts.cal_time)
+    end_time = time.time()
+    time_usage = int(end_time-start_time)
     if not rtn[0]:
         print(f"Stream task is not finished in {dmg.timeout}s.")
     else:
         res = dmg.conn.query(f'select count(*) from {opts.target_dbname}.{opts.target_stbname};')
-        perftime = res.fetch_all()[0][0]/rtn[0]
-        print(f"Stream task finished in {rtn[0]}s and cal-perf is {perftime}rows/s.")
-        print(f"AVG CPU Usage: {sum(rtn[1])/len(rtn[1]):.2f}%")
-        print(f"AVG MEM Usage: {sum(rtn[2])/len(rtn[2])/1024/1024:.2f}MB")
+        perftime = res.fetch_all()[0][0]/time_usage
+        print(f"Stream task finished in {time_usage}s and cal-perf is {perftime}rows/s.")
+        print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}, {max(rtn[1]):.2f}]")
+        print(f"MEM Usage during stream-computing --- [avg, min, max]: [{sum(rtn[2])/len(rtn[2])/1024/1024:.2f}MB, {min(rtn[2])/1024/1024:.2f}MB, {max(rtn[2])/1024/1024:.2f}MB]")
     # monitor = Monitor()
     # taosd_pid = monitor.find_process_pid("taosd")
     # print(taosd_pid)
