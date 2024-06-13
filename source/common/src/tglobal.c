@@ -135,6 +135,7 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
+int32_t tmqRowSize = 4096;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
@@ -555,7 +556,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH) != 0) return -1;
 
-  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
@@ -615,8 +616,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16,
-                  (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER) != 0)
+  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2),
+                  CFG_SCOPE_SERVER) != 0)
     return -1;
 
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, CFG_SCOPE_SERVER) != 0)
@@ -692,6 +693,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "forbiddenBackTrace", tsForbiddenBackTrace, CFG_SCOPE_SERVER) != 0) {
+  }
   GRANT_CFG_ADD;
   return 0;
 }
@@ -728,7 +731,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
     pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
   }
@@ -1104,7 +1107,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
   tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
-
+  tsForbiddenBackTrace = cfgGetItem(pCfg, "forbiddenBackTrace")->bval;
   GRANT_CFG_GET;
   return 0;
 }

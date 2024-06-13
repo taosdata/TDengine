@@ -1931,7 +1931,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
   // no data in the sql string anymore.
   if (0 == pTbName->n) {
     if (0 != pTbName->type && '\0' != pStmt->pSql[0]) {
-      return buildSyntaxErrMsg(&pCxt->msg, "invalid charactor in SQL", pTbName->z);
+      return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pTbName->z);
     }
 
     if (0 == pStmt->totalRowsNum && (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {

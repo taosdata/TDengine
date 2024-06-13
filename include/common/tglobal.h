@@ -188,6 +188,7 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
+extern int32_t tmqRowSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;

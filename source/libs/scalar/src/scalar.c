@@ -1209,6 +1209,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
   res->node.resType.scale = output.columnData->info.scale;
@@ -1264,6 +1265,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   res->node.resType = node->node.resType;
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   int32_t type = output.columnData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
     res->datum.p = output.columnData->pData;
@@ -1305,6 +1307,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1360,6 +1363,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;

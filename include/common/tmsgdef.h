@@ -17,6 +17,7 @@
 
 #if 0
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
@@ -74,6 +75,23 @@ int32_t tMsgDict[] = {
 
 enum {
 
+#elif defined(TD_MSG_TYPE_INFO_)
+
+  typedef struct {
+    const char *name;
+    const char *rspName;
+    int32_t type;
+    int32_t rspType;
+  } SMsgTypeInfo;
+
+  #undef TD_NEW_MSG_SEG
+  #undef TD_DEF_MSG_TYPE
+  #undef TD_CLOSE_MSG_SEG
+  #define TD_NEW_MSG_SEG(TYPE)
+  #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) { #TYPE, #TYPE "_RSP", TYPE, TYPE##_RSP },
+  #define TD_CLOSE_MSG_SEG(TYPE)
+
+  SMsgTypeInfo tMsgTypeInfo[] = {
 #else
 #undef TD_NEW_MSG_SEG
 #undef TD_DEF_MSG_TYPE

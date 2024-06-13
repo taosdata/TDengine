@@ -99,14 +99,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       taosArrayDestroy(reqNew.pArray);
     }
 
-    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-      pCreateReq = req.pReqs + iReq;
-      taosMemoryFreeClear(pCreateReq->comment);
-      taosMemoryFreeClear(pCreateReq->sql);
-      if (pCreateReq->type == TSDB_CHILD_TABLE) {
-        taosArrayDestroy(pCreateReq->ctb.tagName);
-      }
-    }
+    tDeleteSVCreateTbBatchReq(&req);
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
     SVAlterTbReq req = {0};
 

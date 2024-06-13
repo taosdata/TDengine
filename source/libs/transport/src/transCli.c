@@ -201,7 +201,7 @@ static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
 // process data read from server, add decompress etc later
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
-static void cliHandleExcept(SCliConn* conn);
+static void cliHandleExcept(SCliConn* conn, int32_t code);
 static void cliReleaseUnfinishedMsg(SCliConn* conn);
 static void cliHandleFastFail(SCliConn* pConn, int status);
 
@@ -347,7 +347,7 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   taosWLockLatch(&exh->latch);
   if (exh->handle == NULL) exh->handle = conn;
   exh->inited = 1;
-
+  exh->pThrd = conn->hostThrd;
   if (!QUEUE_IS_EMPTY(&exh->q)) {
     queue* h = QUEUE_HEAD(&exh->q);
     QUEUE_REMOVE(h);
@@ -570,8 +570,11 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
   transUnrefCliHandle(pConn);
 }
-void cliHandleExcept(SCliConn* conn) {
+void cliHandleExcept(SCliConn* conn, int32_t code) {
   tTrace("%s conn %p except ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
+  if (code != TSDB_CODE_RPC_FQDN_ERROR) {
+    code = -1;
+  }
   cliHandleExceptImpl(conn, -1);
 }
 
@@ -865,7 +868,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     while (transReadComplete(pBuf)) {
       tTrace("%s conn %p read complete", CONN_GET_INST_LABEL(conn), conn);
       if (pBuf->invalid) {
-        cliHandleExcept(conn);
+        cliHandleExcept(conn, -1);
         break;
       } else {
         cliHandleResp(conn);
@@ -885,7 +888,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     tDebug("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
            T_REF_VAL_GET(conn));
     conn->broken = true;
-    cliHandleExcept(conn);
+    cliHandleExcept(conn, -1);
   }
 }
 
@@ -1036,7 +1039,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   } else {
     if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
       tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
-      cliHandleExcept(pConn);
+      cliHandleExcept(pConn, -1);
     }
     return;
   }
@@ -1112,7 +1115,7 @@ void cliSend(SCliConn* pConn) {
 
   if (transQueueEmpty(&pConn->cliMsgs)) {
     tError("%s conn %p not msg to send", pTransInst->label, pConn);
-    cliHandleExcept(pConn);
+    cliHandleExcept(pConn, -1);
     return;
   }
 
@@ -1185,7 +1188,7 @@ void cliSend(SCliConn* pConn) {
   if (status != 0) {
     tGError("%s conn %p failed to send msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
             uv_err_name(status));
-    cliHandleExcept(pConn);
+    cliHandleExcept(pConn, -1);
   }
   return;
 _RETURN:
@@ -1241,7 +1244,8 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
       taosArrayPush(pThrd->timerList, &conn->timer);
       conn->timer = NULL;
 
-      cliHandleFastFail(conn, -1);
+      cliHandleFastFail(conn, terrno);
+      terrno = 0;
       return;
     }
     struct sockaddr_in addr;
@@ -1303,7 +1307,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
     tDebug("%s conn %p failed to send batch msg, batch size:%d, msgLen:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn,
            p->wLen, p->batchSize, uv_err_name(status));
 
-    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn);
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn, -1);
 
     cliHandleBatchReq(nxtBatch, thrd);
   } else {
@@ -1362,7 +1366,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
     cliDestroyBatch(pConn->pBatch);
     pConn->pBatch = NULL;
   }
-  cliHandleExcept(pConn);
+  cliHandleExcept(pConn, status);
 }
 
 void cliConnCb(uv_connect_t* req, int status) {
@@ -1652,7 +1656,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       taosArrayPush(pThrd->timerList, &conn->timer);
       conn->timer = NULL;
 
-      cliHandleExcept(conn);
+      cliHandleExcept(conn, terrno);
+      terrno = 0;
       return;
     }
 
@@ -1666,20 +1671,20 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
               tstrerror(TAOS_SYSTEM_ERROR(errno)));
-      cliHandleExcept(conn);
+      cliHandleExcept(conn, -1);
       errno = 0;
       return;
     }
     int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
     if (ret != 0) {
       tGError("%s conn %p failed to set stream, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
-      cliHandleExcept(conn);
+      cliHandleExcept(conn, -1);
       return;
     }
     ret = transSetConnOption((uv_tcp_t*)conn->stream, tsKeepAliveIdle);
     if (ret != 0) {
       tGError("%s conn %p failed to set socket opt, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
-      cliHandleExcept(conn);
+      cliHandleExcept(conn, -1);
       return;
     }
 
@@ -2505,7 +2510,7 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   if (exh == NULL) {
     return NULL;
   }
-
+  taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
     int idx = cliRBChoseIdx(trans);
     if (idx < 0) return NULL;
@@ -2513,7 +2518,9 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   }
 
   pThrd = exh->pThrd;
+  taosWUnLockLatch(&exh->latch);
   transReleaseExHandle(transGetRefMgt(), handle);
+
   return pThrd;
 }
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {

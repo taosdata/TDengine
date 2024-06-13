@@ -153,5 +153,14 @@ if $data(u2)[3] != 1 then
   return -1
 endi
 
+sql_error CREATE USER u100 PASS 'taosdata' SYSINFO -1;
+sql_error CREATE USER u101 PASS 'taosdata' SYSINFO 2;
+sql_error CREATE USER u102 PASS 'taosdata' SYSINFO 20000;
+sql_error ALTER USER u1 enable -1
+sql_error ALTER USER u1 enable 2
+sql_error ALTER USER u1 enable 10000
+sql_error ALTER USER u1 sysinfo -1
+sql_error ALTER USER u1 sysinfo 2
+sql_error ALTER USER u1 sysinfo -20000
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
