@@ -42,6 +42,7 @@ class TDTestQuery(TDCase):
         self.target_taosd = self.firstEP[-1].split(':')
         print(self.target_taosd[0])
         self.service_host = self.target_taosd[0]
+        self.restart_dnode_id_list = list()
 
     def tags(self) :
 	
