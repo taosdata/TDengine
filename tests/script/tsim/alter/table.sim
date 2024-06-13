@@ -667,16 +667,16 @@ sql_error alter table tb2023 add column v varchar(262131);
 sql_error alter table tb2023 add column v varchar(262135);
 #sql alter table tb2023 add column v varchar(65517);
 #sql_error alter table tb2023 modify column v varchar(65518);
-sql alter table tb2023 add column v varchar(262125);
-sql_error alter table tb2023 modify column v varchar(262126);
+sql alter table tb2023 add column v varchar(262123);
+sql_error alter table tb2023 modify column v varchar(262124);
 sql desc tb2023
 sql alter table tb2023 drop column v
 #sql_error alter table tb2023 add column v nchar(16380);
 #sql alter table tb2023 add column v nchar(16379);
 #sql_error alter table tb2023 modify column v nchar(16380);
 sql_error alter table tb2023 add column v nchar(65532);
-sql alter table tb2023 add column v nchar(65531);
-sql_error alter table tb2023 modify column v nchar(65532);
+sql alter table tb2023 add column v nchar(65530);
+sql_error alter table tb2023 modify column v nchar(65531);
 sql desc tb2023
 
 print =============== modify column for normal table
@@ -695,24 +695,24 @@ sql create table stb2023(ts timestamp, f int) tags(t1 int);
 sql_error alter table stb2023 add column v varchar(262126);
 sql_error alter table stb2023 add column v varchar(262131);
 sql_error alter table stb2023 add column v varchar(262135);
-sql alter table stb2023 add column v varchar(262125);
-sql_error alter table stb2023 modify column v varchar(262126);
+sql alter table stb2023 add column v varchar(262123);
+sql_error alter table stb2023 modify column v varchar(262124);
 sql desc stb2023
 sql alter table stb2023 drop column v
 #sql_error alter table stb2023 add column v nchar(16380);
 #sql alter table stb2023 add column v nchar(16379);
 #sql_error alter table stb2023 modify column v nchar(16380);
 sql_error alter table stb2023 add column v nchar(65532);
-sql alter table stb2023 add column v nchar(65531);
-sql_error alter table stb2023 modify column v nchar(65532);
+sql alter table stb2023 add column v nchar(65530);
+sql_error alter table stb2023 modify column v nchar(65531);
 sql desc stb2023
 
 print =============== modify column/tag for super table
-sql create table stb_ts3841(ts timestamp, c0 varchar(64000)) tags(t1 binary(16380));
+sql create table stb_ts3841(ts timestamp, c0 varchar(64000)) tags(t1 binary(16378));
 sql alter table stb_ts3841 modify column c0 varchar(64001);
-sql alter table stb_ts3841 modify tag t1 binary(16381);
-sql alter table stb_ts3841 modify tag t1 binary(16382);
-sql_error alter table stb_ts3841 modify tag t1 binary(16383);
+sql alter table stb_ts3841 modify tag t1 binary(16379);
+sql alter table stb_ts3841 modify tag t1 binary(16380);
+sql_error alter table stb_ts3841 modify tag t1 binary(16381);
 #sql alter table stb_ts3841 modify tag t1 binary(65533);
 #sql alter table stb_ts3841 modify tag t1 binary(65534);
 #sql_error alter table stb_ts3841 modify tag t1 binary(65535);
