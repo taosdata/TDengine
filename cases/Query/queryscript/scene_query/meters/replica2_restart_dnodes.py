@@ -27,7 +27,7 @@ class RestartDnodes(TDCase):
         self.ts = 1537146000000
         self.str_length = 20
         self.default_replica = 2
-        self.ready_sleep = 5
+        self.ready_sleep = 30
         self._remote: Remote = Remote(self.logger)
         self.column_dict = {
             'col1': 'bigint'
