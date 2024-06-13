@@ -643,7 +643,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (taosGetTimestampMs() - pTask->status.lastExecTs < MIN_INVOKE_INTERVAL) {
-      stDebug("s-task:%s invoke with high frequency, idle and retry exec in 50ms", id);
+      stDebug("s-task:%s invoke exec too fast, idle and retry in 50ms", id);
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
       return 0;
     }
