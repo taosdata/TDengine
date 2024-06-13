@@ -592,16 +592,17 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     blockDataAppendColInfo(pDstBlock, &colInfo);
 
     SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    int32_t code = doEnsureCapacity(pDst, &pDstBlock->info, pDataBlock->info.rows, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      blockDataDestroy(pDstBlock);
-      return NULL;
-    }
-    colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
-
-    if (pDataBlock->pBlockAgg) {
+    if (pDataBlock->pBlockAgg && pDataBlock->pBlockAgg[slotId].colId != -1) {
       pDstBlock->pBlockAgg[i] = pDataBlock->pBlockAgg[slotId];
+    } else {
+	    int32_t code = doEnsureCapacity(pDst, &pDstBlock->info, pDataBlock->info.rows, false);
+	    if (code != TSDB_CODE_SUCCESS) {
+	      terrno = code;
+	      blockDataDestroy(pDstBlock);
+	      return NULL;
+	    }
+
+      colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
     }
   }
 
