@@ -579,7 +579,7 @@ if __name__ == "__main__":
         assert(query_result[0][0] == opts.records*10)
         print(f"Final stream window is {query_result[0][0]}, it should be {opts.records*10}.")
         print(f"Stream task finished in {time_usage}s and cal-perf is {perftime}rows/s.")
-        print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}, {max(rtn[1]):.2f}]")
+        print(f"CPU Usage during stream-computing --- [avg, min, max]: [{sum(rtn[1])/len(rtn[1]):.2f}%, {min(rtn[1]):.2f}%, {max(rtn[1]):.2f}%]")
         print(f"MEM Usage during stream-computing --- [avg, min, max]: [{(sum(rtn[2])/len(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(min(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB, {(max(rtn[2])-memory_bf_stream)/1024/1024:.2f}MB]")
     
 
