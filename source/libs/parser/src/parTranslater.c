@@ -6898,19 +6898,6 @@ static int32_t checkDbTbPrefixSuffixOptions(STranslateContext* pCxt, int32_t tbP
 }
 
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
-  if (pOptions->replica > 1) {
-    SDbCfgInfo dbCfg = {0};
-    int32_t    code = getDBCfg(pCxt, pDbName, &dbCfg);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-
-    if (pOptions->walLevel == 0 || dbCfg.walLevel == 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option, wal_level 0 should be used with replica 1");
-    }
-  }
-
   int32_t daysPerFile = pOptions->daysPerFile;
   int32_t s3KeepLocal = pOptions->s3KeepLocal;
   int64_t daysToKeep0 = pOptions->keep[0];
@@ -6937,6 +6924,11 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
   if ((pOptions->replica == 2) ^ (pOptions->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option, with_arbitrator should be used with replica 2");
+  }
+
+  if (pOptions->replica > 1 && pOptions->walLevel == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option, wal_level 0 should be used with replica 1");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -7279,6 +7271,15 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
     SDbCfgInfo dbCfg = {0};
     int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
     if (TSDB_CODE_SUCCESS == code && dbCfg.replications > 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option, wal_level 0 should be used with replica 1");
+    }
+  }
+
+  if (pStmt->pOptions->replica > 1) {
+    SDbCfgInfo dbCfg = {0};
+    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == code && dbCfg.walLevel == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
