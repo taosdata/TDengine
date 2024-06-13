@@ -929,21 +929,17 @@ async fn consume_lush_record_with_transform(
                 )
             })?;
             let super_table = super_table.to_owned();
-            // let len = tables.len();
-            // let mut cached_table_names = String::new();
             // 缓存子表 tag 值
             for table in tables {
-                // cached_table_names.push_str(table.table_name());
-                // cached_table_names.push_str(",");
                 table_cache
                     .insert_async(table.table_name().to_owned(), table)
                     .await;
             }
-            // tracing::trace!(
-            //     "Cached tables message: {}, cached_table_names={}",
-            //     len,
-            //     cached_table_names
-            // );
+            if full_record.is_none() {
+                tracing::error!("Lush message tables should contains full_record");
+                return Ok(());
+            }
+            let full_record = full_record.unwrap();
             // 获取 tranfrom::Parser
             let parser: &transform::Parser = lush_model_config
                 .super_table_parsers

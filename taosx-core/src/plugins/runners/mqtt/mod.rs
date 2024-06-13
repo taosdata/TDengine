@@ -331,9 +331,9 @@ pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::R
 }
 
 async fn get_sample_impl(
-    dsn: &Dsn,
-    limit: usize,
-    timeout: Duration,
+    _dsn: &Dsn,
+    _limit: usize,
+    _timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
     todo!()
 }

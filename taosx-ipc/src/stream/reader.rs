@@ -145,7 +145,7 @@ impl IpcParser {
 
     pub fn lush_message_iter(&self) {}
 
-    fn parse_children(&self, record: RecordBatch) -> (Vec<LushInsertAttrs>, RecordBatch) {
+    fn parse_children(&self, record: RecordBatch) -> (Vec<LushInsertAttrs>, Option<RecordBatch>) {
         let tables = record.column(__TABLES_INDEX__);
         let tables_clone = tables.clone();
         let values = record.column_by_name(__RECORDS__).unwrap();
@@ -180,8 +180,9 @@ impl IpcParser {
         }
         let tables_record = struct_array_to_record_batch(tables_record);
         let values_record = struct_array_to_record_batch(values_record);
-        let full_record = tables_record.concat_by_columns(&values_record).unwrap();
 
+        // 对于 PI， __tables__ 和 __records__ 长度是一样的，其它数据源不能保证，因此可能出错
+        let full_record = tables_record.concat_by_columns(&values_record).ok();
         (tables, full_record)
     }
 
@@ -1633,7 +1634,7 @@ pub struct LushMessageTable {}
 
 #[derive(Debug)]
 pub enum LushMessage {
-    Tables(Vec<LushInsertAttrs>, RecordBatch),
+    Tables(Vec<LushInsertAttrs>, Option<RecordBatch>),
     Insert(Vec<LushMessageInsert>),
 }
 
