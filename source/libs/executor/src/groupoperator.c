@@ -581,7 +581,7 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
 
   SSDataBlock* pDstBlock = createDataBlock();
   pDstBlock->info = pDataBlock->info;
-  pDstBlock->info.id = pOperator->resultDataBlockId;
+  pDstBlock->info.id.blockId = pOperator->resultDataBlockId;
   pDstBlock->info.capacity = 0;
   pDstBlock->info.rowSize = 0;
 
