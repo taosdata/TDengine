@@ -2674,6 +2674,18 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
   return pValNode;
 }
 
+SNode* nodesMakeValueNodeFromInt32(int32_t value) {
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_INT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    nodesSetValueNodeValue(pValNode, &value);
+    pValNode->translate = true;
+    pValNode->isNull = false;
+  }
+  return (SNode*)pValNode;
+}
+
 bool nodesIsStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
