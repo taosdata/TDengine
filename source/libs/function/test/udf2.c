@@ -18,6 +18,7 @@ DLL_EXPORT int32_t udf2_start(SUdfInterBuf* buf) {
 }
 
 DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf* interBuf, SUdfInterBuf* newInterBuf) {
+  if(newInterBuf->buf == NULL || newInterBuf->bufLen < (sizeof(double))) return TSDB_CODE_UDF_INVALID_BUFSIZE;
   double sumSquares = 0;
   if (interBuf->numOfResult == 1) {
     sumSquares = *(double*)interBuf->buf;
