@@ -335,7 +335,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -1715,6 +1717,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newAsynclog = atoi(value);
     uInfo("asynclog set from %d to %d", tsAsyncLog, newAsynclog);
     tsAsyncLog = newAsynclog;
+    return;
+  }
+
+  if (strcasecmp(option, "enableWhiteList") == 0) {
+    int32_t enableWhitelist = atoi(value);
+    uInfo("enablewhitelist set from %d to %d", tsAsyncLog, enableWhitelist);
+    tsEnableWhiteList = enableWhitelist > 0 ? true : false;
     return;
   }
 
