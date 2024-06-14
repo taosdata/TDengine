@@ -44,7 +44,7 @@ class TestTD29092(TDCase):
     def run(self):
         self.prepare_data()
         self.tdSql.query(f'select A.tbname, count(A.c1) from {self.stbname1} A group by A.tbname')
-        self.tdSql.checkEqual(self.tdSql.query_data, [(self.ctbname1), self.count])
+        self.tdSql.checkEqual(self.tdSql.query_data, [(self.ctbname1, self.count)])
         self.tdSql.query(f'select A.ts, A.tbname, B.tbname, count(A.c1) from {self.stbname1} as A join {self.stbname2} as B on B.ts=A.ts partition by A.ts,A.tbname')
         self.tdSql.checkEqual(self.tdSql.query_row, self.count)
         ctb1_tbname_val = [i[1] for i in self.tdSql.query_data]
