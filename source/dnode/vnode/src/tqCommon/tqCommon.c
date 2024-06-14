@@ -418,7 +418,9 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   streamMetaReleaseTask(pMeta, pTask);
   tCleanupStreamRetrieveReq(&req);
-  return code;
+
+  // always return success, to disable the auto rsp
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
