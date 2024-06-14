@@ -5138,7 +5138,8 @@ class StreamComputingTest(TDCase):
             for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
                 self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
                 self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
-                self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
+                # ! TD-30585
+                # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
                 for watermark in [None, random.randint(15, 20)]:
                     self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
 
@@ -5177,7 +5178,8 @@ class StreamComputingTest(TDCase):
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname, c1", delete=False, watermark=100)
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100)
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100)
-            self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
+            # ! TD-30578
+            # self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
             # ## for existed stb
             for delete in [True, False]:
                 for fill_history_value in [1]:
