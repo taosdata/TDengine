@@ -233,6 +233,12 @@ void walClose(SWal *pWal) {
   taosThreadMutexUnlock(&pWal->mutex);
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);
+
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);
+    taosRemoveDir(pWal->path);
+    taosMkDir(pWal->path);
+  }
 }
 
 static void walFreeObj(void *wal) {

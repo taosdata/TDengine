@@ -7275,7 +7275,7 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
   }
-  /*
+#if 0
   if (pStmt->pOptions->replica > 1 && pStmt->pOptions->walLevel < 1) {
     SDbCfgInfo dbCfg = {0};
     dbCfg.walLevel = -1;
@@ -7285,7 +7285,7 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
   }
-  */
+#endif
   int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
