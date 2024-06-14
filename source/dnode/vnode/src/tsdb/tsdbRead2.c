@@ -4959,6 +4959,9 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
     pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    for(int i = 0; i <= num; ++i) {
+      pResBlock->pBlockAgg[i].colId = -1;
+    }
   }
 
   // do fill all null column value SMA info
