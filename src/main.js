@@ -49,16 +49,19 @@ Vue.prototype.$error = function (msg) {
   });
 }
 Vue.prototype.$COMMUNITY = (process.env.VUE_APP_COMMUNITY && process.env.VUE_APP_COMMUNITY === "community") ? true : false;
+Vue.prototype.$INDUSTRY = process.env.VUE_APP_INDUSTRY
 export function getBrowserLang() {
   const nav = window.navigator;
-  const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
+  const browserLang = localStorage.getItem('local_language') || (nav.language || nav.browserLanguage || '').toLowerCase();
   if (browserLang.includes('zh')) return 'zh';
   if (browserLang.includes('en')) return 'en';
   return 'en';
 }
 function setTitle() {
   const lang = getBrowserLang()
-  const title = lang === 'en' ? Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine Enterprise' : Vue.prototype.$COMMUNITY ? 'TDengine OSS' : 'TDengine企业版'
+  const title = lang === 'en' 
+    ? Vue.prototype.$COMMUNITY ? 'TDengine OSS' : Vue.prototype.$INDUSTRY ? 'TDengine Power Edition' : 'TDengine Enterprise' 
+    : Vue.prototype.$COMMUNITY ? 'TDengine OSS' : Vue.prototype.$INDUSTRY ? 'TDengine 电力版' : 'TDengine 企业版'
   document.title = title
 }
 function checkFirefox() {

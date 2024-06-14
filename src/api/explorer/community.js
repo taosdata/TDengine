@@ -2252,7 +2252,7 @@ export function getDataSources(lang) {
                 "name": "sasl_password",
                 "display": "Password",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "The password for SASL authentication mechanism.",
                 "description": "The password for SASL authentication mechanism.",
@@ -2283,7 +2283,7 @@ export function getDataSources(lang) {
                 "name": "ca_password",
                 "display": "CA Password",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "CA private key passphrase.",
                 "description": "CA private key passphrase.",
@@ -5880,7 +5880,7 @@ export function getDataSources(lang) {
                 "name": "sasl_password",
                 "display": "密码",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "用于 SASL 认证机制的密码",
                 "description": "用于 SASL 认证机制的密码",
@@ -5911,7 +5911,7 @@ export function getDataSources(lang) {
                 "name": "ca_password",
                 "display": "CA 密码",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "CA 私钥密码",
                 "description": "CA 私钥密码",

@@ -2535,6 +2535,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
   taosx500: "TaosX API 无法访问，请检查 taosx 服务状态",
   header: {
     version: `${oem} 服务版本`,
+    power: `${oem} 电力版`,
   },
   explorerfns: {
     NumbericFn: "数学函数",

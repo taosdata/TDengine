@@ -2773,6 +2773,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     "The Taosx API cannot be accessed. Please check the Taosx service status",
   header: {
     version: `${oem} Server Version`,
+    power: `${oem} Power Edition`,
   },
   explorerfns: {
     NumbericFn: "Mathematical Functions",

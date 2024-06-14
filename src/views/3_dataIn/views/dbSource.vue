@@ -51,18 +51,9 @@ export default {
         let allData = [];
         let version = localStorage.getItem("agent_version");
         let [a, b, c, d] = version.split(".");
-        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3 && c >= 1)) {
-          await sendSQLReq(`show grants full;`).then((res) => {
-            let array = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            allData = array.map((item) => item.grant_name)
-            result = result.filter(item => allData.includes(item.license_id))
-          })
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3 && c >= 2)) {
+          allData = localStorage.getItem('allLicenseNameData') || []
+          result = result.filter(item => allData.includes(item.license_id))
         }
         this.$store.commit("app/SET_DEFINITIONS", result);
       } catch (error) {
