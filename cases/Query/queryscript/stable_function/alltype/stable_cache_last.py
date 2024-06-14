@@ -30,6 +30,7 @@ from taostest import TDCase
 
 class TDTestQuery(TDCase):
     def init(self):
+        self.tdCom = TDCom(self.tdSql)
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         
