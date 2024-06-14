@@ -56,7 +56,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in 
 ### Ubuntu 18.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libexpat1-dev libapr1-dev libaprutil1-dev libmxml-dev  geos-devel 
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libexpat1-dev libapr1-dev libaprutil1-dev libmxml-dev 
 ```
 
 #### Install build dependencies for taosTools
