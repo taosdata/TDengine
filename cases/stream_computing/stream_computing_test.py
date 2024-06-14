@@ -2907,8 +2907,9 @@ class StreamComputingTest(TDCase):
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
-            self.tdSql.query(f'select * from {self.ctb_name}')
             for tname in [self.stb_name, self.ctb_name]:
+                group_id = self.get_group_id_from_stb(f'{tname}_output')
+                self.tdSql.query(f'select * from {self.ctb_name}')
                 ptn_counter = 0
                 for c1_value in self.tdSql.query_data:
                     if partition == "c1":
@@ -2921,13 +2922,14 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.range_count)
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;', count_expected_res=self.range_count)
                     elif partition == "tbname" and ptn_counter == 0:
-                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}')
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}_{tname}_output_{group_id}')
                         self.tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=self.range_count)
                         # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;', count_expected_res=self.range_count)
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] , self.range_count)
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+            group_id = self.get_group_id_from_stb(f'{self.tb_name}_output')
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
@@ -2941,7 +2943,7 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
                 elif partition == "tbname" and ptn_counter == 0:
-                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}')
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}_{self.tb_name}_output_{group_id}')
                     self.tdSql.query(f'select count(*) from `{tbname}`')
                     # self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
