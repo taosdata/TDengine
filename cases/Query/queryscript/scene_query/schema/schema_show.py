@@ -131,7 +131,7 @@ class TDTestQuery(TDCase):
                         's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','encryptAlgorithm','encryptScope',
                         'syncSnapReplMaxWaitN','arbHeartBeatIntervalSec','arbCheckSyncIntervalSec','arbSetAssignedTimeoutSec','monitorLogProtocol',
                         'monitorIntervalForBasic','monitorForceV2','tmqRowSize','maxTsmaNum','s3MigrateIntervalSec','s3MigrateEnabled','streamAggCnt',
-                        'concurrentCheckpoint','','','','','','','','','']
+                        'concurrentCheckpoint','retentionSpeedLimitMB','','','','','','','','']
         
         
         dnodes_list = []
