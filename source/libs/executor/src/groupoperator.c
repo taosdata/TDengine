@@ -591,6 +591,7 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     SColumnInfoData  colInfo = {.hasNull = true, .info = pSrc->info};
     blockDataAppendColInfo(pDstBlock, &colInfo);
 
+    pDstBlock->pBlockAgg[i].colId = -1;
     SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
     if (pDataBlock->pBlockAgg && pDataBlock->pBlockAgg[slotId].colId != -1) {
       pDstBlock->pBlockAgg[i] = pDataBlock->pBlockAgg[slotId];

@@ -708,12 +708,10 @@ static int32_t saveRelatedTupleTag(SqlFunctionCtx* pCtx, SInputColumnInfoData* p
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SMinmaxResInfo*      pBuf = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t code = 0;
-  code = saveTupleData(pCtx, 0, pCtx->pSrcBlock, &pBuf->tuplePos);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCtx->subsidiaries.num > 0) {
+    code = saveTupleData(pCtx, 0, pCtx->pSrcBlock, &pBuf->tuplePos);
   }
-
   return code;
 }
 
