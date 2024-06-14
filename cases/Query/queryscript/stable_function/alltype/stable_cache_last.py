@@ -43,6 +43,7 @@ class TDTestQuery(TDCase):
         print(self.target_taosd[0])
         self.service_host = self.target_taosd[0]
         self.restart_dnode_id_list = list()
+        self.restart_dnode_interval = 300
 
     def tags(self) :
 	
@@ -364,6 +365,7 @@ class TDTestQuery(TDCase):
         self.data_insert(self.db) 
         self.restart_dnodes() 
         self.db_query(self.db)
+        self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.alter_column(self.db)
         self.db_query(self.db)
          
@@ -380,6 +382,7 @@ class TDTestQuery(TDCase):
         self.restart_dnodes()
         self.alter_cachemodel_last_row(self.db)
         self.table_create(self.db)
+        self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.data_insert(self.db)  
         self.taosc_data_insert(self.db) 
         self.data_insert_into_select_null(self.db) 
@@ -409,6 +412,7 @@ class TDTestQuery(TDCase):
         self.db_create_replica3(self.db)
         self.alter_cachemodel_both(self.db)
         self.table_create(self.db)
+        self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.data_insert(self.db)  
         self.db_query(self.db)
         self.alter_column(self.db)
@@ -428,6 +432,7 @@ class TDTestQuery(TDCase):
         self.restart_dnodes()
         self.alter_cachemodel_last_row(self.db)
         self.table_create(self.db)
+        self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.data_insert(self.db)  
         self.taosc_data_insert(self.db) 
         self.data_insert_into_select_null(self.db) 
@@ -452,6 +457,7 @@ class TDTestQuery(TDCase):
         self.taosc_data_insert(self.db) 
         self.restart_dnodes()
         self.data_delete(self.db)
+        self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.db_query(self.db)
                
         self.alter_replica1_3(self.db)
@@ -563,7 +569,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         self.case_test()
-        for i in range(20):
+        for i in range(10):
             self.logger.info("\n\n\n=========num:%d====start=============\n\n\n" %i) 
             self.td_25880()
             self.bug_11()
