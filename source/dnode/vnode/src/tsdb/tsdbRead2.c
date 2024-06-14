@@ -4979,7 +4979,6 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      pResBlock->pBlockAgg[pSup->slotId[j]].colId = -1;
       *allHave = false;
       j += 1;
     }
