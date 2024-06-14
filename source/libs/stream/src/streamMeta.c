@@ -299,8 +299,8 @@ void streamMetaRemoveDB(void* arg, char* key) {
   taosThreadMutexUnlock(&pMeta->backendMutex);
 }
 
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage,
-                            startComplete_fn_t fn) {
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn,
+                            int32_t vgId, int64_t stage, startComplete_fn_t fn) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -369,7 +369,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->scanInfo.scanCounter = 0;
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
-  pMeta->expandFunc = expandFunc;
+  pMeta->buildTaskFn = buildTaskFn;
+  pMeta->expandTaskFn = expandTaskFn;
   pMeta->stage = stage;
   pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
   pMeta->updateInfo.transId = -1;
@@ -602,7 +603,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+  if (pMeta->buildTaskFn(pMeta->ahandle, pTask, ver) < 0) {
     return -1;
   }
 
@@ -901,7 +902,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (p == NULL) {
-      code = pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1);
+      code = pMeta->buildTaskFn(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1);
       if (code < 0) {
         stError("failed to expand s-task:0x%"PRIx64", code:%s, continue", id.taskId, tstrerror(terrno));
         tFreeStreamTask(pTask);
@@ -1522,6 +1523,7 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn expandFn) {
+  int32_t code = 0;
   int32_t vgId = pMeta->vgId;
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
@@ -1541,40 +1543,22 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
   ASSERT(pTask->status.downstreamReady == 0);
   if (pTask->pBackend == NULL) {
-    int32_t code = expandFn(pTask);
+    code = expandFn(pTask);
     if (code != TSDB_CODE_SUCCESS) {
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
-      streamMetaReleaseTask(pMeta, pTask);
-      return code;
-    }
-
-    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-      SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
-      if (pHTask != NULL) {
-        if (pHTask->pBackend == NULL) {
-          code = expandFn(pHTask);
-          if (code != TSDB_CODE_SUCCESS) {
-            streamMetaAddFailedTaskSelf(pHTask, pInfo->readyTs);
-
-            streamMetaReleaseTask(pMeta, pHTask);
-            streamMetaReleaseTask(pMeta, pTask);
-            return code;
-          }
-        }
-
-        streamMetaReleaseTask(pMeta, pHTask);
-      }
     }
   }
 
-  int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
-  if (ret != TSDB_CODE_SUCCESS) {
-    stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
-    streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
+      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
+    }
   }
 
   streamMetaReleaseTask(pMeta, pTask);
-  return ret;
+  return code;
 }
 
 static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {
