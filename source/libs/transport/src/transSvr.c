@@ -336,6 +336,59 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   pConn->whiteListVer = pWhite->ver;
 }
 
+static void uvPerfLog(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMsg) {
+  STrans*   pTransInst = pConn->pTransInst;
+  STraceId* trace = &pHead->traceId;
+
+  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
+
+  if (pConn->status == ConnNormal && pHead->noResp == 0) {
+    transRefSrvHandle(pConn);
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception",
+              transLabel(pTransInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              (int)cost);
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
+              TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen, (int)cost);
+    }
+  } else {
+    if (cost >= EXCEPTION_LIMIT_US) {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception",
+              transLabel(pTransInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              pHead->noResp, pTransMsg->code, (int)(cost));
+    } else {
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus",
+              transLabel(pTransInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+              pHead->noResp, pTransMsg->code, (int)(cost));
+    }
+  }
+  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), pTransMsg->info.handle,
+          pConn, pConn->refId);
+}
+
+static int8_t uvValidConn(SSvrConn* pConn) {
+  STrans*    pTransInst = pConn->pTransInst;
+  SWorkThrd* pThrd = pConn->hostThrd;
+  int8_t     forbiddenIp = 0;
+  if (pThrd->enableIpWhiteList) {
+    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
+    if (forbiddenIp == 0) {
+      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+    }
+  }
+  return forbiddenIp;
+}
+static void uvMaySetConnAcquired(SSvrConn* pConn, STransMsgHead* pHead) {
+  if (pConn->status == ConnNormal) {
+    if (pHead->persist == 1) {
+      pConn->status = ConnAcquire;
+      transRefSrvHandle(pConn);
+      tDebug("conn %p acquired by server app", pConn);
+    }
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pTransInst = pConn->pTransInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -358,14 +411,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
-  int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
-
   if (uvRecvReleaseReq(pConn, pHead)) {
     return true;
   }
@@ -384,38 +429,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  if (pConn->status == ConnNormal) {
-    if (pHead->persist == 1) {
-      pConn->status = ConnAcquire;
-      transRefSrvHandle(pConn);
-      tDebug("conn %p acquired by server app", pConn);
-    }
-  }
-  STraceId* trace = &pHead->traceId;
-
-  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
-
-  if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    transRefSrvHandle(pConn);
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception",
-              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
-    } else {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
-              TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
-    }
-  } else {
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception",
-              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
-              transMsg.code, (int)(cost));
-    } else {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus",
-              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
-              transMsg.code, (int)(cost));
-    }
-  }
+  uvMaySetConnAcquired(pConn, pHead);
 
   // pHead->noResp = 1,
   // 1. server application should not send resp on handle
@@ -423,21 +437,14 @@ static bool uvHandleReq(SSvrConn* pConn) {
   // 3. not mixed with persist
   transMsg.info.ahandle = (void*)pHead->ahandle;
   transMsg.info.handle = (void*)transAcquireExHandle(transGetRefMgt(), pConn->refId);
-  transMsg.info.refId = pConn->refId;
+  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
+
+  transMsg.info.refId = pHead->noResp == 1 ? -1 : pConn->refId;
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
-  transMsg.info.forbiddenIp = forbiddenIp;
+  transMsg.info.forbiddenIp = uvValidConn(pConn);
 
-  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
-          pConn->refId);
-  ASSERTS(transMsg.info.handle != NULL, "trans-svr failed to alloc handle to msg");
-  if (transMsg.info.handle == NULL) {
-    return false;
-  }
-
-  if (pHead->noResp == 1) {
-    transMsg.info.refId = -1;
-  }
+  uvPerfLog(pConn, pHead, &transMsg);
 
   // set up conn info
   SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
