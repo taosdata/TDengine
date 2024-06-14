@@ -205,7 +205,6 @@ typedef struct {
 
 typedef struct {
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
-  int32_t   waitingRspCnt;
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
@@ -312,15 +311,18 @@ typedef struct SMetaHbInfo        SMetaHbInfo;
 
 typedef struct SDispatchMsgInfo {
   SStreamDispatchReq* pData;  // current dispatch data
-  int8_t              dispatchMsgType;
-  int64_t             checkpointId;// checkpoint id msg
-  int32_t             transId;     // transId for current checkpoint
-  int16_t             msgType;     // dispatch msg type
-  int32_t             retryCount;  // retry send data count
-  int64_t             startTs;     // dispatch start time, record total elapsed time for dispatch
-  SArray*             pRetryList;  // current dispatch successfully completed node of downstream
-  void*               pRetryTmr;   // used to dispatch data after a given time duration
-  void*               pRspTmr;      // used to dispatch data after a given time duration
+
+  int8_t        dispatchMsgType;
+  int64_t       checkpointId;  // checkpoint id msg
+  int32_t       transId;       // transId for current checkpoint
+  int16_t       msgType;       // dispatch msg type
+  int32_t       msgId;
+  int64_t       startTs;    // dispatch start time, record total elapsed time for dispatch
+  int64_t       rspTs;      // latest rsp time
+  void*         pRetryTmr;  // used to dispatch data after a given time duration
+  TdThreadMutex lock;
+  int8_t        inMonitor;
+  SArray*       pSendInfo;   //  SArray<SDispatchEntry>
 } SDispatchMsgInfo;
 
 typedef struct STaskQueue {

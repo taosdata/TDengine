@@ -26,20 +26,16 @@
 extern "C" {
 #endif
 
-#define CHECK_RSP_CHECK_INTERVAL       300
-#define LAUNCH_HTASK_INTERVAL          100
-#define WAIT_FOR_MINIMAL_INTERVAL      100.00
-#define MAX_RETRY_LAUNCH_HISTORY_TASK  40
-#define RETRY_LAUNCH_INTERVAL_INC_RATE 1.2
-
-#define MAX_BLOCK_NAME_NUM         1024
-#define DISPATCH_RETRY_INTERVAL_MS 300
-#define MAX_CONTINUE_RETRY_COUNT   5
-
-#define META_HB_CHECK_INTERVAL    200
-#define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
-#define STREAM_TASK_KEY_LEN       ((sizeof(int64_t)) << 1)
-
+#define CHECK_RSP_CHECK_INTERVAL           300
+#define LAUNCH_HTASK_INTERVAL              100
+#define WAIT_FOR_MINIMAL_INTERVAL          100.00
+#define MAX_RETRY_LAUNCH_HISTORY_TASK      40
+#define RETRY_LAUNCH_INTERVAL_INC_RATE     1.2
+#define MAX_BLOCK_NAME_NUM                 1024
+#define DISPATCH_RETRY_INTERVAL_MS         300
+#define META_HB_CHECK_INTERVAL             200
+#define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
+#define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
 #define STREAM_TASK_QUEUE_CAPACITY         20480
 #define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
 
@@ -119,6 +115,14 @@ typedef struct {
 } STaskTriggerSendInfo;
 
 typedef struct {
+  int32_t nodeId;
+  int32_t status;
+  int64_t sendTs;
+  int64_t rspTs;
+  int32_t retryCount;
+} SDispatchEntry;
+
+typedef struct {
   int64_t streamId;
   int64_t recvTs;
   int32_t downstreamNodeId;
@@ -143,6 +147,12 @@ typedef enum {
   EXEC_AFTER_IDLE = 0x1,
 } EExtractDataCode;
 
+typedef enum ECHECKPOINT_BACKUP_TYPE {
+  DATA_UPLOAD_DISABLE = -1,
+  DATA_UPLOAD_S3 = 0,
+  DATA_UPLOAD_RSYNC = 1,
+} ECHECKPOINT_BACKUP_TYPE;
+
 extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
@@ -153,10 +163,9 @@ void    streamTimerCleanUp();
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
-void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
+void    streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
-int32_t getNumOfDispatchBranch(SStreamTask* pTask);
 void    clearBufferedDispatchMsg(SStreamTask* pTask);
 
 int32_t           streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
@@ -203,12 +212,6 @@ void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 void streamMetaRemoveDB(void* arg, char* key);
-
-typedef enum ECHECKPOINT_BACKUP_TYPE {
-  DATA_UPLOAD_DISABLE = -1,
-  DATA_UPLOAD_S3 = 0,
-  DATA_UPLOAD_RSYNC = 1,
-} ECHECKPOINT_BACKUP_TYPE;
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
