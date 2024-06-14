@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "mndCluster.h"
+#include "audit.h"
 #include "mndGrant.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -305,7 +305,7 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
 
-    char ver[12] = {0};
+    char ver[VARSTR_HEADER_SIZE + 12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
@@ -409,7 +409,8 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   {  // audit
-    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql,
+                TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
   }
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
