@@ -39,9 +39,30 @@ export function getStableStructReq(payload) {
       for (let i = type ? 0 : 1; i < list.length; i++) {
         const item = list[i];
         if (item.note == "TAG") {
-          tags.push({ ...item, type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          tags.push({ 
+            ...item, 
+            type: handleBinaryType(item.type, item.length), 
+            type_old: handleBinaryType(item.type, item.length),
+            length_old: item.length,
+            field_old: item.field, 
+            encode_old: item.encode, 
+            compress_old: item.compress,
+            level_old: item.level,
+            value: "" 
+          });
         } else {
-          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY', type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+          columns.push({ 
+            ...item, 
+            primaryKey: item.note == 'PRIMARY KEY', 
+            type: handleBinaryType(item.type, item.length), 
+            type_old: handleBinaryType(item.type, item.length),
+            length_old: item.length,
+            field: item.field, 
+            encode_old: item.encode, 
+            compress_old: item.compress,
+            level_old: item.level,
+            value: "" 
+          });
         }
       }
       return {

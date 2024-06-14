@@ -124,6 +124,7 @@ export function handleColumnData(data) {
     result.compress = item.compress;
     result.level = item.level;
     result.note = item.note;
+    result.length = item.length;
     res.push(result);
   });
   return res;
