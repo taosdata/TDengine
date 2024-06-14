@@ -174,7 +174,7 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
                                                SArray* pRes);
 void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
 
-int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
+int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData, const char* idstr);
 int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock);
 
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
