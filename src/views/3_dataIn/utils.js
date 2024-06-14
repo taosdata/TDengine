@@ -991,6 +991,9 @@ export function handleHintType(config, hint) {
     case 'file':
       config.type = 'file';
       break;
+    case 'password':
+      config.type = 'password';
+      break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
       config.options = hint;

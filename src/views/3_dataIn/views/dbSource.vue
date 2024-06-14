@@ -13,6 +13,7 @@
 import DataSource from "./dataSource.vue";
 import SourceConfig from "./sourceConfig.vue"
 import { getDataSources } from "@/api/explorer/community";
+import { sendSQLReq } from "@/api/gateway/console";
 
 export default {
   name: "DbSource",
@@ -47,6 +48,13 @@ export default {
     async getData() {
       try {
         let result = getDataSources(this.$i18n.locale);
+        let allData = [];
+        let version = localStorage.getItem("agent_version");
+        let [a, b, c, d] = version.split(".");
+        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3 && c >= 2)) {
+          allData = localStorage.getItem('allLicenseNameData') || []
+          result = result.filter(item => allData.includes(item.license_id))
+        }
         this.$store.commit("app/SET_DEFINITIONS", result);
       } catch (error) {
         console.log(error);

@@ -17,6 +17,7 @@ export function getDataSources(lang) {
         "id": "tmq",
         "type": "uri",
         "name": "TDengine 3.x",
+        "license_id": "td3.0",
         "description": "TMQ data source is a read-only data source for TDengine.\n\n## Protocols\n\nThe following protocols are supported.\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nWithout protocol settings, TMQ will use the TDengine native connection.\n\n## Subject\n\nA TMQ data source can subscribe to data from a database or a specified table. The table must be specified in the \"database.tablename\" format.\n",
         "options": {
           "endpoint": {
@@ -116,6 +117,7 @@ export function getDataSources(lang) {
         "id": "taos",
         "type": "uri",
         "name": "TDengine 2.x",
+        "license_id": "td2.6",
         "description": "The TDengine 2.x data source can be used to migrate data from previous version to current cluster.\n\n## Protocols\n\nThe supported protocols are:\n\n- ws: websocket protocol with plain HTTP connection.\n- wss: websocket protocol with TLS http connection.\n\nIf a protocol setting is not specified, a TDengine native connection will be used.\n",
         "options": {
           "host": {
@@ -397,6 +399,7 @@ export function getDataSources(lang) {
         "id": "pi",
         "type": "uri",
         "name": "PI",
+        "license_id": "pi",
         "description": "The Aveva PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.\n\nThe term PI System is often used to refer to the PI Server but the two are not the same. The PI System refers to all Aveva PI software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).\n",
         "options": {
           "host": {
@@ -588,6 +591,7 @@ export function getDataSources(lang) {
         "id": "pibackfill",
         "type": "uri",
         "name": "PI Backfill",
+        "license_id": "pi",
         "description": "The Aveva PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.\n\nThe term PI System is often used to refer to the PI Server but the two are not the same. The PI System refers to all Aveva PI software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).\n",
         "options": {
           "host": {
@@ -788,6 +792,7 @@ export function getDataSources(lang) {
         "id": "opcua",
         "type": "uri",
         "name": "OPC-UA",
+        "license_id": "opc_ua",
         "description": "OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space and in other industries.\n\nOPC UA is the next generation beyond the classic OPC specification, a platform-independent, service-oriented architecture specification that integrates all functionality from the existing OPC Classic specifications, providing a migration path to a more secure and scalable solution.\n\nTo learn more about OPC, OPC UA and OPC DA, please visit the following links on the [OPC Foundation site](https://opcfoundation.org/):\n\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/)\n",
         "options": {
           "endpoint": {
@@ -1183,6 +1188,7 @@ export function getDataSources(lang) {
         "id": "opcda",
         "type": "uri",
         "name": "OPC-DA",
+        "license_id": "opc_da",
         "description": "OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space   and in other industries.\n\nOPC DA (Data Access) is a classic COM-based specification that works only on Windows.\nOPC DA is widely used even though it isn't the newest and most efficient data communication specification out there. This is mainly because of older devices that only support the OPC DA.\n\nFor more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as\n\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC DA](https://plcynergy.com/opc-da/)\n\ntaosX could pull data from OPC server by a OPC connector plugin.\n\nCheck the help message in each part to see the details.\n",
         "options": {
           "endpoint": {
@@ -1467,6 +1473,7 @@ export function getDataSources(lang) {
         "id": "influxdb",
         "type": "uri",
         "name": "InfluxDB",
+        "license_id": "influxdb",
         "description": "InfluxDB is a popular open-source time-series database that is optimized for handling large volumes of timestamped data.\n\nTDengine can efficiently read the data in InfluxDB and write it to TDengine through the InfluxDB connector to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -1751,6 +1758,7 @@ export function getDataSources(lang) {
         "id": "opentsdb",
         "type": "uri",
         "name": "OpenTSDB",
+        "license_id": "opentsdb",
         "description": "OpenTSDB is a real-time monitoring information collection and display platform based on the HBase system.\n\nTDengine can efficiently read the data in OpenTSDB and write it to TDengine through the OpenTSDB connector to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -1927,6 +1935,7 @@ export function getDataSources(lang) {
         "id": "mqtt",
         "type": "uri",
         "name": "MQTT",
+        "license_id": "mqtt",
         "description": "MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use. It is ideal for connecting devices with limited resources, such as battery-powered devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is important, such as real-time control systems.\n\nMQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices from each other, and to scale up applications as needed.\n\nMQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms, and there are many open source and commercial implementations available.\n\ntaosX could subscribe data from MQTT broker by a connector plugin.\n\nCheck the help message in each part to see the details.\n",
         "options": {
           "host": {
@@ -2196,6 +2205,7 @@ export function getDataSources(lang) {
         "id": "kafka",
         "type": "uri",
         "name": "Kafka",
+        "license_id": "kafka",
         "description": "Apache Kafka is an open-source distributed streaming system used for stream processing, real-time data pipelines, and data integration at scale.\nTDengine can efficiently read the data from Kafka and write to TDengine to achieve historical data migration or real-time data streaming.\n",
         "options": {
           "endpoint": {
@@ -2245,7 +2255,7 @@ export function getDataSources(lang) {
                 "name": "sasl_password",
                 "display": "Password",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "The password for SASL authentication mechanism.",
                 "description": "The password for SASL authentication mechanism.",
@@ -2312,7 +2322,7 @@ export function getDataSources(lang) {
                 "name": "ca_password",
                 "display": "CA Password",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "CA private key passphrase.",
                 "description": "CA private key passphrase.",
@@ -2473,6 +2483,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
+        "license_id": "csv",
         "description": "Import a file or a collection of files in CSV format to TDengine.\n",
         "strict": true,
         "options": {
@@ -2596,6 +2607,7 @@ export function getDataSources(lang) {
         "id": "avevaHistorian",
         "type": "uri",
         "name": "AVEVA Historian",
+        "license_id": "avevahistorian",
         "description": "AVEVA Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.\n\nTDengine efficiently reads data from the AVEVA Historian and writes it to TDengine for historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -2891,6 +2903,7 @@ export function getDataSources(lang) {
         "id": "mysql",
         "type": "uri",
         "name": "MySQL",
+        "license_id": "mysql",
         "description": "MySQL is one of the most popular relational database management systems. Due to its small size, fast speed, low overall cost of ownership, especially open source, MySQL is generally chosen as the website database for the development of small and large websites.\n\nTDengine can efficiently read the data in MySQL and write it to TDengine through the MySQL connector to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -3094,6 +3107,7 @@ export function getDataSources(lang) {
         "id": "postgres",
         "type": "uri",
         "name": "PostgreSQL",
+        "license_id": "postgres",
         "description": "PostgreSQL is a very powerful, open-source client/server relational database management system that has many features found in large commercial RDBMSs, including transactions, subselects, triggers, views, referential integrity, and sophisticated locking functionality.\nTDengine can efficiently read data from PostgreSQL and write it to TDengine to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -3287,6 +3301,7 @@ export function getDataSources(lang) {
         "id": "oracle",
         "type": "uri",
         "name": "Oracle",
+        "license_id": "oracle",
         "description": "Oracle is the world's most popular relational database management system. It has good portability, ease of use, and powerful functions, and is suitable for various large, medium, and small microcomputer environments. It is an efficient, reliable, and high-throughput database solution.\n\nTDengine can efficiently read the data in Oracle and write it to TDengine through the Oracle connector to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -3443,6 +3458,7 @@ export function getDataSources(lang) {
         "id": "mssql",
         "type": "uri",
         "name": "Microsoft SQL Server",
+        "license_id": "mssql",
         "description": "Microsoft SQL Server is a relational database management system developed by Microsoft Corporation. It has the advantages of easy use, good scalability, and high integration with related software.\n\nTDengine can efficiently read data from Microsoft SQL Server and write it to TDengine to achieve historical data migration or real-time data synchronization.\n",
         "options": {
           "host": {
@@ -3670,6 +3686,7 @@ export function getDataSources(lang) {
         "id": "tmq",
         "type": "uri",
         "name": "TDengine 3.x",
+        "license_id": "td3.0",
         "description": "使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。\n\n支持使用原生连接或 WebSocket 连接（使用 HTTP 或 HTTPS 协议）。默认使用原生连接。\n\n使用 `database` 方式指定数据库名，或 `database.table` 方式指定订阅一个超级表或普通表。\n",
         "options": {
           "endpoint": {
@@ -3761,6 +3778,7 @@ export function getDataSources(lang) {
         "id": "taos",
         "type": "uri",
         "name": "TDengine 2.x",
+        "license_id": "td2.6",
         "description": "从旧版本 TDengine (2.x) 迁移到当前集群。\n",
         "options": {
           "host": {
@@ -4042,6 +4060,7 @@ export function getDataSources(lang) {
         "id": "pi",
         "type": "uri",
         "name": "PI",
+        "license_id": "pi",
         "description": "PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。\n\nPI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。\n\ntaosX 可以通过 PI 连接器插件从 PI 系统中提取实时数据。\n",
         "options": {
           "host": {
@@ -4233,6 +4252,7 @@ export function getDataSources(lang) {
         "id": "pibackfill",
         "type": "uri",
         "name": "PI Backfill",
+        "license_id": "pi",
         "description": "PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。\n\nPI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。\n\ntaosX 可以通过 PI BACKFILL 连接器插件从 PI 系统中提取历史数据。\n",
         "options": {
           "host": {
@@ -4430,6 +4450,7 @@ export function getDataSources(lang) {
         "id": "opcua",
         "type": "uri",
         "name": "OPC-UA",
+        "license_id": "opc_ua",
         "description": "OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。\n\nOPC UA 是经典 OPC 规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。\n\n如果想了解更多关于 OPC UA 的信息，可以阅读 OPC Foundation 网站和一些有用的博客，例如：\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/)\n\ntaosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。\n",
         "options": {
           "endpoint": {
@@ -4824,6 +4845,7 @@ export function getDataSources(lang) {
         "id": "opcda",
         "type": "uri",
         "name": "OPC-DA",
+        "license_id": "opc_da",
         "description": "OPC是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。\n\nOPC DA（数据访问）是一种经典的基于COM的规范，仅适用于Windows。尽管OPC DA不是最新和最高效的数据通信规范，但它被广泛使用。这主要是因为一些旧设备只支持OPC DA。\n\nOPC UA是经典OPC规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有OPC Classic规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。\n\n如果想了解更多关于OPC UA/DA的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC DA](https://plcynergy.com/opc-da/)\n\ntaosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。\n",
         "options": {
           "endpoint": {
@@ -5106,6 +5128,7 @@ export function getDataSources(lang) {
         "id": "influxdb",
         "type": "uri",
         "name": "InfluxDB",
+        "license_id": "influxdb",
         "description": "InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。\n\nTDengine 可以通过 InfluxDB 连接器高效地读取 InfluxDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -5390,6 +5413,7 @@ export function getDataSources(lang) {
         "id": "opentsdb",
         "type": "uri",
         "name": "OpenTSDB",
+        "license_id": "opentsdb",
         "description": "OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展示平台。\n\nTDengine 可以通过 OpenTSDB 连接器高效地读取 OpenTSDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -5566,6 +5590,7 @@ export function getDataSources(lang) {
         "id": "mqtt",
         "type": "uri",
         "name": "MQTT",
+        "license_id": "mqtt",
         "description": "MQTT 表示 Message Queuing Telemetry Transport （消息队列遥测传输）。它是一种轻量级的消息协议，易于实现和使用。它非常适合连接资源有限的设备，例如电池供电的设备或带宽较低的设备。MQTT也是实时控制系统等延迟重要的应用程序的不错选择。\n\nMQTT 通过使用发布/订阅模型来工作。这意味着设备可以将消息发布到主题，其他设备可以订阅这些主题以接收消息。这使得轻松将设备解耦，并根据需要扩展应用程序。\n\nMQTT 是物联网应用程序的流行选择。它得到了广泛的设备和平台支持，并提供许多开源和商业实现。\n\ntaosX 可以通过连接器插件从 MQTT 代理订阅数据。请查看每个部分的帮助消息以了解详细信息。\n",
         "options": {
           "host": {
@@ -5847,6 +5872,7 @@ export function getDataSources(lang) {
         "id": "kafka",
         "type": "uri",
         "name": "Kafka",
+        "license_id": "kafka",
         "description": "Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。\nTDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。\n",
         "options": {
           "endpoint": {
@@ -5896,7 +5922,7 @@ export function getDataSources(lang) {
                 "name": "sasl_password",
                 "display": "密码",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "用于 SASL 认证机制的密码",
                 "description": "用于 SASL 认证机制的密码",
@@ -5963,7 +5989,7 @@ export function getDataSources(lang) {
                 "name": "ca_password",
                 "display": "CA 密码",
                 "hint": {
-                  "type": "str"
+                  "type": "password"
                 },
                 "short_description": "CA 私钥密码",
                 "description": "CA 私钥密码",
@@ -6124,6 +6150,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
+        "license_id": "csv",
         "description": "导入一个或多个 CSV 文件数据到 TDengine。\n",
         "strict": true,
         "options": {
@@ -6245,6 +6272,7 @@ export function getDataSources(lang) {
         "id": "avevaHistorian",
         "type": "uri",
         "name": "AVEVA Historian",
+        "license_id": "avevahistorian",
         "description": "AVEVA Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。\nTDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -6540,6 +6568,7 @@ export function getDataSources(lang) {
         "id": "mysql",
         "type": "uri",
         "name": "MySQL",
+        "license_id": "mysql",
         "description": "MySQL是最流行的关系型数据库管理系统之一，由于其体积小、速度快、总体拥有成本低，尤其是开放源码这一特点，一般中小型和大型网站的开发都选择 MySQL 作为网站数据库。\nTDengine 可以高效地从 MySQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -6743,6 +6772,7 @@ export function getDataSources(lang) {
         "id": "postgres",
         "type": "uri",
         "name": "PostgreSQL",
+        "license_id": "postgres",
         "description": "PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统， 有很多在大型商业RDBMS中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。\nTDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -6936,6 +6966,7 @@ export function getDataSources(lang) {
         "id": "oracle",
         "type": "uri",
         "name": "Oracle",
+        "license_id": "oracle",
         "description": "Oracle 数据库系统是世界上流行的关系数据库管理系统，系统可移植性好、使用方便、功能强，适用于各类大、中、小微机环境。它是一种高效率的、可靠性好的、适应高吞吐量的数据库方案。\nTDengine 可以高效地从 Oracle 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
@@ -7092,6 +7123,7 @@ export function getDataSources(lang) {
         "id": "mssql",
         "type": "uri",
         "name": "Microsoft SQL Server",
+        "license_id": "mssql",
         "description": "Microsoft SQL Server 是一种关系型数据库管理系统，由 Microsoft 公司开发，具有使用方便可伸缩性好与相关软件集成程度高等优点。\n\nTDengine 可以高效地从 Microsoft SQL Server 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
