@@ -818,7 +818,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->sysInfo, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pUser->flag, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pUser->flag, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->authVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->passVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
@@ -1002,7 +1002,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->sysInfo, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pUser->flag, _OVER)
+  SDB_GET_UINT8(pRaw, dataPos, &pUser->flag, _OVER)
   if (pUser->superUser) pUser->createdb = 1;
   SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
   if (sver >= 4) {
