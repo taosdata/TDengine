@@ -336,7 +336,11 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   pConn->whiteListVer = pWhite->ver;
 }
 
-static void uvPerfLog(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMsg) {
+static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMsg) {
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+
   STrans*   pTransInst = pConn->pTransInst;
   STraceId* trace = &pHead->traceId;
 
@@ -344,7 +348,7 @@ static void uvPerfLog(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMs
   static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    transRefSrvHandle(pConn);
+    // transRefSrvHandle(pConn);
     if (cost >= EXCEPTION_LIMIT_US) {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception",
               transLabel(pTransInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
@@ -386,6 +390,8 @@ static void uvMaySetConnAcquired(SSvrConn* pConn, STransMsgHead* pHead) {
       pConn->status = ConnAcquire;
       transRefSrvHandle(pConn);
       tDebug("conn %p acquired by server app", pConn);
+    } else if (pHead->noResp == 0) {
+      transRefSrvHandle(pConn);
     }
   }
 }
@@ -429,8 +435,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  uvMaySetConnAcquired(pConn, pHead);
-
   // pHead->noResp = 1,
   // 1. server application should not send resp on handle
   // 2. once send out data, cli conn released to conn pool immediately
@@ -444,7 +448,9 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = uvValidConn(pConn);
 
-  uvPerfLog(pConn, pHead, &transMsg);
+  uvMaySetConnAcquired(pConn, pHead);
+
+  uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
   SRpcConnInfo* pConnInfo = &(transMsg.info.conn);

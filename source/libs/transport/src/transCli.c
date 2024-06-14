@@ -2423,7 +2423,7 @@ static void doCloseIdleConn(void* param) {
   cliDestroyConn(conn, true);
   taosMemoryFree(arg);
 }
-static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
+static void cliPerfLog_schedMsg(SCliMsg* pMsg, char* label) {
   if (!(rpcDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -2439,7 +2439,7 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
 static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
-  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
+  cliPerfLog_schedMsg(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
