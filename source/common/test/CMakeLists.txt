@@ -40,7 +40,7 @@ add_test(
     COMMAND dataformatTest
 )
 
-if (NOT ${TD_WINDOWS})
+if (${TD_LINUX})
 	# tmsg test
 	add_executable(tmsgTest "")
 	target_sources(tmsgTest 

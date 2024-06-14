@@ -136,11 +136,13 @@ vector<STestMsgTypeInfo> readConfig(const string &filePath) {
       }
     }
 
+    configMap.clear();
+
     return msgTypes;
 }
 
 
-TEST(td_msg_test, simple_msg_test) {
+TEST(td_msg_test, msg_type_compatibility_test) {
   // cout << TMSG_INFO(TDMT_VND_DROP_TABLE) << endl;
   // cout << TMSG_INFO(TDMT_MND_DROP_SUPER_TABLE) << endl;
   // cout << TMSG_INFO(TDMT_MND_CREATE_SUPER_TABLE) << endl;
@@ -176,7 +178,7 @@ TEST(td_msg_test, simple_msg_test) {
     } 
   }
 
-  // 2. check if mismatch
+  // 2. check if msg type mismatch
   for (const auto& stdInfo : msgInfos) {
     auto it = map.find(stdInfo.name);
     auto& newInfo = it->second;
