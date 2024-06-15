@@ -582,6 +582,9 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
       blockDataDestroy(pDstBlock);
       return NULL;
     }
+    for(int i = 0; i < numOfCols; ++i) {
+      pDstBlock->pBlockAgg[i].colId = -1;
+    }
   }
 
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
@@ -591,7 +594,6 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     SColumnInfoData  colInfo = {.hasNull = true, .info = pSrc->info};
     blockDataAppendColInfo(pDstBlock, &colInfo);
 
-    pDstBlock->pBlockAgg[i].colId = -1;
     SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
     if (pDataBlock->pBlockAgg && pDataBlock->pBlockAgg[slotId].colId != -1) {
       pDstBlock->pBlockAgg[i] = pDataBlock->pBlockAgg[slotId];
