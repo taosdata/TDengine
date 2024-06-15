@@ -104,10 +104,12 @@ void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
   taosFreeQitem(pBlock);
 }
 
-int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData) {
+int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData, const char* id) {
   SArray* pArray = taosArrayInit(1, sizeof(SSDataBlock));
   if (pArray == NULL) {
-    return -1;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("failed to prepare retrieve block, %s", id);
+    return terrno;
   }
 
   taosArrayPush(pArray, &(SSDataBlock){0});
@@ -126,7 +128,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   pData->reqId = pReq->reqId;
   pData->blocks = pArray;
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {
