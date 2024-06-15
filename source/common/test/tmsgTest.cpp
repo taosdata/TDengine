@@ -24,23 +24,30 @@
 
 using namespace std;
 
+enum class ParseStatus {
+  Success,
+  FileNotExist,
+  FileNotOpen,
+  ResponseWithoutRequest,
+  RequestWithoutResponse
+};
+
 typedef struct {
-    string name;
-    string rspName;
-    int32_t type;
-    int32_t rspType;
+  string name;
+  string rspName;
+  int32_t type;
+  int32_t rspType;
 } STestMsgTypeInfo;
 
-
-std::string getExecutableDirectory() {
+string getExecutableDirectory() {
   char result[PATH_MAX];
   ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
   if (count != -1) {
     result[count] = '\0';
-    std::string path(result);
+    string path(result);
     size_t pos = path.rfind('/');
-    if (pos != std::string::npos) {
-        path.erase(pos + 1);
+    if (pos != string::npos) {
+      path.erase(pos + 1);
     }
     return path;
   } else {
@@ -60,15 +67,15 @@ pair<string, int32_t> parseKeyValuePair(const string &line, char delim = '=') {
   // remove leading spaces
   size_t firstNotSpace = key.find_first_not_of(" ");
   if (firstNotSpace != string::npos) {
-      key = key.substr(firstNotSpace);
+    key = key.substr(firstNotSpace);
   } else {
-      key.clear();
+    key.clear();
   }
 
   // remove ending spaces
   size_t lastNotSpace = key.find_last_not_of(" ");
   if (lastNotSpace != string::npos) {
-      key = key.substr(0, lastNotSpace + 1);
+    key = key.substr(0, lastNotSpace + 1);
   }
 
   if (key.front() == '"' && key.back() == '"')
@@ -83,62 +90,76 @@ pair<string, int32_t> parseKeyValuePair(const string &line, char delim = '=') {
 }
 
 // read the configuration file and parse it into the STestMsgTypeInfo array
-vector<STestMsgTypeInfo> readConfig(const string &filePath) {
-  vector<STestMsgTypeInfo> msgTypes;
+ParseStatus readConfig(const string& filePath, vector<STestMsgTypeInfo>& msgTypes) {
   ifstream file(filePath);
-  
   if (!file.is_open()) {
-      cerr << "Can't open file: " << filePath << endl;
-      return msgTypes;
+    if (file.fail() && errno == ENOENT) {
+      cerr << "Error: The file does not exist, file: " << filePath << endl;
+      return ParseStatus::FileNotExist;
+    } else {
+      cerr << "Error: Could not open the file, file: " << filePath << endl;
+      return ParseStatus::FileNotOpen;
+    }
+  }
+
+  auto endsWith = [](const string& str, const string& suffix) {
+    if (str.length() < suffix.length()) {
+      return false;
+    }
+    return equal(str.end() - suffix.length(), str.end(), suffix.begin());
+  };
+
+
+  bool evenLine = true;
+  string line;
+  string suffix("_RSP");
+  pair<string, int32_t> reqKwInfo;
+  while (std::getline(file, line)) {
+    char delim = '#';
+    if (line.find('=') != string::npos) {
+      delim = '=';
+    } else if (line.find(':') != string::npos) {
+      delim = ':';
+    } else if (line.find('{') != string::npos || line.find('}') != string::npos) {
+      // TODO: parse json format
+      continue; 
+    } else {
+      continue;
     }
 
-    string line;
-    unordered_map<string, int32_t> configMap;
-    while (std::getline(file, line)) {
-      if (line.find('=') != string::npos) {
-        // auto [key, val] = parseKeyValuePair(line, '=');
-        auto keyValuePair = parseKeyValuePair(line, '=');
-        string key = keyValuePair.first;
-        int32_t val = keyValuePair.second;
-        configMap[key] = val;
-      } else if (line.find(':') != string::npos) {
-        // auto [key, val] = parseKeyValuePair(line, ':');
-        auto keyValuePair = parseKeyValuePair(line, ':');
-        string key = keyValuePair.first;
-        int32_t val = keyValuePair.second;
-        configMap[key] = val;
-      } else if (line.find('{') != string::npos || line.find('}') != string::npos) {
-        // TODO: parse json format
-        continue; 
+    auto curKwInfo = parseKeyValuePair(line, delim);
+    evenLine = ! evenLine;
+
+    // check message type
+    if (evenLine == false) {                                              // req msg
+      reqKwInfo = curKwInfo;
+    } else {                                                              // rsp msg
+      if (reqKwInfo.first.empty()) {
+        cerr << "Error: Found a response message without a matching request, rsp: " << curKwInfo.first << endl;
+        return ParseStatus::ResponseWithoutRequest;
+      } else if (!endsWith(curKwInfo.first, suffix)) {
+        cerr << "Error: A request message was not followed by a matching response, req: " << reqKwInfo.first << endl;
+        return ParseStatus::RequestWithoutResponse;
+      } else {
+        STestMsgTypeInfo msgInfo;
+        msgInfo.name      = reqKwInfo.first;
+        msgInfo.rspName   = curKwInfo.first;
+        msgInfo.type      = reqKwInfo.second;
+        msgInfo.rspType   = curKwInfo.second;
+        msgTypes.push_back(msgInfo);
+
+        // reset req info
+        reqKwInfo    = make_pair("", -1); 
       }
     }
+  }
 
-    auto endsWith = [](const string& str, const string& suffix) {
-      if (str.length() < suffix.length()) {
-        return false;
-      }
-      return equal(str.end() - suffix.length(), str.end(), suffix.begin());
-    };
+  if (!reqKwInfo.first.empty()) {
+    cerr << "Error: A request message was not followed by a matching response, req: " << reqKwInfo.first << endl;
+    return ParseStatus::RequestWithoutResponse;
+  }
 
-    string suffix("_RSP");
-    for (const auto &entry : configMap) {
-
-      if (endsWith(entry.first, suffix)) {
-        string baseKey = entry.first.substr(0, entry.first.size() - suffix.size());
-        auto it = configMap.find(baseKey);
-        if (it != configMap.end()) {
-          STestMsgTypeInfo info = {
-            it->first, entry.first,
-            it->second, entry.second
-          };
-          msgTypes.push_back(info);
-        }
-      }
-    }
-
-    configMap.clear();
-
-    return msgTypes;
+  return ParseStatus::Success;
 }
 
 
@@ -158,36 +179,48 @@ TEST(td_msg_test, msg_type_compatibility_test) {
   // current msgs: to map
   unordered_map<string, SMsgTypeInfo> map;
   for (const auto& info : tMsgTypeInfo) {
-      map[info.name] = info;
+    map[info.name] = info;
   }
 
   string configFileName = "msgTypeTable.ini";
-  std::string execDir = getExecutableDirectory();
+  string execDir = getExecutableDirectory();
   string configFilePath(execDir + "msgTypeTable.ini");
-  vector<STestMsgTypeInfo> msgInfos = readConfig(configFilePath);
-  if (msgInfos.size() == 0) {
-    FAIL() << "Can't find msgTypeTable file: " << configFileName << ", or its content is empty.";
-  }
 
-  // 1. check all msgs exist
-  for (const auto& stdInfo : msgInfos) {
-    auto it = map.find(stdInfo.name);
+  vector<STestMsgTypeInfo> msgTypes;
+  ParseStatus status = readConfig(configFilePath, msgTypes);
 
-    if (it == map.end()) {
-        FAIL() << "Can't find msg: " << stdInfo.name;
-    } 
-  }
+  switch (status) {
+    case ParseStatus::Success:
+      for (const auto& stdInfo : msgTypes) {
+        auto it = map.find(stdInfo.name);
+        if (it == map.end()) {
+          FAIL() << "Error: Could not find msg: " << stdInfo.name;
+        } else {
+          auto& newInfo = it->second;
 
-  // 2. check if msg type mismatch
-  for (const auto& stdInfo : msgInfos) {
-    auto it = map.find(stdInfo.name);
-    auto& newInfo = it->second;
-
-    ASSERT_STREQ(stdInfo.name.c_str(), newInfo.name);
-    ASSERT_STREQ(stdInfo.rspName.c_str(), newInfo.rspName);
-    ASSERT_EQ(stdInfo.type, newInfo.type) 
-        << "Message type mismatch(" << stdInfo.name << "): expected " << stdInfo.type << ", got " << newInfo.type;
-    ASSERT_EQ(stdInfo.rspType, newInfo.rspType) 
-        << "Message response type mismatch(" << stdInfo.rspName << "): expected " << stdInfo.rspType << ", got " << newInfo.rspType;
+          ASSERT_STREQ(stdInfo.name.c_str(), newInfo.name);
+          ASSERT_STREQ(stdInfo.rspName.c_str(), newInfo.rspName);
+          ASSERT_EQ(stdInfo.type, newInfo.type) 
+              << "Message type mismatch(" << stdInfo.name << "): expected " << stdInfo.type << ", got " << newInfo.type;
+          ASSERT_EQ(stdInfo.rspType, newInfo.rspType) 
+              << "Message response type mismatch(" << stdInfo.rspName << "): expected " << stdInfo.rspType << ", got " << newInfo.rspType;
+        }
+      }
+      break;
+    case ParseStatus::FileNotExist:
+      FAIL() << "Error: The file does not exist, file: " << configFileName << ".";
+      break;
+    case ParseStatus::FileNotOpen:
+      FAIL() << "Error: Could not open the file, file: " << configFileName << ".";
+      break;
+    case ParseStatus::ResponseWithoutRequest:
+      FAIL() << "Error: Found a response message without a matching request.";
+      break;
+    case ParseStatus::RequestWithoutResponse:
+      FAIL() << "Error: A request message was not followed by a matching response.";
+      break;
+    default:
+      FAIL() << "Unknown Error.";
+      break;
   }
 }
