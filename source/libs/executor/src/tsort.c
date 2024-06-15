@@ -989,13 +989,15 @@ void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHa
         colDataSetNULL(pColInfo, pBlock->info.rows);
       }
     }
-    if (bFreeRow) {
-      taosMemoryFree(buf);
-    }
+
     if (*(int32_t*)pStart != pStart - buf) {
       qError("table merge scan row buf deserialization. length error %d != %d ", *(int32_t*)pStart,
              (int32_t)(pStart - buf));
-    };
+    }
+
+    if (bFreeRow) {
+      taosMemoryFree(buf);
+    }
 
     pBlock->info.dataLoad = 1;
     pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;

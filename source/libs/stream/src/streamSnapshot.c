@@ -298,6 +298,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
   SArray* pSnapInfoSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
   int32_t code = streamCreateTaskDbSnapInfo(pMeta, path, pSnapInfoSet);
   if (code != 0) {
+    taosArrayDestroy(pSnapInfoSet);
     return -1;
   }
 

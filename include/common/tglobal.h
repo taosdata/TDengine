@@ -86,6 +86,7 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
+extern int32_t tsRetentionSpeedLimitMB;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -235,6 +236,7 @@ extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
+extern int32_t tsMaxConcurrentCheckpoint;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;

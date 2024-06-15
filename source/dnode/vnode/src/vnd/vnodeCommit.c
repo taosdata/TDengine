@@ -160,6 +160,12 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
                  (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed ||
                              pVnode->state.applied - pVnode->state.committed > 4096));
   }
+  vTrace("vgId:%d, should commit:%d, disk available:%d, buffer size:%" PRId64 ", node size:%" PRId64
+         ", meta changed:%d"
+         ", state:[%" PRId64 ",%" PRId64 "]",
+         TD_VID(pVnode), needCommit, diskAvail, pVnode->inUse ? pVnode->inUse->size : 0,
+         pVnode->inUse ? pVnode->inUse->node.size : 0, pVnode->pMeta->changed, pVnode->state.applied,
+         pVnode->state.committed);
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
 }

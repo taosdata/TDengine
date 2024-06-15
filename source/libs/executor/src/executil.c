@@ -2178,9 +2178,25 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     return code;
   }
   if (group == NULL || groupByTbname) {
-    for (int32_t i = 0; i < numOfTables; i++) {
-      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      info->groupId = groupByTbname ? info->uid : 0;
+    if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+      pTableListInfo->remainGroups =
+          taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      if (pTableListInfo->remainGroups == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      
+      for (int i = 0; i < numOfTables; i++) {
+        STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+        info->groupId = info->uid;
+        
+        taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
+                    sizeof(info->uid));
+      }
+    } else {
+      for (int32_t i = 0; i < numOfTables; i++) {
+        STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+        info->groupId = groupByTbname ? info->uid : 0;
+      }
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;
@@ -2192,8 +2208,6 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else if (groupByTbname && pScanNode->groupOrderScan) {
-      pTableListInfo->numOfOuputGroups = numOfTables;
-    } else if (groupByTbname && tsCountAlwaysReturnValue && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;

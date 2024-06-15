@@ -77,6 +77,7 @@ typedef enum {
   MND_OPER_CREATE_VIEW,
   MND_OPER_DROP_VIEW,
   MND_OPER_CONFIG_CLUSTER,
+  MND_OPER_BALANCE_VGROUP_LEADER,
 } EOperType;
 
 typedef enum {
@@ -102,8 +103,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
-  TRN_CONFLICT_TOPIC = 4,
-  TRN_CONFLICT_TOPIC_INSIDE = 5,
+//  TRN_CONFLICT_TOPIC = 4,
+//  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
 } ETrnConflct;
 
@@ -255,6 +256,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
+  int8_t  acked;
 } SArbAssignedLeader;
 
 typedef struct {
@@ -321,15 +323,21 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char          user[TSDB_USER_LEN];
-  char          pass[TSDB_PASSWORD_LEN];
-  char          acct[TSDB_USER_LEN];
-  int64_t       createdTime;
-  int64_t       updateTime;
-  int8_t        superUser;
-  int8_t        sysInfo;
-  int8_t        enable;
-  int8_t        reserve;
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
+  char    acct[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int8_t  superUser;
+  int8_t  sysInfo;
+  int8_t  enable;
+  union {
+    int8_t flag;
+    struct {
+      int8_t createdb : 1;
+      int8_t reserve : 7;
+    };
+  };
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
