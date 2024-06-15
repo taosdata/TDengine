@@ -90,7 +90,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, vgId, -1, tqStartTaskCompleteCallback);
+  pTq->pStreamMeta =
+      streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1, tqStartTaskCompleteCallback);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
@@ -713,7 +714,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
+int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessVer) {
+  STQ* pTq = (STQ*) pTqObj;
+
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to build task", pTask->id.taskId);
 

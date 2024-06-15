@@ -157,7 +157,8 @@ typedef enum EStreamTaskEvent {
 
 typedef void    FTbSink(SStreamTask* pTask, void* vnode, void* data);
 typedef void    FSmaSink(void* vnode, int64_t smaId, const SArray* data);
-typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
+typedef int32_t FTaskBuild(void* ahandle, SStreamTask* pTask, int64_t ver);
+typedef int32_t FTaskExpand(SStreamTask* pTask);
 
 typedef struct {
   int8_t      type;
@@ -486,7 +487,8 @@ typedef struct SStreamMeta {
   SArray*         pTaskList;  // SArray<STaskId*>
   void*           ahandle;
   TXN*            txn;
-  FTaskExpand*    expandFunc;
+  FTaskBuild*     buildTaskFn;
+  FTaskExpand*    expandTaskFn;
   int32_t         vgId;
   int64_t         stage;
   int32_t         role;
@@ -710,8 +712,8 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st);
 // stream task meta
 void         streamMetaInit();
 void         streamMetaCleanup();
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage,
-                            startComplete_fn_t fn);
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild expandFunc, FTaskExpand expandTaskFn,
+                            int32_t vgId, int64_t stage, startComplete_fn_t fn);
 void         streamMetaClose(SStreamMeta* streamMeta);
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);  // save to stream meta store
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pKey);
