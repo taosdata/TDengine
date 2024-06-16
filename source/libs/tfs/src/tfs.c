@@ -494,8 +494,8 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (pCfg->enable == 0) {
-    fInfo("skip to mount disk %s to level %d since enable is %" PRIi8, pCfg->dir, pCfg->level, pCfg->enable);
+  if (pCfg->disable == 1) {
+    fInfo("skip to mount disk %s to level %d since disable is %" PRIi8, pCfg->dir, pCfg->level, pCfg->disable);
     return 0;
   }
 
@@ -530,8 +530,8 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (pCfg->enable < 0 || pCfg->enable > 1) {
-    fError("failed to mount %s to FS since invalid enable %" PRIi8, pCfg->dir, pCfg->enable);
+  if (pCfg->disable < 0 || pCfg->disable > 1) {
+    fError("failed to mount %s to FS since invalid disable %" PRIi8, pCfg->dir, pCfg->disable);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
@@ -539,12 +539,6 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   if (pCfg->primary) {
     if (pCfg->level != 0) {
       fError("failed to mount %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
-      terrno = TSDB_CODE_FS_INVLD_CFG;
-      return -1;
-    }
-
-    if (pCfg->enable == 0) {
-      fError("failed to mount %s to FS since disk is primary but enable %" PRIi8 " not 1", pCfg->dir, pCfg->enable);
       terrno = TSDB_CODE_FS_INVLD_CFG;
       return -1;
     }

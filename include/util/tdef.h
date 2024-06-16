@@ -539,8 +539,6 @@ typedef enum ELogicConditionType {
 #define TFS_MAX_LEVEL          (TFS_MAX_TIERS - 1)
 #define TFS_PRIMARY_LEVEL      0
 #define TFS_PRIMARY_ID         0
-#define TFS_ENTRY_DISABLE      0
-#define TFS_ENTRY_ENABLE       1
 #define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
@@ -551,7 +549,7 @@ typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
   int8_t  primary;
-  int8_t  enable;
+  int8_t  disable; // disable create new file
 } SDiskCfg;
 
 typedef struct {

@@ -259,7 +259,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 }
 
 static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
-                             const char *enable, ECfgSrcType stype) {
+                             const char *disable, ECfgSrcType stype) {
   taosThreadMutexLock(&pCfg->lock);
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -283,7 +283,7 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
   cfg.level = level ? atoi(level) : 0;
   cfg.primary = primary ? atoi(primary) : 1;
-  cfg.enable = (enable && enable[0]) ? atoi(enable) : 1;
+  cfg.disable = disable ? atoi(disable) : 0;
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

@@ -110,7 +110,7 @@ static bool dmCheckDiskSpace() {
 
 int32_t dmDiskInit() {
   SDnode  *pDnode = dmInstance();
-  SDiskCfg dCfg = {.level = 0, .primary = 1, .enable = 1};
+  SDiskCfg dCfg = {.level = 0, .primary = 1, .disable = 0};
   tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
   SDiskCfg *pDisks = tsDiskCfg;
   int32_t   numOfDisks = tsDiskCfgNum;
