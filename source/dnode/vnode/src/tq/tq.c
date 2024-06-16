@@ -90,7 +90,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, vgId, -1, tqStartTaskCompleteCallback);
+  pTq->pStreamMeta =
+      streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1, tqStartTaskCompleteCallback);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }
@@ -713,7 +714,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
 static void freePtr(void* ptr) { taosMemoryFree(*(void**)ptr); }
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
+int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessVer) {
+  STQ* pTq = (STQ*) pTqObj;
+
   int32_t vgId = TD_VID(pTq->pVnode);
   tqDebug("s-task:0x%x start to build task", pTask->id.taskId);
 
@@ -1010,16 +1013,6 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
 }
 
 int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen) {
-  int32_t vgId = TD_VID(pTq->pVnode);
-  SVUpdateCheckpointInfoReq* pReq = (SVUpdateCheckpointInfoReq*)msg;
-
-//  if (!pTq->pVnode->restored) {
-//    tqDebug("vgId:%d update-checkpoint-info msg received during restoring, checkpointId:%" PRId64
-//            ", transId:%d s-task:0x%x ignore it",
-//            vgId, pReq->checkpointId, pReq->transId, pReq->taskId);
-//    return TSDB_CODE_SUCCESS;
-//  }
-
   return tqStreamTaskProcessUpdateCheckpointReq(pTq->pStreamMeta, msg, msgLen);
 }
 
