@@ -177,14 +177,14 @@ TEST(td_msg_test, msg_type_compatibility_test) {
 
 
   // current msgs: to map
-  unordered_map<string, SMsgTypeInfo> map;
+  unordered_map<string, const SMsgTypeInfo*> map;
   for (const auto& info : tMsgTypeInfo) {
-    map[info.name] = info;
+    map[info.name] = &info;
   }
 
   string configFileName = "msgTypeTable.ini";
   string execDir = getExecutableDirectory();
-  string configFilePath(execDir + "msgTypeTable.ini");
+  string configFilePath(execDir + configFileName);
 
   vector<STestMsgTypeInfo> msgTypes;
   ParseStatus status = readConfig(configFilePath, msgTypes);
@@ -194,16 +194,16 @@ TEST(td_msg_test, msg_type_compatibility_test) {
       for (const auto& stdInfo : msgTypes) {
         auto it = map.find(stdInfo.name);
         if (it == map.end()) {
-          FAIL() << "Error: Could not find msg: " << stdInfo.name;
+          FAIL() << "Error: Could not find msg: " << stdInfo.name << ".";
         } else {
-          auto& newInfo = it->second;
+          auto newInfo = it->second;
 
-          ASSERT_STREQ(stdInfo.name.c_str(), newInfo.name);
-          ASSERT_STREQ(stdInfo.rspName.c_str(), newInfo.rspName);
-          ASSERT_EQ(stdInfo.type, newInfo.type) 
-              << "Message type mismatch(" << stdInfo.name << "): expected " << stdInfo.type << ", got " << newInfo.type;
-          ASSERT_EQ(stdInfo.rspType, newInfo.rspType) 
-              << "Message response type mismatch(" << stdInfo.rspName << "): expected " << stdInfo.rspType << ", got " << newInfo.rspType;
+          ASSERT_STREQ(stdInfo.name.c_str(), newInfo->name);
+          ASSERT_STREQ(stdInfo.rspName.c_str(), newInfo->rspName);
+          ASSERT_EQ(stdInfo.type, newInfo->type) 
+              << "Message type mismatch(" << stdInfo.name << "): expected " << stdInfo.type << ", got " << newInfo->type << ".";
+          ASSERT_EQ(stdInfo.rspType, newInfo->rspType) 
+              << "Message response type mismatch(" << stdInfo.rspName << "): expected " << stdInfo.rspType << ", got " << newInfo->rspType << ".";
         }
       }
       break;
