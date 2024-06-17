@@ -654,7 +654,7 @@ int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
 
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
 #ifdef USE_ROCKSDB
-  qDebug("move cursor to next");
+  qTrace("move cursor to next");
   return streamStateCurPrev_rocksdb(pCur);
 #else
   if (!pCur) {
