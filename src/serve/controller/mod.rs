@@ -1205,8 +1205,14 @@ impl TaskController {
             }
             .in_current_span(),
         );
-        let _ = tokio::time::timeout(Duration::from_secs(10), handle).await??;
-        Ok(Some(()))
+        match tokio::time::timeout(Duration::from_secs(2), handle).await {
+            Ok(Ok(_)) => Ok(Some(())),
+            Ok(Err(err)) => Err(anyhow!("Spawn task {id} join error: {err}")),
+            Err(_) => {
+                tracing::warn!("task {id} stop timeout");
+                Ok(Some(()))
+            }
+        }
     }
 
     pub async fn task_activities(
