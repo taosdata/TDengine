@@ -71,7 +71,7 @@ lazy_static::lazy_static! {
     static ref INFORMATION_GRANTS_FULL: std::borrow::Cow<'static, str> = {
         std::env::var("INFORMATION_GRANTS_FULL")
             .map(|s| s.into())
-            .unwrap_or_else(|_| "information_schema.ins_grants".into())
+            .unwrap_or_else(|_| "information_schema.ins_grants_full".into())
     };
 }
 
