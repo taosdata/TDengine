@@ -8,7 +8,7 @@ export default {
   created() {},
   computed: {
     IsIndustryVersion() {
-      return localStorage.getItem("industry_version") == "Industry";
+      return this.$INDUSTRY;
     }
   },
   methods: {
@@ -23,7 +23,7 @@ export default {
             })
           );
         });
-        console.log('array',array);
+        console.log('license-array',array);
         localStorage.setItem("allLicenseNameData",JSON.stringify(array))
       }
     },
