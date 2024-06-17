@@ -185,27 +185,22 @@ export default {
               versionName = this.license[0].valid
                 ? "Trial Expired"
                 : "Trial"
-              localStorage.setItem("industry_version", "TDengine");
               break;
             case "official":
               versionName = this.license[0].valid
                 ? "Enterprise License Expired"
                 : "Enterprise"
-              localStorage.setItem("industry_version", "TDengine");
               break;
             case "TDengine Power Edition trial":
               versionName = "Trial";
               this.industry = "power";
-              localStorage.setItem("industry_version", "Industry");
               break;
             case "TDengine Power Edition official":
               versionName = "Official"
               this.industry = "power";
-              localStorage.setItem("industry_version", "Industry");
               break;
             default:
               versionName = "Community"
-              localStorage.setItem("industry_version", "Community");
               break;
           }
           this.version =
