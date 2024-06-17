@@ -591,7 +591,7 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
 }
 
 int32_t sessionWinStateMoveToNext(SStreamStateCur* pCur) {
-  qDebug("move cursor to next");
+  qTrace("move cursor to next");
   if (pCur && pCur->buffIndex >= 0) {
     pCur->buffIndex++;
   } else {
