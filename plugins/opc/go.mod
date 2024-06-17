@@ -6,7 +6,7 @@ replace github.com/go-ole/go-ole => github.com/go-ole/go-ole v1.3.1-0.2023103019
 
 replace github.com/konimarti/opc => github.com/huskar-t/opc v0.0.0-20231127065929-38c765f25edb
 
-replace github.com/gopcua/opcua => github.com/huskar-t/opcua v0.0.0-20240227031557-9520bcb8d7ae
+replace github.com/gopcua/opcua => github.com/huskar-t/opcua v0.0.0-20240617101026-fbb116f43d9c
 
 require (
 	github.com/BurntSushi/toml v1.3.2
