@@ -4897,7 +4897,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
 }
 
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool* hasNullSMA) {
-  SColumnDataAgg*** pBlockSMA = &pDataBlock->pBlockAgg;
+  SColumnDataAgg** pBlockSMA = &pDataBlock->pBlockAgg;
 
   int32_t code = 0;
   *allHave = false;
@@ -4952,7 +4952,13 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
 
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
-    pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    if (pResBlock->pBlockAgg == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    for(int i = 0; i < num; ++i) {
+      pResBlock->pBlockAgg[i].colId = -1;
+    }
   }
 
   // do fill all null column value SMA info
@@ -4964,13 +4970,12 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = &pSup->colAggArray.data[i];
     if (pAgg->colId == pSup->colId[j]) {
-      pResBlock->pBlockAgg[pSup->slotId[j]] = pAgg;
+      pResBlock->pBlockAgg[pSup->slotId[j]] = *pAgg;
       i += 1;
       j += 1;
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      pResBlock->pBlockAgg[pSup->slotId[j]] = NULL;
       *allHave = false;
       j += 1;
     }
