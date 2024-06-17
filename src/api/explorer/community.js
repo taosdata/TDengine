@@ -2483,7 +2483,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
-        "license_id": "csv",
+        "license_id": "data_in_csv",
         "description": "Import a file or a collection of files in CSV format to TDengine.\n",
         "strict": true,
         "options": {

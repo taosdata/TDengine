@@ -19,6 +19,10 @@ export default {
             })
           );
         });
+        // 默认保留 csv 数据源，不参与授权
+        array.push({
+          grant_name: "data_in_csv"
+        })
         localStorage.setItem("allLicenseNameData",JSON.stringify(array))
       }
     },
@@ -29,7 +33,7 @@ export default {
         case 'dataIn':
           let result = getDataSources(this.$i18n.locale);
           result = result.filter(item => allLicenseNameData.includes(item.license_id))
-          return this.$INDUSTRY ? result?.length > 0 : true;
+          return this.$INDUSTRY ? result?.length > 1 : true;
         case 'dnodes':
           let dnodes = array.filter((item) => item.grant_name == grantName);
           let dnodeNum = dnodes[0]?.limits?.split('/')[0]
