@@ -1,4 +1,4 @@
-use crate::runners::get_string_from_param_or_file;
+use crate::{get_data_dir, runners::get_string_from_param_or_file};
 use taos::Dsn;
 
 #[derive(Debug, Clone)]
@@ -149,13 +149,12 @@ impl KafkaConnectConfig {
         } else {
             let sasl_kerberos_keytab = sasl_kerberos_keytab.unwrap();
             if sasl_kerberos_keytab.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "sasl_kerberos_keytab", true, None)
-                    .map_err(|err| {
-                        anyhow::anyhow!(
-                            "failed to read kerberos keytab, cause: {}",
-                            err.to_string()
-                        )
-                    })
+                Ok(Some(
+                    get_data_dir()
+                        .join(sasl_kerberos_keytab.trim_start_matches("@"))
+                        .display()
+                        .to_string(),
+                ))
             } else {
                 Ok(Some(sasl_kerberos_keytab.to_string()))
             }
