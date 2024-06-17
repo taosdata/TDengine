@@ -7,7 +7,7 @@ use super::{
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
-    utils::sql::values_to_sqls,
+    utils::{breakpoints::BreakpointDb, sql::values_to_sqls},
 };
 use anyhow::{anyhow, Context};
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
@@ -407,6 +407,7 @@ pub async fn write(
     metrics: &IpcMetrics,
     skip_null: bool,
     table_id_column: &str,
+    breakpoints: BreakpointDb,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
     let mut taos = Some(pool.get().await.context("Target connection error")?);
@@ -540,8 +541,17 @@ pub async fn write(
         }
     }
     let write_time = timer.elapsed();
-    //TODO: 记录断点
 
+    for (table_key, date_time) in table_break_points.iter() {
+        if let Err(err) = breakpoints.set(table_key, date_time).await {
+            tracing::error!(
+                stable,
+                table_key,
+                date_time,
+                "Set breakpoint error: {err:#}"
+            );
+        }
+    }
     Ok((written_rows, gen_sql_time, write_time))
 }
 

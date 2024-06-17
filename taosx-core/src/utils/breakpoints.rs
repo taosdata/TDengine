@@ -38,6 +38,11 @@ impl BreakpointDb {
                         return Err(anyhow::anyhow!("sled open db file failed: {:?}", err));
                     }
                     retries += 1;
+                    tracing::warn!(
+                        "sled open db file failed: {:?}, retrying in 1 second, retries: {}",
+                        err,
+                        retries
+                    );
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
             }
@@ -163,6 +168,8 @@ pub fn breakpoints_clear(task_id: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use chrono_tz::Brazil;
+
     use super::*;
 
     #[test]
@@ -301,6 +308,16 @@ mod tests {
         for i in 0..n {
             let task_id = format!("task{}", i);
             breakpoints_clear(&task_id).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_view_breakpoints_db() {
+        std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
+        let task_id = "3";
+        let all = breakpoints_get_all(task_id).unwrap();
+        for (key, value) in all {
+            println!("key: {}, value: {}", key, value);
         }
     }
 }

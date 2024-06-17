@@ -16,6 +16,7 @@ use crate::plugins::runners::opc::config::model::ColumnConfig;
 use crate::plugins::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::trace::TraceDataId;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
@@ -912,6 +913,7 @@ async fn consume_lush_record_with_transform(
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
+    breakpoint_db: BreakpointDb,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
@@ -1106,6 +1108,7 @@ async fn consume_lush_record_with_transform(
                     let super_table = super_table.clone();
                     let req_id = req_id.clone();
                     let metrics_ref = metrics_arc.clone();
+                    let breakpoints = breakpoint_db.clone();
                     let table_id_column_name = name_of_table_id_column.to_string();
                     if let Err(err) = tx.send(async move {
                         let metrics = metrics_ref.ipc();
@@ -1118,6 +1121,7 @@ async fn consume_lush_record_with_transform(
                         metrics,
                         skip_null,
                         table_id_column_name.as_str(),
+                        breakpoints,
                     ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                         tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
@@ -2726,6 +2730,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
+    // 暂不支持无 agent 运行 pi 和 pibackfill
+    let breakpoint_db: Option<BreakpointDb> = None;
 
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
@@ -2749,6 +2755,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
+                breakpoint_db.as_ref().unwrap().clone(),
             )
             .await
         } else {
@@ -3361,6 +3368,7 @@ pub struct IpcStreamWorker {
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
+    breakpoint_db: Option<BreakpointDb>,
 }
 
 unsafe impl Send for IpcStreamWorker {}
@@ -3383,6 +3391,7 @@ impl Clone for IpcStreamWorker {
             span: self.span.clone(),
             taos: Cell::new(None),
             target_precision: self.target_precision,
+            breakpoint_db: self.breakpoint_db.clone(),
         }
     }
 }
@@ -3412,10 +3421,17 @@ impl IpcStreamWorker {
         let target_precision = get_current_precision(&taos).await?;
 
         let lush_model_config = OnceCell::const_new();
+        let mut breakpoints = None;
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
                 let config = LushModelConfig::try_from(from.clone()).unwrap();
                 lush_model_config.set(Arc::new(config)).unwrap();
+                let task = task.expect("Task id should be set for pi and pibackfill");
+                let task = task.to_string();
+                let db = BreakpointDb::new_with_task(task.as_str())
+                    .await
+                    .expect("Get breakpoint db failed for pi task");
+                breakpoints = Some(db);
             }
             _ => {}
         };
@@ -3436,6 +3452,7 @@ impl IpcStreamWorker {
             taos: Cell::new(Some(taos)),
             target_precision,
             span,
+            breakpoint_db: breakpoints,
         })
     }
 
@@ -3530,6 +3547,7 @@ impl IpcStreamWorker {
                         metrics_arc,
                         lush_model_config.clone(),
                         table_tag_cache,
+                        self.breakpoint_db.as_ref().unwrap().clone(),
                     )
                     .await;
                     if is_tables {
