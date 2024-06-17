@@ -624,6 +624,8 @@ typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
   SArray*  pPageList;
+  SArray*  blockForNotLoaded;   // SSDataBlock that data is not loaded
+  int32_t  offsetForNotLoaded;  // read offset for SSDataBlock that data is not loaded
 } SDataGroupInfo;
 
 typedef struct SWindowRowsSup {
