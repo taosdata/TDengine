@@ -2368,7 +2368,7 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
   for (int32_t i = 0; i < pSortGroupCols->size; ++i) {
     const SColumn*         pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
     const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
-    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+    if (pBlock->pBlockAgg) pColAgg = &pBlock->pBlockAgg[pCol->slotId];
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       if (isNull[i] != 1) return 1;
@@ -2403,7 +2403,7 @@ int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock*
     const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
     if (pCol->slotId > pBlock->pDataBlock->size) continue;
 
-    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+    if (pBlock->pBlockAgg) pColAgg = &pBlock->pBlockAgg[pCol->slotId];
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
       isNull[i] = 1;

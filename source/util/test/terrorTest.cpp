@@ -2,6 +2,7 @@
 #include <cassert>
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -162,4 +163,58 @@ TEST(TAOS_ERROR_TEST, terror_compatibility_test) {
       FAIL() << "Unknown Error.";
       break;
   }
+}
+
+
+size_t maxLengthOfErrorMacro() {
+  size_t maxLen = 0;
+  int32_t errSize = taosGetErrSize();
+  for (int32_t i = 0; i < errSize; ++i) {
+    STaosError *pInfo = &errors[i];
+    maxLen = std::max(maxLen, strlen(pInfo->macro));
+  }
+  return (maxLen / 4 + 1) * 4;
+}
+
+
+void generateConfigFile(const string& filePath) {
+  int32_t errSize = taosGetErrSize();
+  size_t maxStringLength = maxLengthOfErrorMacro();
+  std::ofstream file(filePath);
+  if (!file.is_open()) {
+    cerr << "Failed to open file for writing, at: " << filePath << "." << endl;
+    return;
+  }
+
+  for (int32_t i = 0; i < errSize; ++i) {
+    STaosError *pInfo = &errors[i];
+    file << std::left << std::setw(maxStringLength) << pInfo->macro << "= " << pInfo->val << endl;
+  }
+
+  if (file.fail()) {
+    cerr << "An error occurred while writing to the file." << endl;
+  } else {
+    cout << "Data successfully written to file: " << filePath << endl;
+  }
+
+  file.close();
+}
+
+
+void processCommandArgs(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    if (string(argv[i]) == "--output-config") {
+      string configFile = (i + 1 < argc) ? argv[++i] : "./errorCodeTable.ini";
+      generateConfigFile(configFile);
+      exit(0);
+    }
+  }
+}
+
+
+int main(int argc, char **argv) {
+  processCommandArgs(argc, argv);
+
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

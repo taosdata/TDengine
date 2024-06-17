@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -21,6 +22,7 @@
 #include "tmsgdef.h"
 
 #undef getline
+#undef close
 
 using namespace std;
 
@@ -223,4 +225,56 @@ TEST(td_msg_test, msg_type_compatibility_test) {
       FAIL() << "Unknown Error.";
       break;
   }
+}
+
+
+size_t maxLengthOfMsgType() {
+  size_t maxLen = 0;
+  for (const auto& info : tMsgTypeInfo) {
+    maxLen = std::max(maxLen, strlen(info.name));
+    maxLen = std::max(maxLen, strlen(info.rspName));
+  }
+  return (maxLen / 4 + 1) * 4;
+}
+
+
+void generateConfigFile(const string& filePath) {
+  size_t maxStringLength = maxLengthOfMsgType();
+  std::ofstream file(filePath);
+  if (!file.is_open()) {
+    cerr << "Failed to open file for writing, at: " << filePath << "." << endl;
+    return;
+  }
+
+  for (const auto& info : tMsgTypeInfo) {
+      file << std::left << std::setw(maxStringLength) << info.name << "= " << info.type << endl;
+      file << std::left << std::setw(maxStringLength) << info.rspName << "= " << info.rspType << endl;
+  }
+
+  if (file.fail()) {
+    cerr << "An error occurred while writing to the file." << endl;
+  } else {
+    cout << "Data successfully written to file: " << filePath << endl;
+  }
+
+  file.close();
+}
+
+
+void processCommandArgs(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    if (string(argv[i]) == "--output-config") {
+      string configFile = (i + 1 < argc) ? argv[++i] : "./msgTypeTable.ini";
+      generateConfigFile(configFile);
+      exit(0);
+    }
+  }
+}
+
+
+int main(int argc, char **argv) {
+  processCommandArgs(argc, argv);
+
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
