@@ -3,8 +3,6 @@ title: Configurable Column Compression
 description: Configurable column storage compression method
 ---
 
-# Configurable Storage Compression
-
 Since TDengine 3.3.0.0, more advanced compression feature is introduced, you can specify compression or not, the compression method and compression level for each column.
 
 ## Compression Terminology Definition
