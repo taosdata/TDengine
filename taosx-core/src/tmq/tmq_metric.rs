@@ -197,6 +197,7 @@ impl Display for TmqMetrics {
         if cost == 0 {
             cost = 1;
         }
+
         write!(
             f,
             "# Metrics\n\
@@ -204,11 +205,7 @@ impl Display for TmqMetrics {
             workers: {}\n\
             messages(total): {}\n\
             messages(meta only): {}\n\
-            messages(data only): {}\n\
-            blocks: {}\n\
-            records: {} ({} r/s)\n\
-            points: {} ({} p/s)\n\
-            time cost: {:?}",
+            messages(data only): {}\n",
             self.topics.load(SeqCst),
             self.consumers.load(SeqCst),
             self.messages.load(std::sync::atomic::Ordering::SeqCst),
@@ -216,14 +213,26 @@ impl Display for TmqMetrics {
                 .load(std::sync::atomic::Ordering::SeqCst),
             self.messages_of_data
                 .load(std::sync::atomic::Ordering::SeqCst),
-            self.success_blocks
-                .load(std::sync::atomic::Ordering::SeqCst),
-            records,
-            records / cost,
-            points,
-            points / cost,
-            cost
         )?;
+
+        let blocks = self.success_blocks.load(SeqCst);
+        if blocks > 0 {
+            write!(
+                f,
+                "blocks: {}\n\
+                records: {} ({} r/s)\n\
+                points: {} ({} p/s)\n\
+                time cost: {:?}",
+                blocks,
+                records,
+                records / cost,
+                points,
+                points / cost,
+                cost
+            )?;
+        } else {
+            write!(f, "time cost: {:?}", cost)?;
+        }
         Ok(())
     }
 }
