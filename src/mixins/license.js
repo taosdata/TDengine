@@ -23,7 +23,6 @@ export default {
             })
           );
         });
-        console.log('license-array',array);
         localStorage.setItem("allLicenseNameData",JSON.stringify(array))
       }
     },

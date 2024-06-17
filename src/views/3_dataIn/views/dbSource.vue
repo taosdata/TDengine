@@ -51,9 +51,10 @@ export default {
         let allData = [];
         let version = localStorage.getItem("agent_version");
         let [a, b, c, d] = version.split(".");
-        if (a > 3 || (a == 3 && b > 3) || (a == 3 && b == 3 && c >= 2)) {
-          allData = localStorage.getItem('allLicenseNameData') || []
-          result = result.filter(item => allData.includes(item.license_id))
+        if (this.$INDUSTRY) {
+          let array = JSON.parse(localStorage.getItem('allLicenseNameData')) || [];
+          let allLicenseNameData = array.map((item) => item.grant_name);
+          result = result.filter(item => allLicenseNameData.includes(item.license_id))
         }
         this.$store.commit("app/SET_DEFINITIONS", result);
       } catch (error) {
