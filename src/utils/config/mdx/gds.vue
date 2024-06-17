@@ -104,9 +104,7 @@ export default {
   computed: {
     jdbcURL() {
       return (
-        "jdbc:TAOS-RS://" +
-        this.url.replace(/https?:\/\//, "") +
-        "?usessl=" +
+        "jdbc:TAOS-RS://ip:port?usessl=" +
         this.url.startsWith("https") +
         "&token=" +
         this.token
@@ -115,17 +113,23 @@ export default {
     goDSN() {
       return (
         (this.url.startsWith("https") ? "https" : "http") +
-        "(" +
-        this.url.replace(/https?:\/\//, "") +
-        ")/?token=" +
+        "(ip:port)/?token=" +
         this.token
       );
     },
     DSN() {
-      return this.url + "?token=" + this.token;
+      if (this.url.startsWith("https")) {
+        return "https://ip:port?token=" + this.token;
+      } else {
+        return "http://ip:port?token=" + this.token;
+      }
     },
     cloud_url() {
-      return this.url;
+      if (this.url.startsWith("https")) {
+        return "https://ip:port";
+      } else {
+        return "http://ip:port";
+      }
     },
     cloud_token() {
       return this.token;

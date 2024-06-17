@@ -14,7 +14,7 @@
         <pre
           v-highlight="
             `export TDENGINE_TOKEN=&quot;${token}&quot;
-export TDENGINE_URL=&quot;${url}&quot;
+export TDENGINE_URL=&quot;${DSN}&quot;
 `
           "
         ><code class="language-bash"></code></pre>
@@ -23,7 +23,7 @@ export TDENGINE_URL=&quot;${url}&quot;
         <pre
           v-highlight="
             `set TDENGINE_TOKEN=&quot;${token}&quot;
-set TDENGINE_URL=&quot;${url}&quot;
+set TDENGINE_URL=&quot;${DSN}&quot;
 `
           "
         ><code class="language-bash"></code></pre>
@@ -32,7 +32,7 @@ set TDENGINE_URL=&quot;${url}&quot;
         <pre
           v-highlight="
             `$env:TDENGINE_TOKEN=&quot;${token}&quot;
-$env:TDENGINE_URL=&quot;${url}&quot;
+$env:TDENGINE_URL=&quot;${DSN}&quot;
 `
           "
         ><code class="language-powershell"></code></pre>
@@ -88,7 +88,11 @@ export default {
   },
   computed: {
     DSN() {
-      return this.url + "?token=" + this.token;
+      if (this.url.startsWith("https")) {
+        return "https://ip:port";
+      } else {
+        return "http://ip:port";
+      }
     },
      urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";

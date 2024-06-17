@@ -250,9 +250,7 @@ export default {
   computed: {
     jdbcURL() {
       return (
-        "jdbc:TAOS-RS://" +
-        this.url.replace(/https?:\/\//, "") +
-        "?useSSL=" +
+        "jdbc:TAOS-RS://ip:port?useSSL=" +
         this.url.startsWith("https") +
         "&user=" + this.user +
         "&password=" + this.password

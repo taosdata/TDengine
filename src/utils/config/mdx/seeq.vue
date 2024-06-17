@@ -178,7 +178,7 @@ export default {
       return decrypt(localStorage.getItem("pwd")) || '';
     },
     jdbcURL() {
-      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${this.decryptPwd}`;
+      return 'jdbc:TAOS-RS://ip:port?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${this.decryptPwd}`;
       // return `jdbc:TAOS-RS://localhost:6041?useSSL=false&user=root&password=taosdata`
     }
   }
