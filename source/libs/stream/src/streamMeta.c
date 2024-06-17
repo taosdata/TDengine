@@ -1007,9 +1007,10 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
   hbMsg.pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 
-    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (pTask == NULL) {
       continue;
     }
@@ -1020,7 +1021,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     STaskStatusEntry entry = {
-        .id = *pId,
+        .id = id,
         .status = streamTaskGetStatus(*pTask)->state,
         .nodeId = hbMsg.vgId,
         .stage = pMeta->stage,
@@ -1508,8 +1509,9 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
 bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
   for (int32_t i = 0; i < num; ++i) {
-    STaskId*      pTaskId = taosArrayGet(pMeta->pTaskList, i);
-    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pTaskId, sizeof(*pTaskId));
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask == NULL) {
       continue;
     }
