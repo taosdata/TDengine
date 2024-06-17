@@ -268,10 +268,10 @@ impl TaskConfig {
         }
         if sql.contains("${start_time}") && sql.contains("${end_time}") {
             let query_start = format!("'{}{}'", start_tz.format("%H:%M:%S"), &self.time_zone);
-            let mut query_end = format!("'{}'", end_tz.format("%H:%M:%S"));
+            let mut query_end = format!("{}", end_tz.format("%H:%M:%S"));
             // modify endtime to 24:00:00 instead of 00:00:00
-            if query_end == "'00:00:00'" || end_tz.date_naive() > start_tz.date_naive() {
-                query_end = String::from("'24:00:00'");
+            if query_end == "00:00:00" || end_tz.date_naive() > start_tz.date_naive() {
+                query_end = String::from("23:59:59.9999999");
             }
             query_end = format!("'{}{}'", query_end, &self.time_zone);
             sql = sql
