@@ -641,7 +641,7 @@ sudo ./install_client.sh`
   },
   computed: {
     DSN() {
-      return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "").replace(/taos:\/\//, "")}`;
+      return `taos://${this.user}:${this.password}@${this.url.replace(/^[a-z]+:\/\//, "")}`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
