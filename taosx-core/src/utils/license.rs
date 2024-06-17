@@ -1,9 +1,11 @@
+use std::ops::Deref;
+
 use anyhow::{anyhow, bail, Context, Result};
 use async_backtrace::framed;
 use itertools::Itertools;
 use semver::Version;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, RawResult, TaosBuilder, TaosPool};
-use tracing::{instrument, Instrument};
+use tracing::{debug, instrument, Instrument};
 
 use crate::{
     utils::{constants::*, mask_dsn},
@@ -29,16 +31,26 @@ pub fn is_cloud(to: &taos::Dsn) -> bool {
 
 #[derive(Debug)]
 pub enum LicenseKind {
-    Good,
+    Good {
+        cluster_id: Option<i64>,
+        connector: Option<ConnectorLicense>,
+    },
     Edition(anyhow::Error),
     Feature(anyhow::Error),
     Connector(anyhow::Error),
 }
 
 impl LicenseKind {
+    pub fn good() -> Self {
+        LicenseKind::Good {
+            cluster_id: None,
+            connector: None,
+        }
+    }
+
     pub fn ok(self) -> Result<()> {
         match self {
-            LicenseKind::Good => Ok(()),
+            LicenseKind::Good { .. } => Ok(()),
             LicenseKind::Edition(err) => Err(err),
             LicenseKind::Feature(err) => Err(err),
             LicenseKind::Connector(err) => Err(err),
@@ -47,7 +59,7 @@ impl LicenseKind {
 
     pub fn is_err(&self) -> bool {
         match self {
-            LicenseKind::Good => false,
+            LicenseKind::Good { .. } => false,
             LicenseKind::Edition(_) => true,
             LicenseKind::Feature(_) => true,
             LicenseKind::Connector(_) => true,
@@ -55,7 +67,13 @@ impl LicenseKind {
     }
 }
 
-static mut INFORMATION_GRANTS_FULL: &'static str = "information_schema.ins_grants_full";
+lazy_static::lazy_static! {
+    static ref INFORMATION_GRANTS_FULL: std::borrow::Cow<'static, str> = {
+        std::env::var("INFORMATION_GRANTS_FULL")
+            .map(|s| s.into())
+            .unwrap_or_else(|_| "information_schema.ins_grants".into())
+    };
+}
 
 async fn check_grant_of(
     builder: &TaosBuilder,
@@ -76,22 +94,37 @@ async fn check_grant_of(
     let conn = builder.build().await?;
     if *version < VERSION_3_3_0 {
         // Not check advanced feature grants in old version.
-        return Ok(LicenseKind::Good);
+        return Ok(LicenseKind::good());
     }
-    // Check features license
-    let (ok, expire) = conn
-        .query_one::<_, (bool, String)>(format!(
-            "select `expire` > now as `ok`, `expire` from {} where grant_name='{grant}'",
-            unsafe { INFORMATION_GRANTS_FULL }
-        ))
+
+    // Check if is unlimited
+    let sql = format!(
+        "select `expire` = 'unlimited' from {} where grant_name='{grant}'",
+        INFORMATION_GRANTS_FULL.deref()
+    );
+    let is_unlimited = conn
+        .query_one::<_, bool>(&sql)
         .await
         .with_context(|| format!("Failed to check {grant} license"))?
         .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
-    tracing::debug!(ok, expire, "active-active license check");
-    if !ok {
-        Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")))
+    if is_unlimited {
+        return Ok(LicenseKind::good());
+    }
+    // Check features license
+    let sql = format!(
+        "select `expire` > now as `ok`, `expire` from {} where grant_name='{grant}'",
+        INFORMATION_GRANTS_FULL.deref()
+    );
+    let (ok, expire) = conn
+        .query_one::<_, (bool, String)>(&sql)
+        .await
+        .with_context(|| format!("Failed to check {grant} license"))?
+        .ok_or_else(|| anyhow!("You enterprise edition has no {grant} license"))?;
+    tracing::debug!(ok, expire, sql, "active-active license check");
+    if ok {
+        Ok(LicenseKind::good())
     } else {
-        Ok(LicenseKind::Good)
+        Ok(LicenseKind::Edition(anyhow!("Active-Active expired at {expire}, please contact the TDengine customer success team for further assistance.")))
     }
 }
 
@@ -104,20 +137,27 @@ async fn check_connector_grant_of(
     // skip license check for newly-added connectors in old version
     let connectors_old = vec!["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
 
-    if version < &VERSION_3_2_3 && connectors_old.contains(&connector) {
-        return Ok(LicenseKind::Good);
+    if *version < VERSION_3_2_3 && connectors_old.contains(&connector) {
+        return Ok(LicenseKind::good());
     }
-    let grants_sql = if version >= &VERSION_3_2_3 {
+    let grants_sql = if *version >= VERSION_3_2_3 {
         format!(
             "select `limits` from {} where grant_name='{connector}'",
-            unsafe { INFORMATION_GRANTS_FULL }
+            INFORMATION_GRANTS_FULL.deref()
         )
     } else {
         format!("select `{connector}` from information_schema.ins_grants")
     };
     let conn = builder.build().await?;
-    let license: ConnectorLicense = conn
-        .query_one::<_, String>(grants_sql)
+
+    let cluster_id: Option<i64> = conn
+        .query_one("select id from information_schema.ins_cluster")
+        .await
+        .ok()
+        .unwrap_or_default();
+
+    let mut license: ConnectorLicense = conn
+        .query_one::<_, String>(&grants_sql)
         .await
         .context("Cannot retrieve license")?
         .ok_or_else(|| {
@@ -127,8 +167,9 @@ async fn check_connector_grant_of(
             serde_json::from_str(&s).with_context(|| format!("Cannot parse license from str: {s}"))
         })?;
 
+    debug!(%version, connector, sql = grants_sql, ?license, "connector license");
     // since 3.2.3.0, the expired time is in seconds
-    let expired_duration = if version >= &VERSION_3_2_3 {
+    let expired_duration = if *version >= VERSION_3_2_3 {
         license.expired_seconds()
     } else {
         license.expired_days()
@@ -138,11 +179,19 @@ async fn check_connector_grant_of(
             "The current connector {} has been expired for {}, \
             please contact the TDengine customer success team to get the activation code.",
             connector,
-            humantime::format_duration(duration.to_std().unwrap())
+            humantime::format_duration(std::time::Duration::from_millis(
+                duration.num_milliseconds() as u64
+            ))
         );
         return Ok(LicenseKind::Connector(err));
     }
-    Ok(LicenseKind::Good)
+    if license.r#type.is_none() {
+        license.r#type.replace(connector.to_string());
+    }
+    Ok(LicenseKind::Good {
+        cluster_id,
+        connector: Some(license),
+    })
 }
 
 #[allow(dead_code)]
@@ -200,7 +249,6 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
     let source_dsn_context = || format!("License error in source: {}", mask_dsn(&from));
     let sink_dsn_context = || format!("License error in sink: {}", mask_dsn(&to));
     // Check if enterprise available
-    #[cfg(not(feature = "disable-enterprise-only-validation"))]
     match (from.driver.as_str(), to.driver.as_str()) {
         ("tmq", "taos") => {
             let mut from = from.clone();
@@ -279,7 +327,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 };
 
                 if is_cloud(&to) {
-                    return Ok(LicenseKind::Good);
+                    return Ok(LicenseKind::good());
                 }
                 let edition = sink_builder
                     .get_edition()
@@ -327,7 +375,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             };
 
             if is_cloud(&to) {
-                return Ok(LicenseKind::Good);
+                return Ok(LicenseKind::good());
             }
             let edition = sink_builder
                 .get_edition()
@@ -358,7 +406,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             let _ = builder.build().await.context("Source connection error")?;
 
             if is_cloud(&from) {
-                return Ok(LicenseKind::Good);
+                return Ok(LicenseKind::good());
             }
             let edition =
                 tokio::time::timeout(std::time::Duration::from_secs(30), builder.get_edition())
@@ -380,7 +428,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             builder.ping(&mut conn).await?;
 
             if is_cloud(&to) {
-                return Ok(LicenseKind::Good);
+                return Ok(LicenseKind::good());
             }
             let edition = builder
                 .get_edition()
@@ -418,7 +466,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 }
             };
             if is_cloud(&to) {
-                return Ok(LicenseKind::Good);
+                return Ok(LicenseKind::good());
             }
             let edition = sink_builder
                 .get_edition()
@@ -459,7 +507,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
         }
         _ => (),
     };
-    Ok(LicenseKind::Good)
+    Ok(LicenseKind::good())
 }
 
 #[cfg(test)]
@@ -468,10 +516,11 @@ mod tests {
     use std::str::FromStr;
 
     #[tokio::test]
-    async fn test_validate_enterprise_license() {
+    async fn valid_replica_license() {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
             .try_init();
+        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
         let now = chrono::Local::now();
         let expired = chrono::Local::now() - (chrono::Duration::days(10));
         let future = chrono::Local::now() + (chrono::Duration::days(100));
@@ -484,14 +533,99 @@ mod tests {
             .unwrap();
 
         conn.exec_many([
-            "create table if not exists test.test_grants_full (\
-            ts timestamp, grant_name varchar(100), display_name varchar(100),\
+            "create table if not exists test.test_grants_full (
+            ts timestamp, grant_name varchar(100), display_name varchar(100),
             expire varchar(100), limits varchar(100))",
             "delete from test.test_grants_full",
         ])
         .await
         .unwrap();
-        unsafe { INFORMATION_GRANTS_FULL = "test.test_grants_full" };
+
+        // 1. tmq + active-active
+        let from = Dsn::from_str("tmq:///test?replica").unwrap();
+        let to = Dsn::from_str("taos:///test").unwrap();
+        let res = validate_enterprise_license(&from, &to).await;
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("You enterprise edition has no active_active license"));
+
+        conn.exec("insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
+            .await
+            .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("Active-Active expired at 2022-01-01 00:00:00"));
+
+        conn.exec_many([
+            "delete from test.test_grants_full".to_string(),
+            format!(
+                "insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '{}', NULL)",
+                future.format("%Y-%m-%d %H:%M:%S")
+            ),
+        ])
+        .await
+        .unwrap();
+        let err = validate_enterprise_license(&from, &to).await.unwrap_err();
+        assert!(dbg!(format!("{:#}", err))
+            .contains("The current connector td3.0 is not supported by license."));
+
+        let (grant, display) = ("td3.0", "TDengine 3.0");
+        conn.exec(format!(
+            r#"insert into test.test_grants_full values(now, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            time = expired.format("%Y-%m-%d %H:%M:%S"),
+            seconds = expired.timestamp()
+        ))
+        .await
+        .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_err(), "{:#?}", res);
+        assert!(dbg!(format!("{:#}", res.unwrap_err()))
+            .contains("The current connector td3.0 has been expired for"));
+        conn.exec_many([
+            "delete from test.test_grants_full".to_string(),
+            format!(
+                "insert into test.test_grants_full values({}, 'active_active', 'Active-Active', '{}', NULL)",
+                now.timestamp_millis(),
+                future.format("%Y-%m-%d %H:%M:%S")
+            ),
+            format!(
+            r#"insert into test.test_grants_full values({}, '{grant}', '{display}', '{time}','{{"number":1, "speed":-1, "expire":"{seconds}", "expireTime":"{time}" }}')"#,
+            now.timestamp_millis() + 1000,
+            time = future.format("%Y-%m-%d %H:%M:%S"),
+            seconds =future.timestamp()
+        )])
+        .await
+        .unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_ok(), "{:#?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_validate_enterprise_license() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
+        let now = chrono::Local::now();
+        let expired = chrono::Local::now() - (chrono::Duration::days(10));
+        let future = chrono::Local::now() + (chrono::Duration::days(100));
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        let taos = TaosBuilder::from_dsn(&dsn).unwrap();
+        let conn = taos.build().await.unwrap();
+        conn.exec("create database if not exists test")
+            .await
+            .unwrap();
+
+        conn.exec_many([
+            "create table if not exists test.test_grants_full (
+            ts timestamp, grant_name varchar(100), display_name varchar(100),
+            expire varchar(100), limits varchar(100))",
+            "delete from test.test_grants_full",
+        ])
+        .await
+        .unwrap();
 
         // 1. tmq + active-active
         let from = Dsn::from_str("tmq:///test?replica").unwrap();
