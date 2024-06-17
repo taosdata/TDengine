@@ -922,6 +922,7 @@ export default {
       });
     },
     async getMsgBody() {
+      this.$refs.sruleForm.clearValidate();
       this.$parent.$parent.$parent.validateRetrieve();
       let flag = false;
       await this.$nextTick(() => {
