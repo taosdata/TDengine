@@ -326,13 +326,17 @@ export default {
           ? this.config.pattern 
             ? [...requireRule,...patternRule] 
             : requireRule
-          : [];
+          : this.config.pattern 
+            ? [...patternRule]
+            : [];
       }
       return this.config.required
         ? this.config.pattern 
           ? [...requireRule,...patternRule] 
           : requireRule
-        : [];
+        : this.config.pattern 
+          ? [...patternRule]
+          : [];
     },
     timeRules() {
       return [{ validator: this.compareTime, trigger: "blur" }];

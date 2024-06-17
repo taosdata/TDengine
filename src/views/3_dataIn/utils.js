@@ -1004,7 +1004,6 @@ export function handleHintType(config, hint) {
     case 'duration':
     case 'timeout':
       config.type = 'composeAppend';
-      // console.log('hhhh--dd',hint.choices);
       if (hint?.choices) {
         config.options = hint.choices;
       }
