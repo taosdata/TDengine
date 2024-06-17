@@ -30,47 +30,32 @@ typedef struct SMStreamCheckpointReadyRspMsg {
 
 static int32_t doProcessDummyRspMsg(SStreamMeta* pMeta, SRpcMsg* pMsg);
 
-static STaskId replaceStreamTaskId(SStreamTask* pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t tqExpandStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      vgId = pMeta->vgId;
-  STaskId      taskId = {0};
   int64_t      st = taosGetTimestampMs();
+  int64_t      streamId = 0;
+  int32_t      taskId = 0;
 
   tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
   if (pTask->info.fillHistory) {
-    taskId = replaceStreamTaskId(pTask);
+    streamId = pTask->streamTaskId.streamId;
+    taskId = pTask->streamTaskId.taskId;
+  } else {
+    streamId = pTask->id.streamId;
+    taskId = pTask->id.taskId;
   }
 
   // sink task does not need the pState
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
-    pTask->pState = streamStateOpen(pMeta->path, pTask, false, -1, -1);
+    pTask->pState = streamStateOpen(pMeta->path, pTask, false, streamId, taskId, -1, -1);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
       return -1;
     } else {
       tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
     }
-  }
-
-  if (pTask->info.fillHistory) {
-    restoreStreamTaskId(pTask, &taskId);
   }
 
   SReadHandle handle = {

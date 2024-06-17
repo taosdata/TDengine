@@ -608,6 +608,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   taosArrayPush(pMeta->pTaskList, &pTask->id);
+  taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
 
   if (streamMetaSaveTask(pMeta, pTask) < 0) {
     return -1;
@@ -617,7 +618,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return -1;
   }
 
-  taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
   if (pTask->info.fillHistory == 0) {
     atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
   }
@@ -672,21 +672,16 @@ void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask)
   }
 }
 
-static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamTaskId* id) {
+static void doRemoveIdFromList(SArray* pTaskList, int32_t num, SStreamTaskId* id) {
   bool remove = false;
   for (int32_t i = 0; i < num; ++i) {
-    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     if (pTaskId->streamId == id->streamId && pTaskId->taskId == id->taskId) {
-      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x succ", pMeta->vgId, id->streamId, id->taskId);
-      taosArrayRemove(pMeta->pTaskList, i);
+      taosArrayRemove(pTaskList, i);
       remove = true;
       break;
-    } else {
-      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x, entry:0x%" PRIx64 "-0x%x", pMeta->vgId, id->streamId,
-              id->taskId, pTaskId->streamId, pTaskId->taskId);
     }
   }
-
   ASSERT(remove);
 }
 
@@ -750,26 +745,19 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
-    SStreamTaskId pxId = pTask->id;
-    ASSERT((pxId.taskId == id.taskId) && (pxId.streamId == id.streamId));
-
     // it is an fill-history task, remove the related stream task's id that points to it
     if (pTask->info.fillHistory == 0) {
       atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
-    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
-
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
-    doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
-
-    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
+    doRemoveIdFromList(pMeta->pTaskList, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
     streamMetaRemoveTask(pMeta, &id);
 
+    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
     streamMetaWUnLock(pMeta);
 
     ASSERT(pTask->status.timerActive == 0);
-
     if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
       taosTmrStop(pTask->schedInfo.pDelayTimer);
