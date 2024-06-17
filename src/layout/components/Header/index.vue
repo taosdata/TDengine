@@ -196,7 +196,7 @@ export default {
             case "TDengine Power Edition trial":
               versionName = "Trial";
               this.industry = "power";
-              localStorage.setItem("industry_version", "TDengine");
+              localStorage.setItem("industry_version", "Industry");
               break;
             case "TDengine Power Edition official":
               versionName = "Official"
