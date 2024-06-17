@@ -378,7 +378,7 @@ fn generate_json_value(
                 // convert to datetime(an accurate UTC time)
                 let datetime = DateTime::from_timestamp(secs as i64, nsecs as u32).unwrap();
 
-                Ok(json!(datetime_with_tz))
+                Ok(json!(datetime))
             }
         },
     }

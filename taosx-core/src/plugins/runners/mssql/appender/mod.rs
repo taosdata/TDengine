@@ -495,7 +495,7 @@ pub fn to_record_batches(
                             .as_any_mut()
                             .downcast_mut::<array::TimestampNanosecondBuilder>()
                             .unwrap()
-                            .append_value(datetime_with_tz.timestamp_nanos_opt().unwrap() as i64);
+                            .append_value(datetime.timestamp_nanos_opt().unwrap() as i64);
                     }
                 },
             }
