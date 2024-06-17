@@ -185,7 +185,7 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   SStreamTask* pTask = *ppTask;
   const char*  idstr = pTask->id.idStr;
 
-  if (pMeta->updateInfo.transId != req.transId) {
+  if ((pMeta->updateInfo.transId != req.transId) && (pMeta->updateInfo.transId != -1)) {
     if (req.transId < pMeta->updateInfo.transId) {
       tqError("s-task:%s vgId:%d disorder update nodeEp msg recv, discarded, newest transId:%d, recv:%d", idstr, vgId,
               pMeta->updateInfo.transId, req.transId);
@@ -197,10 +197,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     } else {
       tqInfo("s-task:%s vgId:%d receive new trans to update nodeEp msg from mnode, transId:%d, prev transId:%d", idstr,
              vgId, req.transId, pMeta->updateInfo.transId);
-
       // info needs to be kept till the new trans to update the nodeEp arrived.
-      taosHashClear(pMeta->updateInfo.pTasks);
-      pMeta->updateInfo.transId = req.transId;
+      streamMetaInitUpdateTaskList(pMeta, req.transId);
     }
   } else {
     tqDebug("s-task:%s vgId:%d recv trans to update nodeEp from mnode, transId:%d", idstr, vgId, req.transId);
@@ -279,6 +277,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     if (streamMetaCommit(pMeta) < 0) {
       //     persist to disk
     }
+
+    streamMetaClearUpdateTaskList(pMeta);
 
     if (!restored) {
       tqDebug("vgId:%d vnode restore not completed, not start the tasks, clear the start after nodeUpdate flag", vgId);
@@ -362,12 +362,16 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
 
   int32_t vgId = pMeta->vgId;
+  pRsp->upstreamNodeId = htonl(pRsp->upstreamNodeId);
   pRsp->upstreamTaskId = htonl(pRsp->upstreamTaskId);
   pRsp->streamId = htobe64(pRsp->streamId);
   pRsp->downstreamTaskId = htonl(pRsp->downstreamTaskId);
   pRsp->downstreamNodeId = htonl(pRsp->downstreamNodeId);
   pRsp->stage = htobe64(pRsp->stage);
   pRsp->msgId = htonl(pRsp->msgId);
+
+  tqDebug("s-task:0x%x vgId:%d recv dispatch-rsp from 0x%x vgId:%d", pRsp->upstreamTaskId, pRsp->upstreamNodeId,
+          pRsp->downstreamTaskId, pRsp->downstreamNodeId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->upstreamTaskId);
   if (pTask) {
@@ -414,7 +418,9 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   streamMetaReleaseTask(pMeta, pTask);
   tCleanupStreamRetrieveReq(&req);
-  return code;
+
+  // always return success, to disable the auto rsp
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
@@ -646,8 +652,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
-
-//  tqStreamRemoveTaskBackend(pMeta, &id);
   return 0;
 }
 
@@ -1077,6 +1081,8 @@ int32_t doProcessDummyRspMsg(SStreamMeta* UNUSED_PARAM(pMeta), SRpcMsg* pMsg) {
 int32_t tqStreamProcessStreamHbRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
 
 int32_t tqStreamProcessReqCheckpointRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) { return doProcessDummyRspMsg(pMeta, pMsg); }
+
+int32_t tqStreamProcessChkptReportRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {return doProcessDummyRspMsg(pMeta, pMsg);}
 
 int32_t tqStreamProcessCheckpointReadyRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SMStreamCheckpointReadyRspMsg* pRsp = pMsg->pCont;

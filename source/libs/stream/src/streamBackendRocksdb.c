@@ -195,12 +195,6 @@ int32_t getCfIdx(const char* cfName) {
 
 bool isValidCheckpoint(const char* dir) {
   return true;
-  STaskDbWrapper* pDb = taskDbOpenImpl(NULL, NULL, (char*)dir);
-  if (pDb == NULL) {
-    return false;
-  }
-  taskDbDestroy(pDb, false);
-  return true;
 }
 
 int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {

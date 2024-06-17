@@ -220,7 +220,7 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
   return code;
 }
 
-static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg** pColsAgg, int32_t numOfCols,
+static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pColsAgg, int32_t numOfCols,
                                int32_t numOfRows) {
   if (pColsAgg == NULL || pFilterInfo == NULL) {
     return true;
@@ -725,7 +725,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   if (pInfo->countState ==  TABLE_COUNT_STATE_END) {
     return;
   }
-  if (pInfo->base.pTableListInfo->oneTableForEachGroup || pInfo->base.pTableListInfo->groupOffset) {
+  if (pInfo->base.pTableListInfo->groupOffset) {
     pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
   } else {
     taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
@@ -769,6 +769,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
   bool            hasNext = false;
   int32_t         code = TSDB_CODE_SUCCESS;
+  pBlock->info.dataLoad = false;
 
   int64_t st = taosGetTimestampUs();
 
@@ -890,7 +891,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
-    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) {  // group by tbname, group by tag + sort
+    if (pTableListInfo->groupOffset) {  // group by tbname, group by tag + sort
       if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =

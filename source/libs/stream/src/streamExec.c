@@ -24,6 +24,7 @@
 #define FILL_HISTORY_TASK_EXEC_INTERVAL   5000            // 5 sec
 
 static int32_t streamTransferStateDoPrepare(SStreamTask* pTask);
+static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks);
 
 bool streamTaskShouldStop(const SStreamTask* pTask) {
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
@@ -87,8 +88,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   return code;
 }
 
-static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize,
-                                  int32_t* totalBlocks) {
+int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
 
@@ -541,6 +541,75 @@ int32_t streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 //static void streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime) { pTask->status.schedIdleTime = idleTime; }
 static void setLastExecTs(SStreamTask* pTask, int64_t ts) { pTask->status.lastExecTs = ts; }
 
+static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
+  const char*      id = pTask->id.idStr;
+  int32_t          blockSize = 0;
+  int64_t          st = taosGetTimestampMs();
+  SCheckpointInfo* pInfo = &pTask->chkInfo;
+  int64_t          ver = pInfo->processedVer;
+
+  stDebug("s-task:%s start to process batch blocks, num:%d, type:%s", id, num, streamQueueItemGetTypeStr(pBlock->type));
+
+  doSetStreamInputBlock(pTask, pBlock, &ver, id);
+
+  int64_t totalSize = 0;
+  int32_t totalBlocks = 0;
+  streamTaskExecImpl(pTask, pBlock, &totalSize, &totalBlocks);
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
+          SIZE_IN_MiB(totalSize), totalBlocks);
+
+  pTask->execInfo.outputDataBlocks += totalBlocks;
+  pTask->execInfo.outputDataSize += totalSize;
+  if (fabs(el - 0.0) <= DBL_EPSILON) {
+    pTask->execInfo.procsThroughput = 0;
+    pTask->execInfo.outputThroughput = 0;
+  } else {
+    pTask->execInfo.outputThroughput = (totalSize / el);
+    pTask->execInfo.procsThroughput = (blockSize / el);
+  }
+
+  // update the currentVer if processing the submit blocks.
+  ASSERT(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer);
+
+  if (ver != pInfo->processedVer) {
+    stDebug("s-task:%s update processedVer(unsaved) from %" PRId64 " to %" PRId64 " nextProcessVer:%" PRId64
+                " ckpt:%" PRId64,
+            id, pInfo->processedVer, ver, pInfo->nextProcessVer, pInfo->checkpointVer);
+    pInfo->processedVer = ver;
+  }
+}
+
+void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock) {
+  const char* id = pTask->id.idStr;
+
+  // 1. transfer the ownership of executor state
+  bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
+  if (dropRelHTask) {
+    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+
+    STaskId*     pHTaskId = &pTask->hTaskInfo.id;
+    SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId);
+    if (pHTask != NULL) {
+      streamTaskReleaseState(pHTask);
+      streamTaskReloadState(pTask);
+      stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
+              streamTaskGetStatus(pHTask)->name);
+
+      streamMetaReleaseTask(pTask->pMeta, pHTask);
+    } else {
+      stError("s-task:%s related fill-history task:0x%x failed to acquire, transfer state failed", id,
+              (int32_t)pHTaskId->taskId);
+    }
+  } else {
+    stDebug("s-task:%s no transfer-state needed", id);
+  }
+
+  // 2. flush data in executor to K/V store, which should be completed before do checkpoint in the K/V.
+  doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
+}
+
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.
@@ -574,7 +643,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (taosGetTimestampMs() - pTask->status.lastExecTs < MIN_INVOKE_INTERVAL) {
-      stDebug("s-task:%s invoke with high frequency, idle and retry exec in 50ms", id);
+      stDebug("s-task:%s invoke exec too fast, idle and retry in 50ms", id);
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
       return 0;
     }
@@ -628,78 +697,17 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
     }
 
-    if (type == STREAM_INPUT__CHECKPOINT) {
-      // transfer the state from fill-history to related stream task before generating the checkpoint.
-      bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
-      if (dropRelHTask) {
-        ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
-
-        STaskId*     pHTaskId = &pTask->hTaskInfo.id;
-        SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId);
-        if (pHTask != NULL) {
-          // 2. transfer the ownership of executor state
-          streamTaskReleaseState(pHTask);
-          streamTaskReloadState(pTask);
-          stDebug("s-task:%s transfer state from fill-history task:%s, status:%s completed", id, pHTask->id.idStr,
-                  streamTaskGetStatus(pHTask)->name);
-
-          streamMetaReleaseTask(pTask->pMeta, pHTask);
-        } else {
-          stError("s-task:%s related fill-history task:0x%x failed to acquire, transfer state failed", id,
-                  (int32_t)pHTaskId->taskId);
-        }
-      }
-    }
-
-    int64_t st = taosGetTimestampMs();
-    stDebug("s-task:%s start to process batch of blocks, num:%d, type:%s", id, numOfBlocks, streamQueueItemGetTypeStr(type));
-
-    int64_t ver = pTask->chkInfo.processedVer;
-    doSetStreamInputBlock(pTask, pInput, &ver, id);
-
-    int64_t totalSize = 0;
-    int32_t totalBlocks = 0;
-    streamTaskExecImpl(pTask, pInput, &totalSize, &totalBlocks);
-
-    double el = (taosGetTimestampMs() - st) / 1000.0;
-    stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-           SIZE_IN_MiB(totalSize), totalBlocks);
-
-    pTask->execInfo.outputDataBlocks += totalBlocks;
-    pTask->execInfo.outputDataSize += totalSize;
-    if (fabs(el - 0.0) <= DBL_EPSILON) {
-      pTask->execInfo.procsThroughput = 0;
-      pTask->execInfo.outputThroughput = 0;
-    } else {
-      pTask->execInfo.outputThroughput = (totalSize / el);
-      pTask->execInfo.procsThroughput = (blockSize / el);
-    }
-
-    SCheckpointInfo* pInfo = &pTask->chkInfo;
-
-    // update the currentVer if processing the submit blocks.
-    ASSERT(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer);
-
-    if (ver != pInfo->processedVer) {
-      stDebug("s-task:%s update processedVer(unsaved) from %" PRId64 " to %" PRId64 " nextProcessVer:%" PRId64
-              " ckpt:%" PRId64,
-              id, pInfo->processedVer, ver, pInfo->nextProcessVer, pInfo->checkpointVer);
-      pInfo->processedVer = ver;
-    }
-
-    streamFreeQitem(pInput);
-
-    // todo other thread may change the status
+    if (type != STREAM_INPUT__CHECKPOINT) {
+      doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
+      streamFreeQitem(pInput);
+    } else { // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-    if (type == STREAM_INPUT__CHECKPOINT) {
-
-      // todo add lock
+      taosThreadMutexLock(&pTask->lock);
       SStreamTaskState* pState = streamTaskGetStatus(pTask);
       if (pState->state == TASK_STATUS__CK) {
         stDebug("s-task:%s checkpoint block received, set status:%s", id, pState->name);
         streamTaskBuildCheckpoint(pTask);
-      } else {
-        // todo refactor
+      } else { // todo refactor
         int32_t code = 0;
         if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           code = streamTaskSendCheckpointSourceRsp(pTask);
@@ -714,11 +722,11 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         }
       }
 
+      taosThreadMutexUnlock(&pTask->lock);
+      streamFreeQitem(pInput);
       return 0;
     }
   }
-
-  return 0;
 }
 
 // the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not

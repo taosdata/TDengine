@@ -76,6 +76,9 @@ typedef struct SCliConn {
 
   SDelayTask* task;
 
+  uint32_t clientIp;
+  uint32_t serverIp;
+
   char* dstAddr;
   char  src[32];
   char  dst[32];
@@ -348,6 +351,7 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   taosWLockLatch(&exh->latch);
   if (exh->handle == NULL) exh->handle = conn;
   exh->inited = 1;
+  exh->pThrd = conn->hostThrd;
   if (!QUEUE_IS_EMPTY(&exh->q)) {
     queue* h = QUEUE_HEAD(&exh->q);
     QUEUE_REMOVE(h);
@@ -1092,7 +1096,7 @@ void cliSendBatch(SCliConn* pConn) {
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
 
-    if (pHead->comp == 0) {
+    if (pHead->comp == 0 && pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp) {
       if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
         msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
         pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
@@ -1170,7 +1174,7 @@ void cliSend(SCliConn* pConn) {
     uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
   }
 
-  if (pHead->comp == 0) {
+  if (pHead->comp == 0 && pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp) {
     if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
       msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
@@ -1401,6 +1405,12 @@ void cliConnCb(uv_connect_t* req, int status) {
   addrlen = sizeof(sockname);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, &sockname, &addrlen);
   transSockInfo2Str(&sockname, pConn->src);
+
+  struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
+  struct sockaddr_in saddr = *(struct sockaddr_in*)&peername;
+
+  pConn->clientIp = addr.sin_addr.s_addr;
+  pConn->serverIp = saddr.sin_addr.s_addr;
 
   tTrace("%s conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   if (pConn->pBatch != NULL) {
@@ -2514,7 +2524,7 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   if (exh == NULL) {
     return NULL;
   }
-
+  taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
     int idx = cliRBChoseIdx(trans);
     if (idx < 0) return NULL;
@@ -2522,7 +2532,9 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   }
 
   pThrd = exh->pThrd;
+  taosWUnLockLatch(&exh->latch);
   transReleaseExHandle(transGetRefMgt(), handle);
+
   return pThrd;
 }
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {

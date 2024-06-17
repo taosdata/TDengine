@@ -1975,8 +1975,7 @@ static int32_t initSessionOutputBuf(SResultWindowInfo* pWinInfo, SResultRow** pR
   *pResult = (SResultRow*)pWinInfo->pStatePos->pRowBuff;
   // set time window for current result
   (*pResult)->win = pWinInfo->sessionWin.win;
-  setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
-  return TSDB_CODE_SUCCESS;
+  return setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
 int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* pCurWin, SResultRow** pResult,

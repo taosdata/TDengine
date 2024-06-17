@@ -2,7 +2,7 @@
 # libuv
 ExternalProject_Add(libuv
         GIT_REPOSITORY https://github.com/libuv/libuv.git
-        GIT_TAG v1.44.2
+        GIT_TAG v1.48.0
         SOURCE_DIR "${TD_CONTRIB_DIR}/libuv"
         BINARY_DIR "${TD_CONTRIB_DIR}/libuv"
         CONFIGURE_COMMAND "" 

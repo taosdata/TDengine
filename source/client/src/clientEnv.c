@@ -334,6 +334,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
+    releaseTscObj(connId);
     doDestroyRequest(pRequest);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -374,6 +375,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
   taosMemoryFreeClear(pResInfo->convertJson);
+  taosMemoryFreeClear(pResInfo->decompBuf);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
@@ -763,7 +765,6 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
-  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 

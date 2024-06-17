@@ -162,7 +162,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
-    } else if (type == STREAM_INPUT__CHECKPOINT) {
+    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       SPackedData tmp = {.pDataBlock = input};
       taosArrayPush(pInfo->pBlockLists, &tmp);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
@@ -286,7 +286,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
@@ -322,7 +322,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, vgId, taskId, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(readers, vgId, taskId, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
@@ -524,7 +524,8 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 }
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model) {
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
+                        EOPTR_EXEC_MODEL model) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   taosThreadOnce(&initPoolOnce, initRefPool);
 
@@ -537,7 +538,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   }
 
   if (handle) {
-    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
+    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
     void* pSinkManager = NULL;
     code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
     if (code != TSDB_CODE_SUCCESS) {
