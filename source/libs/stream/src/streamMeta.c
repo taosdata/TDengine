@@ -673,13 +673,21 @@ void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask)
 }
 
 static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamTaskId* id) {
+  bool remove = false;
   for (int32_t i = 0; i < num; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
     if (pTaskId->streamId == id->streamId && pTaskId->taskId == id->taskId) {
       taosArrayRemove(pMeta->pTaskList, i);
+      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x", pMeta->vgId, id->streamId, id->taskId);
+      remove = true;
       break;
+    } else {
+      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x, entry:0x%" PRIx64 "-0x%x", pMeta->vgId, id->streamId,
+              id->taskId, pTaskId->streamId, pTaskId->taskId);
     }
   }
+
+  ASSERT(remove);
 }
 
 static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
