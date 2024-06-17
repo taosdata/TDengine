@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use taos::Dsn;
+use uuid::Uuid;
 
 use crate::{
     get_data_dir,
@@ -122,14 +123,14 @@ impl MqttConfig {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Default)]
 pub struct MqttConnectConfig {
     address: String,
     version: String,
     client_id: Option<String>,
     username: Option<String>,
     password: Option<String>,
-    keep_alive: Option<usize>,
+    keep_alive: Option<u64>,
     clean_session: Option<bool>,
     ca: Option<String>,
     cert: Option<String>,
@@ -206,19 +207,7 @@ impl MqttConnectConfig {
             client_id: dsn.params.get("client_id").map(|v| v.to_string()),
             username: dsn.username.clone(),
             password: dsn.password.clone(),
-            keep_alive: dsn
-                .params
-                .get("keep_alive")
-                .map(|v| {
-                    v.parse::<usize>().map_err(|err| {
-                        anyhow::anyhow!(
-                            "invalid keep_alive: {}, cause: {}",
-                            v.to_string(),
-                            err.to_string()
-                        )
-                    })
-                })
-                .transpose()?,
+            keep_alive: Self::parse_keep_alive(dsn)?,
             clean_session: dsn
                 .params
                 .get("clean_session")
@@ -232,11 +221,104 @@ impl MqttConnectConfig {
                     })
                 })
                 .transpose()?,
-            // .ok_or(anyhow::anyhow!("clean_session is required"))?,
             ca,
             cert,
             cert_key,
         })
+    }
+
+    pub fn parse_version(dsn: &Dsn) -> anyhow::Result<String> {
+        let version = dsn
+            .params
+            .get("version")
+            .map(|v| {
+                if v.is_empty() {
+                    return Err(anyhow::anyhow!("version is required"));
+                }
+                let version = match v.as_str() {
+                    "3.1" | "3.1.1" | "5.0" | "5" => Ok(v.to_string()),
+                    _ => Err(anyhow::anyhow!("invalid version: {}", v.to_string())),
+                };
+                version
+            })
+            .transpose()?
+            .ok_or_else(|| anyhow::anyhow!("version is required"))?;
+        Ok(version)
+    }
+
+    pub fn host_port(&self) -> (String, u16) {
+        let parts = self.address.split(':').collect::<Vec<&str>>();
+        let host = parts[1].trim_start_matches("//").to_string();
+        let port = parts[2].parse::<u16>().unwrap();
+        (host, port)
+    }
+
+    /// use UUID as client_id if not set
+    pub fn client_id(&self) -> impl Into<String> {
+        self.client_id
+            .clone()
+            .unwrap_or_else(|| Uuid::new_v4().to_string().replace("-", ""))
+    }
+
+    pub fn username(&self) -> Option<&str> {
+        self.username.as_deref()
+    }
+
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
+    }
+
+    /// Default keep alive is 5 seconds
+    pub fn keep_alive(&self) -> core::time::Duration {
+        core::time::Duration::from_secs(self.keep_alive.unwrap_or(5) as u64)
+    }
+
+    fn parse_keep_alive(dsn: &Dsn) -> anyhow::Result<Option<u64>> {
+        let keep_alive = dsn
+            .params
+            .get("keep_alive")
+            .map(|v| {
+                v.parse::<u64>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "invalid keep_alive: {}, cause: {}",
+                        v.to_string(),
+                        err.to_string()
+                    )
+                })
+            })
+            .transpose()?;
+        Ok(keep_alive)
+    }
+
+    /// Default clean session is true
+    pub fn clean_session(&self) -> bool {
+        self.clean_session.unwrap_or(true)
+    }
+
+    pub fn ssl_enabled(dsn: &Dsn) -> bool {
+        dsn.params.get("ca").is_some()
+    }
+
+    pub fn ssl(&self) -> anyhow::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+        let ca = self
+            .ca
+            .as_ref()
+            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
+            .transpose()?
+            .unwrap_or_default();
+        let cert = self
+            .cert
+            .as_ref()
+            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
+            .transpose()?
+            .unwrap_or_default();
+        let cert_key = self
+            .cert_key
+            .as_ref()
+            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
+            .transpose()?
+            .unwrap_or_default();
+        Ok((ca, cert, cert_key))
     }
 }
 
@@ -245,6 +327,73 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_parse_version() {
+        let dsn = Dsn::from_str("mqtt://").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn);
+        assert!(version.is_err());
+        assert_eq!("version is required", version.err().unwrap().to_string());
+
+        let dsn = Dsn::from_str("mqtt://?version=3.0").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn);
+        assert!(version.is_err());
+        assert_eq!("invalid version: 3.0", version.err().unwrap().to_string());
+
+        let dsn = Dsn::from_str("mqtt://?version=3.1").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
+        assert_eq!("3.1", version);
+
+        let dsn = Dsn::from_str("mqtt://?version=3.1.1").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
+        assert_eq!("3.1.1", version);
+
+        let dsn = Dsn::from_str("mqtt://?version=5.0").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
+        assert_eq!("5.0", version);
+
+        let dsn = Dsn::from_str("mqtt://?version=5").unwrap();
+        let version = MqttConnectConfig::parse_version(&dsn).unwrap();
+        assert_eq!("5", version);
+    }
+
+    #[test]
+    fn test_host_port() {
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1884?version=3.1").unwrap();
+        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
+        let (host, port) = config.host_port();
+        assert_eq!("127.0.0.1", host);
+        assert_eq!(1884, port);
+    }
+
+    #[test]
+    fn test_client_id() {
+        let config = MqttConnectConfig::default();
+        assert_eq!(32, config.client_id().into().len());
+    }
+
+    #[test]
+    fn test_parse_keep_alive() {
+        let dsn = Dsn::from_str("mqtt://?keep_alive=30").unwrap();
+        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn).unwrap();
+        assert_eq!(Some(30), keep_alive);
+
+        let dsn = Dsn::from_str("mqtt://?keep_alive=abc").unwrap();
+        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
+        assert!(keep_alive.is_err());
+        assert_eq!(
+            "invalid keep_alive: abc, cause: invalid digit found in string",
+            keep_alive.err().unwrap().to_string()
+        );
+
+        let dsn = Dsn::from_str("mqtt://").unwrap();
+        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
+        assert_eq!(None, keep_alive.unwrap());
+
+        let dsn = Dsn::from_str("mqtt://?keep_alive=").unwrap();
+        let keep_alive = MqttConnectConfig::parse_keep_alive(&dsn);
+        assert_eq!(None, keep_alive.unwrap());
+    }
 
     #[test]
     #[ignore]
