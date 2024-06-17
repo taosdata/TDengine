@@ -744,10 +744,16 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     pTask = *ppTask;
 
     // it is an fill-history task, remove the related stream task's id that points to it
-    atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
+    if (pTask->info.fillHistory == 0) {
+      atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
+    }
+
+    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
+
+    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
     streamMetaRemoveTask(pMeta, &id);
 
     streamMetaWUnLock(pMeta);
