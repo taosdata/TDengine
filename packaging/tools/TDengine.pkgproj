@@ -673,7 +673,12 @@
 						<key>LANGUAGE</key>
 						<string>English</string>
 						<key>VALUE</key>
-						<string>TDengine</string>
+						<dict>
+							<key>PATH</key>
+							<string>/opt/taos/TDengine/packaging/tools/mac_install_summary.txt</string>
+							<key>PATH_TYPE</key>
+							<integer>0</integer>
+						</dict>
 					</dict>
 				</array>
 			</dict>

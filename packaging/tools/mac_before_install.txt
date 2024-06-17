@@ -1,15 +1,3 @@
 TDengine is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.
 
-• To configure TDengine, edit /etc/taos/taos.cfg
-• To configure taosadapter, edit /etc/taos/taoadapter.toml
-• To configure taos-explorer, edit /etc/taos/explorer.toml
-• To start service, run sudo launchctl start com.tdengine.taosd
-• To start Taos Adapter, run sudo launchctl start com.tdengine.taosadapter
-• To start Taos Explorer, run sudo launchctl start com.tdengine.taos-explorer
-
-• To start all the components, sudo start-all.sh
-• To access TDengine Commnd Line Interface, taos -h YourServerName
-• To access TDengine Graphic User Interface, http://YourServerName:6060
-
 If you're experiencing problems installing TDengine, check the file /var/log/taos/tdengine_install.log to help troubleshoot the installation.
-
