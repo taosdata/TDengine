@@ -130,15 +130,15 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
 
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
-    handleOptions(options, paramsConfig);
+    handleOptions(options, paramsConfig, id);
     handleAuthentication(authentication, paramsConfig);
     
-    handleGroups(groups, paramsConfig, true);
+    handleGroups(groups, paramsConfig, true, id);
     if (id != 'csv') {
       handleConnectivityCheck(paramsConfig)
     }
     handleDatasets(datasets, paramsConfig);
-    handleGroups(groups, paramsConfig, false);
+    handleGroups(groups, paramsConfig, false, id);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
@@ -277,30 +277,10 @@ function handleAuthentication(authentication, paramsConfig) {
           label: display,
           description,
           placeholder,
-          required: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              return checkValue(authenticationData.certificates.security_mode) && 
-                authenticationData.certificates.security_mode !== opcuaSecuritymodeValue && index > 1
-            } else {
-              return required
-            }
-          },
+          required,
           field: name,
           defaultValue: defaultValue ?? '',
           accept: '.pem,.der,.cert,.key,.crt',
-          disabled: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              // 特殊处理 opcua 安全策略
-              if ( authenticationData.certificates.security_mode == opcuaSecuritymodeValue) {
-                authenticationData.certificates.security_policy = ''
-              }
-              return authenticationData.certificates.security_mode == opcuaSecuritymodeValue && index == 1
-            } else {
-              return false
-            }
-          },
         };
         if (name == 'orgId') {
           config.pattern = /^[0-9a-fA-F]+$/
@@ -372,7 +352,7 @@ function handleAuthentication(authentication, paramsConfig) {
     }
 }
  */
-function handleOptions(options, paramsConfig) {
+function handleOptions(options, paramsConfig, id) {
   if (!options) return;
   const children = paramsConfig[0]?.children ?? [];
   const keys = Object.keys(options);
@@ -384,14 +364,36 @@ function handleOptions(options, paramsConfig) {
       description,
       field: key,
       placeholder,
-      required,
+      // required,
       pattern: pattern || null,
       patternMsg,
       defaultValue: value ?? '',
       if: currentData => {
         if (!currentData.system_configuration || key == 'host') return true;
         return currentData.system_configuration == piOptionShowValue;
-      }
+      },
+      required: (currentData) => {
+        if (id?.startsWith('opcua')) {
+          return ['private_key','security_policy','certificate'].includes(key)
+            ? checkValue(currentData.security_mode) && 
+              currentData.security_mode !== opcuaSecuritymodeValue 
+            : required
+        } else {
+          return required
+        }
+      },
+       disabled: (currentData) => {
+        if (id?.startsWith('opcua')) {
+          // 特殊处理 opcua 安全策略
+          if ( currentData.security_mode == opcuaSecuritymodeValue) {
+            currentData.security_policy = '';
+          }
+          return currentData.security_mode == opcuaSecuritymodeValue &&
+            ['security_policy'].includes(key)
+        } else {
+          return false
+        }
+      },
     };
     if (key == 'host') {
       config.display_order = 1;
@@ -718,7 +720,7 @@ function handleDatasets(datasets, paramsConfig) {
     }
 ]
  */
-function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
+function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
   if (!groups) return;
   groups = groups.sort((a, b) => a.display_order - b.display_order);
   const children = [];
@@ -751,7 +753,15 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         // if: collapsible ? data => data[valueField] : true,
         if: (currentData, originalData) => {
           const datasetsData = originalData[datasetsField];
-          if (collapsible) return currentData[valueField];
+          if (collapsible) {
+            if (id === 'kafka' && group.display_order == 1) {
+              return (currentData.sasl_mechanism == "GSSAPI" )
+                ? currentData[valueField] && !['sasl_username','sasl_password'].includes(name) 
+                : currentData[valueField] && ['sasl_mechanism','sasl_username','sasl_password'].includes(name)
+            } else {
+              return currentData[valueField];
+            }
+          } 
           // if (!currentData.table) return true;
           if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
             return !['update_interval', 'update_mode'].includes(name)
@@ -761,6 +771,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
             } else {
               return !['endDateTime'].includes(name)
             }
+          } else if (currentData.trust_cert){
+            return !['trust_cert_ca'].includes(name)
           } else {
             return !['table','retrieveInterval','tolerance'].includes(name)
           }
@@ -784,8 +796,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       //   };
       // }
 
-      // postgres/mysql 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
+      // postgres/mysql/sql server 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
@@ -808,6 +820,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       // TODO: 临时解决
       if (paramConfig.type == 'file') {
         paramConfig.templateUrl = templateUrlMap[currentType] ?? '';
+        if (currentType == 'mssql') {
+          paramConfig.accept = '.pem'
+        }
       }
       // 针对opc的opc_table_config特殊处理
       if (name == 'opc_table_config') {
@@ -975,6 +990,9 @@ export function handleHintType(config, hint) {
       break;
     case 'file':
       config.type = 'file';
+      break;
+    case 'password':
+      config.type = 'password';
       break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
@@ -1260,7 +1278,11 @@ function handleEndpoint(endpoint) {
   if (url.includes("://")) {
     try {
       let parsed_url = new URL(url);
-      return "tmq+" + parsed_url.toString();
+      if (parsed_url.protocol == "taos:" || parsed_url.protocol == "tmq:") {
+        return parsed_url.toString().replace('taos:','tmq:');
+      } else {
+        return "tmq+" + parsed_url.toString();
+      }
     } catch (error) {
       console.log("Invalid URL: ", url, error);
       // not a valid url, use as is.

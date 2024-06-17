@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
@@ -644,36 +645,29 @@ async fn proxy(
 
 async fn rest_proxy(
     args: web::Data<Args>,
-    client: web::Data<reqwest::Client>,
-    path: web::Path<String>,
+    _client: web::Data<reqwest::Client>,
+    _path: web::Path<String>,
     req: HttpRequest,
     payload: web::Payload,
 ) -> impl Responder {
-    let x = args.profile.cluster.as_deref().unwrap();
-    // use proxy if cluster is a url, otherwise use native query.
-    if x.starts_with("http://") || x.starts_with("https://") {
-        let query = req.query_string();
-        let url = if query.is_empty() {
-            format!("{x}/rest/{path}")
-        } else {
-            format!("{x}/rest/{path}?{query}")
-        };
+    // let x = args.profile.cluster.as_deref().unwrap();
+    // let query = req.query_string();
+    // let url = if query.is_empty() {
+    //     format!("{x}/rest/{path}")
+    // } else {
+    //     format!("{x}/rest/{path}?{query}")
+    // };
+    // proxy(req, payload, client, &url).await.map_err(RestErrResponse::new)
 
-        proxy(req, payload, client, &url)
-            .await
-            .map_err(RestErrResponse::new)
-    } else {
-        let header = req
-            .headers()
-            .get(AUTHORIZATION)
-            .and_then(|header| header.to_str().ok())
-            .unwrap_or_default();
-        let sql = get_body_from_payload(payload).await?;
-
-        Ok(match args.query(header, &sql).await {
-            Ok(ok) => HttpResponse::Ok().json(ok),
-            Err(err) => HttpResponse::InternalServerError().json(err),
-        })
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+    let sql = get_body_from_payload(payload).await.unwrap();
+    match args.query(header, &sql).await {
+        Ok(ok) => HttpResponse::Ok().json(ok),
+        Err(err) => HttpResponse::InternalServerError().json(err),
     }
 }
 
@@ -911,6 +905,16 @@ impl Args {
 
         log::info!("Got connection, querying");
         let mut set = conn.query(sql).await?;
+        // dml and cud return empty set
+        if set.fields().is_empty() {
+            let affect_rows = set.affected_rows();
+            return Ok(RestOkResponse {
+                code: Code::SUCCESS,
+                column_meta: vec![("affected_rows".to_string(), "int".to_string(), 4)],
+                rows: 1,
+                data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
+            });
+        }
         let column_meta = set
             .fields()
             .iter()
@@ -926,6 +930,13 @@ impl Args {
                     .map(|v| match v {
                         taos::Value::Timestamp(ts) => {
                             serde_json::Value::String(ts.to_datetime_with_tz().to_rfc3339())
+                        }
+                        taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
+                            "\\x{}",
+                            hex::encode(vb).to_uppercase()
+                        )),
+                        taos::Value::Geometry(geo) => {
+                            serde_json::Value::String(parse_geometry_from_bytes(&geo))
                         }
                         _ => v.to_json_value(),
                     })
@@ -1017,6 +1028,16 @@ impl Args {
         })
     }
 }
+
+/// Parse geometry from bytes to WKT. If failed, return the original bytes.
+fn parse_geometry_from_bytes(geo: &[u8]) -> String {
+    let result = Geometry::new_from_wkb(geo);
+    match result {
+        Ok(geo) => geo.to_wkt_precision(6).unwrap(),
+        Err(_) => format!("{:?}", geo),
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 struct RestOkResponse {
     code: Code,

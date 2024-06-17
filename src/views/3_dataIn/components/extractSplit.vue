@@ -291,27 +291,36 @@ export default {
         let colLists = [];
         let tbdata = [];
 
-        colLists =
+        colLists =(
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields
             : result[0].fields
-                .map((item) => item.name)
                 .filter((val) => {
                   if (
                     this.$store.state.app.currentDBType == "mqtt" &&
-                    !this.mqttDefaultCols.includes(val)
+                    !this.mqttDefaultCols.includes(val.name)
                   ) {
                     return val;
                   }
                   if (
                     this.$store.state.app.currentDBType == "kafka" &&
-                    !this.kafkaDefaultCols.includes(val)
+                    !this.kafkaDefaultCols.includes(val.name)
                   ) {
                     return val;
                   } else if(this.$store.state.app.supportSQL){
                     return val
                   }
-                });
+                })
+        ).map((item) => {
+          return {
+            description: item.name,
+            name: item.name,
+            show: true,
+            type: "string",
+            localType: item.type,
+          }
+        })       
+
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -350,6 +359,7 @@ export default {
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
+          this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",colLists);
           
           return;
         }
@@ -362,11 +372,11 @@ export default {
           let finalVal = tbdata.map(
             (val) =>
               val[
-                this.$store.state.app.currentDBType == "csv" ? item.name : item
+                this.$store.state.app.currentDBType == "csv" ? item.name : item.name
               ]
           );
           obj.name =
-            this.$store.state.app.currentDBType == "csv" ? item.name : item;
+            this.$store.state.app.currentDBType == "csv" ? item.name : item.name;
           obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
           return obj;
         });

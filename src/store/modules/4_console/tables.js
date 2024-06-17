@@ -45,8 +45,8 @@ const mutations = {
       stbTmpl: "",//创建普通表默认赋值
       ts_field_name: "",
       columns: [
-        { type: "TIMESTAMP", field: "", value: "",varcharLength:8,ncharLength:8, encode: "delta-i", compress: "lz4", level: "medium", primaryKey: false },
-        { type: "INT", field: "", value: "",varcharLength:8,ncharLength:8,typeList: dataType, encode: "simple8b", compress: "lz4", level: "medium",primaryKey: false }
+        { type: "TIMESTAMP", field: "", value: "", encode: "delta-i", compress: "lz4", level: "medium", primaryKey: false, length: 8 },
+        { type: "INT", field: "", value: "",typeList: dataType, encode: "simple8b", compress: "lz4", level: "medium",primaryKey: false, length: 8 }
       ],
     };
   },
@@ -113,12 +113,15 @@ const actions = {
           }
           if (item.typeName == "column") {
             let typeList = handleTypeList(item.dataType)
-            columns.push({ ...item, 
+            columns.push({ 
+              ...item, 
               primaryKey: item.note == 'PRIMARY KEY', 
               field: item.name, 
               field_old: item.name, 
               type: item.dataType, 
-              type_old: item.dataType, 
+              type_old: item.dataType,
+              length: item.length, 
+              length_old: item.length,
               encode_old: item.encode, 
               compress_old: item.compress,
               level_old: item.level,
@@ -155,10 +158,10 @@ const actions = {
       })
       .catch((err) => {
         if (!state.table_form.columns?.length) {
-          state.table_form.columns?.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8, typeList: dataType, encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false  });
+          state.table_form.columns?.push({ type: "INT", field: "", value: "",length: 8, typeList: dataType, encode: "simple8b", compress: "lz4", level: "medium", primaryKey: false  });
         }
         if (!state.table_form.tags?.length) {
-          state.table_form.tags?.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
+          state.table_form.tags?.push({ type: "INT", field: "", value: "",length: 8 });
         }
         return Promise.reject(err);
       });

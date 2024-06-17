@@ -49,7 +49,7 @@
                 <template slot="content">
                   <span v-html="$t('communityTip')"></span>
                 </template>
-                <el-button type="primary" plain size="small" :disabled="!$store.state.app.supportSQL || $COMMUNITY" @click="getMsgBody">{{
+                <el-button type="primary" plain size="small" :loading="requesting" :disabled="$store.state.app.currentDBType == 'mqtt' || $COMMUNITY" @click="getMsgBody">{{
                   $t("datasource.transformer.msgbodytypes.retrieve")
                 }}</el-button>
               </el-tooltip>
@@ -587,10 +587,9 @@
       </section>
       <el-dialog
         :title="$t('datasource.transformer.create_st')"
-        :visible.sync="showCreateDIalog"
+        :visible.sync="showCreateDialog"
         width="1000px"
         center
-        destroy-on-close
         :append-to-body="true"
         @close="closeDialog"
         :close-on-click-modal="false"
@@ -757,7 +756,7 @@ export default {
         ],
       },
 
-      showCreateDIalog: false,
+      showCreateDialog: false,
       stableLists: [],
       sruleForm: {
         s_name: "",
@@ -803,7 +802,8 @@ export default {
       visiblePop3: false,
       allProperties: [],
       dialogVisible: false,
-      checkedProperties: []
+      checkedProperties: [],
+      requesting: false
     };
   },
   computed: {
@@ -922,6 +922,7 @@ export default {
       });
     },
     async getMsgBody() {
+      this.$refs.sruleForm.clearValidate();
       this.$parent.$parent.$parent.validateRetrieve();
       let flag = false;
       await this.$nextTick(() => {
@@ -934,6 +935,7 @@ export default {
       if (flag) {
         return;
       }
+      this.requesting = true;
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
@@ -947,9 +949,17 @@ export default {
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$message.error(result.message)
         this.msgForm.msgbody = '';
+        this.requesting = false;
         return
       }
-      this.msgForm.msgbody = JSON.stringify(result);
+      if (this.$store.state.app.currentDBType == 'kafka') {
+        result.input.map(item => {
+          this.msgForm.msgbody += item.payload + "\n";
+        })
+      } else {
+        this.msgForm.msgbody = JSON.stringify(result);
+      }
+      this.requesting = false;
       await this.submitParse();
     },
     clearMsgBody() {
@@ -1191,6 +1201,8 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
+        this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",this.columnsArr)
+
         // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
         this.handelExtractArr(this.columnsArr,this.extractArr)
         this.showIndentifyResulttb();
@@ -1872,7 +1884,7 @@ export default {
     },
     closeDialog() {
       this.dialogForm.st_name = "";
-      this.showCreateDIalog = false;
+      this.showCreateDialog = false;
     },
     //创建或者查询
     async createST() {
@@ -1960,8 +1972,12 @@ export default {
       } else {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 2);
       }
+      // 获取最新的拆分后的列
+      if (this.$refs.extract && this.$refs.extract.length > 0) {
+        this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
+      }
 
-      this.showCreateDIalog = true;
+      this.showCreateDialog = true;
     },
     //回显数据调用mapping接口
     echoFetchMap() {

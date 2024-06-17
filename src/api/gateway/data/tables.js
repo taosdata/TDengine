@@ -35,6 +35,7 @@ export function deleteTableReq(payload) {
 export function createTableReq(payload) {
   let { selected_db, table_form } = payload;
   let { name, stbTmpl, tags,columns } = table_form;
+  console.log('columns',columns);
   // 以超级表为模版创建表
   if (tags && tags.length > 0) { //创建超级表的子表
     return sendSQLReq(
@@ -45,8 +46,8 @@ export function createTableReq(payload) {
       return Promise.reject(err);
     });
   } else {
-    return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`${name} (${columns.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
-    'NCHAR('+`${item.ncharLength}`+')':item.type} ${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
+    return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`${name} (${columns.map(item => `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type+'('+`${item.length}`+')'
+    :item.type} ${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
     ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
     ${item.primaryKey ? ' PRIMARY KEY': ''}`).join(",")});`).catch(err => {
       
@@ -123,6 +124,7 @@ export function handleColumnData(data) {
     result.compress = item.compress;
     result.level = item.level;
     result.note = item.note;
+    result.length = item.length;
     res.push(result);
   });
   return res;

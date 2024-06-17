@@ -35,7 +35,7 @@
       <el-descriptions-item
         v-for="item in licenseList"
         :key="item.key"
-        :label="$t(`topic.${item.key}`)"
+        :label="$INDUSTRY && item.key == 'version' ? $t('header.power') : $t(`topic.${item.key}`)"
         :labelStyle="style"
       >
         <span style="color: #333" v-if="item.key !== 'version'">
@@ -76,10 +76,10 @@
         </el-table-column>
       </el-table>
     </template>
-    <p class="title">
+    <p class="title" v-if="getMetaShow('dataIn')">
       <span>{{ $t("topic.connectors") }}</span>
     </p>
-    <el-table style="margin-top: 20px" :data="tableData" size="mini">
+    <el-table style="margin-top: 20px" :data="tableData" size="mini" v-if="getMetaShow('dataIn')">
       <el-table-column :label="$t('topic.type')" prop="type"></el-table-column>
       <el-table-column :label="$t('topic.tasks')" prop="number">
         <template slot-scope="scope">
@@ -180,6 +180,7 @@ import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
 import { activeLicence } from "@/api/explorer/licence";
 import { parsinginZone, getBrowserLang } from "@/utils";
+import LicenseMixin from "@/mixins/license"
 export default {
   data() {
     return {
@@ -214,12 +215,13 @@ export default {
       version_greater_than_3301: false,
     };
   },
+  mixins: [LicenseMixin],
   computed: {
     style() {
       return {
         "font-size": "14px",
         color: "#4d6992",
-        "min-width": "104px",
+        "min-width": this.$INDUSTRY && getBrowserLang() == 'en' ? "156px":  "110px",
         display: "inline-block",
         "text-align": "right",
       };
@@ -367,6 +369,7 @@ export default {
             this.$message.success(this.$t("operateSucc"));
             this.dialog = false;
             this.refresh();
+            this.getGrantsFull();
           } else {
             this.$error(res?.desc);
           }

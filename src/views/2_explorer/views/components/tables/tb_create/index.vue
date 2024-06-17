@@ -66,18 +66,14 @@
                 ></el-option>
               </el-select>
               <el-input-number
-                v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-                :value="
-                  column.type == 'VARCHAR'
-                    ? column.varcharLength
-                    : column.ncharLength
-                "
+                v-if="VariableTableColumnType.includes(column.type)"
+                :value="column.length"
                 @change="
                   (newVal, oldVal) =>
                     handleChange(newVal,  column.type, index)
                 "
                 :min="1"
-                :max="column.type == 'VARCHAR' ? 16374 : 4093"
+                :max="column.type == 'NCHAR' ? 4093 : 65517"
                 label="Length"
                 controls-position="right"
                 class="custom-length"
@@ -186,18 +182,14 @@
                 ></el-option>
               </el-select>
               <el-input-number
-                v-if="currentData.type == 'VARCHAR' || currentData.type == 'NCHAR'"
-                :value="
-                  currentData.type == 'VARCHAR'
-                    ? currentData.varcharLength
-                    : currentData.ncharLength
-                "
+                v-if="VariableTableColumnType.includes(currentData.type)"
+                :value="currentData.length"
                 @change="
                   (newVal, oldVal) =>
                     handleEditChange(newVal, currentData.type)
                 "
                 :min="1"
-                :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+                :max="currentData.type == 'NCHAR' ? 4093 : 65517"
                 label="Length"
                 controls-position="right"
                 class="custom-length"
@@ -384,6 +376,7 @@ export default {
       columnEdit: false,
       currentData: {},
       loading: false,
+      VariableTableColumnType: VariableTableColumnType
     };
   },
   mixins: [VersionMixin],
@@ -444,20 +437,11 @@ export default {
   },
   methods: {
     handleChange(newVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.table_form.columns[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.table_form.columns[index], "ncharLength", newVal);
-      }
+      this.$set(this.table_form.columns[index], "length", newVal);
     },
     handleEditChange(newVal, type) {
-      if (type === "VARCHAR") {
-        this.$set(this.currentData, "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.currentData, "ncharLength", newVal);
-      }
+      this.$set(this.currentData, "length", newVal);
+     
     },
     // 判断类型是不是可以修改的类型
     typeHasSpe(currentType) {
@@ -474,8 +458,7 @@ export default {
         return this.table_form.columns.insert(index + 1, {
           type: "INT",
           field: "",
-          varcharLength:8,
-          ncharLength:8,
+          length:8,
           typeList: dataType,
           encode: "simple8b", 
           compress: "lz4", 
@@ -486,8 +469,7 @@ export default {
       this.currentData = { 
         field: "", 
         type: "INT",
-        varcharLength:8,
-        ncharLength:8,
+        length:8,
         encode: "simple8b", 
         compress: "lz4", 
         level: "medium", 
@@ -497,14 +479,12 @@ export default {
       let params = null
       let rename_params = null
       let other_params = null
-      if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
+      if(!this.typeHasSpe(column.type) && column.length_old !== column.length) {
         params = {
           operation: "modify column",
           first_field: column.field_old,
-          second_field: column.type === 'VARCHAR' 
-            ? column.type + `(${column.varcharLength})`
-            : column.type === 'NCHAR' 
-            ? column.type + `(${column.ncharLength})` 
+          second_field: VariableTableColumnType.includes(column.type)  
+            ? column.type + `(${column.length})`
             : column.type,
         }
       } 
@@ -689,10 +669,8 @@ export default {
       if (!this.currentData.field || !this.currentData.type) {
         return this.$error(this.$t("data.checkFail"));
       }
-      let second_field = this.currentData.type === 'VARCHAR' 
-        ? this.currentData.type + `(${this.currentData.varcharLength})`
-        : this.currentData.type === 'NCHAR' 
-        ? this.currentData.type + `(${this.currentData.ncharLength})` 
+      let second_field = VariableTableColumnType.includes(this.currentData.type) 
+        ? this.currentData.type + `(${this.currentData.varcharLength})` 
         : this.currentData.type
       let other = `${this.currentData.encode ? ' ENCODE ' + `'${this.currentData.encode}'` : ''}${this.currentData.compress ? ' COMPRESS ' + `'${this.currentData.compress}'` : ''}${this.currentData.level ? ' LEVEL ' + `'${this.currentData.level}'` : ''}`
       let params = {

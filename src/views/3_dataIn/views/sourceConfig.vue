@@ -354,7 +354,9 @@ export default {
       deep: true,
       handler(val) {
         if (!this.isEditable && !this.sourceForm.type) {
-          this.$set(this.sourceForm, "type", "tmq");
+          this.$INDUSTRY 
+          ? this.$set(this.sourceForm, "type", "csv")
+          : this.$set(this.sourceForm, "type", "tmq");
         }
       },
       immediate: true,
@@ -388,6 +390,7 @@ export default {
           this.$store.commit('app/SET_RESULTTB_SHOW',false)
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',null)
           this.$store.commit('app/SET_HISTORIAN_DSN','')
+          this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",[]);
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);

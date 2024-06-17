@@ -177,8 +177,15 @@ export default {
   computed: {
     tmq() {
       // root:taosdata@ws(localhost:6041)
-      const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
-      let uri = this.url.replace(/https?:\/\//, "");
+      let wsPrefix = ""
+      if (this.url.startsWith("https")) {
+        wsPrefix = "wss"
+      } else if (this.url.startsWith("http")) {
+        wsPrefix = "ws"
+      } else {
+        wsPrefix = "taos"
+      }
+      let uri = this.url.replace(/https?:\/\//, "").replace(/taos:\/\//, "");
       // const tokenStr = this.token;
       return `${wsPrefix}://${uri}/rest/tmq`;
     },
