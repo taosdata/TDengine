@@ -3771,7 +3771,7 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   return TSDB_CODE_SUCCESS;
 }
 
-bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
@@ -3779,13 +3779,13 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       bool                foundCol = false;
       int32_t             j = 0;
       for (; j < numOfCols; ++j) {
-        if (pDataStatis[j] != NULL && pDataStatis[j]->colId == colRange->colNode->colId) {
+        if (pDataStatis[j].colId == colRange->colNode->colId) {
           foundCol = true;
           break;
         }
       }
       if (foundCol) {
-        SColumnDataAgg *pAgg = pDataStatis[j];
+        SColumnDataAgg *pAgg = &pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
         qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows,
@@ -3822,7 +3822,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
     int32_t          index = -1;
     SFilterRangeCtx *ctx = info->colRange[k];
     for (int32_t i = 0; i < numOfCols; ++i) {
-      if (pDataStatis[i] != NULL && pDataStatis[i]->colId == ctx->colId) {
+      if (pDataStatis[i].colId == ctx->colId) {
         index = i;
         break;
       }
@@ -3838,13 +3838,13 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       break;
     }
 
-    if (pDataStatis[index]->numOfNull <= 0) {
+    if (pDataStatis[index].numOfNull <= 0) {
       if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
         ret = false;
         break;
       }
-    } else if (pDataStatis[index]->numOfNull > 0) {
-      if (pDataStatis[index]->numOfNull == numOfRows) {
+    } else if (pDataStatis[index].numOfNull > 0) {
+      if (pDataStatis[index].numOfNull == numOfRows) {
         if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
           ret = false;
           break;
@@ -3858,7 +3858,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       }
     }
 
-    SColumnDataAgg *pDataBlockst = pDataStatis[index];
+    SColumnDataAgg *pDataBlockst = &pDataStatis[index];
 
     SFilterRangeNode *r = ctx->rs;
     float             minv = 0;

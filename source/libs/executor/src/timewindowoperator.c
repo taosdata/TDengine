@@ -904,7 +904,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   struct SColumnDataAgg* pAgg = NULL;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    pAgg = (pBlock->pBlockAgg != NULL) ? pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
+    pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
     }
