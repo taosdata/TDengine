@@ -677,8 +677,8 @@ static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamTaskId* i
   for (int32_t i = 0; i < num; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
     if (pTaskId->streamId == id->streamId && pTaskId->taskId == id->taskId) {
+      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x succ", pMeta->vgId, id->streamId, id->taskId);
       taosArrayRemove(pMeta->pTaskList, i);
-      stDebug("vgId:%d remove streamId:0x%" PRIx64 " taskId:0x%x", pMeta->vgId, id->streamId, id->taskId);
       remove = true;
       break;
     } else {
@@ -723,7 +723,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   }
   streamMetaWUnLock(pMeta);
 
-  stDebug("s-task:0x%x set task status:dropping and start to unregister it", taskId);
+  stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, pMeta->vgId);
 
   while (1) {
     streamMetaRLock(pMeta);
@@ -750,6 +750,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
+    ASSERT(pTask->id.taskId == id.taskId && pTask->id.streamId == id.streamId);
 
     // it is an fill-history task, remove the related stream task's id that points to it
     if (pTask->info.fillHistory == 0) {

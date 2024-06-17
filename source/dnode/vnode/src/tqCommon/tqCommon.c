@@ -635,8 +635,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
 
   // drop the related fill-history task firstly
   if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
-    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
     tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
+    streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
   }
 
   // drop the stream task now
