@@ -369,6 +369,7 @@ export default {
             this.$message.success(this.$t("operateSucc"));
             this.dialog = false;
             this.refresh();
+            this.getGrantsFull();
           } else {
             this.$error(res?.desc);
           }
