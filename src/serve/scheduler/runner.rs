@@ -33,7 +33,7 @@ use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, Dat
 
 use crate::serve::controller::{
     agent::Activity,
-    license::{LicenseKind, LicenseValidator},
+    license::LicenseValidator,
     load_breakpoints,
     trigger::{Schedule, StopCondition, Strategy},
     AgentAction, Status, Task, TaskActivity,
@@ -908,7 +908,7 @@ impl TaskJob {
                                 }
                             }
                             Err(err) => {
-                                tracing::error!(error = %err, "License validation tracking error");
+                                tracing::error!(error = format!("{err:#}"), "License validation tracking error");
                             }
                         }
                     }
