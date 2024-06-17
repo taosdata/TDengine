@@ -166,8 +166,8 @@ export default {
   computed: {
     DSN() {
       // "ws://root:taosdata@127.0.0.1:6041/test";
-      const uri = this.url.replace(/https?:\/\//, "");
-      return `ws://${this.user}:${this.password}@${uri}`;
+      // const uri = this.url.replace(/https?:\/\//, "");
+      return `ws://${this.user}:${this.password}@ip:port`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";

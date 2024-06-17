@@ -129,7 +129,7 @@ taos>`
   },
   computed: {
     DSN() {
-      return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`;
+      return `taos://${this.user}:${this.password}@ip:port`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";

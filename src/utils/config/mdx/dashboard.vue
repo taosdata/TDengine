@@ -75,31 +75,8 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
       "
     ><code class="language-bash"></code></pre> -->
     <h2 id="verify-plugin">{{ $t("docs.virtual.grafana.step3") }}</h2>
-    <p>{{ $t('docs.virtual.grafana.step3desc') }}</p>
-    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
-        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc1') }}</span>
-      <pre
-          v-highlight="
-       
-            `${url}
-`
-          "
-        ><code class="language-bash"></code></pre>
-    </p>
-    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
-        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
-      <pre
-          v-highlight="
-            `${username}
-`
-          "
-        ><code class="language-bash"></code></pre>
-    </p>
-     
-   
-  
-  
-    <p v-html="$t('docs.virtual.grafana.step3desc3')"></p>
+    <p v-html="$t('docs.virtual.grafana.step3desc')"></p>
+    
     <!-- <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
     <p v-if="!isOEM">
       <img
