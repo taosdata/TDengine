@@ -40,6 +40,15 @@ class srvCtl:
 
         return tdDnodes.starttaosd(idx)
 
+    # set taos' cfg and restart dnode
+    def setTaosCfg(self, idx, cfgs: dict):
+        if clusterDnodes.getModel() == 'cluster':
+            for key, value in cfgs.items():
+                clusterDnodes.cfg(idx, option=key, value=value)
+
+        for key, value in cfgs.items():
+            tdDnodes.cfg(idx, option=key, value=value)
+
     # stop idx base is 1 
     def dnodeStop(self, idx):
         if clusterDnodes.getModel() == 'cluster':

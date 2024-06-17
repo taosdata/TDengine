@@ -578,9 +578,13 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def cfg(self, option, value):
-        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        cmd1 = "sed -i '/%s/d' %s" % (option, self.cfgPath)
+        if os.system(cmd1) != 0:
+            tdLog.exit(cmd1)
+
+        cmd2 = "echo %s %s >> %s" % (option, value, self.cfgPath)
+        if os.system(cmd2) != 0:
+            tdLog.exit(cmd2)
 
     def getDnodeRootDir(self, index):
         dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
