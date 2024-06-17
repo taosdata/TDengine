@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
-use std::{fs, io::Write, path::PathBuf, sync::Arc};
+use std::{io::Write, path::PathBuf, sync::Arc};
 
-use anyhow::Context;
+use anyhow::{bail, Context};
+use chrono::Utc;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use rumqttc::{
+    AsyncClient, Event, Incoming, MqttOptions, QoS, SubscribeFilter, TlsConfiguration, Transport,
+};
 use serde_json::json;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -13,7 +17,6 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
-use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::log_rotation;
@@ -23,6 +26,8 @@ use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
 };
+
+use super::get_data_dir;
 
 mod config;
 
@@ -108,7 +113,7 @@ pub async fn mqtt_to_taos(
                 chrono::Local::now().format("%Y%m%d%H%M"),
                 "toml"
             ));
-            let _ = fs::copy(&config_path, path);
+            let _ = std::fs::copy(&config_path, path);
         }
         None => {}
     }
@@ -133,7 +138,7 @@ pub async fn mqtt_to_taos(
     let mut command = tokio::process::Command::new(mqtt);
 
     let mut log_path = log_path();
-    fs::create_dir_all(&log_path)?;
+    std::fs::create_dir_all(&log_path)?;
     tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
@@ -331,18 +336,175 @@ pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::R
 }
 
 async fn get_sample_impl(
-    _dsn: &Dsn,
-    _limit: usize,
-    _timeout: Duration,
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
-    todo!()
+    let version = MqttConnectConfig::parse_version(dsn)?;
+    match version.as_str() {
+        "5.0" => get_sample_impl_v5(dsn, limit, timeout).await,
+        _ => get_sample_impl_v3(dsn, limit, timeout).await,
+    }
+}
+
+async fn get_sample_impl_v3(
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<String>> {
+    // build mqtt client
+    let config = MqttConfig::from(&dsn, None, None)?;
+    let connect_config = config.mqtt;
+    // host and port
+    let (host, port) = connect_config.host_port();
+    let mut options = MqttOptions::new(connect_config.client_id(), host, port);
+    // username and password
+    if let (Some(username), Some(password)) = (connect_config.username(), connect_config.password())
+    {
+        options.set_credentials(username, password);
+    }
+    // ssl
+    if MqttConnectConfig::ssl_enabled(dsn) {
+        let (ca, client_cert, client_key) = connect_config.ssl()?;
+        let transport = Transport::Tls(TlsConfiguration::Simple {
+            ca,
+            alpn: None,
+            client_auth: Some((client_cert, client_key)),
+        });
+        options.set_transport(transport);
+    }
+
+    // keep alive
+    options.set_keep_alive(connect_config.keep_alive());
+    // clean session
+    options.set_clean_session(connect_config.clean_session());
+    // topics
+    let (client, mut event_loop) = AsyncClient::new(options, 10);
+    let mut subscriptions = vec![];
+    for (topic, qos) in &config.topics {
+        let subscribe_filter = match qos {
+            0 => SubscribeFilter::new(topic.clone(), QoS::AtMostOnce), // 0: AtMostOnce
+            1 => SubscribeFilter::new(topic.clone(), QoS::AtLeastOnce), // 1: AtLeastOnce
+            2 => SubscribeFilter::new(topic.clone(), QoS::ExactlyOnce), // 2: ExactlyOnce
+            _ => bail!("invalid qos: {}", qos),
+        };
+        subscriptions.push(subscribe_filter);
+    }
+    client
+        .subscribe_many(subscriptions)
+        .await
+        .map_err(|err| anyhow::anyhow!("failed to subscribe mqtt topics, cause: {:?}", err))?;
+
+    let start = Utc::now().timestamp();
+    let mut count = 0;
+    let mut payload_list: Vec<String> = Vec::new();
+    'GET_SAMPLE_V3: loop {
+        let notification = event_loop
+            .poll()
+            .await
+            .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?;
+        if let Event::Incoming(Incoming::Publish(publish)) = notification {
+            let payload = String::from_utf8(publish.payload.to_vec()).map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to parse mqtt payload: {:?}, cause: {:?}",
+                    publish,
+                    err
+                )
+            })?;
+            payload_list.push(payload);
+            count += 1;
+        }
+
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break 'GET_SAMPLE_V3;
+        }
+    }
+
+    Ok(payload_list)
+}
+
+async fn get_sample_impl_v5(
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<String>> {
+    let config = MqttConfig::from(&dsn, None, None)?;
+    let connect_config = config.mqtt;
+
+    let (host, port) = connect_config.host_port();
+    let mut options = rumqttc::v5::MqttOptions::new(connect_config.client_id(), host, port);
+    // username and password
+    if let (Some(username), Some(password)) = (connect_config.username(), connect_config.password())
+    {
+        options.set_credentials(username, password);
+    }
+    // ssl
+    if MqttConnectConfig::ssl_enabled(dsn) {
+        let (ca, client_cert, client_key) = connect_config.ssl()?;
+        let transport = Transport::Tls(rumqttc::TlsConfiguration::Simple {
+            ca,
+            alpn: None,
+            client_auth: Some((client_cert, client_key)),
+        });
+        options.set_transport(transport);
+    }
+    // keep alive
+    options.set_keep_alive(connect_config.keep_alive());
+    // clean session
+    options.set_clean_start(connect_config.clean_session());
+
+    // topics
+    let mut subscriptions = vec![];
+    for (topic, qos) in config.topics {
+        let filter = match qos {
+            0 => rumqttc::v5::mqttbytes::v5::Filter::new(
+                topic,
+                rumqttc::v5::mqttbytes::QoS::AtMostOnce,
+            ),
+            1 => rumqttc::v5::mqttbytes::v5::Filter::new(
+                topic,
+                rumqttc::v5::mqttbytes::QoS::AtLeastOnce,
+            ),
+            2 => rumqttc::v5::mqttbytes::v5::Filter::new(
+                topic,
+                rumqttc::v5::mqttbytes::QoS::ExactlyOnce,
+            ),
+            _ => bail!("invalid qos: {}", qos),
+        };
+        subscriptions.push(filter);
+    }
+    let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(options, 10);
+    client
+        .subscribe_many(subscriptions)
+        .await
+        .map_err(|err| anyhow::anyhow!("failed to subscribe mqtt topics, cause: {:?}", err))?;
+
+    let start = Utc::now().timestamp();
+    let mut count = 0;
+    let mut payload_list: Vec<String> = Vec::new();
+    'GET_SAMPLE_V5: loop {
+        let event = event_loop.poll().await.unwrap();
+        if let rumqttc::v5::Event::Incoming(rumqttc::v5::Incoming::Publish(publish)) = event {
+            let payload = String::from_utf8(publish.payload.to_vec()).unwrap();
+            payload_list.push(payload);
+            count += 1;
+        }
+
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break 'GET_SAMPLE_V5;
+        }
+    }
+
+    Ok(payload_list)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::env;
     use std::str::FromStr;
+
+    use super::*;
 
     #[tokio::test]
     #[ignore]
@@ -372,7 +534,9 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
+        unsafe {
+            std::env::set_var("PLUGINS_HOME", "../plugins");
+        }
 
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;
@@ -382,62 +546,4 @@ mod tests {
         assert_eq!("mqtt", dsv.data_source);
         assert_eq!(None, dsv.version);
     }
-
-    /*
-        #[ignore]
-        #[tokio::test(flavor = "multi_thread")]
-        async fn test_mqtt_parser() {
-            std::env::set_var("RUST_LOG", "debug,tokio=warn");
-            let _ = pretty_env_logger::try_init();
-            let transferred = Arc::new(Transferred::default());
-            let _metrics = transferred.clone();
-            let (notify, _) = flume::unbounded();
-            use std::time::Duration;
-            tokio::spawn(async move {
-                let mut interval = tokio::time::interval(Duration::from_millis(200));
-                loop {
-                    interval.tick().await;
-                    // dbg!(&metrics);
-                }
-            });
-            let opts = TaskOpts {
-                transform: vec![],
-                from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
-                    .parse()
-                    .unwrap(),
-                to: "taos:///mqtt".parse().unwrap(),
-                parser: Some(
-                    serde_json::from_str(
-                        r#"
-                    {
-                        "parse": { "payload": { "json": [
-                            { "name": "pre", "alias": "value" }
-                        ], "flatten": false, "keep": true } },
-                        "model": {
-                            "name": "{topic}-{qos}",
-                            "using": "mqtt",
-                            "tags": ["topic", "qos"],
-                            "columns": ["ts", "value"]
-                        }
-                    }
-                    "#,
-                    )
-                    .unwrap(),
-                ),
-                jobs: 0,
-                compression_level: None,
-                force: false,
-                cancel: CancellationToken::new(),
-                // port_pool: ONCE,
-                with_agent: None,
-                breakpoints: None,
-                offsets: Default::default(),
-                transferred: Some(transferred),
-                span: tracing::info_span!("test_mqtt"),
-                task_id: None,
-                notify,
-            };
-            opts.run(&PortPool::default()).await.unwrap();
-        }
-    */
 }

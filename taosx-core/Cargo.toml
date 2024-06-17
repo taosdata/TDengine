@@ -149,6 +149,7 @@ sqlx-postgres = { version = "0.7.4", features = [
     "bit-vec",
 ] }
 oracle = { version = "0.5", features = ["chrono"] }
+rumqttc = "0.24.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
