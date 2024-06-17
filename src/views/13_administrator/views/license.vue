@@ -35,7 +35,7 @@
       <el-descriptions-item
         v-for="item in licenseList"
         :key="item.key"
-        :label="IsIndustryVersion && item.key == 'version' ? $t('header.power') : $t(`topic.${item.key}`)"
+        :label="$INDUSTRY && item.key == 'version' ? $t('header.power') : $t(`topic.${item.key}`)"
         :labelStyle="style"
       >
         <span style="color: #333" v-if="item.key !== 'version'">
@@ -221,7 +221,7 @@ export default {
       return {
         "font-size": "14px",
         color: "#4d6992",
-        "min-width": this.IsIndustryVersion && getBrowserLang() == 'en' ? "156px":  "110px",
+        "min-width": this.$INDUSTRY && getBrowserLang() == 'en' ? "156px":  "110px",
         display: "inline-block",
         "text-align": "right",
       };
