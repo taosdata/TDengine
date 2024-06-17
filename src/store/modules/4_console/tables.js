@@ -113,12 +113,15 @@ const actions = {
           }
           if (item.typeName == "column") {
             let typeList = handleTypeList(item.dataType)
-            columns.push({ ...item, 
+            columns.push({ 
+              ...item, 
               primaryKey: item.note == 'PRIMARY KEY', 
               field: item.name, 
               field_old: item.name, 
               type: item.dataType, 
-              type_old: item.dataType, 
+              type_old: item.dataType,
+              length: item.length, 
+              length_old: item.length,
               encode_old: item.encode, 
               compress_old: item.compress,
               level_old: item.level,

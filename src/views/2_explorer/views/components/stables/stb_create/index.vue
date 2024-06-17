@@ -641,27 +641,25 @@ export default {
         currentType.startsWith(item)
       );
     },
-    typeChange(data, type, index) {
+    async typeChange(data, type, index) {
       // 不是修改状态就不处理
       if (!this.isEdit) return;
       let isVariable =  VariableTableColumnType.some((item) =>
         data.type.startsWith(item)
       );
-
-      let params = {
-        isVariable,
-        operation: "modify " + type,
-        first_field: data.field,
-        second_field: VariableTableColumnType.includes(data.type)
-          ? `${data.type}(${data.length})`
-          : data.type,
-        encode: this.version_gt_3300 ? data.encode : '',
-        compress: this.version_gt_3300 ? data.compress : '',
-        level: this.version_gt_3300 ? data.level : ''
-      };
-      if (type == "tag") {
+      let params = null;
+      if (isVariable && data.length_old !== data.length) {
+        params = {
+          isVariable,
+          operation: "modify " + type,
+          first_field: data.field,
+          second_field: VariableTableColumnType.includes(data.type)
+            ? `${data.type}(${data.length})`
+            : data.type,
+        };
+      }
+      if (type == "tag" && data.field_old !== data.field) {
         //这里区分tag修改的是啥
-        isVariable = true;
         if (this.duplicate[index].type == data.type) {
           params = {
             operation: "rename " + type,
@@ -670,30 +668,42 @@ export default {
           };
         }
       }
-      if (isVariable) {
-        this.updateData(params);
-      }
-      if (this.version_gt_3300) {
-        this.updateDataOther(params)
+      await this.updateData(params);
+
+      if (this.version_gt_3300 && (data.encode_old !== data.encode || data.compress_old !== data.compress || data.level_old !== data.level)) {
+        params = {
+          isVariable,
+          operation: "modify " + type,
+          first_field: data.field,
+          second_field: VariableTableColumnType.includes(data.type)
+            ? `${data.type}(${data.length})`
+            : data.type,
+          encode: data.encode,
+          compress: data.compress,
+          level: data.level
+        };
+        await this.updateDataOther(params)
       }
 
     },
     // 当修改时更新数据的接口，与新增无关
     async updateData(params) {
       this.loading = true;
-      await changeStableStruct(
-        params,
-        `\`${this.selected_db }\`.\`${this.stable_form.name}\``
-      )
+      if (params) {
+        await changeStableStruct(
+          params,
+          `\`${this.selected_db }\`.\`${this.stable_form.name}\``
+        )
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
         })
         .catch(err => this.$error(err.desc));
+        await this.$store
+          .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
+          .catch(() => false);
+        await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
+      }
       // 无论修改成功或失败都应该刷新数据
-      await this.$store
-        .dispatch("stables/getStatleStruct", { stableName: this.stable_form.name, type: 'create_stb'})
-        .catch(() => false);
-      await this.$store.commit("console/CHANGE_TREE_KEY", null, { root: true })
       this.loading = false;
     },
     async updateDataOther(params) {

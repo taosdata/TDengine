@@ -479,7 +479,7 @@ export default {
       let params = null
       let rename_params = null
       let other_params = null
-      if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
+      if(!this.typeHasSpe(column.type) && column.length_old !== column.length) {
         params = {
           operation: "modify column",
           first_field: column.field_old,
