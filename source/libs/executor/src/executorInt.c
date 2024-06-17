@@ -457,7 +457,7 @@ STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
   return win;
 }
 
-void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset) {
+int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset) {
   bool init = false;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultEntryInfo(pResult, i, rowEntryInfoOffset);
@@ -476,7 +476,11 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)){
+          pResInfo->initialized = false;
+          return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
+        }
       } else {
         pResInfo->initialized = true;
       }
@@ -484,6 +488,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
       init = true;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
