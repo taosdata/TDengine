@@ -331,7 +331,7 @@ pub fn to_record_batches(
                             .as_any_mut()
                             .downcast_mut::<array::StringBuilder>()
                             .unwrap()
-                            .append_value(format!("{:?}", val));
+                            .append_value(val.to_string().replace(".-", "."));
                     }
                 },
                 tiberius::ColumnData::Xml(val) => match val {
@@ -488,10 +488,8 @@ pub fn to_record_batches(
                             * 10_u64.pow(9 - time.scale() as u32);
                         // get timezone
                         let offset = FixedOffset::east_opt((val.offset() as i32) * 60).unwrap();
-                        // convert to datetime with timezone
+                        // convert to datetime(an accurate UTC time)
                         let datetime = DateTime::from_timestamp(secs as i64, nsecs as u32).unwrap();
-                        let datetime_with_tz =
-                            datetime.naive_utc().and_local_timezone(offset).unwrap();
                         // append value
                         builders[col_cidx]
                             .as_any_mut()
