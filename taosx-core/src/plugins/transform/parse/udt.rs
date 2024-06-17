@@ -5,7 +5,9 @@ use arrow::{
 };
 use arrow_schema::Fields;
 use lazy_static::lazy_static;
-use rhai::{Dynamic, Engine, EvalAltResult, ParseError, Scope, AST};
+use rhai::{Dynamic, EvalAltResult, ParseError, Scope, AST};
+use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
+use rhai_dylib::rhai::{config::hashing::set_hashing_seed, Engine};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::{collections::HashMap, sync::Arc};
@@ -14,7 +16,17 @@ use tracing::warn;
 use super::Parse;
 
 lazy_static! {
-    static ref ENGINE: Engine = Engine::new();
+    static ref ENGINE: Engine = init_engine();
+}
+
+fn init_engine() -> Engine {
+    let seed_values: [u64; 4] = [2, 0, 2, 7];
+    set_hashing_seed(Some(seed_values)).unwrap();
+
+    let mut engine = Engine::new();
+    let resolver = DylibModuleResolver::with_path(crate::runners::get_plugin_dir("udt"));
+    engine.set_module_resolver(resolver);
+    engine
 }
 
 fn check_same_type(field_type: &str, value_type: &str) -> bool {

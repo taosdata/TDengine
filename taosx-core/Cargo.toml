@@ -30,7 +30,8 @@ async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
 bitflags = "2"
-rhai = { version = "1.16.3", features = ["sync"] }
+rhai = { version = "1.18.0", features = ["sync"] }
+rhai-dylib = { version = "0.3.0", features = ["sync"] }
 paste = "1"
 half = "2.3"
 humantime = "2.1"
