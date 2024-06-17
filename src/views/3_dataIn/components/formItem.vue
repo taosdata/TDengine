@@ -432,7 +432,7 @@ export default {
       let via = sourceForm.agent
       let filter_params = getActiveTabValueObject(sourceForm.data)
       if (!filter_params.filter_value_type) {
-        filter_params.filter_value_type = 'element'
+        filter_params.filter_value_type = 'template'
       }
       delete filter_params['filter_point'];
       delete filter_params['filter_element'];

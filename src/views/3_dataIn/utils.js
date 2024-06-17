@@ -651,12 +651,10 @@ function handleDatasets(datasets, paramsConfig) {
                         let activeTabValues = getActiveTabValueObject(that.sourceParent.sourceForm.data);
                         if (that.sourceParent.sourceForm.data[optionsField]['system_configuration'].indexOf('AF') < 0) {
                           activeTabValues['filter_value_type'] = 'point'
-                          return [{label: 'point',value: 'point'}]
+                          return [{label: 'point name',value: 'point'}]
                         } else {
-                          if (activeTabValues['filter_value_type'] === 'point') {
-                            activeTabValues['filter_value_type'] = 'element'
-                          }
-                          return [{label: 'element',value: 'element'},{label: 'template',value: 'template'}]
+                          activeTabValues['filter_value_type'] = 'template'
+                          return [{label: 'template',value: 'template'}]
                         }
                       }
                     }
