@@ -4467,8 +4467,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 }
 
 static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int64_t val, int64_t minVal,
-                                int64_t maxVal) {
-  if (val >= 0 && (val < minVal || val > maxVal)) {
+                                int64_t maxVal, bool skipUndef) {
+  if (skipUndef ? ((val >= 0) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                    "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
                                    val, minVal, maxVal);
@@ -4478,12 +4478,12 @@ static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const cha
 
 static int32_t checkDbRangeOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t minVal,
                                   int32_t maxVal) {
-  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal);
+  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_DB_OPTION, pName, val, minVal, maxVal, true);
 }
 
 static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName, int64_t val, int64_t minVal,
                                      int64_t maxVal) {
-  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal);
+  return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, true);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -5995,7 +5995,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
-  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1))) {
+  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
     return code;
   }
   strcpy(createReq.user, pStmt->userName);
@@ -6019,10 +6019,10 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
   switch (pStmt->alterType) {
     case TSDB_ALTER_USER_ENABLE:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1);
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
       break;
     case TSDB_ALTER_USER_SYSINFO:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1);
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false);
       break;
   }
   return code;

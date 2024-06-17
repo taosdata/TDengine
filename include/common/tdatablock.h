@@ -91,7 +91,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
     return false;
   }
 
-  if (pColAgg != NULL) {
+  if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
       ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;
@@ -221,6 +221,9 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
 void blockDataEmpty(SSDataBlock* pDataBlock);
 
+int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+                                bool clearPayload);
+
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
@@ -255,6 +258,8 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }
