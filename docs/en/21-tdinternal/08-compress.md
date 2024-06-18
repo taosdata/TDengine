@@ -3,8 +3,6 @@ title: Configurable Column Compression
 description: Configurable column storage compression method
 ---
 
-# Configurable Storage Compression
-
 Since TDengine 3.3.0.0, more advanced compression feature is introduced, you can specify compression or not, the compression method and compression level for each column.
 
 ## Compression Terminology Definition
@@ -30,15 +28,13 @@ In this article, it specifically refers to the level within the secondary compre
 
 - Default compression algorithm list and applicable range for each data type
 
-| Data Type |   Optional Encoding Algorithm      |  Default Encoding Algorithm  | Optional Compression Algorithm|Default Compression Algorithm| Default Compression Level|  
+| Data Type |   Optional Encoding Algorithm      |  Default Encoding Algorithm  | Optional Compression Algorithm|Default Compression Algorithm| Default Compression Level|
 | :-----------:|:----------:|:-------:|:-------:|:----------:|:----:|
-  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
+|  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
 |   bigint/ubigint/timestamp   |  simple8b/delta-i    | delta-i |lz4/zlib/zstd/xz | lz4| medium|
-|float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|tsz| medium|
+|float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|lz4| medium|
 |binary/nchar| disabled| disabled|lz4/zlib/zstd/xz| lz4| medium|
 |bool| bit-packing| bit-packing| lz4/zlib/zstd/xz| lz4| medium|
-
-Note: For floating point types, if configured as tsz, its precision is determined by the global configuration of taosd. If configured as tsz, but the lossy compression flag is not configured, lz4 is used for compression by default.
 
 ## SQL
 
@@ -74,7 +70,7 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 - Change the compression method of the column
 
-### View Compression Dethod
+### View Compression Method
 
 ```sql
 DESCRIBE [dbname.]tabName
