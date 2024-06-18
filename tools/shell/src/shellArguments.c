@@ -428,8 +428,8 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "%s\ntaos version: %s compatible_version: %s\ngit: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, version,
-           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+           "%s\ntaos version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
+           version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\ntaos version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, version,
