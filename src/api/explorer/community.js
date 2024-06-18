@@ -6072,7 +6072,7 @@ export function getDataSources(lang) {
         "id": "csv",
         "type": "path",
         "name": "CSV",
-        "license_id": "csv",
+        "license_id": "data_in_csv",
         "description": "导入一个或多个 CSV 文件数据到 TDengine。\n",
         "strict": true,
         "options": {

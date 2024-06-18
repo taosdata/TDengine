@@ -2573,6 +2573,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     clientAddress: "Client IP",
     db: "Database",
     resource: "Resource",
+    licenseSuccTip: "Activate the license successfully. Please log out and log in again",
   },
   taosagents: {
     step1: "Install",
