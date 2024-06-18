@@ -52,9 +52,9 @@ table_option: {
 
 **Parameter description**
 
-1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables.
+1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables. The maximum length of the comment is 1024 bytes.
 2. SMA: specifies functions on which to enable small materialized aggregates (SMA). SMA is user-defined precomputation of aggregates based on data blocks. Enter one of the following values: max, min, or sum This parameter can be used with supertables and standard tables.
-3. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The default value is 0, i.e. never expire.
+3. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The value range is [0, 2147483647]. The default value is 0, i.e. never expire.
 
 ## Create Subtables
 
@@ -111,6 +111,11 @@ You can perform the following modifications on existing tables:
 3. MODIFY COLUMN: changes the length of the data type specified for the column. Note that you can only specify a length greater than the current length.
 4. RENAME COLUMN: renames a specified column in the table.
 5. The primary key column of a table cannot be modified or added or deleted using ADD/DROP COLUMN.
+
+**Parameter description**
+
+1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables. The maximum length of the comment is 1024 bytes.
+2. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The value range is [0, 2147483647]. The default value is 0, i.e. never expire.
 
 ### Add a Column
 
@@ -170,6 +175,11 @@ alter_table_option: {
 **More explanations**
 
 1. Only the value of a tag can be modified directly. For all other modifications, you must modify the supertable from which the subtable was created.
+
+**Parameter description**
+
+1. COMMENT: specifies comments for the table. This parameter can be used with supertables, standard tables, and subtables. The maximum length of the comment is 1024 bytes.
+2. TTL: specifies the time to live (TTL) for the table. If TTL is specified when creatinga table, after the time period for which the table has been existing is over TTL, TDengine will automatically delete the table. Please be noted that the system may not delete the table at the exact moment that the TTL expires but guarantee there is such a system and finally the table will be deleted. The unit of TTL is in days. The value range is [0, 2147483647]. The default value is 0, i.e. never expire.
 
 ### Change Tag Value Of Sub Table
 
