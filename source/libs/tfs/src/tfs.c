@@ -520,7 +520,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   if (pCfg->primary < 0 || pCfg->primary > 1) {
-    fError("failed to mount %s to FS since invalid primary %" PRIi8, pCfg->dir, pCfg->primary);
+    fError("failed to mount %s to FS since invalid primary %d", pCfg->dir, pCfg->primary);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
