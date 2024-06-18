@@ -156,7 +156,7 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
 
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "gssapi-vendored"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

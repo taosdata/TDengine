@@ -732,6 +732,11 @@ impl TaskController {
                 tracing::info!("Put file to agent {}: {}", via, path);
                 self.put_file_to_agent(via, path.clone()).await?;
             }
+            let file_to_send = from.params.get("sasl_kerberos_keytab");
+            if let Some(path) = file_to_send {
+                tracing::info!("Put file to agent {}: {}", via, path);
+                self.put_file_to_agent(via, path.clone()).await?;
+            }
         }
         let to: Dsn = task
             .to
@@ -1046,6 +1051,11 @@ impl TaskController {
                 }
                 // 检查是否有需要发送到 agent 的文件
                 let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+                let file_to_send = from.params.get("sasl_kerberos_keytab");
                 if let Some(path) = file_to_send {
                     tracing::info!("Put file to agent {}: {}", via, path);
                     self.put_file_to_agent(via, path.clone()).await?;
@@ -1660,6 +1670,19 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
+        // 检查是否有需要发送到 agent 的文件
+        let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+        if let Some(path) = file_to_send {
+            tracing::info!("Put file to agent {}: {}", agent, path);
+            let _ = self.put_file_to_agent(agent, path.clone()).await;
+            let _ = dsn_agent.params.insert(
+                String::from("sasl_kerberos_keytab"),
+                get_data_dir()
+                    .join(path.trim_start_matches("@"))
+                    .display()
+                    .to_string(),
+            );
+        }
         let result = set_file_contents(&mut dsn_agent).await;
         if let Err(err) = result {
             return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
@@ -1694,6 +1717,18 @@ impl TaskController {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);
+        }
+        let dsn_agent = Dsn::from_str(&dsn);
+        match dsn_agent {
+            Ok(dsn_agent) => {
+                // 检查是否有需要发送到 agent 的文件
+                let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", agent, path);
+                    let _ = self.put_file_to_agent(agent, path.clone()).await;
+                }
+            }
+            Err(_) => {}
         }
 
         scheduler.get_sample_via_agent(agent, dsn).await
