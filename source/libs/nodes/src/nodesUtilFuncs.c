@@ -963,12 +963,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_WHEN_THEN: {
       SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pWhenThen->pWhen);
       nodesDestroyNode(pWhenThen->pThen);
       break;
     }
     case QUERY_NODE_CASE_WHEN: {
       SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pCaseWhen->pCase);
       nodesDestroyNode(pCaseWhen->pElse);
       nodesDestroyList(pCaseWhen->pWhenThenList);

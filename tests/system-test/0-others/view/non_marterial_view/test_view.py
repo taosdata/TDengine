@@ -80,6 +80,7 @@ class TDTestCase:
         
     def create_user(self, username, password):
         tdSql.execute(f"create user {username} pass '{password}';")
+        tdSql.execute(f"alter user {username} createdb 1;")
         tdLog.debug("Create user {} with password {} successfully".format(username, password))
         
     def check_permissions(self, username, db_name, permission_dict, view_name=None):

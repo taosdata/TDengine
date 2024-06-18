@@ -21,7 +21,7 @@
 
 #define MALLOC_ALIGN_BYTES 32
 
-static void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -848,7 +848,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
       if (pBlock->pBlockAgg == NULL) {
         isNull = colDataIsNull_s(pColData, j);
       } else {
-        isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
+        isNull = colDataIsNull(pColData, pBlock->info.rows, j, &pBlock->pBlockAgg[i]);
       }
 
       if (isNull) {
@@ -1361,6 +1361,8 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   if (pInfo->capacity == 0) {
     return;
   }
+
+  taosMemoryFreeClear(pDataBlock->pBlockAgg);
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {

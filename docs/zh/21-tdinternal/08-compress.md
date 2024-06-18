@@ -3,8 +3,6 @@ title: 可配置压缩算法
 description: 可配置压缩算法
 ---
 
-# 可配置存储压缩
-
 从 TDengine 3.3.0.0 版本开始，TDengine 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
 
 ## 压缩术语定义
@@ -30,15 +28,13 @@ description: 可配置压缩算法
 
 - 各个数据类型的默认压缩算法列表和适用范围
 
-| 数据类型 |   可选编码算法      |  编码算法默认值 | 可选压缩算法|可选压缩算法| 压缩等级默认值|  
+| 数据类型 |   可选编码算法      |  编码算法默认值 | 可选压缩算法|压缩算法默认值| 压缩等级默认值|
 | :-----------:|:----------:|:-------:|:-------:|:----------:|:----:|
-  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
+|  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
 |   bigint/ubigint/timestamp   |  simple8b/delta-i    | delta-i |lz4/zlib/zstd/xz | lz4| medium|
-|float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|tsz| medium|
+|float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|lz4| medium|
 |binary/nchar| disabled| disabled|lz4/zlib/zstd/xz| lz4| medium|
 |bool| bit-packing| bit-packing| lz4/zlib/zstd/xz| lz4| medium|
-
-注意: 针对浮点类型，如果配置为tsz, 其精度由taosd的全局配置决定，如果配置为tsz, 但是没有配置有损压缩标志, 则使用lz4进行压缩
 
 ## SQL 语法
 

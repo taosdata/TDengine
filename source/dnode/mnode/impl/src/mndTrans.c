@@ -836,26 +836,26 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       }
     }
 
-    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
-      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-    }
-    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
-          conflict = true;
-      }
-    }
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//    }
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
+//          conflict = true;
+//      }
+//    }
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
-        void *pIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        pIter = taosHashIterate(pNew->arbGroupIds, NULL);
         while (pIter != NULL) {
           int32_t groupId = *(int32_t *)pIter;
           if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {

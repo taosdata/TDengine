@@ -25,20 +25,6 @@
 #define sndDebug(...) do {  if (sndDebugFlag & DEBUG_DEBUG) { taosPrintLog("SND ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
-static STaskId replaceStreamTaskId(SStreamTask *pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask *pTask, STaskId *pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
   int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
@@ -85,7 +71,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   startRsync();
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndExpandTask, tqExpandStreamTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
@@ -136,6 +122,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
       return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
+      return tqStreamProcessChkptReportRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER:
       return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:

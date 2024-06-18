@@ -38,6 +38,34 @@ static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   return TARRAY2_APPEND(&rtner->fopArr, op);
 }
 
+static int64_t tsdbCopyFileWithLimitedSpeed(TdFilePtr from, TdFilePtr to, int64_t size, uint32_t limitMB) {
+  int64_t total = 0;
+  int64_t interval = 1000;  // 1s
+  int64_t limit = limitMB ? limitMB * 1024 * 1024 : INT64_MAX;
+  int64_t offset = 0;
+  int64_t remain = size;
+
+  while (remain > 0) {
+    int64_t n;
+    int64_t last = taosGetTimestampMs();
+    if ((n = taosFSendFile(to, from, &offset, TMIN(limit, remain))) < 0) {
+      return -1;
+    }
+
+    total += n;
+    remain -= n;
+
+    if (remain > 0) {
+      int64_t elapsed = taosGetTimestampMs() - last;
+      if (elapsed < interval) {
+        taosMsleep(interval - elapsed);
+      }
+    }
+  }
+
+  return total;
+}
+
 static int32_t tsdbDoCopyFileLC(SRTNer *rtner, const STFileObj *from, const STFile *to) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -98,7 +126,8 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
   if (fdTo == NULL) code = terrno;
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  int64_t n = taosFSendFile(fdTo, fdFrom, 0, tsdbLogicToFileSize(from->f->size, rtner->szPage));
+  int64_t n = tsdbCopyFileWithLimitedSpeed(fdFrom, fdTo, tsdbLogicToFileSize(from->f->size, rtner->szPage),
+                                           tsRetentionSpeedLimitMB);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);

@@ -37,6 +37,7 @@ extern "C" {
 #define TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
@@ -44,6 +45,7 @@ extern "C" {
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
@@ -51,6 +53,7 @@ extern "C" {
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_SEG_CODE_
 #undef TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
@@ -190,6 +193,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_DEL_PRIVILEGES  0x6
 #define TSDB_ALTER_USER_ADD_WHITE_LIST  0x7
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
+#define TSDB_ALTER_USER_CREATEDB        0x9
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -1044,11 +1048,18 @@ int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq
 int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 
 typedef struct {
-  int8_t      alterType;
-  int8_t      superUser;
-  int8_t      sysInfo;
-  int8_t      enable;
-  int8_t      isView;
+  int8_t alterType;
+  int8_t superUser;
+  int8_t sysInfo;
+  int8_t enable;
+  int8_t isView;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t createdb : 1;
+      uint8_t reserve : 7;
+    };
+  };
   char        user[TSDB_USER_LEN];
   char        pass[TSDB_USET_PASSWORD_LEN];
   char        objname[TSDB_DB_FNAME_LEN];  // db or topic
@@ -2117,6 +2128,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int8_t  streamBlockType;
+  int32_t payloadLen;
   int32_t compLen;
   int32_t numOfBlocks;
   int64_t numOfRows;  // from int32_t change to int64_t
@@ -2128,6 +2140,14 @@ typedef struct {
   char    parTbName[TSDB_TABLE_NAME_LEN];  // for stream
   char    data[];
 } SRetrieveTableRsp;
+
+#define PAYLOAD_PREFIX_LEN ((sizeof(int32_t)) << 1)
+
+#define SET_PAYLOAD_LEN(_p, _compLen, _fullLen) \
+  do {                                          \
+    ((int32_t*)(_p))[0] = (_compLen);           \
+    ((int32_t*)(_p))[1] = (_fullLen);           \
+  } while (0);
 
 typedef struct {
   int64_t version;
@@ -2145,6 +2165,7 @@ typedef struct {
   int8_t  compressed;
   int32_t compLen;
   int32_t numOfRows;
+  int32_t fullLen;
   char    data[];
 } SRetrieveMetaTableRsp;
 
@@ -2500,6 +2521,7 @@ typedef struct SSubQueryMsg {
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
+  int8_t   compress;
   uint32_t sqlLen;
   char*    sql;
   uint32_t msgLen;
@@ -3472,9 +3494,9 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  checkpointVer;
   int64_t  checkpointTs;
   int32_t  transId;
-  int8_t   dropRelHTask;
-  int64_t  hStreamId;
+  int64_t  hStreamId;       // add encode/decode
   int64_t  hTaskId;
+  int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
 
 typedef struct {
@@ -3626,10 +3648,6 @@ typedef struct {
   int64_t  streamId;
   int32_t  taskId;
 } SVPauseStreamTaskReq, SVResetStreamTaskReq;
-
-typedef struct {
-  int8_t reserved;
-} SVPauseStreamTaskRsp;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];

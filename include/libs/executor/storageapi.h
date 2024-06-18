@@ -410,7 +410,7 @@ typedef struct SStateStore {
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);
   bool (*needClearDiskBuff)(struct SStreamFileState* pFileState);
 
-  SStreamState* (*streamStateOpen)(const char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages);
+  SStreamState* (*streamStateOpen)(const char* path, void* pTask, int64_t streamId, int32_t taskId, bool specPath, int32_t szPage, int32_t pages);
   void (*streamStateClose)(SStreamState* pState, bool remove);
   int32_t (*streamStateBegin)(SStreamState* pState);
   int32_t (*streamStateCommit)(SStreamState* pState);

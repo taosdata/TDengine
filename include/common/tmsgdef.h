@@ -17,6 +17,7 @@
 
 #if 0
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
@@ -76,6 +77,23 @@
   #define TD_CLOSE_MSG_SEG(TYPE)
 
   enum {
+#elif defined(TD_MSG_TYPE_INFO_)
+
+  typedef struct {
+    const char *name;
+    const char *rspName;
+    int32_t type;
+    int32_t rspType;
+  } SMsgTypeInfo;
+
+  #undef TD_NEW_MSG_SEG
+  #undef TD_DEF_MSG_TYPE
+  #undef TD_CLOSE_MSG_SEG
+  #define TD_NEW_MSG_SEG(TYPE)
+  #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) { #TYPE, #TYPE "_RSP", TYPE, TYPE##_RSP },
+  #define TD_CLOSE_MSG_SEG(TYPE)
+
+  SMsgTypeInfo tMsgTypeInfo[] = {
 #else
 
   #undef TD_NEW_MSG_SEG
@@ -207,9 +225,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_RESTORE_DNODE, "restore-dnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_PAUSE_STREAM, "pause-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RESUME_STREAM, "resume-stream", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_CHECKPOINT_TIMER, "stream-checkpoint-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_UPDATE_CHKPT_EVT, "stream-update-chkpt-evt", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_STREAM_BEGIN_CHECKPOINT, "stream-begin-checkpoint", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, "stream-checkpoint-remain", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_CHKPT_REPORT, "stream-chkpt-report", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_STREAM_NODECHANGE_CHECK, "stream-nodechange-check", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_TIMER, "trim-db-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GRANT_NOTIFY, "grant-notify", NULL, NULL)
@@ -372,6 +390,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TASK_RESET, "vnode-stream-reset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TASK_CHECK, "vnode-stream-task-check", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_UNUSED, "vnd-stream-unused", NULL, NULL)
+
   TD_DEF_MSG_TYPE(TDMT_VND_GET_STREAM_PROGRESS, "vnd-stream-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_MAX_MSG, "vnd-stream-max", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_END_VND_STREAM_MSG)

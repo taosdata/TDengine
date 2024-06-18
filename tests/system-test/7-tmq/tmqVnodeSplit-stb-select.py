@@ -199,13 +199,11 @@ class TDTestCase:
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         # tmqCom.checkFileContent(consumerId, queryString)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)
 
-        time.sleep(2)
+        time.sleep(3)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
-
-        if deleteWal == True:
-            clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):

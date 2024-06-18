@@ -20,11 +20,13 @@
 #undef TD_MSG_DICT_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
@@ -32,6 +34,7 @@
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
 #define TD_MSG_RANGE_CODE_
@@ -1810,6 +1813,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   }
   if (tEncodeI64(&encoder, pReq->privileges) < 0) return -1;
   ENCODESQL();
+  if (tEncodeU8(&encoder, pReq->flag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1849,6 +1853,9 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   }
   if (tDecodeI64(&decoder, &pReq->privileges) < 0) return -1;
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeU8(&decoder, &pReq->flag) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -7046,6 +7053,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   if (tEncodeI8(&encoder, pReq->taskType) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->explain) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->needFetch) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->compress) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->msgLen) < 0) return -1;
@@ -7086,6 +7094,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   if (tDecodeI8(&decoder, &pReq->taskType) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->explain) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->needFetch) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->compress) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->msgLen) < 0) return -1;
@@ -9728,6 +9737,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
 
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);
+        rows[i] = NULL;
       }
       taosArrayDestroy(pTbData->aRowP);
     }

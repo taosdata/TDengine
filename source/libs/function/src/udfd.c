@@ -691,7 +691,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
       freeUdfDataDataBlock(&input);
-      convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
+      if(code == 0) convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       freeUdfColumn(&output);
       break;
     }

@@ -22,54 +22,7 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo* pExecInfo) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) {
-      break;
-    }
-
-    saveTaskAndNodeInfoIntoBuf(pStream, pExecInfo);
-    sdbRelease(pSdb, pStream);
-  }
-}
-
-static void removeDroppedStreamTasksInBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
-  if (pMnode == NULL) {
-    return;
-  }
-
-  int32_t num = taosArrayGetSize(pExecInfo->pTaskList);
-
-  SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  SArray   *pIdList = taosArrayInit(4, sizeof(STaskId));
-
-  for (int32_t i = 0; i < num; ++i) {
-    STaskId* pId = taosArrayGet(pExecInfo->pTaskList, i);
-
-    void* p = taosHashGet(pHash, &pId->streamId, sizeof(int64_t));
-    if (p != NULL) {
-      continue;
-    }
-
-    void* pObj = mndGetStreamObj(pMnode, pId->streamId);
-    if (pObj != NULL) {
-      mndReleaseStream(pMnode, pObj);
-      taosHashPut(pHash, &pId->streamId, sizeof(int64_t), NULL, 0);
-    } else {
-      taosArrayPush(pIdList, pId);
-    }
-  }
-
-  removeTasksInBuf(pIdList, &execInfo);
-
-  taosArrayDestroy(pIdList);
-  taosHashCleanup(pHash);
-}
+static void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
 
 static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
@@ -290,16 +243,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   taosThreadMutexLock(&execInfo.lock);
 
-  // extract stream task list
-  if (taosHashGetSize(execInfo.pTaskMap) == 0) {
-    addAllStreamTasksIntoBuf(pMnode, &execInfo);
-  } else {
-    // the already dropped tasks may be added by hb from vnode at the time when the pTaskMap happens to be empty.
-    // let's drop them here.
-    removeDroppedStreamTasksInBuf(pMnode, &execInfo);
-  }
-
-  extractStreamNodeList(pMnode);
+  mndInitStreamExecInfo(pMnode, &execInfo);
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
@@ -326,18 +270,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         snodeChanged = true;
       }
     } else {
-      // task is idle for more than 50 sec.
-//      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
-//        if (!pTaskEntry->inputQChanging) {
-//          pTaskEntry->inputQUnchangeCounter++;
-//        } else {
-//          pTaskEntry->inputQChanging = false;
-//        }
-//      } else {
-//        pTaskEntry->inputQChanging = true;
-//        pTaskEntry->inputQUnchangeCounter = 0;
-//      }
-
       streamTaskStatusCopy(pTaskEntry, p);
 
       STaskCkptInfo *pChkInfo = &p->checkpointInfo;
@@ -348,6 +280,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         SFailedCheckpointInfo info = {
             .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
         addIntoCheckpointList(pFailedChkpt, &info);
+
+        // remove failed trans from pChkptStreams
+        taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
       }
     }
 
@@ -393,6 +328,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     mndDropOrphanTasks(pMnode, pOrphanTasks);
   }
 
+  if (pMnode != NULL) {  // make sure that the unit test case can work
+    mndStreamStartUpdateCheckpointInfo(pMnode);
+  }
+
   taosThreadMutexUnlock(&execInfo.lock);
   tCleanupStreamHbMsg(&req);
 
@@ -410,4 +349,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doCheckpointmsg
+  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+  if (pMsg != NULL) {
+    int32_t size = sizeof(SMStreamDoCheckpointMsg);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
 }
