@@ -280,6 +280,7 @@ export default {
     refresh() {
       this.loading = true;
       this.getData();
+      this.getGrantsFull();
     },
     addUdf() {},
     async getData() {
@@ -369,13 +370,14 @@ export default {
             this.$message.success(this.$t("operateSucc"));
             this.dialog = false;
             this.refresh();
-            this.getGrantsFull();
+            this.showLogoutConfirm();
           } else {
             this.$error(res?.desc);
           }
         });
       } catch (error) {
-        this.$error(error);
+        // this.$error(error);
+        console.log('error:',error);
       }
     },
     expireTime(data) {
@@ -392,6 +394,28 @@ export default {
       } else {
         return 'n/a'
       }
+    },
+    logout() {
+      localStorage.clear();
+
+      this.$store.dispatch("app/logout");
+      this.$router.push({
+        path:'/login'
+      })
+      window.location.reload()
+    },
+    showLogoutConfirm() {
+      this.$confirm(this.$t('taosuser.licenseSuccTip'),this.$t('tips'), {
+        distinguishCancelAndClose: true,
+        confirmButtonText: this.$t('signOut'),
+        cancelButtonText: this.$t('cancel')
+      })
+        .then(() => {
+          this.logout()
+        })
+        .catch(action => {
+          console.log('cancel');
+        });
     }
   },
 };

@@ -2327,6 +2327,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     clientAddress: "客户端 IP",
     db: "数据库",
     resource: "资源",
+    licenseSuccTip: "激活许可证成功，请退出后重新登录",
   },
   taosagents: {
     step1: "安装",
