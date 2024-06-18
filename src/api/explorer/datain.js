@@ -132,8 +132,17 @@ function mergeTaskDetailParams(cfgParams, dataParams) {
             if (cfgParams[i].hint?.type === 'compose') {
                 cfgParams[i].type_value = dataParams[key + '_type'];
             }
-            if (cfgParams[i].hint?.type === 'composeAppend') {
-                cfgParams[i].type_value = dataParams[key + '_type'];
+            if (cfgParams[i].hint?.type === 'timeout' || cfgParams[i].hint?.type === 'duration') {
+                if (dataParams[key + '_type']) {
+                    cfgParams[i].type_value = dataParams[key + '_type'];
+                } else {
+                // dataParams[key + '_type'] 不存在，则是纯字符串版本
+                    cfgParams[i].type_value = dataParams[key] 
+                        ? dataParams[key].match(/[a-zA-Z]+$/) 
+                            ? dataParams[key].match(/[a-zA-Z]+$/)[0] 
+                            : cfgParams[i].type_value
+                        : '';
+                }
                 cfgParams[i].value = dataParams[key] ? dataParams[key].match(/\d+/)[0] : '';
             }
         }

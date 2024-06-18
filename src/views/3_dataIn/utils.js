@@ -22,7 +22,7 @@ const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
-export const ComposeParams = ['interval','delay'];
+export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance','','delay'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
