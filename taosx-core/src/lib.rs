@@ -5,11 +5,10 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::Context;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -21,7 +20,6 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::license::is_cloud;
 use utils::port_pool::PortPool;
 
 // use crate::plugins::transform::*;
@@ -243,44 +241,6 @@ impl TaskOpts {
             notify,
             ..
         } = self;
-        // dbg!(task_id);
-
-        if with_agent.is_none() {
-            // Check if enterprise available
-            #[cfg(not(feature = "disable-enterprise-only-validation"))]
-            match (from.driver.as_str(), to.driver.as_str()) {
-                (_, "tmq" | "taos") => {
-                    let mut to = to.clone();
-                    to.subject.take();
-                    let builder = TaosBuilder::from_dsn(&to)?;
-                    let _ = builder.build().await.context("Target connection error")?;
-                    if !is_cloud(&to)
-                        && !builder
-                            .is_enterprise_edition()
-                            .await
-                            .context("Failed to check target edition")?
-                    {
-                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
-                    }
-                }
-                ("tmq" | "taos", _) => {
-                    let mut from = from.clone();
-                    from.subject.take();
-                    let builder = TaosBuilder::from_dsn(&from)?;
-                    let _ = builder.build().await.context("Source connection error")?;
-                    if !is_cloud(&from)
-                        && !builder
-                            .is_enterprise_edition()
-                            .await
-                            .context("Failed to check source edition")?
-                    {
-                        anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
-                    }
-                }
-                _ => (),
-            }
-        }
-
         // Run task
         {
             match (from.driver.as_str(), to.driver.as_str()) {
@@ -605,6 +565,9 @@ impl TaskOpts {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
+    use anyhow::Context;
+    use taos::{AsyncTBuilder, TaosBuilder};
 
     use super::*;
 

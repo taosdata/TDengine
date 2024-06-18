@@ -5,7 +5,7 @@ use async_backtrace::framed;
 use itertools::Itertools;
 use semver::Version;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, RawResult, TaosBuilder, TaosPool};
-use tracing::{debug, instrument, Instrument};
+use tracing::{debug, instrument, warn, Instrument};
 
 use crate::{
     utils::{constants::*, mask_dsn},
@@ -395,7 +395,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .take(3)
                     .join("."),
             )?;
-            return check_connector_grant_of(&sink_builder, &sink_version, "td2.0")
+            return check_connector_grant_of(&sink_builder, &sink_version, "td2.6")
                 .await
                 .with_context(sink_dsn_context);
         }
@@ -495,7 +495,8 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 crate::runners::postgres::POSTGRES_ID => "postgres",
                 crate::runners::oracle::ORACLE_ID => "oracle",
                 connector => {
-                    bail!("The current connector {connector} is not supported by license.")
+                    warn!("The current connector {connector} is not supported by license.");
+                    return Ok(LicenseKind::good());
                 }
             };
             return Ok(
@@ -514,6 +515,18 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
 mod tests {
     use super::*;
     use std::str::FromStr;
+
+    #[tokio::test]
+    async fn csv_should_always_be_valid() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
+        let from = Dsn::from_str("csv:/tmp").unwrap();
+        let to = Dsn::from_str("taos:///").unwrap();
+        let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
+        assert!(res.is_ok(), "{:#?}", res);
+    }
 
     #[tokio::test]
     async fn valid_replica_license() {
@@ -689,7 +702,7 @@ mod tests {
         let connectors = &[
             // id, grant, display
             ("tmq", "td3.0", "TDengine 3.0"),
-            ("taos", "td2.0", "TDengine 2.0"),
+            ("taos", "td2.6", "TDengine 2.6"),
             ("opcua", "opc_ua", "OPCUA"),
             ("opcda", "opc_da", "OPCDA"),
             ("pi", "pi", "PI"),
