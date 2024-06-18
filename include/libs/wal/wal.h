@@ -60,6 +60,7 @@ typedef struct {
   EWalType level;  // wal level
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
+  int8_t   clearFiles;
 } SWalCfg;
 
 typedef struct {
