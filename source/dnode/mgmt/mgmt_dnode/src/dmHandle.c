@@ -43,6 +43,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
+  
   void               *pHead = rpcMallocCont(contLen);
   tSerializeRetrieveIpWhite(pHead, contLen, &req);
 

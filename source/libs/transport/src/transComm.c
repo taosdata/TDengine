@@ -740,6 +740,10 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
   }
   int32_t len = 0;
   char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  if (pBuf == NULL) {
+    *ppBuf = NULL;
+    return 0;
+  }
 
   for (int i = 0; i < pList->num; i++) {
     SIpV4Range* pRange = &pList->pIpRange[i];

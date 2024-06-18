@@ -137,9 +137,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
-
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -745,8 +743,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1078,8 +1075,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1626,13 +1622,33 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  if (fqdns == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  int32_t code = 0;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
+    if (fqdn == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      sdbRelease(pSdb, pObj);
+      code = -1;
+      break;
+    }
     taosArrayPush(fqdns, &fqdn);
     sdbRelease(pSdb, pObj);
   }
+  if (code != 0) {
+    for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+      char *fqdn = taosArrayGetP(fqdns, i);
+      taosMemoryFree(fqdn);
+    }
+    taosArrayDestroy(fqdns);
+    fqdns = NULL;
+  }
+
   return fqdns;
 }

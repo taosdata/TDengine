@@ -222,8 +222,13 @@ static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
 }
 SIpWhiteListTab* uvWhiteListCreate() {
   SIpWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListTab));
+  if (pWhiteList == NULL) return NULL;
 
   pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
+  if (pWhiteList->pList == NULL) {
+    taosMemoryFree(pWhiteList);
+    return NULL;
+  }
   pWhiteList->ver = -1;
   return pWhiteList;
 }
@@ -244,8 +249,13 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
 void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
+  if (tlen <= 0) return;
 
-  char*   pBuf = taosMemoryCalloc(1, tlen + 64);
+  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  if (pBuf == NULL) {
+    *ppBuf = pBuf;
+    return;
+  }
   int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
 
@@ -264,7 +274,9 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
 
     char* buf = NULL;
     uvWhiteListToStr(pUserList, user, &buf);
-    tDebug("ip-white-list  %s", buf);
+    if (buf != NULL) {
+      tDebug("ip-white-list  %s", buf);
+    }
     taosMemoryFree(buf);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
@@ -275,11 +287,18 @@ void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, in
   SWhiteUserList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppUserList == NULL || *ppUserList == NULL) {
     SWhiteUserList* pUserList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    if (pUserList == NULL) {
+      tError("failed to alloc memory for white list , user:%s", user);
+      return;
+    }
     pUserList->ver = ver;
 
     pUserList->pList = plist;
 
-    taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
+    if (taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*))) {
+      taosMemoryFreeClear(pUserList);
+      tError("failed to put white list to hash, user:%s", user);
+    }
   } else {
     SWhiteUserList* pUserList = *ppUserList;
 
@@ -1249,6 +1268,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
+    if (thrd->pWhiteList == NULL) {
+      goto End;
+    }
 
     srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
