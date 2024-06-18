@@ -18,12 +18,12 @@
 #include "tlog.h"
 #include "tglobal.h"
 
-static void taosAddDataDir(int32_t index, char *v1, int32_t level, int8_t primary, int8_t disable) {
+static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary, int8_t disable) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
   tsDiskCfg[index].primary = primary;
   tsDiskCfg[index].disable = disable;
-  uInfo("dataDir:%s, level:%d primary:%" PRIi8 " disable:%" PRIi8 " is configured", v1, level, primary, disable);
+  uInfo("dataDir:%s, level:%d primary:%d disable:%" PRIi8 " is configured", v1, level, primary, disable);
 }
 
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -33,7 +33,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
   int32_t size = taosArrayGetSize(pItem->array);
   if (size <= 0) {
     tsDiskCfgNum = 1;
-    taosAddDataDir(0, pItem->str, 0, 1, 1);
+    taosAddDataDir(0, pItem->str, 0, 1, 0);
     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
     if (taosMulMkDir(tsDataDir) != 0) {
       uError("failed to create dataDir:%s", tsDataDir);
@@ -44,8 +44,8 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
     for (int32_t index = 0; index < tsDiskCfgNum; ++index) {
       SDiskCfg *pCfg = taosArrayGet(pItem->array, index);
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
-      uInfo("dataDir:%s, level:%d primary:%" PRIi8 " disable:%" PRIi8 " is configured", pCfg->dir, pCfg->level,
-            pCfg->primary, pCfg->disable);
+      uInfo("dataDir:%s, level:%d primary:%d disable:%" PRIi8 " is configured", pCfg->dir, pCfg->level, pCfg->primary,
+            pCfg->disable);
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
       }
