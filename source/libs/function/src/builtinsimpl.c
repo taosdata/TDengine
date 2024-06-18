@@ -2366,7 +2366,10 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
     }    
     if (pResult->ts < pBlockInfo->window.skey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
-    } else if (pResult->ts == pBlockInfo->window.skey && pResult->pkData) {
+    } else if (pResult->ts == pBlockInfo->window.skey) {
+      if (NULL == pResult->pkData) {
+        return FUNC_DATA_REQUIRED_NOT_LOAD;
+      }
       if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 0, TSDB_ORDER_ASC) < 0) {
         return FUNC_DATA_REQUIRED_NOT_LOAD;
       }
@@ -3628,7 +3631,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
     SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
     ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     key.groupId = pSrcBlock->info.id.groupId;
-    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);;
+    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);

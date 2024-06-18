@@ -597,3 +597,31 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   tEndDecode(pDecoder);
   return 0;
 }
+
+int32_t tEncodeStreamTaskChkptReport(SEncoder* pEncoder, const SCheckpointReport* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->checkpointVer) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->checkpointTs) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pReq->dropHTask) < 0) return -1;
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->checkpointVer) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->checkpointTs) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pReq->dropHTask) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}

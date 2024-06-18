@@ -1054,10 +1054,10 @@ typedef struct {
   int8_t enable;
   int8_t isView;
   union {
-    int8_t flag;
+    uint8_t flag;
     struct {
-      int8_t createdb : 1;
-      int8_t reserve : 7;
+      uint8_t createdb : 1;
+      uint8_t reserve : 7;
     };
   };
   char        user[TSDB_USER_LEN];
@@ -3494,9 +3494,9 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  checkpointVer;
   int64_t  checkpointTs;
   int32_t  transId;
-  int8_t   dropRelHTask;
-  int64_t  hStreamId;
+  int64_t  hStreamId;       // add encode/decode
   int64_t  hTaskId;
+  int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
 
 typedef struct {
@@ -3648,10 +3648,6 @@ typedef struct {
   int64_t  streamId;
   int32_t  taskId;
 } SVPauseStreamTaskReq, SVResetStreamTaskReq;
-
-typedef struct {
-  int8_t reserved;
-} SVPauseStreamTaskRsp;
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];

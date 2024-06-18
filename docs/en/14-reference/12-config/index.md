@@ -432,7 +432,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                         |
 | Meaning       | Maximum number of threads to commit |
 | Value Range   | 0-1024                              |
-| Default Value |                                     |
+| Default Value | 4                                   |
 
 ## Log Parameters
 
