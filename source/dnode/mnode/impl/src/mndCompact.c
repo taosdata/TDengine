@@ -613,6 +613,19 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
+  SCompactObj   *pCompact = mndAcquireCompact(pMnode, compactId);
+  if(pCompact == NULL) return 0;
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pCompact->dbname);
+  if(pDb == NULL){
+    needSave = true;
+    mWarn("compact:%" PRId32 ", no db exist, set needSave:%s" , compactId, pCompact->dbname);
+  }
+  else{
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+  }
+
   if(!needSave) {
     mDebug("compact:%" PRId32 ", no need to save" , compactId);
     return 0;
@@ -625,8 +638,6 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   }
   mInfo("compact:%d, trans:%d, used to update compact progress.", compactId, pTrans->id);
   
-  SCompactObj   *pCompact = mndAcquireCompact(pMnode, compactId);
-
   mndTransSetDbName(pTrans, pCompact->dbname, NULL);
 
   pIter = NULL;
@@ -657,6 +668,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   }
 
   bool allFinished = true;
+  pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
@@ -682,8 +694,19 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
+  pDb = mndAcquireDb(pMnode, pCompact->dbname);
+  if(pDb == NULL){
+    allFinished = true;
+    mWarn("compact:%" PRId32 ", no db exist, set all finished:%s" , compactId, pCompact->dbname);
+  }
+  else{
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;    
+  }
+
   if(allFinished){
     mInfo("compact:%d, all finished", pCompact->compactId);
+    pIter = NULL;
     while (1) {
       SCompactDetailObj *pDetail = NULL;
       pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
@@ -697,6 +720,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
           return -1;
         }
         (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+        mInfo("compact:%d, add drop compactdetail action", pDetail->compactDetailId);
       }
 
       sdbRelease(pMnode->pSdb, pDetail);
@@ -709,6 +733,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       return -1;
     }
     (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+    mInfo("compact:%d, add drop compact action", pCompact->compactId);
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
