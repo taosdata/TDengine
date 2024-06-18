@@ -15,7 +15,7 @@
       :label="labelText"
       :label-width="labelWidth"
       :required="required(config)"
-      :class="classMark"
+      :class="[classMark, {'hidden-required': !required(config)}]"
       :rules="timeFormats.includes(field) ? [...timeRules, ...rules] : rules"
       :prop="parent + field"
     >
@@ -31,8 +31,7 @@
           </template>
           <span>
             <span>{{ labelText }}</span>
-            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 4px">
-              <!-- <i class="el-icon-info"></i> -->
+            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 1px">
               <Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
           </span>
@@ -113,6 +112,17 @@
           :icon="`el-icon-${config.action}`">
           {{ config.action_text }}
         </el-button>
+      </div>
+      <div v-if="config.type == 'composeAppend'">
+        <el-input :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+          <el-select style="width: 120px;" v-model="data[field + '_type']" slot="append" :placeholder="$t('timeUnit')">
+            <el-option v-for="item in getOptions()"
+              :key="item.value"
+              v-bind="item"
+              :title="item.label"
+            ></el-option>
+          </el-select>
+        </el-input>
       </div>
 
       <UploadCsv
@@ -316,13 +326,17 @@ export default {
           ? this.config.pattern 
             ? [...requireRule,...patternRule] 
             : requireRule
-          : [];
+          : this.config.pattern 
+            ? [...patternRule]
+            : [];
       }
       return this.config.required
         ? this.config.pattern 
           ? [...requireRule,...patternRule] 
           : requireRule
-        : [];
+        : this.config.pattern 
+          ? [...patternRule]
+          : [];
     },
     timeRules() {
       return [{ validator: this.compareTime, trigger: "blur" }];
@@ -516,6 +530,22 @@ export default {
       padding: 0px;
       border: none;
       background-color: unset;
+    }
+  }
+}
+.input-with-select {
+  ::v-deep .el-input-group__prepend {
+    background-color: #fff;
+    border-color: #bebcbc;
+    .el-input__inner {
+      box-shadow: none;
+    }
+  }
+  ::v-deep .el-input-group__append {
+    background-color: #fff;
+    border-color: #bebcbc;
+    .el-input__inner {
+      box-shadow: none;
     }
   }
 }

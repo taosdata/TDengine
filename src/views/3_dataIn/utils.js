@@ -6,6 +6,7 @@ import { Loading } from 'element-ui';
 import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
+import { cs } from 'date-fns/locale';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
@@ -21,6 +22,7 @@ const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
+export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance','','delay'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
@@ -743,7 +745,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -781,6 +783,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
         multiple,
         pattern: pattern || null,
         patternMsg,
+        grid_two,
+        type_value
       };
       handleHintType(paramConfig, hint, value);
       // 2024-05-17，pibackfill remove the special rule
@@ -983,9 +987,9 @@ export function handleHintType(config, hint) {
     case 'time':
       config.type = 'time';
       break;
-    case 'timeout':
-      config.type = 'input';
-      break;
+    // case 'timeout':
+    //   config.type = 'input';
+    //   break;
     case 'file':
       config.type = 'file';
       break;
@@ -1006,6 +1010,13 @@ export function handleHintType(config, hint) {
           label: item,
           value: item
         }));
+      }
+      break;
+    case 'duration':
+    case 'timeout':
+      config.type = 'composeAppend';
+      if (hint?.choices) {
+        config.options = hint.choices;
       }
       break;
 
@@ -1059,6 +1070,10 @@ export function generateFormInitData(paramsConfig) {
       data[item.field] = value;
       if (item.type === 'compose' && item.hint?.choices) {
         data[item.field + '_type'] = item.type_value || "";
+      }
+      if (item.type === 'composeAppend') {
+        data[item.field + '_type'] = item.type_value || "";
+        data[item.field] = value ? value?.match(/\d+/)[0] : "";
       }
     }
     return data;
@@ -1151,6 +1166,8 @@ function getGroupsQuery(groups, query) {
               value = formatTime(groups[key][k])
             }
             query.push(field + '=' + getQueryParamValue(value));
+          } else if (ComposeParams.includes(k)) {
+            query.push(field + '=' + getQueryParamValue(groups[key][k]) + getQueryParamValue(groups[key][k+'_type']));
           } else {
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }

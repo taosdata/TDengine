@@ -7,6 +7,7 @@
           class="split-item"
           size="small"
           v-model="ruleForm.sep"
+          :disabled="isViewable"
         >
           <template slot="prepend">seperator</template>
         </el-input>
@@ -18,6 +19,7 @@
           size="small"
           type="number"
           v-model="ruleForm.n"
+          :disabled="isViewable"
         >
           <template slot="prepend">number</template>
         </el-input>
@@ -28,6 +30,7 @@
           class="split-item"
           size="small"
           v-model="ruleForm.names"
+          :disabled="isViewable"
         >
           <template slot="prepend">names</template>
         </el-input>
@@ -39,6 +42,7 @@
 import { deepClone } from "@/utils/index";
 export default {
   name: "SplitExpression",
+  inject: ['sourceParent'],
   props: {
     ruleForm: {
       type: Object,
@@ -134,6 +138,11 @@ export default {
       },
     },
   },
+  computed: {
+    isViewable() {
+      return this.sourceParent.isViewable;
+    },
+  }
 };
 </script>
 <style lang="scss" scoped>

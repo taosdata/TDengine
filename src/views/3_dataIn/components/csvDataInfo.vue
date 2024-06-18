@@ -1,8 +1,8 @@
 <template>
   <div class="csv-data">
     <div class="file-settings">
-      <el-tabs v-model="activeName" @tab-click="handleClick">
-        <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
+      <!-- <el-tabs v-model="activeName" @tab-click="handleClick"> -->
+        <!-- <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
           <div class="upload-file">
             <span
               :class="['label required', language.includes('zh') ? 'zh' : 'en']"
@@ -37,52 +37,25 @@
               >{{ this.$t("datasource.uploadcsvtip") }}</span
             >
           </div>
-        </el-tab-pane>
-        <el-tab-pane :label="$t('datasource.configcsv')" name="second">
+        </el-tab-pane> -->
+        <!-- <el-tab-pane :label="$t('datasource.configcsv')" name="second"> -->
+          <BlockHeader 
+            :title="activeName == 'first' 
+            ? $t('datasource.uploadcsv') 
+            : $t('datasource.configcsv') "></BlockHeader>
           <el-form
             :model="fileForm"
             ref="fileform"
             :rules="fileRules"
             label-width="220px"
+            label-position="left"
           >
-            <el-form-item prop="fileurl">
-              <template slot="label">
-                <el-tooltip placement="top" effect="light" :open-delay="0">
-                  <template slot="content">
-                    <DocsContent
-                      :content="$t('datasource.csvFileDesc')"
-                    />
-                  </template>
-                  <span>
-                    <span>{{ $t('datasource.fileurl') }}</span>
-                    <span style="margin-left: 4px">
-                      <i class="el-icon-info"></i>
-                    </span>
-                  </span>
-                </el-tooltip>
-              </template>
-              <el-input size="small" v-model="fileForm.fileurl"></el-input>
+            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
+              <a @click="handleDownloadFile(fileForm.fileurl)">{{ fileForm.fileurl }}</a>
             </el-form-item>
           </el-form>
-        </el-tab-pane>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
-            <el-tooltip
-              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-            >
-              <template slot="content">
-                <span v-html="$t('communityTip')"></span>
-              </template>
-              <el-button
-                type="primary"
-                @click="getCsvColumnsData"
-                size="small"
-                class="nextbtn"
-                :loading="loading"
-                :disabled="$COMMUNITY"
-                >{{ $t("datasource.csvNext") }}</el-button
-              >
-            </el-tooltip>
             <CommonTransformer
               ref="transform"
               :parserColumns="extractArr"
@@ -90,7 +63,6 @@
             ></CommonTransformer>
           </template>
         </CsvParameter>
-      </el-tabs>
     </div>
   </div>
 </template>
@@ -98,15 +70,16 @@
 import CsvParameter from "./csv/csvParameter.vue";
 import CsvColumn from "./csv/csvColumn.vue";
 import { deepClone } from "@/utils";
-import { getDsnData, getFieldClassMarkName } from "../utils";
+import { getDsnData, getFieldClassMarkName, handleDownload } from "../utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import CommonTransformer from "./commonTransformer.vue";
+import CommonTransformer from "./transformerInfo.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
+import BlockHeader from "./blockHeader.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn, CommonTransformer, DocsContent },
+  components: { CsvParameter, CsvColumn, CommonTransformer, DocsContent, BlockHeader },
   inject: ['sourceParent'],
   props: {
     isEditable: {
@@ -218,6 +191,13 @@ export default {
     }
   },
   methods: {
+    handleDownloadFile(val) {
+      if (val) {
+        let name = val?.substr(val.lastIndexOf("/") + 1)
+        let path = val?.split('@')[1]
+        handleDownload(path, name)
+      }
+    },
     submitUrl() {
       let flag = false;
       this.$refs.fileform.validate((valid) => {

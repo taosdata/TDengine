@@ -5,13 +5,16 @@
       :editId="editId"
       :isEditable="isEditable"
       :isCopyable="isCopyable"
+      :isViewable="isViewable"
       ref="table"
     ></component>
   </div>
 </template>
 <script>
 import DataSource from "./dataSource.vue";
-import SourceConfig from "./sourceConfig.vue"
+import SourceConfig from "./sourceConfig.vue";
+import SourceInfo from "./sourceInfo.vue";
+import { getUIData, getTask } from "@/api/explorer/datain";
 import { getDataSources } from "@/api/explorer/community";
 import { sendSQLReq } from "@/api/gateway/console";
 
@@ -19,7 +22,8 @@ export default {
   name: "DbSource",
   components: {
     dbsource: DataSource,
-    sourceConfig: SourceConfig
+    sourceConfig: SourceConfig,
+    sourceInfo: SourceInfo
   },
   data() {
     return {
@@ -27,6 +31,7 @@ export default {
       editId: 0,
       isEditable: false,
       isCopyable: false,
+      isViewable: false,
       agentID: "",
       currentTaskStatus: "",
     };
@@ -68,15 +73,21 @@ export default {
       this.editId = val;
     },
     async toggleComponent(type, id, editid, dbname) {
+      console.log('this.isViewable',this.isViewable);
       if (type && !this.isEditable) {
         //新增
         this.isEditable = false;
         this.setEditID('')
         this.currentName = "sourceConfig";
       } else {
-        this.currentName = "sourceConfig";
-        this.isEditable = true;
-        this.getData();
+        if (this.isViewable) {
+          this.currentName = "sourceInfo";
+          this.getData();
+        } else {
+          this.currentName = "sourceConfig";
+          this.isEditable = true;
+          this.getData();
+        }
       }
     },
     hasProp(obj, key) {

@@ -73,11 +73,28 @@ export function getDataSources(lang) {
                 "name": "timeout",
                 "display": "Timeout",
                 "hint": {
-                  "type": "timeout"
+                  "type": "timeout",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "Millisecond"
+                    },
+                  ]
                 },
                 "short_description": "A timeout for polling data from the topic.",
-                "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n- `never`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
-                "placeholder": "5s"
+                "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n- `0`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
+                "placeholder": "5",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "experimental.snapshot.enable",
@@ -233,12 +250,25 @@ export function getDataSources(lang) {
                 "name": "schema-polling-interval",
                 "display": "Schema Polling Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ] 
                 },
                 "short_description": "Polling interval to query schema.",
                 "description": "Polling interval to query schema.",
                 "placeholder": "Interval: 5s",
-                "value": "5s"
+                "value": "5",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           },
@@ -304,12 +334,29 @@ export function getDataSources(lang) {
                 "name": "unit",
                 "display": "Unit",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                  ]
                 },
                 "short_description": "Time duration unit for query.",
                 "description": "Time duration unit for query.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
                 "placeholder": "Unit: 1s/1h/1d",
-                "value": "1d"
+                "value": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           },
@@ -325,33 +372,80 @@ export function getDataSources(lang) {
                 "name": "retro",
                 "display": "Retrospection",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "millisecond"
+                    },
+                  ]
                 },
                 "short_description": "Retrospect data from some time ago into target before realtime data migrating.",
                 "description": "Retrospect data from some time ago into target before realtime data migrating.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
-                "value": "0s"
+                "value": "0",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "interval",
                 "display": "Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "Polling interval to query realtime data.",
                 "description": "Polling interval to query realtime data.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
                 "placeholder": "Interval: 1s",
-                "value": "1s"
+                "value": "1",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "excursion",
                 "display": "Excursion",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "Wait for some period to querying random-order data.",
                 "description": "Wait for some period to querying random-order data.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
                 "placeholder": "Duration: 5m",
-                "value": "500ms"
+                "value": "500ms",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -429,12 +523,33 @@ export function getDataSources(lang) {
                 "name": "MaxBackfillRangeDays",
                 "display": "Max Backfill Range",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Mniute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.",
                 "description": "The maximum time for automatic backfilling upon connection loss or first startup: `2d`, `3h`, `4m`, etc.\n",
                 "placeholder": "30m",
-                "value": "30m"
+                "value": "30",
+                "type_value": "m",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -2362,12 +2477,29 @@ export function getDataSources(lang) {
                 "name": "timeout",
                 "display": "Timeout",
                 "hint": {
-                  "type": "str"
+                  "type": "timeout",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "Millisecond"
+                    },
+                  ]
                 },
                 "short_description": "Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms.",
-                "description": "Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms.\nWhen use `timeout=never`, it will wait for an usable message forever and never stop the subscription until any error caused.\n",
+                "description": "Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms.\nWhen use `timeout=0`, it will wait for an usable message forever and never stop the subscription until any error caused.\n",
                 "required": false,
-                "placeholder": "500"
+                "placeholder": "500",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "topics",
@@ -2736,19 +2868,86 @@ export function getDataSources(lang) {
                 "name": "timeWindow",
                 "display": "Time Window",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "y",
+                      "label": "Year"
+                    },
+                    {
+                      "value": "mo",
+                      "label": "Month"
+                    },
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "w",
+                      "label": "Week"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "Millisecond"
+                    },         
+                    {
+                      "value": "u",
+                      "label": "Microsecond"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "Nanoseconds"
+                    },
+                  ]
                 },
                 "short_description": "Time window for historical data migration.",
                 "description": "Time window for historical data migration.",
                 "required": false,
                 "placeholder": "1 day",
-                "value": "1 day"
+                "value": "1",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "retrieveInterval",
                 "display": "Retrieve Interval",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Mniute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "millisecond"
+                    },
+                  ]
                 },
                 "short_description": "Pull interval for real-time data synchronization.",
                 "description": "Pull interval for real-time data synchronization.",
@@ -2760,13 +2959,38 @@ export function getDataSources(lang) {
                 "name": "tolerance",
                 "display": "Tolerance",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                    {
+                      "value": "m",
+                      "label": "Mniute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "millisecond"
+                    },
+                  ]
                 },
                 "short_description": "The maximum time limit for tolerating out-of-order data delay.",
                 "description": "The maximum time limit for tolerating out-of-order data delay.",
                 "required": false,
                 "placeholder": "0 ms",
-                "value": "0 ms"
+                "value": "0",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -3011,7 +3235,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3039,23 +3264,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "Query Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "delay",
                 "display": "Delay",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -3205,7 +3456,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3233,23 +3485,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "Time Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "delay",
                 "display": "Delay",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -3362,7 +3640,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3390,23 +3669,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "Query Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "delay",
                 "display": "Delay",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -3587,7 +3892,8 @@ export function getDataSources(lang) {
                 "short_description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.",
                 "description": "SQL statement used for querying. The SQL statement must contain a time range condition, and the start time and end time must appear in pairs.\nSQL uses different placeholders to represent different time format requirements, specifically the following placeholder formats:\n1. `${start}`, `${end}`: Represents the RFC3339 format timestamp, such as: 2024-03-14T08:00:00+0800\n2. `${start_no_tz}`, `${end_no_tz}`: Represents the RFC3339 string without a time zone: 2024-03-14T08:00:00\n3. `${start_date}`, `${end_date}`: Represents only the date, such as: 2024-03-14\n4. `${start_time}`, `${end_time}`: Represents only the time, such as: 08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -3615,23 +3921,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "Query Interval",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Day"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
                 },
                 "short_description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.",
                 "description": "The time interval for segmented queries. The default is 1 day. To avoid querying too much data, a data synchronization subtask will use the query interval to query data in time segments.\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               },
               {
                 "name": "delay",
                 "display": "Delay",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
                 },
                 "short_description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.",
                 "description": "In the real-time data synchronization scenario, to avoid the loss of delayed written data, each synchronization task will read data before the delay time.\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "Please enter the number",
               }
             ]
           }
@@ -3737,11 +4069,28 @@ export function getDataSources(lang) {
             "name": "timeout",
             "display": "超时",
             "hint": {
-              "type": "timeout"
+              "type": "timeout",
+              "choices": [
+                {
+                  "value": "m",
+                  "label": "分钟"
+                },
+                {
+                  "value": "s",
+                  "label": "秒"
+                },
+                {
+                  "value": "ms",
+                  "label": "毫秒"
+                },
+              ]
             },
             "short_description": "超时时间范围内没有新增数据，同步任务将自动结束。",
-            "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `never`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
-            "placeholder": "5s"
+            "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `0`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
+            "placeholder": "5",
+            "type_value": "s",
+            "pattern": /^[0-9]+$/,
+            "patternMsg": "请输入数字",
           }, {
             "name": "experimental.snapshot.enable",
             "display": "同步已落盘数据",
@@ -3893,12 +4242,25 @@ export function getDataSources(lang) {
                 "name": "schema-polling-interval",
                 "display": "元数据轮询间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ] 
                 },
                 "short_description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
                 "description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
                 "placeholder": "时间: 5s",
-                "value": "5s"
+                "value": "5",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           },
@@ -3964,12 +4326,29 @@ export function getDataSources(lang) {
                 "name": "unit",
                 "display": "查询单元",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                  ]
                 },
                 "short_description": "查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。",
                 "description": "查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
                 "placeholder": "示例：1d",
-                "value": "1d"
+                "value": "1",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           },
@@ -3985,34 +4364,81 @@ export function getDataSources(lang) {
                 "name": "retro",
                 "display": "回溯",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "毫秒"
+                    },
+                  ]
                 },
                 "short_description": "在实时同步前回溯一段时间内的数据写入目标库。",
                 "description": "在实时同步前回溯一段时间内的数据写入目标库。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
                 "placeholder": "示例：1s",
-                "value": "0s"
+                "value": "0",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "interval",
                 "display": "间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "轮询查询的时间间隔。",
                 "description": "轮询查询的时间间隔。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
                 "placeholder": "示例：1s",
-                "value": "1s"
+                "value": "1",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "excursion",
                 "display": "乱序",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "等待一段时间的乱序数据入库后再进行查询。",
                 "description": "等待一段时间的乱序数据入库后再进行查询。<br>\n支持使用数字加单位缩写，如\"1ms\"表示1毫秒，\"1s\"表示1秒，\"1m\"表示1分钟，\"1h\"表示1小时，\"1d\"表示1天，\"1w\"表示1周。<br>\n单独使用数字则默认认为是秒。<br>",
                 "placeholder": "示例：5m",
-                "value": "500ms"
+                "value": "500",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -4090,12 +4516,33 @@ export function getDataSources(lang) {
                 "name": "MaxBackfillRangeDays",
                 "display": "重启补偿时间",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
                 "description": "连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。",
                 "placeholder": "30m",
-                "value": "30m"
+                "value": "30m",
+                "type_value": "m",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -6029,12 +6476,29 @@ export function getDataSources(lang) {
                 "name": "timeout",
                 "display": "超时时间",
                 "hint": {
-                  "type": "str"
+                  "type": "timeout",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "毫秒"
+                    },
+                  ]
                 },
                 "short_description": "指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。 当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。",
-                "description": "指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。 当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。\n",
+                "description": "指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。 当 timeout 设置为 `0` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。\n",
                 "required": false,
-                "placeholder": "500"
+                "placeholder": "500",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "topics",
@@ -6401,37 +6865,132 @@ export function getDataSources(lang) {
                 "name": "timeWindow",
                 "display": "查询的时间窗口",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "y",
+                      "label": "年"
+                    },
+                    {
+                      "value": "mo",
+                      "label": "月"
+                    },
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "w",
+                      "label": "周"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "毫秒"
+                    },         
+                    {
+                      "value": "u",
+                      "label": "微秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "纳秒"
+                    },
+                  ]
                 },
                 "short_description": "历史数据迁移时，每次查询的时间窗口。",
                 "description": "历史数据迁移时，每次查询的时间窗口。\n",
                 "required": false,
                 "placeholder": "1 day",
-                "value": "1 day"
+                "value": "1",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "retrieveInterval",
                 "display": "实时同步的时间间隔",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "毫秒"
+                    },
+                  ]
                 },
                 "short_description": "实时数据同步时，每次查询的时间间隔。",
                 "description": "实时数据同步时，每次查询的时间间隔。\n",
                 "required": false,
                 "placeholder": "10s",
-                "value": "10s"
+                "value": "10",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "tolerance",
                 "display": "乱序时间上限",
                 "hint": {
-                  "type": "str"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                    {
+                      "value": "ms",
+                      "label": "毫秒"
+                    },
+                  ]
                 },
                 "short_description": "容忍乱序数据延迟到达的时间上限。",
                 "description": "容忍乱序数据延迟到达的时间上限。\n",
                 "required": false,
                 "placeholder": "0 ms",
-                "value": "0 ms"
+                "value": "0",
+                "type_value": "ms",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -6676,7 +7235,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -6704,23 +7264,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "查询间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "delay",
                 "display": "延迟时长",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -6870,7 +7456,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM schema.table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -6898,23 +7485,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "查询间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "delay",
                 "display": "延迟时长",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -7027,7 +7640,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -7055,23 +7669,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "查询间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "delay",
                 "display": "延迟时长",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }
@@ -7252,7 +7892,8 @@ export function getDataSources(lang) {
                 "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
                 "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n4. `${start_time}`、`${end_time}`：表示仅时间，如：08:00:00\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}"
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
               },
               {
                 "name": "start",
@@ -7280,23 +7921,49 @@ export function getDataSources(lang) {
                 "name": "interval",
                 "display": "查询间隔",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
                 },
                 "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
                 "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
                 "required": false,
-                "placeholder": "1d"
+                "placeholder": "1d",
+                "type_value": "d",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               },
               {
                 "name": "delay",
                 "display": "延迟时长",
                 "hint": {
-                  "type": "duration"
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
                 },
                 "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
                 "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
                 "required": false,
-                "placeholder": "10s"
+                "placeholder": "10s",
+                "type_value": "s",
+                "pattern": /^[0-9]+$/,
+                "patternMsg": "请输入数字",
               }
             ]
           }

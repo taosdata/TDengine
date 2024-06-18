@@ -2,7 +2,15 @@
   <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight}">
     <div class="title-block">
       <span class="title">{{ $t(`datasource.transformer.${title}`) }}</span>
-      <span class='el-icon-close' @click="showtable=false"></span>
+      <span class="title-block">
+        <el-tooltip placement="top" effect="light" :open-delay="0">
+          <template slot="content">
+            {{ $t('fullscreen') }}
+          </template>
+          <span class='el-icon-full-screen' @click="drawer=true"></span>
+        </el-tooltip>
+        <span class='el-icon-close' @click="showtable=false"></span>
+      </span>
     </div>
     <el-table
       border
@@ -11,6 +19,7 @@
       :data="pageTableData"
       :row-class-name="tableRowClassName"
       ref='table'
+      v-if="!drawer"
     >
       <el-table-column
         v-for="item in columns"
@@ -27,6 +36,35 @@
       </template>
     </el-table-column>
     </el-table>
+    <el-drawer
+      :title="$t(`datasource.transformer.${title}`)"
+      :visible.sync="drawer"
+      direction="rtl"
+      size="100%">
+      <el-table
+        border
+        style="width: 100%"
+        :data="pageTableData"
+        :row-class-name="tableRowClassName"
+        ref='table'
+        size='small'
+        v-if="drawer">
+        <el-table-column
+          v-for="item in columns"
+          :key="item"
+          :prop="item"
+          :sortable="item == 'Name' ? true : false"
+          show-overflow-tooltip
+          :label="item"
+        >
+        <template slot="header">
+          <el-tooltip :content="item" placement="top-start">
+            <span>{{ item }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      </el-table>
+    </el-drawer>
     <!-- <div class="block-page">
       <el-pagination
         :class="['pagination', totalCount < 10 ? 'hide' : '']"
@@ -63,7 +101,8 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       mappingCol: "SubTableName",
-      defaultHeight:510
+      defaultHeight:510,
+      drawer: false
     };
   },
   mounted() {
@@ -260,6 +299,7 @@ export default {
   .title-block {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     margin-bottom: 15px;
     .title {
       color: #4259ce;
@@ -268,6 +308,11 @@ export default {
     }
     .el-icon-close {
       cursor: pointer;
+    }
+    .el-icon-full-screen {
+      cursor: pointer;
+      display: inline-block;
+      width: 30px;
     }
   }
   ::v-deep {

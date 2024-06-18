@@ -422,6 +422,7 @@ export function getLocalTimezone() {
 
 // format time
 export function parsinginZone(value, format) {
+  if (!value) return value;
   let timezone = getLocalTimezone();
   return momentTimezone(value).tz(timezone).format(format);
 }
@@ -503,7 +504,6 @@ function getAllProperties(obj) {
       for (let key in obj) {
           if (Array.isArray(obj[key])) {
               for (let i = 0; i < obj[key].length; i++) {
-                  console.log(`==========${prefix}.${key}[${i}]`);
                   traverse(`${prefix}.${key}[${i}]`, obj[key][i]);
               }
           } else if (typeof obj[key] === 'object') {

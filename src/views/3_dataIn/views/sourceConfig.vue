@@ -1,6 +1,6 @@
 <template>
   <div class="source-ui">
-    <div :class="['left-ui', isShowEditBtn ? 'readable': '']">
+    <div :class="['left-ui']">
       <el-form
         :model="sourceForm"
         ref="form"
@@ -20,7 +20,7 @@
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
-          <el-form-item :label="$t('type')" prop="type">
+          <el-form-item :label="$t('type')" prop="type" class="hidden-required">
             <el-select
               v-model="sourceForm.type"
               id="type"
@@ -35,7 +35,7 @@
               ></el-option>
             </el-select>
           </el-form-item>
-          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
+          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent" class="hidden-required">
             <template slot="label">
               <el-tooltip placement="top" effect="light">
                 <template slot="content">
@@ -43,8 +43,7 @@
                 </template>
                 <div>
                   <span>{{ $t('agent') }}</span>
-                  <span style="margin-left: 4px">
-                    <!-- <i class="el-icon-info"></i> -->
+                  <span style="margin-left: 1px">
                     <Icon name="label_info" class="info_icon_custom"></Icon>
                   </span>
                 </div>
@@ -130,15 +129,15 @@
         <!-- <el-button @click="cancel" type="primary" class="preview-btn" size="small">{{
           $t("preview")
         }}</el-button> -->
-        <el-button
+        <!-- <el-button
           v-if="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
           size="small"
           >{{ $t("edit") }}</el-button
-        >
-        <template v-else>
+        > -->
+        <template>
           <el-tooltip
             placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
           >

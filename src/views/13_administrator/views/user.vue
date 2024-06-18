@@ -4,7 +4,7 @@
       <el-button plain type="primary" @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isRoot' style="font-size:14px;">{{ $t("add") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
-      <el-table-column :label="$t('userName')" prop="name"></el-table-column>
+      <el-table-column :label="$t('userName')" prop="name" show-overflow-tooltip></el-table-column>
       <!-- <el-table-column
         :label="$t('topic.super')"
         prop="super"
@@ -53,7 +53,7 @@
           <span>{{ scope | filterVal }}</span>
         </template>
       </el-table-column> -->
-      <el-table-column :label="$t('taosuser.createtime')" prop="create_time"></el-table-column>
+      <el-table-column :label="$t('taosuser.createtime')" prop="create_time" show-overflow-tooltip></el-table-column>
 
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">

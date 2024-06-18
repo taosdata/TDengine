@@ -6,6 +6,9 @@
     <template slot="content">
       <span v-html="$t('communityTip')"></span>
     </template>
+    <section class="block-wrapper" v-if="isView && !$COMMUNITY">
+      <BlockHeader :title="$t('dataIn.check')"></BlockHeader>
+    </section>
     <el-button
       :loading="checkLoading"
       :disabled="$COMMUNITY"
@@ -27,9 +30,10 @@
 import Result from "./result.vue";
 import { getDsnData, getFieldClassMarkName } from "../utils";
 import { validateTask } from "@/api/explorer/datain";
+import BlockHeader from "./blockHeader.vue";
 export default {
   name: 'connectivityCheck',
-  components: { Result },
+  components: { Result, BlockHeader },
   prop: {},
   inject: ['sourceParent'],
   data() {
@@ -51,6 +55,9 @@ export default {
     isEdit() {
       return this.sourceParent.isEditable;
     },
+    isView() {
+      return this.sourceParent.isViewable;
+    },
     url() {
       return this.$i18n.locale.includes('en') ? "https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer" : "https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer";
     },
@@ -63,6 +70,13 @@ export default {
   mounted() {
     if (this.isEdit) {
       this.clickCheckBtn()
+    }
+    if (this.isView) {
+      const type = this.sourceParent.sourceForm.type
+      const agent = this.sourceParent.sourceForm.agent
+      const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+      const param = type === "tmq" ? dsn : type + dsn;
+      this.getValidateResult(param, agent);
     }
   },
   methods: {
@@ -137,5 +151,9 @@ export default {
     .btn-check-connectivity {
       width: 100%;
     }
+  }
+  .block-wrapper {
+    border-radius: 12px;
+    padding: 0 15px 0;
   }
 </style>

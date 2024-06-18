@@ -25,6 +25,7 @@
             :placeholder="$t('datasource.transformer.filter_type')"
             v-model="ruleForm.filter_name"
             @change="changeExtractType"
+            :disabled="isViewable"
           >
             <el-option
               v-for="item in extractTypes"
@@ -53,12 +54,13 @@
               :placeholder="$t('datasource.transformer.expre_input')"
               v-model="ruleForm.filter_expres"
               @input="changeExtractExpr"
+              :disabled="isViewable"
             ></el-input>
           </el-popover>
         </el-form-item>
       </el-form>
 
-      <div class="btns" style="display: flex">
+      <div class="btns" style="display: flex" v-if="!isViewable">
         <el-button
           icon="el-icon-delete"
           @click="deleteExtract"
@@ -71,7 +73,7 @@
         ></el-button>
       </div>
     </div>
-    <ul class="col-list" v-if="tableColumns.length > 0">
+    <ul class="col-list" v-if="tableColumns.length > 0 && !isViewable">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
         <!-- <template v-if="item.value">
           <el-tooltip
@@ -105,6 +107,7 @@ import { deepClone } from "@/utils";
 export default {
   name: "ExtractSplit",
   components: { SplitExpression },
+  inject: ['sourceParent'],
   props: {
     itemData: {
       type: Object,
@@ -356,17 +359,20 @@ export default {
             let newItem = {...addObj, ...item};
             resultData.push(newItem)
           });
-          this.$store.commit('app/SET_RESULTTB_SHOW',true)
+          if (!this.isViewable) {
+            this.$store.commit('app/SET_RESULTTB_SHOW',true)
+          }
           this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'extractResTb');
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultData);
           this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",colLists);
           
           return;
         }
-        this.$store.commit(
-          "app/SET_TRANSFORMER_MAPCOLUMNS",
-          transformerColumns
-        );
+        // 增量的 MAPCOLUMNS 不做存储
+        // this.$store.commit(
+        //   "app/SET_TRANSFORMER_MAPCOLUMNS",
+        //   transformerColumns
+        // );
         this.tableColumns = colLists.map((item) => {
           let obj = {};
           let finalVal = tbdata.map(
@@ -613,6 +619,11 @@ export default {
       },
     },
   },
+  computed: {
+    isViewable() {
+      return this.sourceParent.isViewable;
+    },
+  }
 };
 </script>
 <style lang="scss" scoped>
