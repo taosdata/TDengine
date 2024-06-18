@@ -424,6 +424,8 @@ impl TaskScheduler {
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         self.global_state.ensure_alive()?;
         let task_id = task.id;
+        // 防止任务意外结束，没有没有正常释放断点数据库
+        let _ = self.remove_task_breakpoint_db(task_id).await;
         {
             let mut tasks = self.tasks.write().await;
             if let Some(task) = tasks.get_by_task_id(&task_id) {
@@ -604,6 +606,10 @@ impl TaskScheduler {
         for task in tasks {
             self.wait_task(task).await;
         }
+    }
+
+    async fn remove_task_breakpoint_db(&self, task_id: i64) -> Option<BreakpointDb> {
+        self.task_breakpoint_db.write().await.remove(&task_id)
     }
 }
 

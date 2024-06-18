@@ -1,6 +1,5 @@
-use std::str::FromStr;
-
 use anyhow::{anyhow, Context};
+use std::str::FromStr;
 use taos::Dsn;
 use toml::value::Datetime;
 
@@ -54,6 +53,11 @@ pub struct PiConfig {
     // backfill param
     #[serde(rename = "ForBackfill")]
     for_backfill: bool, // 本配置是否针对 Backfill 任务
+    #[serde(
+        rename = "BackfillBreakpointFile",
+        skip_serializing_if = "Option::is_none"
+    )]
+    backfill_breakpoint_file: Option<String>,
     #[serde(rename = "FromTDengineLastTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
     from_tdengine_last_time: Option<bool>,
@@ -96,6 +100,7 @@ impl PiConfig {
             element_id_list: Vec::new(),
             point_list: Vec::new(),
             for_backfill: false,
+            backfill_breakpoint_file: None,
             from_tdengine_last_time: Self::parse_from_tdengine_last_time(dsn)?,
             to_tdengine_first_time: Self::parse_to_tdengine_first_time(dsn)?,
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
@@ -121,8 +126,12 @@ impl PiConfig {
         let max_wait_len = Self::parse_max_wait_len(&from)?;
         let update_interval = Self::parse_update_interval(&from)?;
         let max_backfill_range_days = Self::parse_max_backfill_range_days(&from)?;
+        let mut backfill_breakpoint_file = None;
         let for_backfill = match from.driver.as_str() {
-            "pibackfill" => true,
+            "pibackfill" => {
+                backfill_breakpoint_file = Self::check_backfill_breakpoint_file(task_id);
+                true
+            }
             _ => false,
         };
         let (element_id_list, point_list, template_list) = {
@@ -214,6 +223,7 @@ impl PiConfig {
             template_for_af_element,
             element_id_list,
             for_backfill,
+            backfill_breakpoint_file,
             point_list,
             from_tdengine_last_time,
             to_tdengine_first_time,
@@ -222,6 +232,19 @@ impl PiConfig {
             log_level,
             task_id,
         })
+    }
+
+    fn check_backfill_breakpoint_file(task_id: Option<i64>) -> Option<String> {
+        let data_dir = get_data_dir();
+        let breakpoint_file = data_dir
+            .join("tasks")
+            .join(task_id.unwrap().to_string())
+            .join("breakpoints.csv");
+        if breakpoint_file.exists() {
+            Some(breakpoint_file.display().to_string())
+        } else {
+            None
+        }
     }
 
     fn parse_server_name(dsn: &Dsn) -> anyhow::Result<String> {
