@@ -29,7 +29,6 @@ extern char* tsMonFwUri;
 
 #define CLUSTER_TABLE "taosd_cluster_info"
 
-#define MASTER_UPTIME  CLUSTER_TABLE":cluster_uptime"
 #define DBS_TOTAL CLUSTER_TABLE":dbs_total"
 #define TBS_TOTAL CLUSTER_TABLE":tbs_total"
 #define STBS_TOTAL CLUSTER_TABLE":stbs_total"
@@ -154,13 +153,13 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
   SMonGrantInfo *pGrantInfo = &pMonitor->mmInfo.grant;
 
-  char *metric_names[] = {MASTER_UPTIME, DBS_TOTAL, TBS_TOTAL, STBS_TOTAL, VGROUPS_TOTAL,
+  char *metric_names[] = {DBS_TOTAL, TBS_TOTAL, STBS_TOTAL, VGROUPS_TOTAL,
                     VGROUPS_ALIVE, VNODES_TOTAL, VNODES_ALIVE, MNODES_TOTAL, MNODES_ALIVE,
                     CONNECTIONS_TOTAL, TOPICS_TOTAL, STREAMS_TOTAL,
                     DNODES_TOTAL, DNODES_ALIVE, EXPIRE_TIME, TIMESERIES_USED,
                     TIMESERIES_TOTAL};
 
-  for(int32_t i = 0; i < 18; i++){
+  for(int32_t i = 0; i < 17; i++){
     if(taos_collector_registry_deregister_metric(metric_names[i]) != 0){
       uError("failed to delete metric %s", metric_names[i]);
     }
@@ -193,9 +192,6 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
 
   taos_gauge_t **metric = NULL;
   
-  metric = taosHashGet(tsMonitor.metrics, MASTER_UPTIME, strlen(MASTER_UPTIME));
-  taos_gauge_set(*metric, pInfo->master_uptime, sample_label_values);
-
   metric = taosHashGet(tsMonitor.metrics, DBS_TOTAL, strlen(DBS_TOTAL));
   taos_gauge_set(*metric, pInfo->dbs_total, sample_label_values);
 
