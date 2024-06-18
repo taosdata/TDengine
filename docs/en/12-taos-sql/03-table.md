@@ -25,7 +25,7 @@ create_definition:
     col_name column_definition
 
 column_definition:
-    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type'] 
+    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
@@ -136,6 +136,18 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
 ```
 
+### Alter Table TTL
+
+```sql
+ALTER TABLE tb_name TTL value
+```
+
+### Alter Table Comment
+
+```sql
+ALTER TABLE tb_name COMMENT 'string_value'
+```
+
 ## Modify a Subtable
 
 ```sql
@@ -163,6 +175,18 @@ alter_table_option: {
 
 ```
 ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+```
+
+### Alter Table TTL
+
+```sql
+ALTER TABLE tb_name TTL value
+```
+
+### Alter Table Comment
+
+```sql
+ALTER TABLE tb_name COMMENT 'string_value'
 ```
 
 ## Delete a Table
