@@ -5044,8 +5044,8 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             # if self.replica != 3: #! TD-26057
             # ! TD-30480
-            # self.insert_after_restart()
-            # self.insert_after_restart(delete=True, fill_history_value=1)
+            self.insert_after_restart()
+            self.insert_after_restart(delete=True, fill_history_value=1)
             # ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
@@ -5179,7 +5179,7 @@ class StreamComputingTest(TDCase):
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="c1", delete=True, watermark=100)
             self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="abs(c1)", delete=False, watermark=100)
             # ! TD-30578
-            # self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
+            self.at_once_count_window(count_window_value=random.choice([5, 10]), sliding=random.randint(1, 5), partition="tbname, abs(c1)", delete=True, watermark=100)
             # ## for existed stb
             for delete in [True, False]:
                 for fill_history_value in [1]:
