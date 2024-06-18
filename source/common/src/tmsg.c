@@ -43,6 +43,7 @@
 #include "tcol.h"
 #include "tlog.h"
 
+
 #define DECODESQL()                                                                 \
   do {                                                                              \
     if (!tDecodeIsEnd(&decoder)) {                                                  \
