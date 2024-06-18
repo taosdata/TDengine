@@ -3363,12 +3363,12 @@ pub struct IpcStreamWorker {
     opc_table_config: OnceCell<OpcModelConfig>,
     pub lush_model_config: OnceCell<Arc<LushModelConfig>>,
     pub lush_table_cache: Option<Arc<TableTagCache>>,
+    breakpoint_db: Option<BreakpointDb>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
-    breakpoint_db: Option<BreakpointDb>,
 }
 
 unsafe impl Send for IpcStreamWorker {}
@@ -3386,12 +3386,12 @@ impl Clone for IpcStreamWorker {
             opc_table_config: self.opc_table_config.clone(),
             lush_model_config: self.lush_model_config.clone(),
             lush_table_cache: self.lush_table_cache.clone(),
+            breakpoint_db: self.breakpoint_db.clone(),
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
             taos: Cell::new(None),
             target_precision: self.target_precision,
-            breakpoint_db: self.breakpoint_db.clone(),
         }
     }
 }
@@ -3405,6 +3405,7 @@ impl IpcStreamWorker {
         license: Option<ConnectorLicense>,
         transferred: Option<Transferred>,
         lush_table_cache: Option<Arc<TableTagCache>>,
+        breakpoint_db: Option<BreakpointDb>,
         span: tracing::Span,
         task: Option<i64>,
         // license: Option<>
@@ -3421,17 +3422,10 @@ impl IpcStreamWorker {
         let target_precision = get_current_precision(&taos).await?;
 
         let lush_model_config = OnceCell::const_new();
-        let mut breakpoints = None;
         match from.driver.as_str() {
             "pi" | "pibackfill" => {
                 let config = LushModelConfig::try_from(from.clone()).unwrap();
                 lush_model_config.set(Arc::new(config)).unwrap();
-                let task = task.expect("Task id should be set for pi and pibackfill");
-                let task = task.to_string();
-                let db = BreakpointDb::new_with_task(task.as_str())
-                    .await
-                    .expect("Get breakpoint db failed for pi task");
-                breakpoints = Some(db);
             }
             _ => {}
         };
@@ -3447,12 +3441,12 @@ impl IpcStreamWorker {
             opc_table_config,
             lush_model_config,
             lush_table_cache,
+            breakpoint_db,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             taos: Cell::new(Some(taos)),
             target_precision,
             span,
-            breakpoint_db: breakpoints,
         })
     }
 

@@ -95,6 +95,7 @@ async fn ipc_stream_writer(
     license: Option<ConnectorLicense>,
     _transferred: Option<Arc<ConnectorTransferred>>,
     lush_table_cache: Option<Arc<TableTagCache>>,
+    breakpoint_db: Option<BreakpointDb>,
     span: tracing::Span,
     abort_message_tx: flume::Sender<Result<PutResult, Status>>,
     ipc_error_strategy: IpcErrorStrategy,
@@ -123,6 +124,7 @@ async fn ipc_stream_writer(
         license,
         None,
         lush_table_cache,
+        breakpoint_db,
         span,
         Some(task_id),
     )
@@ -469,6 +471,7 @@ async fn spawn_stream_writer(
                             license,
                             transferred,
                             lush_table_cache,
+                            breakpoint_db,
                             Span::current(),
                             abort_message_tx,
                             ipc_error_strategy,

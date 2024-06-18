@@ -541,17 +541,7 @@ pub async fn write(
         }
     }
     let write_time = timer.elapsed();
-
-    for (table_key, date_time) in table_break_points.iter() {
-        if let Err(err) = breakpoints.set(table_key, date_time).await {
-            tracing::error!(
-                stable,
-                table_key,
-                date_time,
-                "Set breakpoint error: {err:#}"
-            );
-        }
-    }
+    breakpoints.batch_set(table_break_points).await?;
     Ok((written_rows, gen_sql_time, write_time))
 }
 

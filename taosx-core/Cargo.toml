@@ -41,7 +41,7 @@ config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
-flate2 ={ version = "1.0" }
+flate2 = { version = "1.0" }
 futures = { version = "0.3", features = ["thread-pool"] }
 itertools = { workspace = true }
 lazy_static = "1.4"
@@ -124,7 +124,7 @@ tiberius = { version = "0.12.2", default-features = false, features = [
     "time",
     "winauth",
     "bigdecimal",
-    "native-tls"
+    "native-tls",
 ] }
 
 sled = "0.34.7"

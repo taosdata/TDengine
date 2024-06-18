@@ -534,9 +534,7 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_valid() {
-        unsafe {
-            std::env::set_var("PLUGINS_HOME", "../plugins");
-        }
+        std::env::set_var("PLUGINS_HOME", "../plugins");
 
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;
