@@ -4,20 +4,20 @@ go 1.20
 
 replace github.com/go-ole/go-ole => github.com/go-ole/go-ole v1.3.1-0.20231030194427-12e70eba63a1
 
-replace github.com/konimarti/opc => github.com/huskar-t/opc v0.0.0-20231127065929-38c765f25edb
+replace github.com/konimarti/opc => github.com/taosdata/opc v0.0.0-20240618072804-f4133a5b8154
 
-replace github.com/gopcua/opcua => github.com/huskar-t/opcua v0.0.0-20240617101026-fbb116f43d9c
+replace github.com/gopcua/opcua => github.com/taosdata/opcua v0.0.0-20240618072856-863889ec3946
 
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/apache/arrow/go/v14 v14.0.2
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gopcua/opcua v0.5.3
-	github.com/huskar-t/file-rotatelogs/v2 v2.4.1
 	github.com/konimarti/opc v0.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
+	github.com/taosdata/file-rotatelogs/v2 v2.4.1
 )
 
 require (

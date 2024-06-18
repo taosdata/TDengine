@@ -8,11 +8,11 @@ require (
 	github.com/eclipse/paho.golang v0.11.0
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/google/uuid v1.3.0
-	github.com/huskar-t/file-rotatelogs/v2 v2.4.1
 	github.com/kardianos/service v1.2.2
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
+	github.com/taosdata/file-rotatelogs/v2 v2.4.1
 )
 
 require (

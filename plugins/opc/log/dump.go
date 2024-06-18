@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gopcua/opcua/ua"
-	rotatelogs "github.com/huskar-t/file-rotatelogs/v2"
 	"github.com/sirupsen/logrus"
+	rotatelogs "github.com/taosdata/file-rotatelogs/v2"
 )
 
 type DataDump struct {
