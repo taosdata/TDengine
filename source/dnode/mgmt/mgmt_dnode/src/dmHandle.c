@@ -43,9 +43,21 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
-  
-  void               *pHead = rpcMallocCont(contLen);
-  tSerializeRetrieveIpWhite(pHead, contLen, &req);
+  if (contLen <= 0) {
+    dError("ip-white-list failed to serialize ip white list request, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("ip-white-list failed to alloc send buf, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+  contLen = tSerializeRetrieveIpWhite(pHead, contLen, &req);
+  if (contLen <= 0) {
+    dError("ip-white-list failed to serialize ip white list request, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
@@ -56,7 +68,10 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   SEpSet  epset = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epset);
 
-  rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+  int32_t code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+  if (code != 0) {
+    dError("ip-white-list failed to send update request, reason: %s", tstrerror(code));
+  }
 }
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;

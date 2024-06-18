@@ -1293,22 +1293,39 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+    if (thrd == NULL) {
+      goto End;
+    }
 
     thrd->pTransInst = shandle;
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
+    if (thrd->pWhiteList == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
     srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    if (srv->pipe[i]) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
+    int          uv_err = 0;
     uv_os_sock_t fds[2];
-    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if ((uv_err = uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE)) != 0) {
+      tError("uv failed to init socketpair reason: %s", uv_err_name(uv_err));
       goto End;
     }
 
     uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    uv_err = uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    if (uv_err != 0) {
+      tError("uv failed to init pipe reason: %s", uv_err_name(uv_err));
+      goto End;
+    }
 
     thrd->pipe = &(srv->pipe[i][1]);  // init read
     thrd->fd = fds[0];
@@ -1618,8 +1635,17 @@ void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
-    SSvrMsg*        msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    if (msg == NULL) {
+      tError("ip-white-list update failed to trigger update reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      continue;
+    }
     SUpdateIpWhite* pReq = (arg != NULL ? cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg) : NULL);
+    if (arg != NULL && pReq == NULL) {
+      tError("ip-white-list update failed to trigger update reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      taosMemoryFree(msg);
+      continue;
+    }
 
     msg->type = Update;
     msg->arg = pReq;
