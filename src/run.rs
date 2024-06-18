@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use taos::*;
 use taosx_core::core_metrics::init_task_metrics;
+use taosx_core::utils::license::validate_enterprise_license;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 use twelf::config;
@@ -137,6 +138,10 @@ impl Cli {
                 }
             }
         });
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        {
+            validate_enterprise_license(&args.from, &args.to).await?;
+        }
         // let _ = span.clone().entered();
         // let _ = span.enter();
         let task_opt = taosx_core::TaskOpts {
@@ -169,6 +174,7 @@ impl Cli {
         )
         .await;
         let port_pool = Default::default();
+
         tokio::select! {
             res = task_opt.run(&port_pool).in_current_span() => {
                 res?;
