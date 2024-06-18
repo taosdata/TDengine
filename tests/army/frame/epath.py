@@ -30,9 +30,9 @@ def binPath():
     selfPath = os.path.dirname(os.path.realpath(__file__))
 
     if ("community/tests" in selfPath):
-        projPath = selfPath[:selfPath.find("community/tests")]
+        projPath = os.path.join(selfPath[:selfPath.find("community/tests")], "community")
     else:
-        projPath = selfPath[:selfPath.find("TDengine/tests")]
+        projPath = os.path.join(selfPath[:selfPath.find("TDengine/tests")], "TDengine")
 
     for root, dirs, files in os.walk(projPath):
         if ("taosd" in files):

@@ -79,27 +79,34 @@ class TDTestCase(TBase):
             rets = etool.runBinFile("taos", f"-s \"alter local '{option}'\";")
             self.checkQueryOK(rets)
         # error
-        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\";")
+        output, error = etool.run("taos", f"-s \"alter local 'nocmd check'\";")
+        self.checkListNotEmpty(error)
 
         # help
-        rets = etool.runBinFile("taos", "--help")
-        self.checkListNotEmpty(rets)
+        output, error = etool.run("taos", "--help")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # b r w s 
         sql = f"select * from {self.db}.{self.stb} limit 10"
-        rets = etool.runBinFile("taos", f'-B -r -w 100 -s "{sql}" ')
-        self.checkListNotEmpty(rets)
+        rets = etool.run("taos", f'-B -r -w 100 -s "{sql}" ')
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # -C
-        rets = etool.runBinFile("taos", "-C")
-        self.checkListNotEmpty(rets)
+        rets = etool.run("taos", "-C")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # -t
-        rets = etool.runBinFile("taos", "-t")
-        self.checkListNotEmpty(rets)
+        rets = etool.run("taos", "-t")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # -v
-        rets = etool.runBinFile("taos", "-V")
-        self.checkListNotEmpty(rets)
+        rets = etool.run("taos", "-V")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # -?
-        rets = etool.runBinFile("taos", "-?")
-        self.checkListNotEmpty(rets)
+        rets = etool.run("taos", "-?")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
 
         # TSDB_FQDN_LEN = 128
         lname = "testhostnamelength"
@@ -137,11 +144,13 @@ class TDTestCase(TBase):
         # -k 
         etool.exeBinFile("taosd", "-k", False)
         # -V
-        rets = etool.runBinFile("taosd", "-V")
-        self.checkListNotEmpty(rets)
+        output, error = etool.run("taosd", "-V")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
         # --help
-        rets = etool.runBinFile("taosd", "--help")
-        self.checkListNotEmpty(rets)
+        output, error = etool.run("taosd", "--help")
+        self.checkListNotEmpty(output)
+        self.checkListEmpty(error)
 
         # except input
         etool.exeBinFile("taosd", "-c")

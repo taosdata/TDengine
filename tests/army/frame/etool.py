@@ -57,6 +57,13 @@ def runBinFile(fname, command, show=True):
         tdLog.info(cmd)
     return frame.eos.runRetList(cmd)
 
+# return True if execution runs incorrectly 
+def checkErrorFromBinFile(ret_list: list):
+    for value in ret_list:
+        if 'error' in str(value).lower():
+            return True
+    return False
+
 # exe build/bin file
 def exeBinFile(fname, command, wait=True, show=True):
     binFile = frame.epath.binFile(fname)

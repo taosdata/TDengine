@@ -293,6 +293,11 @@ class TBase:
     def checkListNotEmpty(self, lists, tips=""):
         if len(lists) == 0:
             tdLog.exit(f"list is empty {tips}")
+    
+    # check list not exist
+    def checkListEmpty(self, lists, tips=""):
+        if len(lists) > 0:
+            tdLog.exit(f"list is not empty {tips}")
 
 
 #
