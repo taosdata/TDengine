@@ -1712,6 +1712,18 @@ impl TaskController {
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);
         }
+        let dsn_agent = Dsn::from_str(&dsn);
+        match dsn_agent {
+            Ok(dsn_agent) => {
+                // 检查是否有需要发送到 agent 的文件
+                let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", agent, path);
+                    let _ = self.put_file_to_agent(agent, path.clone()).await;
+                }
+            }
+            Err(_) => {}
+        }
 
         scheduler.get_sample_via_agent(agent, dsn).await
     }
