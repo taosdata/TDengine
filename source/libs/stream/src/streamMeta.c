@@ -608,6 +608,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   taosArrayPush(pMeta->pTaskList, &pTask->id);
+  taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
 
   if (streamMetaSaveTask(pMeta, pTask) < 0) {
     return -1;
@@ -617,7 +618,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return -1;
   }
 
-  taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
   if (pTask->info.fillHistory == 0) {
     atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
   }
@@ -672,14 +672,17 @@ void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask)
   }
 }
 
-static void doRemoveIdFromList(SStreamMeta* pMeta, int32_t num, SStreamTaskId* id) {
+static void doRemoveIdFromList(SArray* pTaskList, int32_t num, SStreamTaskId* id) {
+  bool remove = false;
   for (int32_t i = 0; i < num; ++i) {
-    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     if (pTaskId->streamId == id->streamId && pTaskId->taskId == id->taskId) {
-      taosArrayRemove(pMeta->pTaskList, i);
+      taosArrayRemove(pTaskList, i);
+      remove = true;
       break;
     }
   }
+  ASSERT(remove);
 }
 
 static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
@@ -715,7 +718,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   }
   streamMetaWUnLock(pMeta);
 
-  stDebug("s-task:0x%x set task status:dropping and start to unregister it", taskId);
+  stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, pMeta->vgId);
 
   while (1) {
     streamMetaRLock(pMeta);
@@ -742,18 +745,19 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
-
     // it is an fill-history task, remove the related stream task's id that points to it
-    atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
+    if (pTask->info.fillHistory == 0) {
+      atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
+    }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
-    doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
+    doRemoveIdFromList(pMeta->pTaskList, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
     streamMetaRemoveTask(pMeta, &id);
 
+    ASSERT(taosHashGetSize(pMeta->pTasksMap) == taosArrayGetSize(pMeta->pTaskList));
     streamMetaWUnLock(pMeta);
 
     ASSERT(pTask->status.timerActive == 0);
-
     if (pTask->info.delaySchedParam != 0 && pTask->info.fillHistory == 0) {
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
       taosTmrStop(pTask->schedInfo.pDelayTimer);
@@ -1007,9 +1011,10 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
   hbMsg.pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 
-    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (pTask == NULL) {
       continue;
     }
@@ -1020,7 +1025,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     STaskStatusEntry entry = {
-        .id = *pId,
+        .id = id,
         .status = streamTaskGetStatus(*pTask)->state,
         .nodeId = hbMsg.vgId,
         .stage = pMeta->stage,
@@ -1508,8 +1513,9 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
 bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
   for (int32_t i = 0; i < num; ++i) {
-    STaskId*      pTaskId = taosArrayGet(pMeta->pTaskList, i);
-    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pTaskId, sizeof(*pTaskId));
+    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask == NULL) {
       continue;
     }
