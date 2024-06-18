@@ -1308,7 +1308,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
-    if (srv->pipe[i]) {
+    if (srv->pipe[i] == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto End;
     }
