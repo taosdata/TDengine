@@ -1417,13 +1417,21 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   int32_t contLen = tSerializeSGetUserWhiteListRsp(NULL, 0, &wlRsp);
-  void   *pRsp = rpcMallocCont(contLen);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
-  tSerializeSGetUserWhiteListRsp(pRsp, contLen, &wlRsp);
+  contLen = tSerializeSGetUserWhiteListRsp(pRsp, contLen, &wlRsp);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1498,7 +1506,12 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     return -1;
   }
-  ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList);
+  if (ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList) != 0) {
+    mndTransDrop(pTrans);
+
+    mError("trans:%d, failed to update ip white list, since %s", pTrans->id, terrstr());
+    return -1;
+  }
 
   mndTransDrop(pTrans);
   return 0;
