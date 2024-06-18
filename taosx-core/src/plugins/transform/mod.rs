@@ -2021,7 +2021,7 @@ pub enum Error {
     MapValueError(#[from] map::ValueBuilderError),
     #[error("Transform error: {0:#}")]
     Other(#[from] anyhow::Error),
-    #[error("Primary key({0}) must be non-null")]
+    #[error("Primary key({0}) value cant be cast to available timestamp")]
     NullPrimaryKey(String),
     #[error("Primary key({0}) must be or could be casted to timestamp: {1:#}")]
     PrimaryKeyCastError(String, arrow_schema::ArrowError),
