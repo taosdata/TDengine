@@ -10,6 +10,7 @@ using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Conversions;
 using log4net;
 using System.Threading;
+using System.IO;
 
 namespace TDPIConnector.Core
 {
@@ -19,6 +20,7 @@ namespace TDPIConnector.Core
         private TDEngineProxy tdEngineProxy;
         private PIServerManager piServerManager;
         private PISystemManager piSystemManager;
+        private Dictionary<String, DateTime> breakpoints;
         ConcurrentDictionary<string, ElementsBackfillTaskManager> templateElementsBackfill = new ConcurrentDictionary<string, ElementsBackfillTaskManager>();
         ConcurrentDictionary<int, string> templateBackfillGroups = new ConcurrentDictionary<int, string>();
         private readonly Object groupLock = new Object();
@@ -128,8 +130,52 @@ namespace TDPIConnector.Core
                 backfillWait = 10;
             }
             log.Info($"TAOSXPIBACKFILLWAIT set to {backfillWait}.");
+            if (AppSettings.tomlConfig.ForBackfill) {
+                InitBreakpoint();
+            }
             StartAsyncBackTask();
             Console.WriteLine("Asynchronous task starting...");
+        }
+
+        private void InitBreakpoint()
+        {
+            var backfillBreakpointFile = AppSettings.tomlConfig.BackfillBreakpointFile;
+            if (backfillBreakpointFile == null || backfillBreakpointFile == "")
+            {
+                log.Warn("No backfill breakpoint file found.");
+                return;
+            }
+            breakpoints = new Dictionary<string, DateTime>();
+            log.Info($"Read backfill breakpoint file: {backfillBreakpointFile}");
+            try
+            {
+                using (var reader = new StreamReader(backfillBreakpointFile))
+                {
+                    while (!reader.EndOfStream)
+                    {
+                   
+                        var line = reader.ReadLine();
+                        if (line == null || line.Length == 0) {
+                            continue;
+                        }
+                        var sp = line.Split(',');
+                        if (sp.Length == 2) {
+                            breakpoints.Add(sp[0], DateTime.Parse(sp[1]));                            
+                        }
+                        else
+                        {
+                            log.Warn($"Invalid line in backfill breakpoint file: {line}");
+                        }
+
+
+                    }
+                }
+            }
+            catch (IOException e)
+            {
+               log.Error($"Read breankpoint file error: {e.Message}");
+            }
+            log.Info($"Read {breakpoints.Count} breakpoints from file.");
         }
 
         private ElementBackfillTask GetNextTask(int groupNum)
@@ -471,6 +517,15 @@ namespace TDPIConnector.Core
             }
 
             var currentStart = startTime;
+            var elementID = element.ID.ToString();
+            if (breakpoints != null && breakpoints.ContainsKey(elementID))
+            {
+                currentStart = breakpoints[elementID];
+                log.Info($"Backfill Element {superTableName}:{element.ID} from breakpoint {currentStart}.");
+            }
+            else { 
+                log.Info($"Backfill Element {superTableName}:{element.ID} from {currentStart}.");
+            }
             do
             {
                 tdEngineProxy.ArrowMsgQueueWait(element.TemplateName());
@@ -509,7 +564,7 @@ namespace TDPIConnector.Core
                 tables.Add(elementTableKey, elementValues);
                 stables.Add(superTableName, tables);
                 tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
-                log.Info($"Backfill Element {superTableName}:{element.ID} from {currentStart} row:{elementValues.Count} , written in {stopwatch.ElapsedMilliseconds} ms");
+                log.Info($"Backfill Element {superTableName}:{elementID} from {currentStart} row:{elementValues.Count} , written in {stopwatch.ElapsedMilliseconds} ms");
 
                 if (count < AppSettings.tomlConfig.BackfillBatchSize) {
                     break;
@@ -518,7 +573,7 @@ namespace TDPIConnector.Core
                 currentStart = smallLastAttributeTime < endTime ? smallLastAttributeTime.AddMilliseconds(1) : endTime;
                 stopwatch.Reset();
             } while (currentStart < endTime);
-            log.Info($"Backfill TDEngine element {element.Name}:{element.ID} values written finished.");
+            log.Info($"Backfill TDEngine element {element.Name}:{elementID} values written finished.");
         }
 
         private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values,  in Dictionary<string, List<TDValue>> tableValues, in List<string> columnNames)

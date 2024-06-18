@@ -44,6 +44,7 @@ namespace TDPIConnector.Core
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
             public bool ForBackfill { get; set; } = false;
+            public string BackfillBreakpointFile { get; set; }
             public bool OnlyTestConnector { get; set; } = false;
             public bool TemplateEventStart { get; set; } = true;
             public string TaskID { get; set; } = "0";
@@ -100,6 +101,10 @@ namespace TDPIConnector.Core
                     {
                         sb.AppendLine($"ElementIDList count: {ElementIDList.Count()}");
                     }
+                }
+                if (BackfillBreakpointFile != null)
+                {
+                    sb.AppendLine($"BackfillBreakpointFile={BackfillBreakpointFile}");
                 }
                 return sb.ToString();
             }
