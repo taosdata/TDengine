@@ -12,6 +12,8 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
+pub mod migrations;
+
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
