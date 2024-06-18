@@ -548,8 +548,8 @@ enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SE
 typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
-  int8_t  primary;
-  int8_t  disable; // disable create new file
+  int32_t primary;
+  int8_t  disable;  // disable create new file
 } SDiskCfg;
 
 typedef struct {

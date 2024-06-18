@@ -494,11 +494,6 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (pCfg->disable == 1 && pCfg->primary != 1) {
-    fInfo("skip to mount disk %s to level %d since disable is %" PRIi8, pCfg->dir, pCfg->level, pCfg->disable);
-    return 0;
-  }
-
   SDiskID   did = {.level = pCfg->level};
   STfsDisk *pDisk = tfsMountDiskToTier(TFS_TIER_AT(pTfs, did.level), pCfg);
   if (pDisk == NULL) {

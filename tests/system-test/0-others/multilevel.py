@@ -52,7 +52,7 @@ class TDTestCase:
         tdLog.info("============== basic test ===============")
         cfg={
             '/mnt/data1' : 'dataDir',
-            '/mnt/data2 0 0' : 'dataDir'
+            '/mnt/data2 0 0 0' : 'dataDir'
         }
         tdSql.createDir('/mnt/data1')
         tdSql.createDir('/mnt/data2')
@@ -112,9 +112,9 @@ class TDTestCase:
         cfg={
             '/mnt/data00 0 1' : 'dataDir',
             '/mnt/data01 0 0' : 'dataDir',
-            '/mnt/data02 0 0' : 'dataDir',
+            '/mnt/data02 0 0 0' : 'dataDir',
             '/mnt/data03 0 0' : 'dataDir',
-            '/mnt/data04 0 0' : 'dataDir'
+            '/mnt/data04 0 0 0' : 'dataDir'
         }
         dir_list = ['/mnt/data00','/mnt/data01','/mnt/data02','/mnt/data03','/mnt/data04']
         for i in dir_list:
@@ -160,15 +160,15 @@ class TDTestCase:
         tdDnodes.stop(1)
         # Test1 1 dataDir
         cfg={
-            '/mnt/data000 0 1' : 'dataDir',
+            '/mnt/data000 0 1 0' : 'dataDir',
             '/mnt/data001 0 0' : 'dataDir',
-            '/mnt/data002 0 0' : 'dataDir',
+            '/mnt/data002 0 0 0' : 'dataDir',
             '/mnt/data010 1 0' : 'dataDir',
-            '/mnt/data011 1 0' : 'dataDir',
+            '/mnt/data011 1 0 0' : 'dataDir',
             '/mnt/data012 1 0' : 'dataDir',
-            '/mnt/data020 2 0' : 'dataDir',
-            '/mnt/data021 2 0' : 'dataDir',
-            '/mnt/data022 2 0' : 'dataDir'          
+            '/mnt/data020 2 0 0' : 'dataDir',
+            '/mnt/data021 2 0 0' : 'dataDir',
+            '/mnt/data022 2 0 0' : 'dataDir'
         }
         dir_list = ['/mnt/data000','/mnt/data001','/mnt/data002','/mnt/data010','/mnt/data011','/mnt/data012','/mnt/data020','/mnt/data021''/mnt/data022']
         for i in dir_list:
@@ -189,7 +189,7 @@ class TDTestCase:
             if i == 0 :
                 datadir = '/mnt/data%d 0 1' % (i+1)
             else:
-                datadir = '/mnt/data%d 0 0' % (i+1)
+                datadir = '/mnt/data%d 0 0 0' % (i+1)
             cfg.update({ datadir : 'dataDir' })
             tdSql.createDir('/mnt/data%d' % (i+1))
         
@@ -250,9 +250,9 @@ class TDTestCase:
         tdDnodes.stop(1)
         cfg={
             '/mnt/data1 0 1' : 'dataDir',
-            '/mnt/data2 1 0 1' : 'dataDir',
-            '/mnt/data3 1 0 0' : 'dataDir',
-            '/mnt/data4 1 0' : 'dataDir',
+            '/mnt/data2 1 0 0' : 'dataDir',
+            '/mnt/data3 1 0 1' : 'dataDir',
+            '/mnt/data4 2 0' : 'dataDir',
         }
         tdSql.createDir('/mnt/data2')
         tdSql.createDir('/mnt/data3')
