@@ -25,12 +25,6 @@
 #define sndDebug(...) do {  if (sndDebugFlag & DEBUG_DEBUG) { taosPrintLog("SND ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
-static void restoreStreamTaskId(SStreamTask *pTask, STaskId *pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
   int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);

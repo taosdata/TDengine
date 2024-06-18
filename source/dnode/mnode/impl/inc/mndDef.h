@@ -332,10 +332,10 @@ typedef struct {
   int8_t  sysInfo;
   int8_t  enable;
   union {
-    int8_t flag;
+    uint8_t flag;
     struct {
-      int8_t createdb : 1;
-      int8_t reserve : 7;
+      uint8_t createdb : 1;
+      uint8_t reserve : 7;
     };
   };
   int32_t       acctId;
