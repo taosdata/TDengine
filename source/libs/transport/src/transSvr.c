@@ -292,7 +292,6 @@ void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, in
       return;
     }
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
     if (taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*))) {
@@ -1429,8 +1428,11 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
 
       int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
       SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
+      if (pList == NULL) {
+        tError("ip-white-list failed to update, user:%s, reason:%s", pUser->user, strerror(TSDB_CODE_OUT_OF_MEMORY));
+        continue;
+      }
       pList->num = pUser->numOfRange;
-
       memcpy(pList->pIpRange, pUser->pIpRanges, sz);
       uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     }

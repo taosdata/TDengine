@@ -179,13 +179,6 @@ void ipWhiteMgtUpdateAll(SMnode *pMnode) {
 
   destroyIpWhiteTab(pOld);
 }
-void ipWhiteMgtUpdate2(SMnode *pMnode) {
-  taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-
-  ipWhiteMgtUpdateAll(pMnode);
-
-  taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-}
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
@@ -207,6 +200,10 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
   bool       update = false;
   SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
+  if (range.ip == (uint32_t)-1) {
+    terrno = TSDB_CODE_TSC_INVALID_FQDN;
+    return false;
+  }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
   SIpWhiteList  *pList = NULL;
@@ -329,6 +326,7 @@ int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_
       goto end;
     }
     memcpy(keyDup, key, klen);
+
     bool subUpdate = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, keyDup, fqdn, type);
     if (subUpdate == false) {
       if (terrno != 0) {
@@ -340,7 +338,6 @@ int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_
     update |= subUpdate;
 
     taosMemoryFree(keyDup);
-
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
   }
 end:
@@ -409,6 +406,7 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   SArray   *pUserNames = NULL;
+  SArray   *pFqdns = NULL;
   SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
   if (pIpWhiteTab == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -465,25 +463,27 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
     taosArrayPush(pUserNames, &name);
   }
 
-  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
-  if (fqdns == NULL) {
+  pFqdns = mndGetAllDnodeFqdns(pMnode);
+  if (pFqdns == NULL) {
     goto _end;
   }
 
-  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
-    char *fqdn = taosArrayGetP(fqdns, i);
+  for (int i = 0; i < taosArrayGetSize(pFqdns); i++) {
+    char *fqdn = taosArrayGetP(pFqdns, i);
 
     for (int j = 0; j < taosArrayGetSize(pUserNames); j++) {
       char *name = taosArrayGetP(pUserNames, j);
-      mndUpdateIpWhiteImpl(pIpWhiteTab, name, fqdn, IP_WHITE_ADD);
+      if (mndUpdateIpWhiteImpl(pIpWhiteTab, name, fqdn, IP_WHITE_ADD) == false && terrno != 0) {
+        goto _end;
+      }
     }
   }
 
-  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
-    char *fqdn = taosArrayGetP(fqdns, i);
+  for (int i = 0; i < taosArrayGetSize(pFqdns); i++) {
+    char *fqdn = taosArrayGetP(pFqdns, i);
     taosMemoryFree(fqdn);
   }
-  taosArrayDestroy(fqdns);
+  taosArrayDestroy(pFqdns);
 
   for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
     taosMemoryFree(taosArrayGetP(pUserNames, i));
@@ -497,7 +497,13 @@ _end:
     }
     taosArrayDestroy(pUserNames);
   }
-
+  if (pFqdns) {
+    for (int i = 0; i < taosArrayGetSize(pFqdns); i++) {
+      char *fqdn = taosArrayGetP(pFqdns, i);
+      taosMemoryFree(fqdn);
+    }
+    taosArrayDestroy(pFqdns);
+  }
   taosHashCleanup(pIpWhiteTab);
   return NULL;
 }
@@ -1469,6 +1475,7 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+
   len = tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
   if (len < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
