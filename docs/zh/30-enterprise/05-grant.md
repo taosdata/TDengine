@@ -66,7 +66,7 @@ ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \
 -   PASS：修改用户密码。
 -   ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
 -   SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
--   CREATEDB: 修改用户是否可以创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。
+-   CREATEDB：修改用户是否可以创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。
 
 示例：禁用 test 用户
 
