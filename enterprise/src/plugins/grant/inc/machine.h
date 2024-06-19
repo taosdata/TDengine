@@ -110,7 +110,7 @@
 #define GRANT_UNIQ_UNLIMITED_S           "unlimited"
 #define GRANT_UNIQ_UNDEFINED_S           "undef"
 
-#define GRANT_UNIQ_MAX_EXPIRE_SECOND     (31556995200)  // second: 1970 + 1000 year
+#define GRANT_UNIQ_MAX_EXPIRE_SECOND     GRANT_MAX_EXPIRE_SEC // second: 1970 + 1000 year
 #define GRANT_UNIQ_KNOWN_DATAIN_VALS     30
 #define GRANT_UNIQ_TOKEN_NUM 2
 
