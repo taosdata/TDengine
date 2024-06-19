@@ -554,12 +554,8 @@ static int64_t grantGetExpireSec(int64_t expireSec) {
     return gStatus.revokedExpireSec;
   }
 
-  if (expireSec > GRANT_UNIQ_UNLIMITED) {
+  if (expireSec >= GRANT_UNIQ_UNLIMITED) {
     return expireSec;
-  }
-
-  if (expireSec == GRANT_UNIQ_UNLIMITED) {
-    return expireSec = GRANT_UNIQ_MAX_EXPIRE_SECOND;
   }
 
   if (expireSec == GRANT_UNIQ_UNDEFINED) {
@@ -574,8 +570,8 @@ static void grantSetClusterInfo(SMnode *pMnode) {
     tstrncpy(tsVersionName, GRANT_VERSION, tListLen(tsVersionName));
   }
   int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE);
-  COMPARE_SET_VAL(tsExpireTime, expireSec * 1000, !=);
-  COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
+  COMPARE_SET_VAL(tsExpireTime, expireSec, !=);
+  COMPARE_SET_VAL(pMnode->grant.expireTimeSec, tsExpireTime, !=);
   if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED) {
     COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, INT64_MAX, !=);
   } else {
