@@ -2953,8 +2953,14 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
   }
 
   if (nlvl != 0 && olvl != nlvl) {
-    SET_COMPRESS(ol1, ol2, nlvl, *dst);
-    update = 1;
+    if (update == 0) {
+      if (ol2 == L2_DISABLED) {
+        update = -1;
+      }
+    } else {
+      SET_COMPRESS(ol1, ol2, nlvl, *dst);
+      update = 1;
+    }
   }
 
   return update;
