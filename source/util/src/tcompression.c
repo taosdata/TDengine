@@ -2916,7 +2916,9 @@ int32_t tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t
   *level = lvl;
   return 0;
 }
+
 int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, uint8_t lvlDiabled, uint8_t lvlDefault,
+
                        uint32_t *dst) {
   int8_t  update = 0;
   uint8_t ol1 = COMPRESS_L1_TYPE_U32(oldCmpr);
@@ -2926,6 +2928,10 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
   uint8_t nl1 = COMPRESS_L1_TYPE_U32(newCmpr);
   uint8_t nl2 = COMPRESS_L2_TYPE_U32(newCmpr);
   uint8_t nlvl = COMPRESS_L2_TYPE_LEVEL_U32(newCmpr);
+
+  // nl1 == 0, not update encode
+  // nl2 == 0, not update compress
+  // nl3 == 0, not update level
   if (nl1 != 0 && ol1 != nl1) {
     SET_COMPRESS(nl1, ol2, olvl, *dst);
     update = 1;
@@ -2950,5 +2956,6 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
     SET_COMPRESS(ol1, ol2, nlvl, *dst);
     update = 1;
   }
+
   return update;
 }
