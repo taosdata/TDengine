@@ -52,13 +52,16 @@ You can use any client that supports the http protocol to access the RESTful int
 ```
 
 ### Insert Example
+
 ```bash
 curl --request POST "$TDENGINE_CLOUD_URL/opentsdb/v1/put/telnet/<db_name>?token=$TDENGINE_CLOUD_TOKEN" --data-binary "sys  1479496100 1.3E0 host=web01 interface=eth0"
 ```
 
 ## Query Example with SQL
+
 - `sys` is the super table name.
 - you can filter data by tag, like:`where host="web01"`.
+
 ```bash
 curl -L -d "select * from <db_name>.sys where host=\"web01\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```

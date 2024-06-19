@@ -17,11 +17,13 @@ Please refer to [version support list](/client-libraries/#version-support)
 ### Pre-installation
 
 Install the Node.js development environment
+
 ### Install via npm
 
 ```bash
 npm install @tdengine/rest
 ```
+
 ## Establishing a connection
 
 ```javascript
@@ -48,14 +50,14 @@ npm install @tdengine/rest
 
 3. "Unable to establish connection", "Unable to resolve FQDN"
 
-  Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
+   Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
 
 ## Important update records
-| package name         | version | TDengine version    | Description                                                                      |
-|----------------------|---------|---------------------|---------------------------------------------------------------------------|
-| @tdengine/rest | 3.0.0   | 3.0.0               | Supports TDengine 3.0. Not compatible with TDengine 2.x.                                               |
-| td2.0-rest-connector | 1.0.7   | 2.4.x；2.5.x；2.6.x | Removed default port 6041。                                                       |
-| td2.0-rest-connector | 1.0.6   | 2.4.x；2.5.x；2.6.x | Fixed affectRows bug with create, insert, update, and alter. |
-| td2.0-rest-connector | 1.0.5   | 2.4.x；2.5.x；2.6.x | Support cloud token                                                  |
-| td2.0-rest-connector  | 1.0.3  | 2.4.x；2.5.x；2.6.x | Supports connection management, standard queries, system information, error information, and continuous queries          |
 
+| package name         | version | TDengine version    | Description                                                  |
+| -------------------- | ------- | ------------------- | ------------------------------------------------------------ |
+| @tdengine/rest       | 3.0.0   | 3.0.0               | Supports TDengine 3.0. Not compatible with TDengine 2.x.     |
+| td2.0-rest-connector | 1.0.7   | 2.4.x；2.5.x；2.6.x | Removed default port 6041。                                  |
+| td2.0-rest-connector | 1.0.6   | 2.4.x；2.5.x；2.6.x | Fixed affectRows bug with create, insert, update, and alter. |
+| td2.0-rest-connector | 1.0.5   | 2.4.x；2.5.x；2.6.x | Support cloud token                                          |
+| td2.0-rest-connector | 1.0.3   | 2.4.x；2.5.x；2.6.x | Supports connection management, standard queries, system information, error information, and continuous queries |

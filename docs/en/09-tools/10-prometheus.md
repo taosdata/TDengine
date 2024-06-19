@@ -26,9 +26,8 @@ Let’s retrieve some metrics from TDengine Cloud via prometheus web server. Bro
 
 Enter the following expression to graph the per-second rate of chunks being created in the self-scraped Prometheus:
 
-```
+```text
 rate(prometheus_tsdb_head_chunks_created_total[1m])
 ```
 
 ![TDengine prometheus remote_read](prometheus_read.webp)
-

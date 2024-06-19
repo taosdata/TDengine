@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 ## SQL Examples
 
-Here are some brief examples for `INSERT` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine client libraries. 
+Here are some brief examples for `INSERT` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine client libraries.
 
 ### Insert Single Row
 
@@ -53,6 +53,7 @@ In this example, we use `execute` method to execute SQL and get affected rows. T
 ```python
 {{#include docs/examples/python/develop_tutorial.py:insert}}
 ```
+
 </TabItem>
 <TabItem value="java" label="Java">
 

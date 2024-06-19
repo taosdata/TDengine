@@ -4,8 +4,6 @@ title: Seeq
 description: This document describes how to use Seeq and TDengine to perform time series data analysis.
 ---
 
-# How to use Seeq and TDengine to perform time series data analysis
-
 ## Introduction
 
 Seeq is an advanced analytics software for the manufacturing industry and the Industrial Internet of Things (IIoT). Seeq supports the use of machine learning innovations within process manufacturing organizations. These capabilities enable organizations to deploy their own or third-party machine learning algorithms into advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline workers.
@@ -20,44 +18,49 @@ TDengine can be added as a data source into Seeq via JDBC client library. Once d
 ## Install TDengine JDBC client library
 
 1. Lgoin to the server where Seeq is installed, get Seeq data location configuration
-```
-sudo seeq config get Folders/Data
-```
-2. Download the latest TDengine Java client library from maven.org (current version is [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
-3. Restart Seeq server
-```
-sudo seeq restart
-```
 
-## Add TDengine into Seeq's data source 
+   ```bash
+   sudo seeq config get Folders/Data
+   ```
+
+2. Download the latest TDengine Java client library from maven.org (current version is [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
+
+3. Restart Seeq server
+
+   ```bash
+   sudo seeq restart
+   ```
+
+## Add TDengine into Seeq's data source
+
 1. Open Seeq, login as admin, go to Administration, click "Add Data Source"
 2. For connector, choose SQL connector v2
 3. Inside "Additional Configuration" input box, copy and paste the following
 
-```
-{
-    "QueryDefinitions": []
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": null,
-    "Password": null,
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
+   ```json
+   {
+       "QueryDefinitions": []
+       "Type": "GENERIC",
+       "Hostname": null,
+       "Port": 0,
+       "DatabaseName": null,
+       "Username": null,
+       "Password": null,
+       "InitialSql": null,
+       "TimeZone": null,
+       "PrintRows": false,
+       "UseWindowsAuth": false,
+       "SqlFetchBatchSize": 100000,
+       "UseSSL": false,
+       "JdbcProperties": null,
+       "GenericDatabaseConfig": {
+           "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-    1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
+           "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+           "ResolutionInNanoseconds": 1000,
+           "ZonedColumnTypes": []
+       }
+   }
+   ```
 
 Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud, click programming -> Java to find yours. For the "QueryDefintions", please follow the examples below to write your own.  
 
@@ -71,7 +74,7 @@ The example scenario involves a power system where users collect electricity con
 
 ### Schema
 
-```
+```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
@@ -80,7 +83,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 ### Mock data
 
-```
+```bash
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
@@ -99,180 +102,180 @@ Please login with Seeq administrator and create a few data sources as following.
 
 - Power
 
-```
-{
-    "QueryDefinitions": [
-        {
-            "Name": "PowerNum",
-            "Type": "SIGNAL",
-            "Sql": "SELECT  ts, num FROM meters",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Num",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Interpolation Method",
-                    "Value": "linear",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Interpolation",
-                    "Value": "2day",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": null
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": null,
-    "Password": null,
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
+   ```json
+   {
+       "QueryDefinitions": [
+           {
+               "Name": "PowerNum",
+               "Type": "SIGNAL",
+               "Sql": "SELECT  ts, num FROM meters",
+               "Enabled": true,
+               "TestMode": false,
+               "TestQueriesDuringSync": true,
+               "InProgressCapsulesEnabled": false,
+               "Variables": null,
+               "Properties": [
+                   {
+                       "Name": "Name",
+                       "Value": "Num",
+                       "Sql": null,
+                       "Uom": "string"
+                   },
+                   {
+                       "Name": "Interpolation Method",
+                       "Value": "linear",
+                       "Sql": null,
+                       "Uom": "string"
+                   },
+                   {
+                       "Name": "Maximum Interpolation",
+                       "Value": "2day",
+                       "Sql": null,
+                       "Uom": "string"
+                   }
+               ],
+               "CapsuleProperties": null
+           }
+       ],
+       "Type": "GENERIC",
+       "Hostname": null,
+       "Port": 0,
+       "DatabaseName": null,
+       "Username": null,
+       "Password": null,
+       "InitialSql": null,
+       "TimeZone": null,
+       "PrintRows": false,
+       "UseWindowsAuth": false,
+       "SqlFetchBatchSize": 100000,
+       "UseSSL": false,
+       "JdbcProperties": null,
+       "GenericDatabaseConfig": {
+           "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-   1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
+           "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+           "ResolutionInNanoseconds": 1000,
+           "ZonedColumnTypes": []
+       }
+   }
+   ```
 
 - Goods
 
-```
-{
-    "QueryDefinitions": [
-        {
-            "Name": "PowerGoods",
-            "Type": "CONDITION",
-            "Sql": "SELECT ts1, ts2, goods FROM power.goods",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Goods",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Duration",
-                    "Value": "10days",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": [
-                {
-                    "Name": "goods",
-                    "Value": "${columnResult}",
-                    "Column": "goods",
-                    "Uom": "string"
-                }
-            ]
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": null,
-    "Password": null,
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
+   ```json
+   {
+       "QueryDefinitions": [
+           {
+               "Name": "PowerGoods",
+               "Type": "CONDITION",
+               "Sql": "SELECT ts1, ts2, goods FROM power.goods",
+               "Enabled": true,
+               "TestMode": false,
+               "TestQueriesDuringSync": true,
+               "InProgressCapsulesEnabled": false,
+               "Variables": null,
+               "Properties": [
+                   {
+                       "Name": "Name",
+                       "Value": "Goods",
+                       "Sql": null,
+                       "Uom": "string"
+                   },
+                   {
+                       "Name": "Maximum Duration",
+                       "Value": "10days",
+                       "Sql": null,
+                       "Uom": "string"
+                   }
+               ],
+               "CapsuleProperties": [
+                   {
+                       "Name": "goods",
+                       "Value": "${columnResult}",
+                       "Column": "goods",
+                       "Uom": "string"
+                   }
+               ]
+           }
+       ],
+       "Type": "GENERIC",
+       "Hostname": null,
+       "Port": 0,
+       "DatabaseName": null,
+       "Username": null,
+       "Password": null,
+       "InitialSql": null,
+       "TimeZone": null,
+       "PrintRows": false,
+       "UseWindowsAuth": false,
+       "SqlFetchBatchSize": 100000,
+       "UseSSL": false,
+       "JdbcProperties": null,
+       "GenericDatabaseConfig": {
+           "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-   1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
+           "ResolutionInNanoseconds": 1000,
+           "ZonedColumnTypes": []
+       }
+   }
+   ```
 
 - Temperature
 
-```
-{
-    "QueryDefinitions": [
-        {
-            "Name": "PowerNum",
-            "Type": "SIGNAL",
-            "Sql": "SELECT  ts, temperature FROM meters",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Temperature",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Interpolation Method",
-                    "Value": "linear",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Interpolation",
-                    "Value": "2day",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": null
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": null,
-    "Password": null,
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
+   ```json
+   {
+       "QueryDefinitions": [
+           {
+               "Name": "PowerNum",
+               "Type": "SIGNAL",
+               "Sql": "SELECT  ts, temperature FROM meters",
+               "Enabled": true,
+               "TestMode": false,
+               "TestQueriesDuringSync": true,
+               "InProgressCapsulesEnabled": false,
+               "Variables": null,
+               "Properties": [
+                   {
+                       "Name": "Name",
+                       "Value": "Temperature",
+                       "Sql": null,
+                       "Uom": "string"
+                   },
+                   {
+                       "Name": "Interpolation Method",
+                       "Value": "linear",
+                       "Sql": null,
+                       "Uom": "string"
+                   },
+                   {
+                       "Name": "Maximum Interpolation",
+                       "Value": "2day",
+                       "Sql": null,
+                       "Uom": "string"
+                   }
+               ],
+               "CapsuleProperties": null
+           }
+       ],
+       "Type": "GENERIC",
+       "Hostname": null,
+       "Port": 0,
+       "DatabaseName": null,
+       "Username": null,
+       "Password": null,
+       "InitialSql": null,
+       "TimeZone": null,
+       "PrintRows": false,
+       "UseWindowsAuth": false,
+       "SqlFetchBatchSize": 100000,
+       "UseSSL": false,
+       "JdbcProperties": null,
+       "GenericDatabaseConfig": {
+           "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bbXXXXXXXX",
+           "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+           "ResolutionInNanoseconds": 1000,
+           "ZonedColumnTypes": []
+       }
+   }
+   ```
 
 #### Launch Seeq Workbench
 

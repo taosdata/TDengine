@@ -53,23 +53,26 @@ You can use any client that supports the http protocol to access the RESTful int
 
 Support InfluxDB query parameters as follows.
 
-+ `db` Specifies the database name used by TDengine
-+ `precision` The time precision used by TDengine
-    - ns - nanoseconds
-    - u - microseconds
-    - ms - milliseconds
-    - s - seconds
-    - m - minutes
-    - h - hours
+- `db` Specifies the database name used by TDengine
+- `precision` The time precision used by TDengine
+  - ns - nanoseconds
+  - u - microseconds
+  - ms - milliseconds
+  - s - seconds
+  - m - minutes
+  - h - hours
 
 ## Insert Example
+
 ```bash
 curl --request POST "$TDENGINE_CLOUD_URL/influxdb/v1/write?db=<db_name>&token=$TDENGINE_CLOUD_TOKEN&precision=ns" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577846800001000001"
 ```
-  
+
 ## Query Example with SQL
+
 - `measurement` is the super table name.
 - you can filter data by tag, like:`where host="host1"`.
+
 ```bash
 curl -L -d "select * from <db_name>.measurement where host=\"host1\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```

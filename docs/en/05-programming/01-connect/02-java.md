@@ -92,15 +92,15 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 
 1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object:
 
-  ```java
-  {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
-  ```
+   ```java
+   {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
+   ```
 
 2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
 
-```xml
-{{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
-```
+   ```xml
+   {{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
+   ```
 
 3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to [Spring Example](https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/)
 

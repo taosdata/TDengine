@@ -17,12 +17,13 @@ The source code for the Python client library is hosted on [GitHub](https://gith
 
 ### Install via pip
 
-```
+```bash
 pip3 install -U taospy[ws]
 ```
+
 ### Install vial conda
 
-```
+```bash
 conda install -c conda-forge taospy taospyws
 ```
 
@@ -61,6 +62,7 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 ```python
 {{#include docs/examples/python/reference_cursor.py:basic}}
 ```
+
 - `cursor.execute` : Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
@@ -75,7 +77,7 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
-## Other notes 
+## Other notes
 
 ### Exception handling
 

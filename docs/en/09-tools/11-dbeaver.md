@@ -17,26 +17,26 @@ To use DBeaver to manage TDengine, you need to prepare the following:
 
 1. Log in to the TDengine Cloud service, select **Programming** > **Java** in the management console, and then copy the string value of `TDENGINE_JDBC_URL` displayed in the **Config** section.
 
- ![Copy JDBC URL from TDengine Cloud](./dbeaver/tdengine-cloud-jdbc-dsn-en.webp)
+   ![Copy JDBC URL from TDengine Cloud](./dbeaver/tdengine-cloud-jdbc-dsn-en.webp)
 
-Or copy TDENGINE_JDBC_URL value directly after log in.
+   Or copy TDENGINE_JDBC_URL value directly after log in.
 
-```
-<jdbcURL>
-```
+   ```text
+   <jdbcURL>
+   ```
 
 2. Start the DBeaver application, click the button or menu item to choose **New Database Connection**, and then select **TDengine Cloud** in the **Timeseries** category.
 
- ![Connect TDengine Cloud with DBeaver](./dbeaver/dbeaver-connect-tdengine-cloud-en.webp)
+   ![Connect TDengine Cloud with DBeaver](./dbeaver/dbeaver-connect-tdengine-cloud-en.webp)
 
 3. Configure the TDengine Cloud connection by filling in the JDBC URL value. Click **Test Connection**. If you do not have the TDengine Java client library installed on the local machine, DBeaver will prompt you to download and install it. If the connection is successful, it will be displayed as shown in the following figure. If the connection fails, please check whether the TDengine Cloud service is running properly and whether the JDBC URL is correct.
 
- ![Configure the TDengine Cloud connection](./dbeaver/dbeaver-connect-tdengine-cloud-test-en.webp)
+   ![Configure the TDengine Cloud connection](./dbeaver/dbeaver-connect-tdengine-cloud-test-en.webp)
 
 4. Use DBeaver to select databases and tables and browse your data stored in TDengine Cloud.
 
- ![Browse TDengine Cloud data with DBeaver](./dbeaver/dbeaver-browse-data-cloud-en.webp)
+   ![Browse TDengine Cloud data with DBeaver](./dbeaver/dbeaver-browse-data-cloud-en.webp)
 
 5. You can also manipulate TDengine Cloud data by executing SQL commands.
 
- ![Use SQL commands to manipulate TDengine Cloud data in DBeaver](./dbeaver/dbeaver-sql-execution-cloud-en.webp)
+   ![Use SQL commands to manipulate TDengine Cloud data in DBeaver](./dbeaver/dbeaver-sql-execution-cloud-en.webp)

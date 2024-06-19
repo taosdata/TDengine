@@ -10,12 +10,13 @@ import TabItem from '@theme/TabItem';
 <!-- exclude-end -->
 ## Create Project
 
-```
+```bash
 cargo new --bin cloud-example
 ```
+
 ## Add Dependency
 
-Add dependency to `Cargo.toml`. 
+Add dependency to `Cargo.toml`.
 
 ```toml title="Cargo.toml"
 [package]

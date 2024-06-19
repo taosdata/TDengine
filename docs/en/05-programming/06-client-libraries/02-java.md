@@ -9,7 +9,6 @@ description: This document describes the TDengine Java client library.
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-
 'taos-jdbcdriver' is TDengine's official Java language client library, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard. 'taos-jdbcdriver' connect to a TDengine instance through the REST API.
 
 ## TDengine DataType vs. Java DataType
@@ -62,7 +61,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 
 You can build Java client library from source code after cloning the TDengine project:
 
-```
+```bash
 git clone https://github.com/taosdata/taos-connector-jdbc.git
 cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
@@ -86,16 +85,18 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 :::note IMPORTANT
 
--  REST API is stateless. When using the JDBC REST connection, you need to specify the database name of the table and super table in SQL. For example.
+- REST API is stateless. When using the JDBC REST connection, you need to specify the database name of the table and super table in SQL. For example.
 
-  ```sql
-  INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
+   ```sql
+   INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
+   ```
+
+- If dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed:
+
+   ```sql
+   insert into test using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
   ```
 
-- If dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: 
-  ```sql
-  insert into test using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
-  ```
 :::
 
 ### Establish Connection using URL and Properties
@@ -112,6 +113,7 @@ public Connection getRestConn() throws Exception{
   return conn;
 }
 ```
+
 ### Priority of configuration parameters
 
 If the configuration parameters are duplicated in the URL, Properties, the `priority` of the parameters, from highest to lowest, are as follows:
@@ -269,7 +271,6 @@ public static void main(String[] args) throws Exception {
 
 For more questions about using druid, please see [Official Instructions](https://github.com/alibaba/druid).
 
-
 ### More sample programs
 
 The source code of the sample application is under `TDengine/examples/JDBC`:
@@ -318,13 +319,13 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-  **Cause**: taos-jbdcdriver 3.* only supports TDengine 3.0 and later.
+   **Cause**: taos-jbdcdriver 3.x only supports TDengine 3.0 and later.
 
-  **Solution**: Use taos-jdbcdriver 2.* with your TDengine 2.* deployment.
+   **Solution**: Use taos-jdbcdriver 2.x with your TDengine 2.x deployment.
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
-**Cause**：taos-jdbcdriver 3.0.1 is compiled on JDK 11.
+   **Cause**：taos-jdbcdriver 3.0.1 is compiled on JDK 11.
 
 ## API Reference
 

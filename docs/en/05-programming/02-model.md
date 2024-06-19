@@ -69,7 +69,7 @@ For more details please refer to [Create Table Automatically](../../taos-sql/ins
 
 ## Single Column vs Multiple Column
 
-A multiple columns data model is supported in TDengine. As long as multiple metrics are collected by the same data collection point at the same time, i.e. the timestamps are identical, these metrics can be put in a single STable as columns. 
+A multiple columns data model is supported in TDengine. As long as multiple metrics are collected by the same data collection point at the same time, i.e. the timestamps are identical, these metrics can be put in a single STable as columns.
 
 However, there is another kind of design, i.e. single column data model in which a table is created for each metric. This means that a STable is required for each kind of metric. For example in a single column model, 3 STables would be required for current, voltage and phase.
 

@@ -25,13 +25,14 @@ Please refer to [Install taosTools](https://docs.tdengine.com/cloud/tools/taosdu
 ### taosdump backup data
 
 1. backing up all databases: specify `-A` or `-all-databases` parameter.
-2. backup multiple specified databases: use `-D db1,db2,... ` parameters;
-3. back up some super or normal tables in the specified database: use `-dbname stbname1 stbname2 tbname1 tbname2 ... ` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.
-4. back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys` command-line parameter. 
+2. backup multiple specified databases: use `-D db1,db2,...` parameters;
+3. back up some super or normal tables in the specified database: use `-dbname stbname1 stbname2 tbname1 tbname2 ...` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.
+4. back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys` command-line parameter.
 5. Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for "strict" mode backup. See the [official documentation](https://docs.tdengine.com/taos-sql/escape/) for a description of escaped characters.
 
 <!-- exclude -->
 :::tip
+
 - taosdump versions after 1.4.1 provide the `-I` argument for parsing Avro file schema and data. If users specify `-s` then only taosdump will parse schema.
 - Backups after taosdump 1.4.2 use the batch count specified by the `-B` parameter. The default value is 16384. If, in some environments, low network speed or disk performance causes "Error actual dump ... batch ...", then try changing the `-B` parameter to a smaller value.
 
@@ -53,7 +54,7 @@ taosdump internally uses TDengine stmt binding API for writing recovery data wit
 
 The following is a detailed list of taosdump command-line arguments.
 
-```
+```text
 Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] --databases db1,db2,...
   or:  taosdump [OPTION...] --all-databases
