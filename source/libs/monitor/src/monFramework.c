@@ -178,7 +178,7 @@ void monGenClusterInfoTable(SMonInfo *pMonitor){
   int32_t label_count =1;
   const char *sample_labels1[] = {"cluster_id"};
 
-  for(int32_t i = 0; i < 18; i++){
+  for(int32_t i = 0; i < 17; i++){
     gauge= taos_gauge_new(metric_names[i], "",  label_count, sample_labels1);
     if(taos_collector_registry_register_metric(gauge) == 1){
       taos_counter_destroy(gauge);
