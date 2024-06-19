@@ -1,5 +1,4 @@
 ---
-
 title: TDengine Documentation
 sidebar_label: Documentation Home
 description: This website contains the user manuals for TDengine, an open-source, cloud-native time-series database optimized for IoT, Connected Cars, and Industrial IoT.
