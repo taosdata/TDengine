@@ -115,6 +115,29 @@ void    tSingleWorkerCleanup(SSingleWorker *pWorker);
 int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg);
 void    tMultiWorkerCleanup(SMultiWorker *pWorker);
 
+typedef struct SQueryAutoQWorkerPool {
+  int32_t       num;
+  int32_t       max;
+  int32_t       min;
+  int32_t       maxRunning;
+
+  int32_t       idleNum;
+  int32_t       runningNum;
+
+  int32_t       blockingNum;
+  int32_t       waitingNum;
+
+  const char   *name;
+  TdThreadMutex mutex;
+  SArray       *workers;
+  STaosQset    *qset;
+} SQueryAutoQWorkerPool;
+
+int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
+void        tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool);
+STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pPool, void *ahandle, FItem fp);
+void        tQueryAutoQWorkerFreeQueue(SQueryAutoQWorkerPool* pPool, STaosQueue* pQ);
+
 #ifdef __cplusplus
 }
 #endif
