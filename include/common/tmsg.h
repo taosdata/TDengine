@@ -653,6 +653,14 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_NAME(s)  ((s)->name)
 
 typedef struct {
+  bool    tsEnableMonitor;
+  int32_t tsMonitorInterval;
+  int32_t tsSlowLogThreshold;
+  int32_t tsSlowLogMaxLen;
+  int32_t tsSlowLogScope;
+} SMonitorParas;
+
+typedef struct {
   int32_t  nCols;
   int32_t  version;
   SSchema* pSchema;
@@ -966,6 +974,7 @@ typedef struct {
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
   int64_t  whiteListVer;
+  SMonitorParas monitorParas;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1631,6 +1640,7 @@ typedef struct {
   int8_t   enableWhiteList;
   int8_t   encryptionKeyStat;
   uint32_t encryptionKeyChksum;
+  SMonitorParas monitorParas;
 } SClusterCfg;
 
 typedef struct {
@@ -1722,9 +1732,15 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef enum {
+  MONITOR_TYPE_COUNTER = 0,
+  MONITOR_TYPE_SLOW_LOG = 1,
+} MONITOR_TYPE;
+
 typedef struct {
-  int32_t contLen;
-  char*   pCont;
+  int32_t       contLen;
+  char*         pCont;
+  MONITOR_TYPE  type;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
@@ -3254,6 +3270,7 @@ typedef struct {
   int64_t rspId;
   int32_t svrTimestamp;
   SArray* rsps;  // SArray<SClientHbRsp>
+  SMonitorParas monitorParas;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }

@@ -178,8 +178,10 @@ int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
-int32_t tsSlowLogThreshold = 3;   // seconds
-int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+int32_t tsSlowLogThreshold = 10;   // seconds
+int32_t tsSlowLogThresholdTest = 10;   // seconds
+int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
+int32_t tsSlowLogMaxLen = 4096;
 int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
 
@@ -541,9 +543,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
-    return -1;
-  if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
@@ -567,9 +566,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
-
-  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
-  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddBool(pCfg, "multiResultFunctionStarReturnTags", tsMultiResultFunctionStarReturnTags, CFG_SCOPE_CLIENT,
                  CFG_DYN_CLIENT) != 0)
@@ -697,6 +693,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+
+  if (cfgAddInt32(pCfg, "slowLogThresholdTest", tsSlowLogThresholdTest, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "slowLogMaxLen", tsSlowLogMaxLen, 0, 16384, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -962,40 +966,52 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   sndDebugFlag = cfgGetItem(pCfg, "sndDebugFlag")->i32;
 }
 
-static int32_t taosSetSlowLogScope(const char *pScope) {
+static int32_t taosSetSlowLogScope(char *pScope) {
   if (NULL == pScope || 0 == strlen(pScope)) {
-    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
-    return 0;
+    return SLOW_LOG_TYPE_QUERY;
   }
 
-  if (0 == strcasecmp(pScope, "all")) {
-    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
-    return 0;
+  int32_t slowScope = 0;
+
+  char* scope = NULL;
+  char *tmp   = NULL;
+  while((scope = strsep(&pScope, "|")) != NULL){
+    taosMemoryFreeClear(tmp);
+    tmp = strdup(scope);
+    strtrim(tmp);
+    if (0 == strcasecmp(tmp, "all")) {
+      slowScope |= SLOW_LOG_TYPE_ALL;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "query")) {
+      slowScope |= SLOW_LOG_TYPE_QUERY;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "insert")) {
+      slowScope |= SLOW_LOG_TYPE_INSERT;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "others")) {
+      slowScope |= SLOW_LOG_TYPE_OTHERS;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "none")) {
+      slowScope |= SLOW_LOG_TYPE_NULL;
+      continue;
+    }
+
+    taosMemoryFreeClear(tmp);
+    uError("Invalid slowLog scope value:%s", pScope);
+    terrno = TSDB_CODE_INVALID_CFG_VALUE;
+    return -1;
   }
 
-  if (0 == strcasecmp(pScope, "query")) {
-    tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
-    return 0;
-  }
-
-  if (0 == strcasecmp(pScope, "insert")) {
-    tsSlowLogScope = SLOW_LOG_TYPE_INSERT;
-    return 0;
-  }
-
-  if (0 == strcasecmp(pScope, "others")) {
-    tsSlowLogScope = SLOW_LOG_TYPE_OTHERS;
-    return 0;
-  }
-
-  if (0 == strcasecmp(pScope, "none")) {
-    tsSlowLogScope = 0;
-    return 0;
-  }
-
-  uError("Invalid slowLog scope value:%s", pScope);
-  terrno = TSDB_CODE_INVALID_CFG_VALUE;
-  return -1;
+  taosMemoryFreeClear(tmp);
+  return slowScope;
 }
 
 // for common configs
@@ -1053,12 +1069,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
   tsMetaCacheMaxSize = cfgGetItem(pCfg, "metaCacheMaxSize")->i32;
-  tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
-  tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
-  tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
-  if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
-    return -1;
-  }
   tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
@@ -1130,6 +1140,15 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsSIMDEnable = (bool)cfgGetItem(pCfg, "simdEnable")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
+
+  tsSlowLogThresholdTest = cfgGetItem(pCfg, "slowLogThresholdTest")->i32;
+  tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+  tsSlowLogMaxLen = cfgGetItem(pCfg, "slowLogMaxLen")->i32;
+  int32_t scope = taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str);
+  if(scope < 0){
+    return -1;
+  }
+  tsSlowLogScope = scope;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
@@ -1492,6 +1511,17 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     return 0;
   }
 
+  if (strcasecmp("slowLogScope", name) == 0) {
+    int32_t scope = taosSetSlowLogScope(pItem->str);
+    if(scope < 0){
+      cfgUnLock(pCfg);
+      return -1;
+    }
+    tsSlowLogScope = scope;
+    cfgUnLock(pCfg);
+    return 0;
+  }
+
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
         {"dDebugFlag", &dDebugFlag},     {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
@@ -1509,6 +1539,9 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableWhiteList", &tsEnableWhiteList},
                                          {"telemetryReporting", &tsEnableTelem},
                                          {"monitor", &tsEnableMonitor},
+                                         {"monitorInterval", &tsMonitorInterval},
+                                         {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"slowLogMaxLen", &tsSlowLogMaxLen},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
                                          {"minDiskFreeSize", &tsMinDiskFreeSize},
@@ -1651,10 +1684,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
         matched = true;
-      } else if (strcasecmp("monitor", name) == 0) {
-        tsEnableMonitor = pItem->bval;
-        uInfo("%s set to %d", name, tsEnableMonitor);
-        matched = true;
       }
       break;
     }
@@ -1697,13 +1726,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
-        matched = true;
-      } else if (strcasecmp("slowLogScope", name) == 0) {
-        if (taosSetSlowLogScope(pItem->str)) {
-          cfgUnLock(pCfg);
-          return -1;
-        }
-        uInfo("%s set to %s", name, pItem->str);
         matched = true;
       }
       break;
@@ -1765,7 +1787,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
                                          {"smlDot2Underline", &tsSmlDot2Underline},
                                          {"shellActivityTimer", &tsShellActivityTimer},
-                                         {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"useAdapter", &tsUseAdapter},
                                          {"experimental", &tsExperimental},
                                          {"multiResultFunctionStarReturnTags", &tsMultiResultFunctionStarReturnTags},

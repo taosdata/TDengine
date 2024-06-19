@@ -834,7 +834,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
+int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
   if (NULL == catalogHandle) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }

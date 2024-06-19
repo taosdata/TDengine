@@ -13,9 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ttimer.h>
+#include "cJSON.h"
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "clientMonitor.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "osSleep.h"
@@ -26,6 +29,7 @@
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
+#include "tqueue.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tsched.h"
@@ -70,6 +74,72 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void concatStrings(SArray *list, char* buf, int size){
+  int  len = 0;
+  for(int i = 0; i < taosArrayGetSize(list); i++){
+    char* db = taosArrayGet(list, i);
+    int ret = snprintf(buf, size - len, "%s,", db);
+    if (ret < 0)  {
+      tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
+      break;
+    }
+    len += ret;
+    if (len >= size){
+      tscInfo("dbList is truncated, buf:%s, len:%d", buf, len);
+      break;
+    }
+  }
+}
+
+static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration){
+  cJSON* json = cJSON_CreateObject();
+  if (json == NULL) {
+    tscError("[monitor] cJSON_CreateObject failed");
+    return;
+  }
+  cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateNumber(pTscObj->pAppInfo->clusterId));
+  cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateNumber(pRequest->metric.start));
+  cJSON_AddItemToObject(json, "request_id",  cJSON_CreateNumber(pRequest->requestId));
+  cJSON_AddItemToObject(json, "query_time",         cJSON_CreateNumber(duration/1000));
+  cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
+  cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
+  cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
+  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.totalRows));
+  if(strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
+    char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
+    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
+    cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
+    pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = tmp;
+  }else{
+    cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
+  }
+
+  cJSON_AddItemToObject(json, "user",         cJSON_CreateString(pTscObj->user));
+  cJSON_AddItemToObject(json, "process_name", cJSON_CreateString(appInfo.appName));
+  cJSON_AddItemToObject(json, "ip",           cJSON_CreateString(tsLocalFqdn));
+  cJSON_AddItemToObject(json, "process_id",   cJSON_CreateNumber(appInfo.pid));
+  char dbList[1024] = {0};
+  concatStrings(pRequest->dbList, dbList, sizeof(dbList));
+  cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+
+  MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
+  if (slowLogData == NULL) {
+    cJSON_Delete(json);
+    tscError("[monitor] failed to allocate slow log data");
+    return;
+  }
+  slowLogData->clusterId = pTscObj->pAppInfo->clusterId;
+  slowLogData->value = cJSON_PrintUnformatted(json);
+  tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
+  if (taosWriteQitem(monitorQueue, slowLogData) == 0){
+    tsem2_post(&monitorSem);
+  }else{
+    monitorFreeSlowLogData(slowLogData);
+    taosFreeQitem(slowLogData);
+  }
+  cJSON_Delete(json);
+}
+
 static void deregisterRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) {
     tscError("pRequest == NULL");
@@ -83,7 +153,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
-  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
+  int64_t duration = taosGetTimestampUs() - pRequest->metric.start/1000;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
            " elapsed:%.2f ms, "
            "current:%d, app current:%d",
@@ -113,21 +183,26 @@ static void deregisterRequest(SRequestObj *pRequest) {
     nodesSimReleaseAllocator(pRequest->allocatorRefId);
   }
 
-  if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
-  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
-  } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
-    sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
+  if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPESELECT);
+    } else if (QUERY_NODE_DELETE_STMT == pRequest->stmtType) {
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEDELETE);
+    }
   }
 
-  if (duration >= (tsSlowLogThreshold * 1000000UL)) {
+  if (duration >= (pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
-    if (tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
+    if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " ns, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
-      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
+      if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
+        slowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
+        generateWriteSlowLog(pTscObj, pRequest, reqType, duration);
+      }
     }
   }
 
@@ -233,14 +308,13 @@ void stopAllRequests(SHashObj *pRequests) {
   }
 }
 
-void destroyAppInst(SAppInstInfo *pAppInfo) {
+void destroyAppInst(void *info) {
+  SAppInstInfo* pAppInfo = (SAppInstInfo*)info;
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
   taosThreadMutexLock(&appInfo.mutex);
 
-  clientMonitorClose(pAppInfo->instKey);
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
-  taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
   taosThreadMutexUnlock(&appInfo.mutex);
 
@@ -345,7 +419,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
-  pRequest->metric.start = taosGetTimestampUs();
+  pRequest->metric.start = taosGetTimestampNs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   pRequest->type = type;
@@ -670,7 +744,7 @@ void tscStopCrashReport() {
   }
 
   if (atomic_val_compare_exchange_32(&clientStop, 0, 1)) {
-    tscDebug("hb thread already stopped");
+    tscDebug("crash report thread already stopped");
     return;
   }
 
@@ -719,7 +793,8 @@ void taos_init_imp(void) {
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
+  appInfo.pInstMapByClusterId = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(appInfo.pInstMap, destroyAppInst);
   deltaToUtcInitOnce();
 
   char logDirName[64] = {0};
@@ -769,6 +844,7 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
+  monitorInit();
 
   tscDebug("client is initialized successfully");
 }

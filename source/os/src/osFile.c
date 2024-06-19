@@ -66,7 +66,7 @@ typedef struct TdFile {
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
+
   char        tmpPath[PATH_MAX];
 
   int32_t len = (int32_t)strlen(inputTmpDir);
@@ -76,7 +76,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -88,8 +88,6 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
 #else
 
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
-
   char    tmpPath[PATH_MAX];
   int32_t len = strlen(inputTmpDir);
   memcpy(tmpPath, inputTmpDir, len);
@@ -99,7 +97,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '/';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");

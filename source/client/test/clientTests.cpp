@@ -1525,6 +1525,13 @@ TEST(clientCase, sub_tb_test) {
 }
 
 TEST(clientCase, sub_tb_mt_test) {
+  char *user = NULL;
+  char *auth = NULL;
+  char *ip = NULL;
+  int port = 0;
+  char key[512] = {0};
+  snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TdThread qid[20] = {0};
 
