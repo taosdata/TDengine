@@ -502,7 +502,7 @@ static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRo
   float* val = (float*)&pBuf->v;
 
   // AVX version to speedup the loop
-  if (tsAVXEnable && tsSIMDEnable) {
+  if (tsAVXSupported && tsSIMDEnable) {
     *val = floatVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {
@@ -533,7 +533,7 @@ static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfR
   double* val = (double*)&pBuf->v;
 
   // AVX version to speedup the loop
-  if (tsAVXEnable && tsSIMDEnable) {
+  if (tsAVXSupported && tsSIMDEnable) {
     *val = (double)doubleVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {

@@ -39,8 +39,8 @@ char           *tsProcPath = NULL;
 
 char tsSIMDEnable = 0;
 char tsAVX512Enable = 0;
-char tsSSE42Enable = 0;
-char tsAVXEnable = 0;
+char tsSSE42Supported = 0;
+char tsAVXSupported = 0;
 char tsAVX2Supported = 0;
 char tsFMASupported = 0;
 char tsAVX512Supported = 0;
