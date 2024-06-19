@@ -6,7 +6,7 @@ use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
-use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
 use std::{
     fmt::Display,
@@ -140,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
+            .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
             .route("/api/-/captcha", web::get().to(generate_captcha_image))
@@ -231,33 +232,26 @@ async fn main() -> anyhow::Result<()> {
 
     // error reported when configuring only one file, so change it to '||' @zqsong
     let server = if !certificate.is_empty() || !certificate_key.is_empty() {
-        let cert_file = File::open(certificate).expect("Failed to open certificate file");
-        let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
+        let cert_file = File::open(&certificate).expect("Failed to open certificate file");
+        let cert_key_file = File::open(&certificate_key).expect("Failed to open private key file");
 
-        let cert = certs(&mut BufReader::new(cert_file))
-            .map(|result| Certificate(result.unwrap().to_vec()))
-            .collect_vec();
-        let cert_key = PrivateKey(
-            private_key(&mut BufReader::new(cert_key_file))
-                .unwrap()
-                .unwrap()
-                .secret_der()
-                .to_vec(),
-        );
+        let cert = certs(&mut BufReader::new(cert_file)).try_collect()?;
+        let cert_key = private_key(&mut BufReader::new(cert_key_file))?
+            .ok_or_else(|| anyhow::anyhow!("No private key found in file {certificate_key}"))?;
 
         let config = ServerConfig::builder()
-            .with_safe_defaults()
+            // .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert, cert_key)
             .expect("bad certificate/key");
 
         let server = server
-            .bind_rustls((addr, port), config.clone())
+            .bind_rustls_0_23((addr, port), config.clone())
             .with_context(|| format!("Bind address {addr}:{port} error"))?;
 
         if let Some(ipv6) = args.ipv6.as_deref() {
             server
-                .bind_rustls((ipv6, port), config.clone())
+                .bind_rustls_0_23((ipv6, port), config.clone())
                 .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
         } else {
             server
@@ -589,7 +583,7 @@ async fn proxy(
         let mut client_response = HttpResponse::SwitchingProtocols();
         client_response.upgrade("websocket");
         for (header, value) in target_response.headers() {
-            client_response.insert_header((header.to_owned(), value.to_owned()));
+            client_response.insert_header((header.as_str(), value.as_bytes()));
         }
 
         let target_upgrade = target_response
@@ -630,16 +624,11 @@ async fn proxy(
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
         let builder = real_ip_forward(&req, builder);
-        let res = builder
+        builder
             .send()
             .await
-            .map_err(error::ErrorInternalServerError)?;
-        let mut client_resp = HttpResponse::build(res.status());
-        for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection")
-        {
-            client_resp.insert_header((header_name.clone(), header_value.clone()));
-        }
-        Ok(client_resp.streaming(res.bytes_stream()))
+            .map_err(error::ErrorInternalServerError)
+            .map(reqwest_into_http_response)
     }
 }
 
@@ -694,6 +683,74 @@ enum Error {
 
 impl error::ResponseError for Error {}
 
+#[derive(Deserialize)]
+struct ImportRequest {
+    server: String,
+    #[serde(default)]
+    passwords: bool,
+    #[serde(default)]
+    privileges: bool,
+    #[serde(default)]
+    whitelist: bool,
+}
+#[instrument(skip_all)]
+async fn import(
+    args: web::Data<Args>,
+    client: web::Data<reqwest::Client>,
+    req: HttpRequest,
+    import: web::Json<ImportRequest>,
+) -> impl Responder {
+    if args.profile.x_api.is_none() {
+        return Ok(HttpResponse::NotFound().body("taosX API is required"));
+    }
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok());
+    if header.is_none() {
+        return Ok(HttpResponse::Unauthorized().body("Authorization header not found"));
+    }
+    let header = header.unwrap();
+    match args.query(header, "select server_status()").await {
+        Ok(ok) => {
+            if ok.code != Code::SUCCESS {
+                return Ok(HttpResponse::InternalServerError().json(ok));
+            }
+        }
+        Err(err) => return Err(RestErrResponse::new(err)),
+    }
+    let dsn = args.build_dsn(header)?;
+
+    let migrate = serde_json::json!(
+        {
+            "from": import.server,
+            "to": dsn.to_string(),
+            "options": {
+                "passwords": import.passwords,
+                "privileges": import.privileges,
+                "whitelist": import.whitelist
+            }
+        }
+    );
+    let x = args.profile.x_api.as_deref().unwrap();
+    let url = format!("{x}/privileges/migrate");
+
+    client
+        .post(url)
+        .json(&migrate)
+        .send()
+        .await
+        .map_err(RestErrResponse::new)
+        .map(reqwest_into_http_response)
+}
+
+fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
+    let mut client_resp = HttpResponse::build(res.status());
+    for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
+        client_resp.insert_header((header_name.clone(), header_value.clone()));
+    }
+    client_resp.streaming(res.bytes_stream())
+}
 #[instrument(skip_all)]
 async fn x_api(
     args: web::Data<Args>,
@@ -887,6 +944,20 @@ struct Ssl {
 }
 
 impl Args {
+    fn build_dsn(&self, auth: &str) -> Result<Dsn, RestErrResponse> {
+        let credentials =
+            Credentials::from_header(auth.to_string()).map_err(RestErrResponse::new)?;
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some(credentials.user_id);
+        dsn.password = Some(credentials.password);
+        Ok(dsn)
+    }
     async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
         log::info!("SQL: {sql}");
         //token
