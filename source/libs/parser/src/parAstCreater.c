@@ -176,7 +176,8 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb)
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
   trimEscape(pTableName);
-  if (NULL != pTableName && pTableName->type != TK_NK_NIL && (pTableName->n >= TSDB_TABLE_NAME_LEN || pTableName->n == 0)) {
+  if (NULL != pTableName && pTableName->type != TK_NK_NIL &&
+      (pTableName->n >= TSDB_TABLE_NAME_LEN || pTableName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
     return false;
   }
@@ -185,7 +186,8 @@ static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
 
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
   trimEscape(pColumnName);
-  if (NULL != pColumnName && pColumnName->type != TK_NK_NIL && (pColumnName->n >= TSDB_COL_NAME_LEN || pColumnName->n == 0)) {
+  if (NULL != pColumnName && pColumnName->type != TK_NK_NIL &&
+      (pColumnName->n >= TSDB_COL_NAME_LEN || pColumnName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
     return false;
   }
@@ -447,7 +449,7 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     }
     case HINT_PARA_TABLES_SORT:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_PARA_TABLES_SORT)) return true;
-      break;    
+      break;
     default:
       return true;
   }
@@ -517,7 +519,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_PARA_TABLES_SORT;
-        break;        
+        break;
       case TK_NK_LP:
         lastComma = false;
         if (0 == opt || inParamList) {
@@ -2298,9 +2300,10 @@ SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgI
   return (SNode*)pStmt;
 }
 
-SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName){
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
-  SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT);
+  SBalanceVgroupLeaderStmt* pStmt =
+      (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
@@ -2344,7 +2347,8 @@ SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
 SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
                        SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName)) {
+  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName) ||
+      !checkTableName(pCxt, &pPrivLevel->second) {
     return NULL;
   }
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);
