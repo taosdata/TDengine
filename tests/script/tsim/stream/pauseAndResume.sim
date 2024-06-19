@@ -336,6 +336,8 @@ sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt6 as select  _wstart, count(*) c1 from st interval(10s);
 
+sleep 1000
+
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);
 
@@ -353,6 +355,8 @@ sql insert into ts1 values(1648791223001,1,12,3,1.0);
 sql insert into ts2 values(1648791233001,1,12,3,1.0);
 
 sql resume stream streams6;
+
+sleep 1000
 
 sql insert into ts3 values(1648791243001,1,12,3,1.0);
 sql insert into ts4 values(1648791253001,1,12,3,1.0);
