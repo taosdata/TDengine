@@ -82,6 +82,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
+mod privileges;
 mod replica;
 mod run;
 mod serve;
@@ -89,6 +90,7 @@ mod serve;
 #[derive(Subcommand, Debug)]
 enum Commands {
     Run(run::Cli),
+    Privileges(privileges::Cli),
     Serve(serve::Cli),
     #[clap(hide = true)]
     Replica(replica::Cli),
@@ -612,6 +614,9 @@ fn main() -> Result<()> {
             let span = tracing::info_span!("main");
             let _ = span.enter();
             runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
+        }
+        Commands::Privileges(privileges) => {
+            runtime.block_on(privileges.run(args.opt_args))?;
         }
         Commands::Replica(replica) => {
             runtime.block_on(replica.run(args.opt_args))?;

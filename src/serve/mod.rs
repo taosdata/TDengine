@@ -48,6 +48,7 @@ mod data_sources;
 mod metrics;
 mod middleware;
 pub mod monitor;
+mod privileges;
 mod routes;
 mod rpc;
 #[allow(unused)]
@@ -165,6 +166,9 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_tmq_task_table_progress)
             .service(download_files)
             .service(upload_files)
+            .service(privileges::privileges_migrate)
+            .service(privileges::privileges_export)
+            .service(privileges::privileges_import)
             .service(metrics::profile)
             .service(filemeta)
             .service(health);
@@ -382,6 +386,10 @@ impl Cli {
                 agent::get_agents,
                 agent::get_agent_activities,
 
+                privileges::privileges_migrate,
+                privileges::privileges_export,
+                privileges::privileges_import,
+
                 routes::cluster::get_cluster_connector_transferred,
 
             ),
@@ -391,6 +399,7 @@ impl Cli {
                 (name = "transform", description = "Transform simulation"),
                 (name = "agents", description = "Agents Management"),
                 (name = "cluster", description = "Cluster Information"),
+                (name = "privileges", description = "Migrate Passwords and Privileges"),
             ),
         )]
         struct ApiDoc;
