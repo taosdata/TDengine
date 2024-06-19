@@ -100,7 +100,7 @@ typedef struct {
 } SSyncMgmt;
 
 typedef struct {
-  int64_t expireTimeMS;
+  int64_t expireTimeSec;
   int64_t timeseriesAllowed;
 } SGrantInfo;
 

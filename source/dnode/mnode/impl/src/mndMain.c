@@ -1028,9 +1028,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
+  pGrantInfo->expire_time = pMnode->grant.expireTimeSec == GRANT_UNIQ_UNLIMITED
+                                ? GRANT_UNIQ_UNLIMITED
+                                : (pMnode->grant.expireTimeSec - ms / 1000);
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
-  if (pMnode->grant.expireTimeMS == 0) {
+  if (pMnode->grant.expireTimeSec == 0) {
     pGrantInfo->expire_time = 0;
     pGrantInfo->timeseries_total = 0;
   }
