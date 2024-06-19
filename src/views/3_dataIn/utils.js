@@ -1167,7 +1167,8 @@ function getGroupsQuery(groups, query) {
             }
             query.push(field + '=' + getQueryParamValue(value));
           } else if (ComposeParams.includes(k)) {
-            query.push(field + '=' + getQueryParamValue(groups[key][k]) + getQueryParamValue(groups[key][k+'_type']));
+            let type_value = checkValue(getQueryParamValue(groups[key][k+'_type'])) ? getQueryParamValue(groups[key][k+'_type']) : ''
+            query.push(field + '=' + getQueryParamValue(groups[key][k]) + type_value);
           } else {
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
@@ -1320,7 +1321,7 @@ function getOriginField(field) {
 }
 
 function checkValue(value) {
-  if (value === undefined || value === null || value === '') return false;
+  if (value === undefined || value === null || value === '' || value === 'undefined') return false;
   if (Array.isArray(value)) {
     if (!value.length) return false;
   }
