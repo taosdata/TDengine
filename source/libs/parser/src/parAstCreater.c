@@ -2348,7 +2348,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* 
                        SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName) ||
-      !checkTableName(pCxt, &pPrivLevel->second) {
+      !checkTableName(pCxt, &pPrivLevel->second)) {
     return NULL;
   }
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);
