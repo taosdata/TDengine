@@ -38,6 +38,20 @@ TEST(utilTest, decompress_ts_test) {
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  int64_t tsList[4] = {1286, 1124, 2681, 2823};
+
+  char*   pOutput[4 * sizeof(int64_t)] = {0};
+  int32_t len = tsCompressTimestamp(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 4,
+                                    ONE_STAGE_COMP, NULL, 0);
+
+  char* decompOutput[4 * 8] = {0};
+  tsDecompressTimestamp(pOutput, len, 4, decompOutput, sizeof(int64_t) * 4, ONE_STAGE_COMP, NULL, 0);
+
+  for (int32_t i = 0; i < 4; ++i) {
+    std::cout << ((int64_t*)decompOutput)[i] << std::endl;
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   int64_t tsList1[7] = {1700000000, 1700000000, 1700000000, 1700000000, 1700000000, 1700000000, 1700000900};
   int32_t len1 = tsCompressTimestamp(tsList1, sizeof(tsList1), sizeof(tsList1) / sizeof(tsList1[0]), pOutput, 7,
                                      ONE_STAGE_COMP, NULL, 0);
