@@ -491,25 +491,25 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
 
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   SQueryCompactProgressRsp req = {0};
-  int32_t code = 0;
+  int32_t                  code = 0;
   code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    mError("failed to deserialize vnode-query-compact-progress-rsp, ret:%d, pCont:%p, len:%d", 
-          code, pReq->pCont, pReq->contLen);
+    mError("failed to deserialize vnode-query-compact-progress-rsp, ret:%d, pCont:%p, len:%d", code, pReq->pCont,
+           pReq->contLen);
     return -1;
   }
 
   mDebug("compact:%d, receive query response, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", req.compactId,
          req.vgId, req.dnodeId, req.numberFileset, req.finished);
 
-  SMnode        *pMnode = pReq->info.node;
+  SMnode *pMnode = pReq->info.node;
 
   code = mndUpdateCompactProgress(pMnode, pReq, req.compactId, &req);
-  if(code != 0){
+  if (code != 0) {
     terrno = code;
-    mError("compact:%d, failed to update progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
-        req.compactId, req.vgId, req.dnodeId, req.numberFileset, req.finished);
+    mError("compact:%d, failed to update progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", req.compactId,
+           req.vgId, req.dnodeId, req.numberFileset, req.finished);
     return -1;
   }
 
@@ -600,23 +600,22 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
           pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished,
           pDetail->newNumberFileset, pDetail->newFinished);
 
-      //these 2 number will jump back after dnode restart, so < is not used here
-      if(pDetail->numberFileset != pDetail->newNumberFileset || pDetail->finished != pDetail->newFinished)
+      // these 2 number will jump back after dnode restart, so < is not used here
+      if (pDetail->numberFileset != pDetail->newNumberFileset || pDetail->finished != pDetail->newFinished)
         needSave = true;
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  SCompactObj   *pCompact = mndAcquireCompact(pMnode, compactId);
-  if(pCompact == NULL) return 0;
+  SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
+  if (pCompact == NULL) return 0;
 
   SDbObj *pDb = mndAcquireDb(pMnode, pCompact->dbname);
-  if(pDb == NULL){
+  if (pDb == NULL) {
     needSave = true;
-    mWarn("compact:%" PRId32 ", no db exist, set needSave:%s" , compactId, pCompact->dbname);
-  }
-  else{
+    mWarn("compact:%" PRId32 ", no db exist, set needSave:%s", compactId, pCompact->dbname);
+  } else {
     mndReleaseDb(pMnode, pDb);
     pDb = NULL;
   }
@@ -632,7 +631,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     return -1;
   }
   mInfo("compact:%d, trans:%d, used to update compact progress.", compactId, pTrans->id);
-  
+
   mndTransSetDbName(pTrans, pCompact->dbname, NULL);
 
   pIter = NULL;
@@ -690,13 +689,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   }
 
   pDb = mndAcquireDb(pMnode, pCompact->dbname);
-  if(pDb == NULL){
+  if (pDb == NULL) {
     allFinished = true;
-    mWarn("compact:%" PRId32 ", no db exist, set all finished:%s" , compactId, pCompact->dbname);
-  }
-  else{
+    mWarn("compact:%" PRId32 ", no db exist, set all finished:%s", compactId, pCompact->dbname);
+  } else {
     mndReleaseDb(pMnode, pDb);
-    pDb = NULL;    
+    pDb = NULL;
   }
 
   if (allFinished) {
