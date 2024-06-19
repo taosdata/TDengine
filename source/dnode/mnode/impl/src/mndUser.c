@@ -504,7 +504,7 @@ _end:
     }
     taosArrayDestroy(pFqdns);
   }
-  taosHashCleanup(pIpWhiteTab);
+  destroyIpWhiteTab(pIpWhiteTab);
   return NULL;
 }
 
