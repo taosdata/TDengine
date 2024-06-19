@@ -14,11 +14,12 @@
 import sys
 import time
 import random
-
+import socket
 import taos
 import frame
 import frame.etool
 import frame.eutil
+import shutil
 
 from frame.log import *
 from frame.cases import *
@@ -53,20 +54,20 @@ class TDTestCase(TBase):
     }
 
 
-    def initEnv(self):
+    def init_env(self):
         tdLog.info(f"check view like.")
 
         # start taosadapter
         tAdapter.init("")
         tAdapter.deploy()
-        # stop taosadapter
+        # # stop taosadapter
         tAdapter.start()
 
         # start taoskeeper
-        self.startTaoskeeper()
+        self.start_taoskeeper()
 
         # stop taoskeeper
-        self.stopTaoskeeper()
+        # self.stop_taoskeeper()
 
     
     def demo(self):
@@ -75,21 +76,21 @@ class TDTestCase(TBase):
         }
 
         # update taos.cfg and restart dnode
-        self.updateTaosCfg(1, updatecfgDict)
+        self.update_taos_cfg(1, updatecfgDict)
 
         # alter dnode's variable
-        self.alterVariables(1, updatecfgDict)
+        self.alter_variables(1, updatecfgDict)
 
         # alter all dnode's variable
-        self.alterVariables(updatecfgDict)
+        self.alter_variables(updatecfgDict)
 
-    def startTaoskeeper(self):
+    def stop_taoskeeper(self):
          # stop taoskeeper
-        cmd = 'pkill -f "taoskeeper"'
+        cmd = 'killall taoskeeper'
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def stopTaoskeeper(self):
+    def start_taoskeeper(self):
          # start taoskeeper
         taoskeeper = os.path.join(os.getcwd(), 'monitor/taoskeeper')
         # cmd = f"nohup {taoskeeper} -c {self.cfg_path} > /dev/null & "
@@ -97,17 +98,17 @@ class TDTestCase(TBase):
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def updateTaosCfg(self, idx, updatecfgDict: list):
+    def update_taos_cfg(self, idx, updatecfgDict: list):
         # stop dnode
-        sc.dnodeStop(1)
+        sc.dnodeStop(idx)
 
         # update taos.cfg and restart dnode
         sc.setTaosCfg(idx, updatecfgDict)
 
-        # stop dnode
-        sc.dnodeStart(1)
+        # start dnode
+        sc.dnodeStart(idx)
 
-    def alterVariables(self, idx: int = 0, updatecfgDict: dict = None):
+    def alter_variables(self, idx: int = 0, updatecfgDict: dict = None):
         if idx == 0:
             for key, value in updatecfgDict.items():
                 sql = f"ALTER ALL DNODES  '{key} {value}'"
@@ -118,13 +119,19 @@ class TDTestCase(TBase):
                 tdSql.execute(sql, show=True)
     
     # check default value of slowLogScope
-    def checkSlowQueryTable(self, db_name: str, query_log_exist: bool, insert_log_exist: bool, other_log_exist: bool):
-        # 
-        tdSql.execute(f"create database {db_name}")
-        tdSql.execute(f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)")
-        tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
-        tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
-        tdSql.query(f"select * from {db_name}.t100 order by ts")
+    def check_slow_query_table(self, db_name: str, query_log_exist: bool, insert_log_exist: bool, other_log_exist: bool, taosc_cfg: str = None):
+        if taosc_cfg:
+            eutil.runTaosShellWithSpecialCfg(sql=f'create database {db_name}', cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"select * from {db_name}.t100 order by ts", cfg=taosc_cfg)
+        else:
+            tdSql.execute(f"create database {db_name}")
+            tdSql.execute(f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)")
+            tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
+            tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
+            tdSql.query(f"select * from {db_name}.t100 order by ts")
 
         # check data in taos_slow_sql_detail
         tdSql.query(f"select * from log.taos_slow_sql_detail where db='{db_name}' order by start_ts")
@@ -183,36 +190,103 @@ class TDTestCase(TBase):
         else:
             tdSql.checkRows(0)
 
-    def failedToStartTaosdlWithSpecialCfg(self, cfg: str):
+    def failed_to_start_taosd_with_special_cfg(self, cfg: str):
         if not os.path.exists(cfg):
             tdLog.exit(f'config file does not exist, file: {cfg}')
 
-        rets = frame.etool.runBinFile("taosd", f" -c {cfg}")
-        if frame.etool.checkErrorFromBinFile(rets):
-            return True
-        else:
-            tdLog.exit(f"start taosd with speccial config: {cfg}, can not catch exception when restart taosd")
+        try:
+            rets = frame.etool.runBinFile("taosd", f" -c {cfg}", timeout=3)
+            if not frame.etool.checkErrorFromBinFile(rets):
+                tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+            else:
+                catch_err = False
+                for value in rets:
+                    if 'statusInterval' in str(value).lower():
+                        catch_err = True
+                        break
+                if not catch_err:
+                    tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+        except subprocess.TimeoutExpired as err_msg:
+            tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+        
 
+    def failed_to_create_dnode_with_different_setting(self, cfg: str):
+        if not os.path.exists(cfg):
+            tdLog.exit(f'config file does not exist, file: {cfg}')
+
+        # remove taos data folder
+        # if os.path.exists(taos_error_dir):
+        #     shutil.rmtree(taos_error_dir)
+
+        # start taosd with special cfg
+        try:
+            rets = frame.etool.runBinFile("taosd", f" -c {cfg}", timeout=3)
+            if not frame.etool.checkErrorFromBinFile(rets):
+                tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+        except subprocess.TimeoutExpired as err_msg:
+            tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+
+        # # drop old dnode if exists
+        # tdSql.query(f"select id from information_schema.ins_dnodes where endpoint='{endpoint}'")
+        # ret = tdSql.getResult()
+
+        # if ret['rows'] == 1:
+        #     node_id = ret['data'][0][0]
+        #     tdSql.execute(f"drop dnode '{node_id}'")
+
+        # # create new dnode
+        # tdSql.execute(f"create dnode '{endpoint}'")
+
+        # # check error msg
+        # count = 0
+        # while True:
+        #     count = count + 1
+        #     tdSql.query(f"select note from information_schema.ins_dnodes where endpoint='{endpoint}'")
+            
+        #     if ret['rows'] == 1:
+        #         note = ret['data'][0][0]
+        #         if err_msg in note:
+        #             tdLog.info(f"get the expected err_msg: {err_msg}")
+        #             break
+            
+        #     if count == 3:
+        #         tdLog.exit(f"cannot get the expected err_msg: {err_msg}")
+            
     # create private taos.cfg by special setting list
-    def createPrivateCfg(self, params: dict):
-        taos_cfg = os.path.join(os.getcwd(), 'monitor/taos.cfg')
+    def create_private_cfg(self, cfg_name: str, params: dict):
+        taos_cfg = os.path.join(os.getcwd(), f'monitor/{cfg_name}')
         if os.path.exists(taos_cfg):
-            sys.path.remove(taos_cfg)
+            os.remove(taos_cfg)
         
         with open(taos_cfg, 'w') as file:
-            for key, value in params:
-                file.write(f'{key} {value}')
+            for key, value in params.items():
+                file.write(f'{key} {value}\n')
         file.close()
         return taos_cfg
 
     def test_show_log_scope(self):
         tdLog.info(f"check_show_log_scope")
 
-        # check nagative value of show_log_scope
-        VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVLIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','OTHERS','NONE','','NULL','100']
+        # 1.check nagative value of show_log_scope
+        VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVLIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','','NULL','100']
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
+        endpoint = f'{socket.gethostname()}:6630'
+        for value in VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES:
+            params = {
+                'slowLogScope': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
+            self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg)
+            tdLog.info(f"check invalid value '{value}' of 'statusInterval' - PASS")
 
-
-        # check show_log_scope setting 
+        # 2. check valid setting of show_log_scope
         VAR_SHOW_LOG_SCOPE_POSITIVE_CASES = {
             'ALL': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
             'QUERY': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
@@ -228,17 +302,22 @@ class TDTestCase(TBase):
             updatecfgDict = {"slowLogScope": scope_value}
 
             # set slowLogScope=ALL via taos.cfg
-            self.updateTaosCfg(1, updatecfgDict)
-            self.checkSlowQueryTable(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
 
             # set slowLogScope=ALL via alter operation
-            self.alterVariables(1, updatecfgDict)
-            self.checkSlowQueryTable(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
+            self.alter_variables(1, updatecfgDict)
+            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
 
-        # run sql by taos shell using specified cfg
-        params = {"slowLogScope":"ALL"}
-        taoscfg = self.createPrivateCfg(params=params)
-        eutil.runTaosShellWithSpecialCfg(sql='show dnodes', cfg=taoscfg)
+        # 3.config in client is not available
+        updatecfgDict = {"slowLogScope": "INSERT"}
+        self.update_taos_cfg(1, updatecfgDict)
+
+        updatecfgDict = {"slowLogScope":"QUERY"}
+        taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
+        self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
+
+        # add node failed if setting is different
 
         tdLog.info(f"check_show_log_scope is done")
 
@@ -310,7 +389,9 @@ class TDTestCase(TBase):
 
         
 
-        self.initEnv()
+        self.init_env()
+
+        self.test_show_log_scope()
 
 
         tdLog.success(f"{__file__} successfully executed")

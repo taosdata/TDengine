@@ -19,6 +19,7 @@ import datetime
 from frame.server.dnode  import *
 from frame.server.dnodes import *
 from frame.server.cluster import *
+from frame.server.simClient import *
 
 
 class srvCtl:
@@ -96,5 +97,8 @@ class srvCtl:
             return clusterDnodes.getDnodeCfgPath(idx)
         return tdDnodes.getDnodeCfgPath(idx)
     
+    # return sim dir
+    def getSimPath(self):
+        return tdDnodes.sim.path
 
 sc = srvCtl()
