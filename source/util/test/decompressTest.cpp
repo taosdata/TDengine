@@ -4,9 +4,16 @@
 #include <random>
 #include "ttypes.h"
 
-namespace {}  // namespace
+namespace {
 
-TEST(utilTest, decompress_test) {
+}  // namespace
+
+TEST(utilTest, decompress_ts_test) {
+  {
+    tsSIMDEnable = 1;
+    tsAVX2Supported = 1;
+  }
+
   int64_t tsList[10] = {1700000000, 1700000100, 1700000200, 1700000300, 1700000400,
                         1700000500, 1700000600, 1700000700, 1700000800, 1700000900};
 
@@ -54,6 +61,49 @@ TEST(utilTest, decompress_test) {
 
   for (int32_t i = 0; i < 1; ++i) {
     std::cout << ((int64_t*)decompOutput)[i] << std::endl;
+  }
+}
+
+TEST(utilTest, decompress_bigint_avx2_test) {
+  {
+    tsSIMDEnable = 1;
+    tsAVX2Supported = 1;
+  }
+
+  int64_t tsList[10] = {1700000000, 1700000100, 1700000200, 1700000300, 1700000400,
+                        1700000500, 1700000600, 1700000700, 1700000800, 1700000900};
+
+  char*   pOutput[10 * sizeof(int64_t)] = {0};
+  int32_t len = tsCompressBigint(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 10,
+                                    ONE_STAGE_COMP, NULL, 0);
+
+  char* decompOutput[10 * 8] = {0};
+
+  tsDecompressBigint(pOutput, len, 10, decompOutput, sizeof(int64_t) * 10, ONE_STAGE_COMP, NULL, 0);
+
+  for (int32_t i = 0; i < 10; ++i) {
+    std::cout << ((int64_t*)decompOutput)[i] << std::endl;
+  }
+}
+
+TEST(utilTest, decompress_int_avx2_test) {
+  {
+    tsSIMDEnable = 1;
+    tsAVX2Supported = 1;
+  }
+
+  int32_t tsList[10] = {17000000, 17000001, 17000002, 17000003, 17000004,
+                        17000005, 17000006, 17000007, 17000008, 17000009};
+
+  char*   pOutput[10 * sizeof(int32_t)] = {0};
+  int32_t len =
+      tsCompressInt(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 10, ONE_STAGE_COMP, NULL, 0);
+
+  char* decompOutput[10 * 8] = {0};
+  tsDecompressInt(pOutput, len, 10, decompOutput, sizeof(int32_t) * 10, ONE_STAGE_COMP, NULL, 0);
+
+  for (int32_t i = 0; i < 10; ++i) {
+    std::cout << ((int32_t*)decompOutput)[i] << std::endl;
   }
 }
 

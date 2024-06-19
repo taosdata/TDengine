@@ -74,12 +74,12 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
         int32_t batch = 0;
         int32_t remain = 0;
-        if (tsSIMDEnable && tsAVX512Enable) {
+        if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
 #if __AVX512F__
         batch = num >> 3;
         remain = num & 0x07;
 #endif
-        } else if (tsSIMDEnable && tsAVX2Enable) {
+        } else if (tsSIMDEnable && tsAVX2Supported) {
 #if __AVX2__
         batch = num >> 2;
         remain = num & 0x03;
@@ -87,7 +87,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
         }
 
         if (selector == 0 || selector == 1) {
-          if (tsSIMDEnable && tsAVX512Enable) {
+          if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
 #if __AVX512F__
             for (int32_t i = 0; i < batch; ++i) {
             __m512i prev = _mm512_set1_epi64(prevValue);
@@ -98,7 +98,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
             p[_pos++] = prevValue;
             }
 #endif
-          } else if (tsSIMDEnable && tsAVX2Enable) {
+          } else if (tsSIMDEnable && tsAVX2Supported) {
             for (int32_t i = 0; i < batch; ++i) {
               __m256i prev = _mm256_set1_epi64x(prevValue);
               _mm256_storeu_si256((__m256i *)&p[_pos], prev);
@@ -116,7 +116,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
             }
           }
         } else {
-          if (tsSIMDEnable && tsAVX512Enable) {
+          if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
  #if __AVX512F__
             __m512i sum_mask1 = _mm512_set_epi64(6, 6, 4, 4, 2, 2, 0, 0);
             __m512i sum_mask2 = _mm512_set_epi64(5, 5, 5, 5, 1, 1, 1, 1);
@@ -182,7 +182,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
             v += bit;
             }
 #endif
-          } else if (tsSIMDEnable && tsAVX2Enable) {
+          } else if (tsSIMDEnable && tsAVX2Supported) {
             __m256i base = _mm256_set1_epi64x(w);
             __m256i maskVal = _mm256_set1_epi64x(mask);
 
@@ -331,16 +331,16 @@ int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelemen
 
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
-#if 0
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
+
+#if __AVX2__
   __m128i  prevVal = _mm_setzero_si128();
   __m128i  prevDelta = _mm_setzero_si128();
 
-#if __AVX2__
   int32_t batch = nelements >> 1;
   int32_t remainder = nelements & 0x01;
-  __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
+//  __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
 
   int32_t i = 0;
   if (batch > 1) {
@@ -398,8 +398,6 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-//    __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
-//    __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
     __m128i data1;
     if (nbytes1 == 0) {
       data1 = _mm_setzero_si128();
@@ -471,7 +469,6 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
       ostream[opos++] = prevVal[1] + prevDeltaX;
     }
   }
-#endif
 #endif
   return 0;
 }

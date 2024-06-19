@@ -39,9 +39,10 @@ extern char           *tsProcPath;
 extern char            tsSIMDEnable;
 extern char            tsSSE42Enable;
 extern char            tsAVXEnable;
-extern char            tsAVX2Enable;
-extern char            tsFMAEnable;
-extern char 	       tsAVX512Enable;
+extern char            tsAVX2Supported;
+extern char            tsFMASupported;
+extern char 	       tsAVX512Supported;
+extern char            tsAVX512Enable;
 extern char            tsTagFilterCache;
 
 extern char configDir[];

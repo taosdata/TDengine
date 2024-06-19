@@ -370,7 +370,7 @@ static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, 
 static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                           bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Supported && tsSIMDEnable) {
     pBuf->v = i8VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
@@ -404,7 +404,7 @@ static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SM
 static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Supported && tsSIMDEnable) {
     pBuf->v = i16VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
@@ -438,7 +438,7 @@ static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   // AVX2 version to speedup the loop
-  if (tsAVX2Enable && tsSIMDEnable) {
+  if (tsAVX2Supported && tsSIMDEnable) {
     pBuf->v = i32VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
