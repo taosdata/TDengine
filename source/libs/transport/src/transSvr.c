@@ -222,8 +222,13 @@ static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
 }
 SIpWhiteListTab* uvWhiteListCreate() {
   SIpWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListTab));
+  if (pWhiteList == NULL) return NULL;
 
   pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
+  if (pWhiteList->pList == NULL) {
+    taosMemoryFree(pWhiteList);
+    return NULL;
+  }
   pWhiteList->ver = -1;
   return pWhiteList;
 }
@@ -244,8 +249,13 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
 void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
+  if (tlen <= 0) return;
 
-  char*   pBuf = taosMemoryCalloc(1, tlen + 64);
+  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  if (pBuf == NULL) {
+    *ppBuf = pBuf;
+    return;
+  }
   int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
 
@@ -264,7 +274,9 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
 
     char* buf = NULL;
     uvWhiteListToStr(pUserList, user, &buf);
-    tDebug("ip-white-list  %s", buf);
+    if (buf != NULL) {
+      tDebug("ip-white-list  %s", buf);
+    }
     taosMemoryFree(buf);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
@@ -275,11 +287,17 @@ void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, in
   SWhiteUserList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppUserList == NULL || *ppUserList == NULL) {
     SWhiteUserList* pUserList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    if (pUserList == NULL) {
+      tError("failed to alloc memory for white list , user:%s", user);
+      return;
+    }
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
-    taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
+    if (taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*))) {
+      taosMemoryFreeClear(pUserList);
+      tError("failed to put white list to hash, user:%s", user);
+    }
   } else {
     SWhiteUserList* pUserList = *ppUserList;
 
@@ -1249,6 +1267,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
+    if (thrd->pWhiteList == NULL) {
+      goto End;
+    }
 
     srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
@@ -1271,22 +1292,39 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+    if (thrd == NULL) {
+      goto End;
+    }
 
     thrd->pTransInst = shandle;
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
+    if (thrd->pWhiteList == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
     srv->pThreadObj[i] = thrd;
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    if (srv->pipe[i] == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
+    int          uv_err = 0;
     uv_os_sock_t fds[2];
-    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if ((uv_err = uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE)) != 0) {
+      tError("uv failed to init socketpair reason: %s", uv_err_name(uv_err));
       goto End;
     }
 
     uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    uv_err = uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    if (uv_err != 0) {
+      tError("uv failed to init pipe reason: %s", uv_err_name(uv_err));
+      goto End;
+    }
 
     thrd->pipe = &(srv->pipe[i][1]);  // init read
     thrd->fd = fds[0];
@@ -1390,8 +1428,11 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
 
       int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
       SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
+      if (pList == NULL) {
+        tError("ip-white-list failed to update, user:%s, reason:%s", pUser->user, strerror(TSDB_CODE_OUT_OF_MEMORY));
+        continue;
+      }
       pList->num = pUser->numOfRange;
-
       memcpy(pList->pIpRange, pUser->pIpRanges, sz);
       uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     }
@@ -1596,8 +1637,17 @@ void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
-    SSvrMsg*        msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    if (msg == NULL) {
+      tError("ip-white-list update failed to trigger update reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      continue;
+    }
     SUpdateIpWhite* pReq = (arg != NULL ? cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg) : NULL);
+    if (arg != NULL && pReq == NULL) {
+      tError("ip-white-list update failed to trigger update reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      taosMemoryFree(msg);
+      continue;
+    }
 
     msg->type = Update;
     msg->arg = pReq;

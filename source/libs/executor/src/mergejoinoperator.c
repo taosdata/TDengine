@@ -180,7 +180,7 @@ static int32_t fillKeyBufFromTagCols(SArray* pCols, SSDataBlock* pBlock, int32_t
     }
 
     if (pBlock->pBlockAgg != NULL) {
-      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
+      pColAgg = &pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
     }
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {

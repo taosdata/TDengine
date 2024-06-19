@@ -45,6 +45,12 @@ SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colLi
   }
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+  if (pLoadInfo->aSttBlk == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(pLoadInfo);
+    return NULL;
+  }
+
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
   pLoadInfo->numOfCols = numOfCols;
@@ -99,11 +105,16 @@ void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo* pLoa
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
+      if (pIter->pBlockLoadInfo == NULL) {
+        continue;
+      }
+
+      SSttBlockLoadCostInfo* pCost = &pIter->pBlockLoadInfo->cost;
       if (pLoadCost != NULL) {
-        pLoadCost->loadBlocks += pIter->pBlockLoadInfo->cost.loadBlocks;
-        pLoadCost->loadStatisBlocks += pIter->pBlockLoadInfo->cost.loadStatisBlocks;
-        pLoadCost->blockElapsedTime += pIter->pBlockLoadInfo->cost.blockElapsedTime;
-        pLoadCost->statisElapsedTime += pIter->pBlockLoadInfo->cost.statisElapsedTime;
+        pLoadCost->loadBlocks += pCost->loadBlocks;
+        pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
+        pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
+        pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
       }
 
       destroyLDataIter(pIter);
@@ -818,6 +829,10 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
       if (pLoadInfo == NULL) {
         pLoadInfo = tCreateOneLastBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        if (pLoadInfo == NULL) {
+          code = terrno;
+          goto _end;
+        }
       }
 
       memset(pIter, 0, sizeof(SLDataIter));

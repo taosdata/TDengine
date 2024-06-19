@@ -506,7 +506,7 @@ class TDTestCase:
 
     def test_alter_user(self):
         options = ["enable", "sysinfo", "createdb"]
-        optionErrVals = [-10000, -128, -1, 2, 127, 10000]
+        optionErrVals = [-10000, -128, -1, 2, 127, 1000, 10000]
         for optionErrVal in optionErrVals:
             tdSql.error("create user user_alter pass 'taosdata' sysinfo %d" % optionErrVal)
         tdSql.execute("create user user_alter pass 'taosdata'")
