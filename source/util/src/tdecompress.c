@@ -329,6 +329,7 @@ int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelemen
   return 0;
 }
 
+// decode two timestamps in one loop.
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
   int64_t *ostream = (int64_t *)output;
@@ -375,13 +376,13 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     __m128i deltaOfDelta = _mm_xor_si128(_mm_srli_epi64(zzVal, 1), signmask);
 
     __m128i deltaCurrent = _mm_add_epi64(deltaOfDelta, prevDelta);
-    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), deltaCurrent);
+    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaCurrent);
 
-    __m128i val = _mm_add_epi64(deltaCurrent, prevVal);
-    _mm_storeu_si128((__m128i *)&ostream[opos], val);
+    __m128i finalVal = _mm_add_epi64(deltaCurrent, prevVal);
+    _mm_storeu_si128((__m128i *)&ostream[opos], finalVal);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32 (finalVal, 0xEE);
 
     // keep the previous delta of delta, for the first item
     prevDelta = _mm_shuffle_epi32(deltaOfDelta, 0xEE);
@@ -428,17 +429,18 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     __m128i deltaOfDelta = _mm_xor_si128(_mm_srli_epi64(zzVal, 1), signmask);
 
     __m128i deltaCurrent = _mm_add_epi64(deltaOfDelta, prevDelta);
-    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), deltaCurrent);
+    deltaCurrent = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaCurrent);
 
-    __m128i val = _mm_add_epi64(deltaCurrent, prevVal);
-    _mm_storeu_si128((__m128i *)&ostream[opos], val);
+    __m128i finalVal = _mm_add_epi64(deltaCurrent, prevVal);
+    finalVal = _mm_add_epi64(_mm_slli_si128(deltaCurrent, 8), finalVal);
+
+    _mm_storeu_si128((__m128i *)&ostream[opos], finalVal);
 
     // keep the previous value
-    prevVal = _mm_shuffle_epi32 (val, 0xEE);
+    prevVal = _mm_shuffle_epi32 (finalVal, 0xEE);
 
     // keep the previous delta of delta
-    __m128i delta = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaOfDelta);
-    prevDelta = _mm_shuffle_epi32(_mm_add_epi64(delta, prevDelta), 0xEE);
+    prevDelta = _mm_shuffle_epi32 (deltaCurrent, 0xEE);
 
     opos += 2;
     ipos += nbytes1 + nbytes2;
