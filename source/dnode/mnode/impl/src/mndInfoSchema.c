@@ -76,13 +76,12 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
   }
 
   STableMetaRsp *pMeta = NULL;
-  if(strcmp(tbName, TSDB_INS_TABLE_USERS_FULL) == 0) {
+  if (strcmp(tbName, TSDB_INS_TABLE_USERS_FULL) == 0) {
     pMeta = taosHashGet(pMnode->infosMeta, TSDB_INS_TABLE_USERS_FULL, strlen(tbName));
-  }
-  else{
+  } else {
     pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   }
-  
+
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
