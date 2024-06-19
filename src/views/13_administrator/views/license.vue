@@ -365,12 +365,13 @@ export default {
     async submit() {
       try {
         await activeLicence(this.ruleForm).then((res) => {
-          console.log("res", res);
           if (res && res.code == 0) {
             this.$message.success(this.$t("operateSucc"));
             this.dialog = false;
             this.refresh();
-            this.showLogoutConfirm();
+            if (this.$INDUSTRY) {
+              this.showLogoutConfirm();
+            }
           } else {
             this.$error(res?.desc);
           }
