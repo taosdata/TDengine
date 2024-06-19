@@ -43,6 +43,7 @@ Please refer to [version support list](https://github.com/taosdata/driver-go#rem
 ## Handling exceptions
 
 If it is a TDengine error, you can get the error code and error information in the following ways.
+
 ```go
 // import "github.com/taosdata/driver-go/v3/errors"
     if err != nil {
@@ -133,6 +134,7 @@ DSN in full form.
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
 <Tabs defaultValue="rest" groupId="connect">
 <TabItem value="native" label="native connection">
 
@@ -195,6 +197,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 <TabItem value="WebSocket" label="WebSocket connection">
 
@@ -226,6 +229,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 </Tabs>
 
@@ -284,7 +288,6 @@ The Go client library does not support this feature
 </TabItem>
 </Tabs>
 
-
 ### Schemaless Writing
 
 <Tabs defaultValue="native" groupId="connect">
@@ -303,7 +306,6 @@ The Go client library does not support this feature
 
 </TabItem>
 </Tabs>
-
 
 ### Schemaless with reqId
 
@@ -369,7 +371,6 @@ The TDengine Go client library supports subscription functionality with the foll
 ### More sample programs
 
 * [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
-
 
 ## Frequently Asked Questions
 

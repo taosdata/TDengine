@@ -122,11 +122,12 @@ using (var client = DbDriver.Open(builder))
 </Tabs>
 
 The parameters supported by `ConnectionStringBuilder` are as follows:
+
 * protocol: connection protocol, optional value is Native or WebSocket, default is Native
 * host: the address of the running instance of TDengine or taosadapter,
 * port: The port of the running instance of TDengine or taosadapter.
-    * When using WebSocket without SSL, the default is 6041.
-    * When using WebSocket with SSL, the default is 443.
+  * When using WebSocket without SSL, the default is 6041.
+  * When using WebSocket with SSL, the default is 443.
 * useSSL: Whether to use SSL, the default is false, only valid when the protocol is WebSocket
 * token: The token used to connect to TDengine Cloud, only valid when the protocol is WebSocket
 * username: username to connect to TDengine
@@ -138,7 +139,7 @@ The parameters supported by `ConnectionStringBuilder` are as follows:
 * writeTimeout: WebSocket write timeout, only valid when the protocol is WebSocket, the default is 10 seconds, use the `TimeSpan.Parse` method to parse the string into a `TimeSpan` object.
 * enableCompression: Whether to enable WebSocket compression (effective for dotnet version 6 and above, connector version 3.1.1 and above). The default is false.
 * autoReconnect: Whether to enable WebSocket reconnect (connector version 3.1.3 and above). The default is false.
-> **Note**：Enabling automatic reconnection is only effective for simple SQL statement execution, schemaless writing, and data subscription. It is not effective for parameter binding. Automatic reconnection is only effective for the database specified by parameters when the connection is established, and it is not effective for the `use db` statement to switch databases later.
+  **Note**：Enabling automatic reconnection is only effective for simple SQL statement execution, schemaless writing, and data subscription. It is not effective for parameter binding. Automatic reconnection is only effective for the database specified by parameters when the connection is established, and it is not effective for the `use db` statement to switch databases later.
 
 * reconnectRetryCount: The number of reconnection retries (connector version 3.1.3 and above). The default is 3.
 * reconnectIntervalMs: The interval between reconnection retries (connector version 3.1.3 and above). The default is 2000.
@@ -802,11 +803,12 @@ var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
 </Tabs>
 
 The configuration parameters supported by consumer are as follows:
+
 * td.connect.type: connection type, optional value is Native or WebSocket, default is Native
 * td.connect.ip: The address of the TDengine running instance or taosadapter
 * td.connect.port: The port of the running instance of TDengine or taosadapter.
-    * When using WebSocket without SSL, the default is 6041.
-    * When using WebSocket with SSL, the default is 443.
+  * When using WebSocket without SSL, the default is 6041.
+  * When using WebSocket with SSL, the default is 443.
 * useSSL: Whether to use SSL, the default is false, only valid when the protocol is WebSocket
 * token: The token used to connect to TDengine Cloud, only valid when the protocol is WebSocket
 * td.connect.user: username to connect to TDengine
@@ -825,6 +827,7 @@ The configuration parameters supported by consumer are as follows:
 Supports subscribing to the result set `Dictionary<string, object>` where the key is the column name and the value is the column value.
 
 If you use object to receive column values, you need to pay attention to:
+
 * There needs to be a one-to-one correspondence between the original C# column type and the TDengine column type. For specific correspondence, please refer to [TDengine DataType and C# DataType] (#tdengine-datatype-and-c-datatype).
 * The column name is consistent with the class attribute name and can be get and set.
 * Explicitly set the value parser `ConsumerBuilder.SetValueDeserializer(new ReferenceDeserializer<T>());`

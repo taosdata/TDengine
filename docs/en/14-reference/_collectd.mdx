@@ -4,7 +4,7 @@ To configure taosAdapter to receive collectd data.
 
 - Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
 
-```
+```toml
 ...
 [opentsdb_telnet]
 enable = true
@@ -22,7 +22,7 @@ The default database name written by taosAdapter is `collectd`. You can also mod
 - You can also enable the taosAdapter to receive collectd data by using the taosAdapter command-line parameters or by setting environment variables.
 
 ### Configure collectd
-#collectd
+
 collectd uses a plugin mechanism to write the collected monitoring data to different data storage software in various forms. tdengine supports both direct collection plugins and write_tsdb plugins.
 
 #### Configure the direct collection plugin
@@ -79,6 +79,6 @@ LoadPlugin write_tsdb
 
 Then restart collectd.
 
-```
+```bash
 systemctl restart collectd
 ```
