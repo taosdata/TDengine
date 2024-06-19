@@ -194,7 +194,7 @@ The base API is used to do things like create database connections and provide a
 
    Set the event callback function.
 
-  - fp: event callback function pointer. Declaration：typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type)；Param is a user-defined parameter, ext is an extended parameter (depending on the event type, and returns the user password version for TAOS_NOTIFY_PASSVER), and type is the event type
+  - fp: event callback function pointer. Declaration：`typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);` Param is a user-defined parameter, ext is an extended parameter (depending on the event type, and returns the user password version for TAOS_NOTIFY_PASSVER), and type is the event type
   - param: user-defined parameter
   - type: event type. Value range: 1) TAOS_NOTIFY_PASSVER: User password changed
 
@@ -218,7 +218,7 @@ The APIs described in this subsection are all synchronous interfaces. After bein
 
   Fetch the data in the query result set by row.
 
-- ` int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
+- `int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
 
   Batch fetches the data in the query result set. The return value is the number of rows of the fetched data.
 
@@ -295,7 +295,7 @@ All TDengine's asynchronous APIs use a non-blocking call pattern. Applications c
 
 ### Parameter Binding API
 
-In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a set of `bind` APIs that supports parameter binding, similar in style to MySQL. TDengine currently only supports using a question mark `? ` to represent the parameter to be bound.
+In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a set of `bind` APIs that supports parameter binding, similar in style to MySQL. TDengine currently only supports using a question mark `?` to represent the parameter to be bound.
 
 Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
 
@@ -340,12 +340,12 @@ The specific functions related to the interface are as follows (see also the [pr
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
   (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
-  When the table name in the SQL command uses `? ` placeholder, you can use this function to bind a specific table name.
+  When the table name in the SQL command uses `?` placeholder, you can use this function to bind a specific table name.
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_MULTI_BIND* tags)`
 
   (Available in 2.1.2.0 and later versions, only supported for replacing parameter values in INSERT statements)
-  When the table name and TAGS in the SQL command both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL command.
+  When the table name and TAGS in the SQL command both use `?`, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL command.
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
@@ -445,31 +445,36 @@ In addition to writing data using the SQL method or the parameter binding API, w
 - `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
 
   **Description**
+
   - The above seven interfaces are extension interfaces, which are mainly used to pass ttl and reqid parameters, and can be used as needed.
-  - Within _raw interfaces represent data through the passed parameters lines and len. In order to solve the problem that the original interface data contains '\0' and is truncated. The totalRows pointer returns the number of parsed data rows.
-  - Within _ttl interfaces can pass the ttl parameter to control the ttl expiration time of the table.
-  - Within _reqid interfaces can track the entire call chain by passing the reqid parameter.
+  - Within \_raw interfaces represent data through the passed parameters lines and len. In order to solve the problem that the original interface data contains '\0' and is truncated. The totalRows pointer returns the number of parsed data rows.
+  - Within \_ttl interfaces can pass the ttl parameter to control the ttl expiration time of the table.
+  - Within \_reqid interfaces can track the entire call chain by passing the reqid parameter.
 
 ### Subscription API
+
 - `const char *tmq_err2str(int32_t code)`
-    
+  
   **Description**
+
   - This interface is used to convert error codes for data subscriptions into error messages
   
   **Parameter description**
+
   - code: error code
   
   **Return value**
-  - non NULL, return error message, error message may be empty
 
+  - non NULL, return error message, error message may be empty
 
 - `tmq_conf_t    *tmq_conf_new()`
 - `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
 - `void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
 - `void           tmq_conf_destroy(tmq_conf_t *conf)`
-    
+  
   tmq_conf_res_t defined as follows:
-  ```
+
+  ```c++
   typedef enum tmq_conf_res_t {
     TMQ_CONF_UNKNOWN = -2,
     TMQ_CONF_INVALID = -1,
@@ -478,16 +483,20 @@ In addition to writing data using the SQL method or the parameter binding API, w
   ```
 
   commit callback function defined as follows:
-  ```
+
+  ```c++
   typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))
   ```
+
   **Description**
+
   - tmq_conf_new : create a tmq_conf_t structure to configure consumption parameters
   - tmq_conf_set : set configuration, configuration is key-value pair
   - tmq_conf_set_auto_commit_cb : set auto commit callback function
   - tmq_conf_destroy : destroy tmq_conf_t structure
 
   **Parameter description**
+  
   - tmq_conf_set : key is parameter name，value is parameter value
   - tmq_conf_set_auto_commit_cb : cb is callback function, param is callback function parameter
 
@@ -495,14 +504,14 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - tmq_conf_new: structure of tmq_conf_t, NULL failed
   - tmq_conf_set: tmq_conf_res_t, TMQ_CONF_OK means success, others means failure
 
-
 - `tmq_list_t *tmq_list_new()`
 - `int32_t     tmq_list_append(tmq_list_t *, const char *)`
 - `void        tmq_list_destroy(tmq_list_t *)`
 - `int32_t     tmq_list_get_size(const tmq_list_t *)`
 - `char      **tmq_list_to_c_array(const tmq_list_t *)`
-    
+  
   **Description**
+
   - tmq_list_new : build a tmq_list_t constructure, used to save topic
   - tmq_list_append : add topic to tmq_list_t
   - tmq_list_destroy : destroy tmq_list_t
@@ -510,6 +519,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - tmq_list_to_c_array : convert tmq_list_t to c array, element is string pointer
 
   **Return value**
+
   - tmq_list_new : structure of tmq_list_t, tmq_list_t is a list of strings, NULL failed
   - tmq_list_append : zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
   - tmq_list_get_size : size of tmq_list_t, -1 failed
@@ -523,6 +533,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
 - `int32_t   tmq_consumer_close(tmq_t *tmq)`
 
   **Description**
+
   - tmq_consumer_new : build a tmq_t constructure, need to be used with tmq_consumer_close
   - tmq_subscribe : subscribe topic, need to be used with tmq_unsubscribe
   - tmq_unsubscribe : unsubscribe topic, need to be used with tmq_subscribe
@@ -531,6 +542,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - tmq_consumer_close : clost tmq_t, need to be used with tmq_consumer_new
   
   **Parameter description**
+
   - conf: sed to configure consume parameters
   - errstr: The error information is stored in this string. Allocation and release of memory are the responsibility of the caller
   - errstenLen: the length of errstr
@@ -539,6 +551,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - timeout: the timeout time, measured in milliseconds, indicates how long it takes for data to expire. If it is negative, it will default to 1 second
   
   **Return value**
+
   - tmq_consumer_new: structure of tmq_t, NULL failed
   - tmq_subscribe: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
   - tmq_unsubscribe: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
@@ -546,11 +559,11 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - tmq_consumer_poll: structure of TAOS_RES(same like taos_query), NULL if there is no data
   - tmq_consumer_close: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
   
-
 - `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 - `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
-  
+
   tmq_topic_assignment defined as follows:
+
   ```c
   typedef struct tmq_topic_assignment {
     int32_t vgId;
@@ -559,76 +572,85 @@ In addition to writing data using the SQL method or the parameter binding API, w
     int64_t end;
   } tmq_topic_assignment;
   ```
+
   **Function description**
+
   - tmq_get_topic_assignment get the current vgroup information of this consumer
 
   **Parameter description**
+
   - numOfAssignment:the num of vgroups assigned to this consumer
   - assignment:the information of vgroups, needed to be freed by tmq_free_assignment
 
   **Return value**
-  - zero success,none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+  - zero success,none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
 - `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
 
   **Function description**
+
   - get the committed offset
 
   **Return value**
-  - the value of committed offset, -2147467247 means no committed value, Other values less than 0 indicate failure
 
+  - the value of committed offset, -2147467247 means no committed value, Other values less than 0 indicate failure
 
 - `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
 - `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
 - `int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
 - `void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param)`
-  
+
   **Function description**
 
   - The commit interface is divided into two types, each with synchronous and asynchronous interfaces:
     - The first type: based on message submission, submit the progress in the message. If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer: tmq_commit_sync/tmq_commit_async
     - The second type: submit based on the offset of a Vgroup in a topic: tmq_commit_offset_sync/tmq_commit_offset_async
-  
+
   **Parameter description**
+
   - msg：Message consumed, If the message passes NULL, submit the current progress of all vgroups consumed by the current consumer
 
   **Return value**
-  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
 - `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
 
   **Function description**
+
   - Obtain the current consumption location, which is the next location of the data consumed
   
   **Return value**
-  - the current consumption location, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+  - the current consumption location, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
 - `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
 
   **Function description**
+
   - Set the offset position of the consumer in a Vgroup of a certain topic to start consumption
 
   **Return value**
-  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+  - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
 - `int64_t tmq_get_vgroup_offset(TAOS_RES* res)`
 - `int32_t tmq_get_vgroup_id(TAOS_RES *res)`
 
   **Description**
+
   - tmq_get_vgroup_offset : Obtain the starting offset of the consumed data
   - tmq_get_vgroup_id : Obtain the vgroup id of the consumed data
   
   **Parameter description**
+
   - msg : Message consumed
   
   **Return value**
+
   - tmq_get_vgroup_offset : the starting offset of the consumed data, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
   - tmq_get_vgroup_id : vgroup id of result, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
-
 
 - `TAOS       *tmq_get_connect(tmq_t *tmq)`
 - `const char *tmq_get_table_name(TAOS_RES *res)`
@@ -637,7 +659,8 @@ In addition to writing data using the SQL method or the parameter binding API, w
 - `const char *tmq_get_db_name(TAOS_RES *res)`
 
   tmq_res_t the type of consumed result, defined as follows:
-  ```
+
+  ```c++
   typedef enum tmq_res_t {
     TMQ_RES_INVALID = -1,   // invalid
     TMQ_RES_DATA = 1,       // data
@@ -645,18 +668,22 @@ In addition to writing data using the SQL method or the parameter binding API, w
     TMQ_RES_METADATA = 3    // data & meta
   } tmq_res_t;
   ```
+
   **Description**
+
   - tmq_get_connect : when creating a consumer, a link will be automatically established and saved in the tmq_t structure. This interface allows users to obtain link information(same like taos_connect) from the tmq_t structure
   - tmq_get_table_name : get the table name of result
   - tmq_get_res_type : get the type of result
   - tmq_get_topic_name : get the topic name of result
   - tmq_get_db_name : get the db name of result
-  
+
   **Parameter description**
+
   - tmq : tmq_t structure created by tmq_consumer_new
   - res : TAOS_RES structure returned by tmq_consumer_poll
-  
+
   **Return value**
+
   - tmq_get_connect : connection info in tmq, NULL if failed
   - tmq_get_table_name : table name of result, NULL if failed
   - tmq_get_res_type : result type tmq_res_t

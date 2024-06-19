@@ -15,8 +15,10 @@ The `TDengine.Connector` connector supports establishing a connection with the T
 This article introduces how to install `TDengine.Connector` in a Linux or Windows environment, and connect to the TDengine cluster through `TDengine.Connector` to perform basic operations such as data writing and querying.
 
 :::warning
+
 * `TDengine.Connector` version 3.1.0 has been completely refactored and is no longer compatible with 3.0.2 and previous versions. For 3.0.2 documents, please refer to [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
 * `TDengine.Connector` 3.x is not compatible with TDengine 2.x. If you need to use the C# connector in an environment running TDengine 2.x version, please use the 1.x version of TDengine.Connector.
+
 :::
 
 The source code of `TDengine.Connector` is hosted on [GitHub](https://github.com/taosdata/taos-connector-dotnet/tree/3.0).
@@ -113,11 +115,12 @@ using (var client = DbDriver.Open(builder))
 </Tabs>
 
 The parameters supported by `ConnectionStringBuilder` are as follows:
+
 * protocol: connection protocol, optional value is Native or WebSocket, default is Native
 * host: the address of the running instance of TDengine or taosadapter,
 * port: The port of the running instance of TDengine or taosadapter.
-    * When using WebSocket without SSL, the default is 6041.
-    * When using WebSocket with SSL, the default is 443.
+  * When using WebSocket without SSL, the default is 6041.
+  * When using WebSocket with SSL, the default is 443.
 * useSSL: Whether to use SSL, the default is false, only valid when the protocol is WebSocket
 * token: The token used to connect to TDengine Cloud, only valid when the protocol is WebSocket
 * username: username to connect to TDengine
@@ -785,11 +788,12 @@ var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
 </Tabs>
 
 The configuration parameters supported by consumer are as follows:
+
 * td.connect.type: connection type, optional value is Native or WebSocket, default is Native
 * td.connect.ip: The address of the TDengine running instance or taosadapter
 * td.connect.port: The port of the running instance of TDengine or taosadapter.
-    * When using WebSocket without SSL, the default is 6041.
-    * When using WebSocket with SSL, the default is 443.
+  * When using WebSocket without SSL, the default is 6041.
+  * When using WebSocket with SSL, the default is 443.
 * useSSL: Whether to use SSL, the default is false, only valid when the protocol is WebSocket
 * token: The token used to connect to TDengine Cloud, only valid when the protocol is WebSocket
 * td.connect.user: username to connect to TDengine
@@ -804,6 +808,7 @@ The configuration parameters supported by consumer are as follows:
 Supports subscribing to the result set `Dictionary<string, object>` where the key is the column name and the value is the column value.
 
 If you use object to receive column values, you need to pay attention to:
+
 * There needs to be a one-to-one correspondence between the original C# column type and the TDengine column type. For specific correspondence, please refer to [TDengine DataType and C# DataType] (#tdengine-datatype-and-c-datatype).
 * The column name is consistent with the class attribute name and can be get and set.
 * Explicitly set the value parser `ConsumerBuilder.SetValueDeserializer(new ReferenceDeserializer<T>());`

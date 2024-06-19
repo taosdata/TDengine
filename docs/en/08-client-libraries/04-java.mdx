@@ -152,7 +152,6 @@ GEOMETRY type is binary data in little endian byte order, which complies with th
 For WKB specifications, please refer to [Well Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
 For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example](https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java)
 
-
 ## Installation Steps
 
 ### Pre-installation preparation
@@ -230,40 +229,40 @@ The configuration parameters in the URL are as follows:
 - batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is true. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
 - batchErrorIgnore:true: When executing statement executeBatch, if there is a SQL execution failure in the middle, the following SQL will continue to be executed. false: No more statements after the failed SQL are executed. The default value is: false.
 
-**Connect using the TDengine client-driven configuration file **
+**Connect using the TDengine client-driven configuration file**
 
 When you use a JDBC native connection to connect to a TDengine cluster, you can use the TDengine client driver configuration file to specify parameters such as `firstEp` and `secondEp` of the cluster in the configuration file as below:
 
 1. Do not specify hostname and port in Java applications.
 
-```java
-public Connection getConn() throws Exception{
-  Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
-  Properties connProps = new Properties();
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-  Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
-  return conn;
-}
-```
+   ```java
+   public Connection getConn() throws Exception{
+     Class.forName("com.taosdata.jdbc.TSDBDriver");
+     String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
+     Properties connProps = new Properties();
+     connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+     connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-  8");
+     connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+     Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+     return conn;
+   }
+   ```
 
 2. specify the firstEp and the secondEp in the configuration file taos.cfg
 
-```shell
-# first fully qualified domain name (FQDN) for TDengine system
-firstEp               cluster_node1:6030
+   ```shell
+   # first fully qualified domain name (FQDN) for TDengine system
+   firstEp               cluster_node1:6030
 
-# second fully qualified domain name (FQDN) for TDengine system, for cluster only
-secondEp              cluster_node2:6030
+   # second fully qualified domain name (FQDN) for TDengine system, for cluster only
+   secondEp              cluster_node2:6030
 
-# default system charset
-# charset               UTF-8
+   # default system charset
+   # charset               UTF-8
 
-# system locale
-# locale                en_US.UTF-8
-```
+   # system locale
+   # locale                en_US.UTF-8
+   ```
 
 In the above example, JDBC uses the client's configuration file to establish a connection to a hostname `cluster_node1`, port 6030, and a database named `test`. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
 
@@ -1466,7 +1465,3 @@ For additional troubleshooting, see [FAQ](../../train-faq/faq).
 ## API Reference
 
 [taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)
-
-```
-
-```

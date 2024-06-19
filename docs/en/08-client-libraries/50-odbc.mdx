@@ -3,19 +3,17 @@ sidebar_label: ODBC
 title: TDengine ODBC
 ---
 
-
 ## Introduction
 
 TDengine ODBC driver is a driver specifically designed for TDengine based on the ODBC standard. It can be used by ODBC based applications on Windows to access a local or remote TDengine cluster or TDengine cloud service, like [PowerBI](https://powerbi.microsoft.com).
 
-TDengine ODBC provides two kinds of connections, native connection and WebSocket connection. You can choose to use either one for your convenience, WebSocket is recommded choice and you must use WebSocket if you are trying to access TDengine cloud service. 
+TDengine ODBC provides two kinds of connections, native connection and WebSocket connection. You can choose to use either one for your convenience, WebSocket is recommded choice and you must use WebSocket if you are trying to access TDengine cloud service.
 
 Note: TDengine ODBC driver can only be run on 64-bit system, and can only be invoked by 64-bit applications.
 
-
 ## Install
 
-1.  TDengine ODBC driver supports only Windows platform. To run on Windows, VisualStudio C Runtime library is required. If VisualStudio C Runtime Library is missing on your platform, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). 
+1. TDengine ODBC driver supports only Windows platform. To run on Windows, VisualStudio C Runtime library is required. If VisualStudio C Runtime Library is missing on your platform, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
 2. Install TDengine client package for Windows, the version should be above 3.2.1.0, the client package includes both TDengine ODBC driver and some other necessary libraries that will be used in either native connection or WebSocket connection.
 
@@ -25,13 +23,13 @@ Note: TDengine ODBC driver can only be run on 64-bit system, and can only be inv
 
 TDengine ODBC driver supports two kinds of connections to TDengine cluster, native connection and WebSocket connection, here is the major differences between them.
 
-1. Only WebSocket can connect to TDengine cloud service. 
+1. Only WebSocket can connect to TDengine cloud service.
 
 2. Websocket connection is more compatible with different TDengine server versions, normally you don't need to uupgrade client package with the server side.
 
 3. Native connection normally has better performance, but you need to keep the version aligned with the server side.
 
-4. For most users, it's recommended to use **WebSocket** connection, which has much better compatibility and almost same performance as native connection. 
+4. For most users, it's recommended to use **WebSocket** connection, which has much better compatibility and almost same performance as native connection.
 
 ### WebSocket Connection
 
@@ -55,7 +53,7 @@ TDengine ODBC driver supports two kinds of connections to TDengine cluster, nati
 
     4.5 [User]: optional field, only used for connection testing in step 5; If it's left as blank, "root" user will be used by default.
 
-    4.6 [Password]: optional field, only used for connection testing in step 5; 
+    4.6 [Password]: optional field, only used for connection testing in step 5;
 
 5. Click "Test Connecting" to test whether the data source can be connectted; if successful, it will prompt "connecting success"
 
@@ -65,10 +63,9 @@ TDengine ODBC driver supports two kinds of connections to TDengine cluster, nati
 
 ### Native Connection
 
-Please be noted that native connection can't be used to access a TDengine client service. 
+Please be noted that native connection can't be used to access a TDengine client service.
 
 The steps are exactly same as "WebSocket" connection, except for you choose "Native" in step 4.2.
-
 
 ## PowerBI
 

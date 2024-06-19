@@ -15,6 +15,7 @@ In addition to wrapping the native and REST interfaces, `taospy` also provides a
 The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
 
 The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
+
 ## Supported platforms
 
 - The [supported platforms](../#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
@@ -103,7 +104,7 @@ If you use a native connection, you will also need to [Install Client Driver](..
 
 If you have installed an older version of the Python client library, please uninstall it beforehand.
 
-```
+```bash
 pip3 uninstall taos taospy
 ```
 
@@ -119,20 +120,20 @@ Earlier TDengine client software includes the Python client library. If the Pyth
 
 Install the latest version of:
 
-```
+```bash
 pip3 install taospy
 ```
 
 You can also specify a specific version to install:
 
-```
+```bash
 pip3 install taospy==2.3.0
 ```
 
 </TabItem>
 <TabItem label="Install from GitHub" value="github">
 
-```
+```bash
 pip3 install git+https://github.com/taosdata/taos-connector-python.git
 ```
 
@@ -190,7 +191,7 @@ import taosws
 :::tip
 If you have multiple versions of Python on your system, you may have various `pip` commands. Be sure to use the correct path for the `pip` command. Above, we installed the `pip3` command, which rules out the possibility of using the `pip` corresponding to Python 2.x versions. However, if you have more than one version of Python 3.x on your system, you still need to check that the installation path is correct. The easiest way to verify this is to type `pip3 install taospy` again in the command, and it will print out the exact location of `taospy`, for example, on Windows.
 
-```
+```text
 C:\> pip3 install taospy
 Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
 Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.3.0)
@@ -209,13 +210,13 @@ Before establishing a connection with the client library, we recommend testing t
 
 Ensure that the TDengine instance is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a stand-alone version) can be resolved locally, by testing with the `ping` command.
 
-```
+```bash
 ping <FQDN>
 ```
 
 Then test if the cluster can be appropriately connected with TDengine CLI:
 
-```
+```bash
 taos -h <FQDN> -p <PORT>
 ```
 
@@ -224,9 +225,9 @@ The FQDN above can be the FQDN of any dnode in the cluster, and the PORT is the 
 </TabItem>
 <TabItem value="rest" label="REST connection" groupId="connect">
 
-For REST connections, make sure the cluster and taosAdapter component, are running. This can be tested using the following `curl ` command.
+For REST connections, make sure the cluster and taosAdapter component, are running. This can be tested using the following `curl` command.
 
-```
+```bash
 curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 ```
 
@@ -257,7 +258,7 @@ If the test is successful, it will output the server version information, e.g.
 
 For WebSocket connection, make sure the cluster and taosAdapter component, are running. This can be testetd using the following `curl` command.
 
-```
+```bash
 curl -i -N -d "show databases" -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: <FQDN>:<PORT>" -H "Origin: http://<FQDN>:<PORT>" http://<FQDN>:<PORT>/rest/sql
 ```
 
@@ -396,13 +397,12 @@ conn.execute("INSERT INTO t1 USING weather TAGS(1) VALUES (now, 23.5) (now+1m, 2
 now is an internal function. The default is the current time of the client's computer. now + 1s represents the current time of the client plus 1 second, followed by the number representing the unit of time: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks), n (months), y (years).
 :::
 
-
 ### Basic Usage
 
 <Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
-##### TaosConnection class
+#### TaosConnection class
 
 The `TaosConnection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor()` method and the `close()` method) and many extensions (e.g., the `execute()`, `query()`, `schemaless_insert()`, and `subscribe()` methods).
 
@@ -418,14 +418,15 @@ The `TaosConnection` class contains both an implementation of the PEP249 Connect
 The queried results can only be fetched once. For example, only one of `fetch_all()` and `fetch_all_into_dict()` can be used in the example above. Repeated fetches will result in an empty list.
 :::
 
-##### Use of TaosResult class
+#### Use of TaosResult class
 
 In the above example of using the `TaosConnection` class, we have shown two ways to get the result of a query: `fetch_all()` and `fetch_all_into_dict()`. In addition, `TaosResult` also provides methods to iterate through the result set by rows (`rows_iter`) or by data blocks (`blocks_iter`). Using these two methods will be more efficient in scenarios where the query has a large amount of data.
 
 ```python title="blocks_iter method"
 {{#include docs/examples/python/result_set_examples.py}}
 ```
-##### Use of the TaosCursor class
+
+#### Use of the TaosCursor class
 
 The `TaosConnection` class and the `TaosResult` class already implement all the functionality of the native interface. If you are familiar with the interfaces in the PEP249 specification, you can also use the methods provided by the `TaosCursor` class.
 
@@ -442,7 +443,7 @@ The best practice for TaosCursor is to create a cursor at the beginning of a que
 </TabItem>
 <TabItem value="rest" label="REST connection">
 
-##### Use of the RestClient class
+#### Use of the RestClient class
 
 The `RestClient` class is a direct wrapper for the [REST API](../../reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
@@ -452,13 +453,14 @@ The `RestClient` class is a direct wrapper for the [REST API](../../reference/re
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
-##### Use of TaosRestCursor class
+#### Use of TaosRestCursor class
 
 The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ```python title="Use of TaosRestCursor"
 {{#include docs/examples/python/connect_rest_examples.py:basic}}
 ```
+
 - `cursor.execute`: Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
@@ -529,7 +531,7 @@ By using the optional req_id parameter, you can specify a request ID that can be
 <Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
-##### TaosConnection class
+#### TaosConnection class
 
 As the way to connect introduced above but add `req_id` argument.
 
@@ -541,14 +543,15 @@ As the way to connect introduced above but add `req_id` argument.
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
 ```
 
-##### Use of TaosResult class
+#### Use of TaosResult class
 
 As the way to fetch data introduced above but add `req_id` argument.
 
 ```python title="blocks_iter method"
 {{#include docs/examples/python/result_set_with_req_id_examples.py}}
 ```
-##### Use of the TaosCursor class
+
+#### Use of the TaosCursor class
 
 The `TaosConnection` class and the `TaosResult` class already implement all the functionality of the native interface. If you are familiar with the interfaces in the PEP249 specification, you can also use the methods provided by the `TaosCursor` class.
 
@@ -559,7 +562,7 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 </TabItem>
 <TabItem value="rest" label="REST connection">
 
-##### Use of the RestClient class
+#### Use of the RestClient class
 
 The `RestClient` class is a direct wrapper for the [REST API](../../reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
@@ -569,13 +572,14 @@ The `RestClient` class is a direct wrapper for the [REST API](../../reference/re
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
-##### Use of TaosRestCursor class
+#### Use of TaosRestCursor class
 
 As the way to connect introduced above but add `req_id` argument.
 
 ```python title="Use of TaosRestCursor"
 {{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
 ```
+
 - `cursor.execute`: Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
@@ -629,22 +633,22 @@ The Python client library provides a parameter binding api for inserting data. S
 <Tabs>
 <TabItem value="native" label="native connection">
 
-##### Create Stmt
+#### Create Stmt
 
 Call the `statement` method in `Connection` to create the `stmt` for parameter binding.
 
-```
+```python
 import taos
 
 conn = taos.connect()
 stmt = conn.statement("insert into log values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 ```
 
-##### parameter binding
+#### parameter binding
 
 Call the `new_multi_binds` function to create the parameter list for parameter bindings.
 
-```
+```python
 params = new_multi_binds(16)
 params[0].timestamp((1626861392589, 1626861392590, 1626861392591))
 params[1].bool((True, None, False))
@@ -666,57 +670,58 @@ params[15].timestamp([None, None, 1626861392591])
 
 Call the `bind_param` (for a single row) method or the `bind_param_batch` (for multiple rows) method to set the values.
 
-```
+```python
 stmt.bind_param_batch(params)
 ```
 
-##### execute sql
+#### execute sql
 
 Call `execute` method to execute sql.
 
-```
+```python
 stmt.execute()
 ```
 
-##### Close Stmt
+#### Close Stmt
 
-```
+```python
 stmt.close()
 ```
 
-##### Example
+#### Example
 
 ```python
 {{#include docs/examples/python/stmt_example.py}}
 ```
+
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket connection">
 
-##### Create Stmt
+#### Create Stmt
 
 Call the `statement` method in `Connection` to create the `stmt` for parameter binding.
 
-```
+```python
 import taosws
 
 conn = taosws.connect('taosws://localhost:6041/test')
 stmt = conn.statement()
 ```
 
-##### Prepare sql
+#### Prepare sql
 
 Call `prepare` method in stmt to prepare sql.
 
-```
+```python
 stmt.prepare("insert into t1 values (?, ?, ?, ?)")
 ```
 
-##### parameter binding
+#### parameter binding
 
 Call the `bind_param` method to bind parameters.
 
-```
+```python
 stmt.bind_param([
     taosws.millis_timestamps_to_column([1686844800000, 1686844801000, 1686844802000, 1686844803000]),
     taosws.ints_to_column([1, 2, 3, 4]),
@@ -727,29 +732,30 @@ stmt.bind_param([
 
 Call the `add_batch` method to add parameters to the batch.
 
-```
+```python
 stmt.add_batch()
 ```
 
-##### execute sql
+#### execute sql
 
 Call `execute` method to execute sql.
 
-```
+```python
 stmt.execute()
 ```
 
-##### Close Stmt
+#### Close Stmt
 
-```
+```python
 stmt.close()
 ```
 
-##### Example
+#### Example
 
 ```python
 {{#include docs/examples/python/stmt_websocket_example.py}}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -760,19 +766,19 @@ Client library support schemaless insert.
 <Tabs defaultValue="list">
 <TabItem value="list" label="List Insert">
 
-##### Simple insert
+#### Simple insert
 
 ```python
 {{#include docs/examples/python/schemaless_insert.py}}
 ```
 
-##### Insert with ttl argument
+#### Insert with ttl argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_ttl.py}}
 ```
 
-##### Insert with req_id argument
+#### Insert with req_id argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_req_id.py}}
@@ -782,19 +788,19 @@ Client library support schemaless insert.
 
 <TabItem value="raw" label="Raw Insert">
 
-##### Simple insert
+#### Simple insert
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw.py}}
 ```
 
-##### Insert with ttl argument
+#### Insert with ttl argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
 ```
 
-##### Insert with req_id argument
+#### Insert with req_id argument
 
 ```python
 {{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
@@ -836,6 +842,7 @@ from taos.tmq import Consumer
 
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
+
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket connection">
@@ -902,7 +909,7 @@ while True:
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
 
-The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out. 
+The `poll` function is used to consume data in tmq. The parameter of the `poll` function is a value of type float representing the timeout in seconds. It returns a `Message` before timing out, or `None` on timing out.
 
 ```python
 while True:
@@ -924,7 +931,7 @@ while True:
 
 <TabItem value="native" label="native connection">
 
-The `assignment` function is used to get the assignment of the topic. 
+The `assignment` function is used to get the assignment of the topic.
 
 ```python
 assignments = consumer.assignment()
@@ -940,7 +947,7 @@ consumer.seek(tp)
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
 
-The `assignment` function is used to get the assignment of the topic. 
+The `assignment` function is used to get the assignment of the topic.
 
 ```python
 assignments = consumer.assignment()
@@ -1011,15 +1018,15 @@ consumer.close()
 
 ### Other sample programs
 
-| Example program links | Example program content |
-|-----------------------|-------------------------|
+| Example program links                                        | Example program content                       |
+| ------------------------------------------------------------ | --------------------------------------------- |
 | [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, bind multiple rows at once |
-| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | parameter binding, bind one row at once |
-| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB line protocol writing |
-| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags |
-| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py) | TMQ subscription |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | parameter binding, bind one row at once       |
+| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB line protocol writing                |
+| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags                            |
+| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py) | TMQ subscription                              |
 
-## Other notes 
+## Other notes
 
 ### About nanoseconds
 

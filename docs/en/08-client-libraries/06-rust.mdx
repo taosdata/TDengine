@@ -79,8 +79,8 @@ Note: Only TAG supports JSON types
 
 ### Pre-installation preparation
 
-* Install the Rust development toolchain
-* If using the native connection, please install the TDengine client driver. Please refer to [install client driver](../#install-client-driver)
+- Install the Rust development toolchain
+- If using the native connection, please install the TDengine client driver. Please refer to [install client driver](../#install-client-driver)
 
 ### Install the client library
 
@@ -474,7 +474,7 @@ let opts = PoolBuilder::new()
 let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
 ```
 
-In the application code, use `pool.get()? ` to get a connection object [Taos].
+In the application code, use `pool.get()?` to get a connection object [Taos].
 
 ```rust
 let taos = pool.get()?;
@@ -647,12 +647,10 @@ stmt.execute()?;
 
 For a working example, see [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/taos/examples/bind.rs).
 
-
 For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
 [taos]: https://github.com/taosdata/taos-connector-rust
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
 [struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
 [Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html

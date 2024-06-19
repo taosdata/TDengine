@@ -21,7 +21,7 @@ For more information, see [Database](../../taos-sql/database).
 
 The memory required by a database is therefore greater than or equal to:
 
-```
+```text
 vgroups * replica * (buffer + pages * pagesize + cachesize)
 ```
 
@@ -33,13 +33,13 @@ For the client programs using TDengine client driver `taosc` to connect to the s
 
 The memory consumed by a client program is mainly about the SQL statements for data insertion, caching of table metadata, and some internal use. Assuming maximum number of tables is N (the memory consumed by the metadata of each table is 256 bytes), maximum number of threads for parallel insertion is T, maximum length of a SQL statement is S (normally 1 MB), the memory required by a client program can be estimated using the below formula:
 
-```
+```text
 M = (T * S * 3 + (N / 4096) + 100)
 ```
 
 For example, if the number of parallel data insertion threads is 100, total number of tables is 10,000,000, then the minimum memory requirement of a client program is:
 
-```
+```text
 100 * 3 + (10000000 / 4096) + 100 = 2741 (MBytes)
 ```
 
@@ -58,7 +58,7 @@ In short, the CPU resource required for data insertion can be estimated but it's
 
 The compression ratio in TDengine is much higher than that in RDBMS. In most cases, the compression ratio in TDengine is bigger than 5, or even 10 in some cases, depending on the characteristics of the original data. The data size before compression can be calculated based on below formula:
 
-```
+```text
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 ```
 
