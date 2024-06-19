@@ -49,7 +49,7 @@
                 <template slot="content">
                   <span v-html="$t('communityTip')"></span>
                 </template>
-                <el-button type="primary" plain size="small" :loading="requesting" :disabled="$store.state.app.currentDBType == 'mqtt' || $COMMUNITY" @click="getMsgBody">{{
+                <el-button type="primary" plain size="small" :loading="requesting" :disabled="$COMMUNITY" @click="getMsgBody">{{
                   $t("datasource.transformer.msgbodytypes.retrieve")
                 }}</el-button>
               </el-tooltip>
@@ -952,7 +952,8 @@ export default {
         this.requesting = false;
         return
       }
-      if (this.$store.state.app.currentDBType == 'kafka') {
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
+      if (isSupportType) {
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
         })
@@ -960,7 +961,10 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
       }
       this.requesting = false;
-      await this.submitParse();
+      // mqtt 和 kafka 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
+      if (!isSupportType) {
+        await this.submitParse();
+      }
     },
     clearMsgBody() {
       this.msgForm.msgbody = ''

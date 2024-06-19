@@ -91,7 +91,6 @@ export default {
           const type = this.sourceParent.sourceForm.type
           const agent = this.sourceParent.sourceForm.agent
           const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-          console.log('dsn',dsn);
           const param = type === "tmq" ? dsn : type + dsn
           this.getValidateResult(param, agent);
         } else {
