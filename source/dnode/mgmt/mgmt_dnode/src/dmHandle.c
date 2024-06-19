@@ -30,7 +30,49 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     taosThreadRwlockUnlock(&pMgmt->pData->lock);
   }
 }
+static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  if (pMgmt->pData->ipWhiteVer == ver) {
+    if (ver == 0) {
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+      rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+    }
+    return;
+  }
+  int64_t oldVer = pMgmt->pData->ipWhiteVer;
 
+  SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
+  int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
+  if (contLen <= 0) {
+    dError("ip-white-list failed to serialize ip white list request, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("ip-white-list failed to alloc send buf, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+  contLen = tSerializeRetrieveIpWhite(pHead, contLen, &req);
+  if (contLen <= 0) {
+    dError("ip-white-list failed to serialize ip white list request, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
+  SEpSet  epset = {0};
+  dmGetMnodeEpSet(pMgmt->pData, &epset);
+
+  int32_t code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+  if (code != 0) {
+    dError("ip-white-list failed to send update request, reason: %s", tstrerror(code));
+  }
+}
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
   dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
@@ -55,6 +97,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -91,6 +134,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
+  req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -110,6 +154,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
+  req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

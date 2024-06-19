@@ -1102,9 +1102,9 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
     }
-    if(SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam
-      && res != DEAL_RES_CONTINUE && res != DEAL_RES_END) {
-        res = translateColumnUseAlias(pCxt, pCol, &found);
+    if (SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam && res != DEAL_RES_CONTINUE &&
+        res != DEAL_RES_END) {
+      res = translateColumnUseAlias(pCxt, pCol, &found);
     }
   }
   return res;
@@ -2448,7 +2448,7 @@ static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
   if (pSelect->selectFuncNum <= 1) return TSDB_CODE_SUCCESS;
   pSelect->selectFuncNum = 0;
   SNodeList* pNodeList = nodesMakeList();
-  int32_t code = nodesCollectSelectFuncs(pSelect, SQL_CLAUSE_FROM, NULL, fmIsSelectFunc, pNodeList);
+  int32_t    code = nodesCollectSelectFuncs(pSelect, SQL_CLAUSE_FROM, NULL, fmIsSelectFunc, pNodeList);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pNodeList);
     return code;
@@ -2474,8 +2474,8 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum) ) 
-    && !pSelect->hasOtherVectorFunc) {
+  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum)) &&
+      !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -3508,55 +3508,55 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
 
 static const int64_t tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
 static int32_t       checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
-  uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
+        uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
-  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
-  bool        valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
-  if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
+        SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+        bool        valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
+        if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                       getPrecisionStr(precision));
   } else if (pInter->datum.i / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
   }
 
-  if (NULL != pInterval->pOffset) {
-    SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
-    if (pOffset->datum.i <= 0) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
+        if (NULL != pInterval->pOffset) {
+          SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
+          if (pOffset->datum.i <= 0) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
     }
-    if (pInter->unit == 'n' && pOffset->unit == 'y') {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT);
+          if (pInter->unit == 'n' && pOffset->unit == 'y') {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT);
     }
-    bool fixed = !IS_CALENDAR_TIME_DURATION(pOffset->unit) && !valInter;
-    if ((fixed && pOffset->datum.i >= pInter->datum.i) ||
+          bool fixed = !IS_CALENDAR_TIME_DURATION(pOffset->unit) && !valInter;
+          if ((fixed && pOffset->datum.i >= pInter->datum.i) ||
         (!fixed && getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit) >=
                        getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit))) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
     }
 
-    if (pOffset->unit == 'n' || pOffset->unit == 'y') {
-      convertVarDuration(pOffset, precision);
+          if (pOffset->unit == 'n' || pOffset->unit == 'y') {
+            convertVarDuration(pOffset, precision);
     }
   }
 
-  if (NULL != pInterval->pSliding) {
-    const static int32_t INTERVAL_SLIDING_FACTOR = 100;
+        if (NULL != pInterval->pSliding) {
+          const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
-    SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
-    if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
+          SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+          if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
-    if ((pSliding->datum.i <
+          if ((pSliding->datum.i <
          convertTimeFromPrecisionToUnit(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pSliding->unit)) ||
         (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
-    if (pSliding->datum.i > pInter->datum.i) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+          if (pSliding->datum.i > pInter->datum.i) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+        return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -3672,11 +3672,11 @@ static EDealRes collectWindowsPseudocolumns(SNode* pNode, void* pContext) {
 }
 
 static int32_t checkWindowsConditonValid(SNode* pNode) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  if(QUERY_NODE_EVENT_WINDOW != nodeType(pNode)) return code;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_EVENT_WINDOW != nodeType(pNode)) return code;
 
   SEventWindowNode* pEventWindowNode = (SEventWindowNode*)pNode;
-  SNodeList* pCols = nodesMakeList();
+  SNodeList*        pCols = nodesMakeList();
   if (NULL == pCols) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -6005,6 +6005,14 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
 
+  createReq.numIpRanges = pStmt->numIpRanges;
+  if (pStmt->numIpRanges > 0) {
+    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
+    if (createReq.pIpRanges == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
+  }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
   return code;
@@ -6039,6 +6047,14 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
 
+  alterReq.numIpRanges = pStmt->numIpRanges;
+  if (pStmt->numIpRanges > 0) {
+    alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
+    if (alterReq.pIpRanges == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
+  }
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);
   return code;
@@ -7768,7 +7784,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
-  if(pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
+  if (pStmt->dbName != NULL) strcpy(req.db, pStmt->dbName);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -9222,9 +9238,9 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   int32_t code = 0;
 
-  STag*   pTag = NULL;
-  SToken  token;
-  char    tokenBuf[TSDB_MAX_TAGS_LEN];
+  STag*       pTag = NULL;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
   const char* tagStr = pStmt->pVal->literal;
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TSDB_CODE_SUCCESS == code) {
@@ -9501,7 +9517,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
     }
   }
   taosArrayDestroy(pReq->pTagArray);
-  if(pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
+  if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,

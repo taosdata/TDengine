@@ -187,6 +187,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_REMOVE_WRITE_TABLE     0x10
 #define TSDB_ALTER_USER_ADD_ALL_TABLE          0x11
 #define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x12
+#define TSDB_ALTER_USER_ADD_WHITE_LIST         0x13
+#define TSDB_ALTER_USER_DROP_WHITE_LIST        0x14
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -864,6 +866,7 @@ typedef struct {
   int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
+  int64_t  whiteListVer;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -893,13 +896,26 @@ int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 void    tFreeSDropUserReq(SDropUserReq* pReq);
 
+typedef struct SIpV4Range {
+  uint32_t ip;
+  uint32_t mask;
+} SIpV4Range;
+
 typedef struct {
-  int8_t  createType;
-  int8_t  superUser;  // denote if it is a super user or not
-  int8_t  sysInfo;
-  int8_t  enable;
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_USET_PASSWORD_LEN];
+  int32_t    num;
+  SIpV4Range pIpRange[];
+} SIpWhiteList;
+
+SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
+typedef struct {
+  int8_t createType;
+  int8_t superUser;  // denote if it is a super user or not
+  int8_t sysInfo;
+  int8_t enable;
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_USET_PASSWORD_LEN];
+  int32_t     numIpRanges;
+  SIpV4Range* pIpRanges;  
   int32_t sqlLen;
   char*   sql;
 } SCreateUserReq;
@@ -907,6 +923,30 @@ typedef struct {
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
+
+typedef struct {
+  int64_t     ver;
+  char        user[TSDB_USER_LEN];
+  int32_t     numOfRange;
+  SIpV4Range* pIpRanges;
+} SUpdateUserIpWhite;
+typedef struct {
+  int64_t             ver;
+  int                 numOfUser;
+  SUpdateUserIpWhite* pUserIpWhite;
+} SUpdateIpWhite;
+
+int32_t         tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+int32_t         tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+void            tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+SUpdateIpWhite* cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+
+typedef struct {
+  int64_t ipWhiteVer;
+} SRetrieveIpWhiteReq;
+
+int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
+int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 
 typedef struct {
   int8_t  alterType;
@@ -919,6 +959,8 @@ typedef struct {
   char    tabName[TSDB_TABLE_NAME_LEN];
   char*   tagCond;
   int32_t tagCondLen;
+  int32_t     numIpRanges;
+  SIpV4Range* pIpRanges;  
   int32_t sqlLen;
   char*   sql;
 } SAlterUserReq;
@@ -948,11 +990,29 @@ typedef struct {
   SHashObj* readTbs;
   SHashObj* writeTbs;
   SHashObj* useDbs;
+  int64_t whiteListVer;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SGetUserWhiteListReq;
+
+int32_t tSerializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
+  SIpV4Range* pWhiteLists;
+} SGetUserWhiteListRsp;
+
+int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -1419,6 +1479,7 @@ typedef struct {
   char    locale[TD_LOCALE_LEN];      // tsLocale
   char    charset[TD_LOCALE_LEN];     // tsCharset
   int8_t  ttlChangeOnWrite;
+  int8_t  enableWhiteList;
 } SClusterCfg;
 
 typedef struct {
@@ -1501,6 +1562,7 @@ typedef struct {
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
+  int64_t     ipWhiteVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1542,6 +1604,7 @@ typedef struct {
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
   int32_t   statusSeq;
+  int64_t   ipWhiteVer; 
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
