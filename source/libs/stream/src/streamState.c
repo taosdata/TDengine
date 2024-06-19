@@ -98,8 +98,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId, bool specPath,
-                              int32_t szPage, int32_t pages) {
+SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
   if (pState == NULL) {

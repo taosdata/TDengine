@@ -46,7 +46,7 @@ SStreamState *stateCreate(const char *path) {
   SStreamMeta *pMeta = streamMetaOpen((path), NULL, NULL, NULL, 0, 0, NULL);
   pTask->pMeta = pMeta;
 
-  SStreamState *p = streamStateOpen((char *)path, pTask, 0, 0, true, 32, 32 * 1024);
+  SStreamState *p = streamStateOpen((char *)path, pTask, 0, 0);
   ASSERT(p != NULL);
   return p;
 }
