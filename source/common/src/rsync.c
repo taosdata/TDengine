@@ -169,15 +169,22 @@ int32_t uploadByRsync(const char* id, const char* path) {
 #else
   if (path[strlen(path) - 1] != '/') {
 #endif
-    snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s/ rsync://%s/checkpoint/%s/",
+    snprintf(command, PATH_MAX,
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s/ "
+             "rsync://%s/checkpoint/%s/",
+             tsLogDir,
 #ifdef WINDOWS
              pathTransform
 #else
              path
 #endif
-             , tsSnodeAddress, id);
+             ,
+             tsSnodeAddress, id);
   } else {
-    snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
+    snprintf(command, PATH_MAX,
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s "
+             "rsync://%s/checkpoint/%s/",
+             tsLogDir,
 #ifdef WINDOWS
              pathTransform
 #else
@@ -213,14 +220,15 @@ int32_t downloadRsync(const char* id, const char* path) {
 #endif
 
   char command[PATH_MAX] = {0};
-  snprintf(command, PATH_MAX, "rsync -av --debug=all --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
-           tsSnodeAddress, id,
+  snprintf(command, PATH_MAX,
+           "rsync -av --debug=all --log-file=%s/rsynclog --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
+           tsLogDir, tsSnodeAddress, id,
 #ifdef WINDOWS
            pathTransform
 #else
            path
 #endif
-           );
+  );
 
   uDebug("[rsync] %s start to sync data from remote to:%s, %s", id, path, command);
 
@@ -249,7 +257,7 @@ int32_t deleteRsync(const char* id) {
   }
 
   char command[PATH_MAX] = {0};
-  snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tmp, tsSnodeAddress, id);
+  snprintf(command, PATH_MAX, "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tmp, tsSnodeAddress, id);
 
   code = execCommand(command);
   taosRemoveDir(tmp);
