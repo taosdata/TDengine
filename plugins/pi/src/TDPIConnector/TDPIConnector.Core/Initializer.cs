@@ -101,6 +101,7 @@ namespace TDPIConnector.Core
         {
             //check for associated supertable, create if needed
             var superTable = TemplateSTableConverter.Convert(elementTemplate);
+            // 创建超级表和 Client
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
             //get all elements based on template
