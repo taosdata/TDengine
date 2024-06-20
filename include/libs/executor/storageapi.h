@@ -329,7 +329,7 @@ typedef struct {
 
 typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);
-  int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal);
+  int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
   int32_t (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
