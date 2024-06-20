@@ -10,10 +10,15 @@ description = "TDengine Explorer UI"
 actix-cors = "0.7.0"
 actix-embed = "0.1.0"
 actix-files = "0.6.6"
-actix-web = {version = "4.7.0", features = ["rustls-0_23"]}
+actix-web = { version = "4.7.0", features = ["rustls-0_23"] }
 rustls = "0.23.10"
 rustls-pemfile = "2.1.2"
-reqwest = { version = "0.11.27", default-features = false, features = ["stream", "json", "deflate", "rustls-tls"] }
+reqwest = { version = "0.11.27", default-features = false, features = [
+	"stream",
+	"json",
+	"deflate",
+	"rustls-tls",
+] }
 anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
@@ -37,17 +42,19 @@ rand = "0.8.4"
 lazy_static = "1.4.0"
 captcha = "0.0.9"
 
-taos = { version = "0.12.3", default-features = false, features = [
-	"ws-rustls",
-	"optin",
-	"deadpool",
-] }
 
 const-str = "0.5.7"
 const_format = "0.2.32"
 shadow-rs = "0.28.0"
 geos = { version = "9.0.0", features = ["static"] }
 hex = "0.4.3"
+
+[dependencies.taos]
+# path = "../taos-connector-rust/taos"
+version = "0.12"
+git = "https://github.com/taosdata/taos-connector-rust.git"
+default-features = false
+features = ["ws-rustls", "optin", "deadpool"]
 
 [build-dependencies]
 shadow-rs = "0.28.0"
