@@ -463,7 +463,11 @@ async fn ipc_tcp_forward(
                         }
                         FlightError::Arrow(arrow) => {
                             tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
-                            if msg_processed == 0 && format!("{err:#}").contains("os error 10054") {
+                            let err_msg = format!("{err:#}");
+                            if msg_processed == 0
+                                && (err_msg.contains("os error 10054")
+                                    || err_msg.contains("os error 10053"))
+                            {
                                 warn!(
                                     "Connection closed but messages are empty, consider as success"
                                 );
