@@ -701,8 +701,8 @@ class StreamComputingTest(TDCase):
             else:
                 return False
         return self.tdSql.query_data[0][0]
-            
-    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False):
+
+    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False, inc_cpt=False):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         # if interval_value is None:
@@ -969,6 +969,17 @@ class StreamComputingTest(TDCase):
         if check_stream_task and "stage" in field_list:
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks()
+
+        if inc_cpt:
+            self.tdSql.execute(f'flush database {self.dbname}')
+            time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+            sst_files_list1, max_id1 = self.find_files_with_sst(self.vnode_dir)
+            self._remote._logger.info(f'sst_files_list1 --- {sst_files_list1}')
+            time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+            sst_files_list2, max_id2 = self.find_files_with_sst(self.vnode_dir)
+            self._remote._logger.info(f'sst_files_list2 --- {sst_files_list2}')
+            self.tdSql.checkEqual(len(sst_files_list1)<len(sst_files_list2), True)
+            self.tdSql.checkEqual(max_id1, max_id2)
 
     def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=1, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None, use_except=None):
         sliding_value = "" if sliding == None else f', {sliding}'
@@ -4629,10 +4640,11 @@ class StreamComputingTest(TDCase):
             # check result
             for tbname in [self.stb_name, self.ctb_name]:
                 for colname in self.partition_by_downsampling_function_list:
-                    if interval is not None:
-                        self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
-                    else:
-                        self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
+                    if "first" not in colname and "last" not in colname:
+                        if interval is not None:
+                            self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                        else:
+                            self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
 
         if self.disorder:
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=record_window_close_ts, pk_dict=self.pk_dict)
@@ -4640,24 +4652,25 @@ class StreamComputingTest(TDCase):
                 self.tdCom.insert_rows(tbname=ctb_name, ts_value=record_window_close_ts, pk_dict=self.pk_dict)
             if ignore_expired:
                 for colname in self.partition_by_downsampling_function_list:
-                    for tbname in [self.stb_name, self.ctb_name]:
-                        if interval is not None:
-                            self.tdSql.query(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;')
-                            res1 = self.tdSql.query_data
-                            self.tdSql.query(f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
-                            res2 = self.tdSql.query_data
-                            self.tdSql.checkNotEqual(res1, res2)
-                        else:
-                            self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
+                    if "first" not in colname and "last" not in colname:
+                        for tbname in [self.stb_name, self.ctb_name]:
+                            if interval is not None:
+                                self.tdSql.query(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;')
+                                res1 = self.tdSql.query_data
+                                self.tdSql.query(f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                                res2 = self.tdSql.query_data
+                                self.tdSql.checkNotEqual(res1, res2)
+                            else:
+                                self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
 
             else:
                 for colname in self.partition_by_downsampling_function_list:
-                    for tbname in [self.stb_name, self.ctb_name]:
-                        if interval is not None:
-                            self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
-                        else:
-                            self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
-
+                    if "first" not in colname and "last" not in colname:
+                        for tbname in [self.stb_name, self.ctb_name]:
+                            if interval is not None:
+                                self.tdCom.check_query_data(f'select `{colname}` from {tbname}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {tbname} partition by {partition_by_elm} interval({self.dataDict["interval"]}s) order by `{colname}`;')
+                            else:
+                                self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {tbname}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {tbname} partition by {partition_by_elm} order by c1,c2,c3;')
 
     def max_delay_state_window_order(self, state_window, interation, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
@@ -5032,6 +5045,20 @@ class StreamComputingTest(TDCase):
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts, pk_dict=self.pk_dict)
             self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name}  partition by {partition} interval({self.dataDict["interval"]}s) order by wstart limit {i+1}', i+1)
 
+    def find_files_with_sst(self, root_dir, substring="sst"):
+        pathlist = list()
+        filename_list = list()
+        for dirpath, _, filenames in os.walk(root_dir):
+            for filename in filenames:
+                # print(os.path.join(dirpath, filename))
+                if substring in filename:
+                    full_path = os.path.join(dirpath, filename)
+                    if "tq" in full_path and "state" in full_path:
+                        pathlist.append(full_path)
+                        filename_list.append(filename)
+        numbers = [int(filename.split('.')[0]) for filename in filename_list]
+        max_number = max(numbers)
+        return pathlist, max_number
 
     def run(self):
         # return
@@ -5072,6 +5099,7 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
             self.at_once_session(session=random.randint(10, 15),subtable=None, partition="abs(c1)")
+            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True, inc_cpt=True)
             self.at_once_event_window(partition="c1")
             self.at_once_event_window(partition="abs(c1)")
             self.at_once_event_window(partition=None)
@@ -5275,3 +5303,4 @@ class StreamComputingTest(TDCase):
 
     def tags(self):
         return T.Write.Stream
+
