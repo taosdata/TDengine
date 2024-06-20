@@ -257,7 +257,9 @@ int32_t deleteRsync(const char* id) {
   }
 
   char command[PATH_MAX] = {0};
-  snprintf(command, PATH_MAX, "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tmp, tsSnodeAddress, id);
+  snprintf(command, PATH_MAX,
+           "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tsLogDir,
+           tmp, tsSnodeAddress, id);
 
   code = execCommand(command);
   taosRemoveDir(tmp);
