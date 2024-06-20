@@ -248,7 +248,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_LOG_TASK_END_TS(pTask);
 
-  atomic_add_fetch_32(&pTask->level->taskExecDoneNum, 1);
+  int32_t taskDone = atomic_add_fetch_32(&pTask->level->taskExecDoneNum, 1);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PART_SUCC);
 
@@ -319,8 +319,10 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_RET(schLaunchJobLowerLevel(pJob, pTask));
-
+  if (taskDone == pTask->level->taskNum) {
+    SCH_ERR_RET(schLaunchJobLowerLevel(pJob, pTask));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
