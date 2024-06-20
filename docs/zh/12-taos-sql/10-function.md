@@ -1171,7 +1171,7 @@ CSUM(expr)
 **使用说明**：
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
+- 不能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
 
 
 ### DERIVATIVE
