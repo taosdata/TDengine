@@ -422,14 +422,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   SQueryPlan *pPlan = NULL;
   SMqTopicObj topicObj = {0};
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pReq, "create-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     code = -1;
     goto _OUT;
   }
 
-  mndTransSetDbName(pTrans, pCreate->name, NULL);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto _OUT;
@@ -779,14 +779,14 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     }
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC, pReq, "drop-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     code = -1;
     goto end;
   }
 
-  mndTransSetDbName(pTrans, pTopic->name, NULL);
+  mndTransSetDbName(pTrans, pTopic->db, NULL);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto end;

@@ -50,6 +50,9 @@ void tqDestroyTqHandle(void* data) {
   if (pData->block != NULL) {
     blockDataDestroy(pData->block);
   }
+  if (pData->pRef) {
+    walCloseRef(pData->pRef->pWal, pData->pRef->refId);
+  }
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
@@ -572,9 +575,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      if (pHandle->pRef) {
-        walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
-      }
 
       tqUnregisterPushHandle(pTq, pHandle);
 
@@ -659,12 +659,10 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     taosRLockLatch(&pTq->lock);
     ret = tqMetaGetHandle(pTq, req.subKey);
     taosRUnLockLatch(&pTq->lock);
-
     if (ret < 0) {
       break;
     }
   }
-
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
       tqError("vgId:%d, build new consumer handle %s for consumer:0x%" PRIx64 ", but old consumerId:0x%" PRIx64,
@@ -709,7 +707,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
   }
 
-end:
+  end:
   tDecoderClear(&dc);
   return ret;
 }

@@ -363,7 +363,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);

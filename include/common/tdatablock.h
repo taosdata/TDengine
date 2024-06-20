@@ -102,7 +102,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
     return false;
   }
 
-  if (pColAgg != NULL) {
+  if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
       ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;
@@ -281,6 +281,8 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }
