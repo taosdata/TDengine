@@ -874,9 +874,8 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
     void*   pFileStore = getStateFileStore(pFileState);
     void*   p = NULL;
 
-    SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileStore, pKey->groupId);
-    int32_t code_file = streamStateSessionGetKVByCur_rocksdb(pCur, pWinKey, &p, pVLen);
-    if (code_file == TSDB_CODE_SUCCESS || isFlushedState(pFileState, endTs, 0)) {
+    int32_t code_file = getCountWinStateFromDisc(pFileStore, pWinKey, &p, pVLen);
+    if (code_file == TSDB_CODE_SUCCESS && isFlushedState(pFileState, endTs, 0)) {
       (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
       code = code_file;
       qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey, pWinKey->win.ekey, code_file);
@@ -885,7 +884,6 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
       code = TSDB_CODE_FAILED;
       taosMemoryFree(p);
     }
-    streamStateFreeCur(pCur);
     goto _end;
   } else {
     (*pVal) = addNewSessionWindow(pFileState, pWinStates, pWinKey);
