@@ -214,8 +214,9 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_ID_LEN   11
 #define TSDB_VGROUP_ID_LEN 11
 
-#define TSDB_MAX_COLUMNS 4096
-#define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
+#define TSDB_MAX_COLUMNS      (INT16_MAX - 128)
+#define TSDB_MAX_TSMA_COLUMNS 4096
+#define TSDB_MIN_COLUMNS      2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
@@ -265,12 +266,13 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
+//#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
+#define TSDB_MAX_BYTES_PER_ROW 262139
 #define TSDB_MAX_TAGS_LEN      16384
 #define TSDB_MAX_TAGS          128
 
 #define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
-#define TSDB_MAX_JSON_TAG_LEN 16384
+#define TSDB_MAX_JSON_TAG_LEN TSDB_MAX_TAGS_LEN
 #define TSDB_MAX_JSON_KEY_LEN 256
 
 #define TSDB_AUTH_LEN          16
@@ -483,7 +485,8 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN     65519               // 16384:65519
+//#define TSDB_MAX_FIELD_LEN     65519               // 16384:65519
+#define TSDB_MAX_FIELD_LEN     262127
 #define TSDB_MAX_BINARY_LEN    TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_NCHAR_LEN     TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519

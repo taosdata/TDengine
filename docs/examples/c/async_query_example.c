@@ -8,12 +8,12 @@
 #include <sys/time.h>
 #include <taos.h>
 
-typedef uint16_t VarDataLenT;
+typedef uint32_t VarDataLenT;
 
-#define TSDB_NCHAR_SIZE sizeof(int32_t)
+#define TSDB_NCHAR_SIZE    sizeof(int32_t)
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
 
-#define GET_FLOAT_VAL(x) (*(float *)(x))
+#define GET_FLOAT_VAL(x)  (*(float *)(x))
 #define GET_DOUBLE_VAL(x) (*(double *)(x))
 
 #define varDataLen(v) ((VarDataLenT *)(v))[0]

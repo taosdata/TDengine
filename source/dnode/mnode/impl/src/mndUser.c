@@ -45,35 +45,55 @@
 #define ALTER_USER_DEL_PRIVS(_type) ((_type) == TSDB_ALTER_USER_DEL_PRIVILEGES)
 
 #define ALTER_USER_ALL_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_READ_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_READ) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_WRITE_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_WRITE) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_ALTER_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALTER) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
+#define ALTER_USER_READ_PRIV(_priv) \
+  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_READ) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
+#define ALTER_USER_WRITE_PRIV(_priv) \
+  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_WRITE) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
+#define ALTER_USER_ALTER_PRIV(_priv) \
+  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALTER) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
 #define ALTER_USER_SUBSCRIBE_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_SUBSCRIBE))
 
 #define ALTER_USER_TARGET_DB(_tbname) (0 == (_tbname)[0])
 #define ALTER_USER_TARGET_TB(_tbname) (0 != (_tbname)[0])
 
-#define ALTER_USER_ADD_READ_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_DEL_READ_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_ADD_WRITE_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_DEL_WRITE_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_ADD_ALTER_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_DEL_ALTER_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_ADD_ALL_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
-#define ALTER_USER_DEL_ALL_DB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_ADD_READ_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_DEL_READ_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_ADD_WRITE_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_DEL_WRITE_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_ADD_ALTER_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_DEL_ALTER_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_ADD_ALL_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
+#define ALTER_USER_DEL_ALL_DB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_DB(_tbname))
 
-#define ALTER_USER_ADD_READ_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_DEL_READ_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_ADD_WRITE_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_DEL_WRITE_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_ADD_ALTER_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_DEL_ALTER_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_ADD_ALL_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
-#define ALTER_USER_DEL_ALL_TB_PRIV(_type, _priv, _tbname) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_ADD_READ_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_DEL_READ_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_READ_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_ADD_WRITE_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_DEL_WRITE_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_WRITE_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_ADD_ALTER_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_DEL_ALTER_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALTER_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_ADD_ALL_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
+#define ALTER_USER_DEL_ALL_TB_PRIV(_type, _priv, _tbname) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_ALL_PRIV(_priv) && ALTER_USER_TARGET_TB(_tbname))
 
-#define ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(_type, _priv) (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
-#define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
-
+#define ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
+  (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
+#define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
+  (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 
 static SIpWhiteList *createDefaultIpWhiteList();
 SIpWhiteList        *createIpWhiteList(void *buf, int32_t len);
@@ -1575,8 +1595,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char detail[1000] = {0};
-  sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx",
-          createReq.enable, createReq.superUser, createReq.sysInfo);
+  sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
+          createReq.sysInfo);
 
   auditRecord(pReq, pMnode->clusterId, "createUser", "", createReq.user, detail, strlen(detail));
 
@@ -1766,7 +1786,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
   if (NULL == currRef) {
     return 0;
   }
-  
+
   if (1 == *currRef) {
     if (taosHashRemove(useDbHash, alterReq->objname, dbKeyLen) != 0) {
       return -1;
@@ -1800,12 +1820,12 @@ static char *mndUserAuditTypeStr(int32_t type) {
   return "error";
 }
 
-static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode *pMnode, SUserObj* pNewUser) {
-  SSdb         *pSdb = pMnode->pSdb;
-  void         *pIter = NULL;
+static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
-  if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || 
-     ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -1830,7 +1850,8 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  if (ALTER_USER_ADD_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -1855,7 +1876,8 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  if (ALTER_USER_DEL_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_DEL_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -1870,7 +1892,8 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  if (ALTER_USER_DEL_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_DEL_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -1885,9 +1908,9 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  SHashObj* pReadTbs = pNewUser->readTbs;
-  SHashObj* pWriteTbs = pNewUser->writeTbs;
-  SHashObj* pAlterTbs = pNewUser->alterTbs;
+  SHashObj *pReadTbs = pNewUser->readTbs;
+  SHashObj *pWriteTbs = pNewUser->writeTbs;
+  SHashObj *pAlterTbs = pNewUser->alterTbs;
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->isView) {
@@ -1897,15 +1920,18 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
   }
 #endif
 
-  if (ALTER_USER_ADD_READ_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_READ_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (mndTablePriviledge(pMnode, pReadTbs, pNewUser->useDbs, pAlterReq, pSdb) != 0) return -1;
   }
 
-  if (ALTER_USER_ADD_WRITE_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_WRITE_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (mndTablePriviledge(pMnode, pWriteTbs, pNewUser->useDbs, pAlterReq, pSdb) != 0) return -1;
   }
 
-  if (ALTER_USER_ADD_ALTER_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) || ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_ALTER_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
     if (mndTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb) != 0) return -1;
   }
 
@@ -2016,7 +2042,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.sysInfo = alterReq.sysInfo;
   }
 
-  if(alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
+  if (alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
     newUser.createdb = alterReq.createdb;
   }
 
@@ -2119,52 +2145,43 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  if(alterReq.alterType == TSDB_ALTER_USER_PASSWD){
+  if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char detail[1000] = {0};
     sprintf(detail, "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
             mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
             alterReq.createdb ? 1 : 0, alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER ||
-          alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
-          alterReq.alterType == TSDB_ALTER_USER_SYSINFO || 
-          alterReq.alterType == TSDB_ALTER_USER_CREATEDB){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
+             alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, alterReq.sql, alterReq.sqlLen);
-  }
-  else if(ALTER_USER_ADD_READ_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
-          ALTER_USER_ADD_WRITE_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
-          ALTER_USER_ADD_ALL_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
-          ALTER_USER_ADD_READ_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
-          ALTER_USER_ADD_WRITE_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)||
-          ALTER_USER_ADD_ALL_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)){
-    if (strcmp(alterReq.objname, "1.*") != 0){
+  } else if (ALTER_USER_ADD_READ_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+             ALTER_USER_ADD_WRITE_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+             ALTER_USER_ADD_ALL_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+             ALTER_USER_ADD_READ_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+             ALTER_USER_ADD_WRITE_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
+             ALTER_USER_ADD_ALL_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)) {
+    if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
       tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
-      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", name.dbname, alterReq.user,
-                  alterReq.sql, alterReq.sqlLen);
-    }else{
-      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", "", alterReq.user,
-                  alterReq.sql, alterReq.sqlLen);
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", name.dbname, alterReq.user, alterReq.sql,
+                  alterReq.sqlLen);
+    } else {
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", "", alterReq.user, alterReq.sql, alterReq.sqlLen);
     }
-  }
-  else if(ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)){
-    auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.objname, alterReq.user,
-                    alterReq.sql, alterReq.sqlLen);
-  }
-  else if(ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)){
-    auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.objname, alterReq.user,
-                alterReq.sql, alterReq.sqlLen);
-  }
-  else{
-    if (strcmp(alterReq.objname, "1.*") != 0){
+  } else if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)) {
+    auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.objname, alterReq.user, alterReq.sql,
+                alterReq.sqlLen);
+  } else if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)) {
+    auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.objname, alterReq.user, alterReq.sql,
+                alterReq.sqlLen);
+  } else {
+    if (strcmp(alterReq.objname, "1.*") != 0) {
       SName name = {0};
       tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB);
-      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", name.dbname, alterReq.user,
-                  alterReq.sql, alterReq.sqlLen);
-    }else{
-      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", "", alterReq.user,
-                  alterReq.sql, alterReq.sqlLen);
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", name.dbname, alterReq.user, alterReq.sql,
+                  alterReq.sqlLen);
+    } else {
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", "", alterReq.user, alterReq.sql, alterReq.sqlLen);
     }
   }
 
@@ -2425,7 +2442,7 @@ static void mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, int3
       taosMemoryFree(obj);
       taosMemoryFree(sql);
 
-      char notes[2] = {0};
+      char notes[VARSTR_HEADER_SIZE + 2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, *numOfRows, (const char *)notes, false);
@@ -2480,11 +2497,14 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     int32_t numOfReadViews = taosHashGetSize(pUser->readViews);
     int32_t numOfWriteViews = taosHashGetSize(pUser->writeViews);
     int32_t numOfAlterViews = taosHashGetSize(pUser->alterViews);
-    if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics + numOfReadTbs + numOfWriteTbs + numOfAlterTbs + numOfReadViews + numOfWriteViews + numOfAlterViews >= rows) {
+    if (numOfRows + numOfReadDbs + numOfWriteDbs + numOfTopics + numOfReadTbs + numOfWriteTbs + numOfAlterTbs +
+            numOfReadViews + numOfWriteViews + numOfAlterViews >=
+        rows) {
       mInfo(
           "will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables "
           "%d, alter tables %d, read views %d, write views %d, alter views %d",
-          numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs, numOfAlterTbs, numOfReadViews, numOfWriteViews, numOfAlterViews);
+          numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs, numOfAlterTbs,
+          numOfReadViews, numOfWriteViews, numOfAlterViews);
       pShow->restore = true;
       sdbRelease(pSdb, pUser);
       break;
@@ -2518,7 +2538,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
       taosMemoryFree(condition);
 
-      char notes[2] = {0};
+      char notes[VARSTR_HEADER_SIZE + 2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
@@ -2558,7 +2578,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
       taosMemoryFree(condition);
 
-      char notes[2] = {0};
+      char notes[VARSTR_HEADER_SIZE + 2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
@@ -2599,7 +2619,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
       taosMemoryFree(condition);
 
-      char notes[2] = {0};
+      char notes[VARSTR_HEADER_SIZE + 2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
@@ -2650,7 +2670,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
       taosMemoryFree(condition);
 
-      char notes[2] = {0};
+      char notes[VARSTR_HEADER_SIZE + 2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
@@ -2869,7 +2889,6 @@ int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
   mndUserFreeObj(&newUser);
   return code;
 }
-
 
 int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
   int32_t   code = 0;

@@ -248,7 +248,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       for (int32_t i = 0; i < expect.numOfRetensions; ++i) {
         SRetention* pReten = (SRetention*)taosArrayGet(req.pRetensions, i);
         SRetention* pExpectReten = (SRetention*)taosArrayGet(expect.pRetensions, i);
-        if(i == 0) {
+        if (i == 0) {
           ASSERT_EQ(pReten->freq, 0);
         } else {
           ASSERT_EQ(pReten->freq, pExpectReten->freq);
@@ -582,8 +582,6 @@ TEST_F(ParserInitialCTest, createView) {
   clearCreateStreamReq();
 }
 
-
-
 /*
  * CREATE MNODE ON DNODE dnode_id
  */
@@ -678,7 +676,7 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
 
     SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-    SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+    SCmdMsgInfo*      pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
     if (NULL == pCmdMsg) FAIL();
     pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
     pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
@@ -1067,7 +1065,8 @@ TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
   run("CREATE STREAM s2 INTO st1 AS SELECT ts, to_json('{c1:1}') FROM st1 PARTITION BY TBNAME",
       TSDB_CODE_PAR_INVALID_STREAM_QUERY);
   run("CREATE STREAM s3 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tbname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
 }
 
 /*
@@ -1198,7 +1197,7 @@ TEST_F(ParserInitialCTest, createTableSemanticCheck) {
   useDb("root", "test");
 
   string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
-  for (int32_t i = 1; i < 4096; ++i) {
+  for (int32_t i = 1; i < TSDB_MAX_COLUMNS; ++i) {
     if (i > 1) {
       sql.append(", ");
     }
@@ -1294,10 +1293,10 @@ TEST_F(ParserInitialCTest, createTopic) {
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
 
-  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test", "st1", 1);
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test",
+                    "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
-
 }
 
 /*

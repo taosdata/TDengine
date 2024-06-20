@@ -12,7 +12,7 @@ typedef double (*_double_fn)(double);
 typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_fn)(char *, char *, int32_t, int32_t);
-typedef uint16_t (*_len_fn)(char *, int32_t);
+typedef VarDataLenT (*_len_fn)(char *, int32_t);
 
 /** Math functions **/
 static double tlog(double v) { return log(v); }
@@ -655,7 +655,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t outputLen = pInputData->info.bytes;
-  char *outputBuf = taosMemoryMalloc(outputLen);
+  char   *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -697,11 +697,11 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
-  int32_t bufLen = TMAX(MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
-  char* pOutputBuf = taosMemoryMalloc(bufLen);
+  int32_t          bufLen = TMAX(MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
+  char            *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("md5 function alloc memory failed");
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -999,12 +999,12 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
-      case TSDB_DATA_TYPE_VARBINARY:{
+      case TSDB_DATA_TYPE_VARBINARY: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
           memcpy(varDataVal(output), varDataVal(input), len);
           varDataSetLen(output, len);
-        }else{
+        } else {
           code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
           goto _end;
         }
@@ -1102,9 +1102,9 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
         timeVal = timeVal / 1000;
       } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000));
+        timeVal = timeVal / ((int64_t)(1000 * 1000));
       } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000 * 1000));
+        timeVal = timeVal / ((int64_t)(1000 * 1000 * 1000));
       } else {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -1123,7 +1123,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     timeVal -= offset + 3600 * ((int64_t)tsTimezone);
 
     struct tm tmInfo;
-    int32_t len = 0;
+    int32_t   len = 0;
 
     if (taosLocalTime((const time_t *)&timeVal, &tmInfo, buf) == NULL) {
       len = (int32_t)strlen(buf);
@@ -1165,7 +1165,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       len += fracLen;
     }
 
-_end:
+  _end:
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 
@@ -1237,10 +1237,10 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 #define TS_FORMAT_MAX_LEN 4096
-int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int64_t ts;
-  char *  tsStr = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
-  char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char   *tsStr = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
   int32_t len, code = TSDB_CODE_SUCCESS;
   SArray *formats = NULL;
 
@@ -1279,9 +1279,9 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
   return code;
 }
 
-int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
-  char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
-  char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
+int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char   *out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
   int32_t len;
   SArray *formats = NULL;
   int32_t code = 0;
@@ -1316,14 +1316,13 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 
 /** Time functions **/
 int64_t offsetFromTz(char *timezone, int64_t factor) {
-  char *minStr = &timezone[3];
+  char   *minStr = &timezone[3];
   int64_t minutes = taosStr2Int64(minStr, NULL, 10);
   memset(minStr, 0, strlen(minStr));
   int64_t hours = taosStr2Int64(timezone, NULL, 10);
   int64_t seconds = hours * 3600 + minutes * 60;
 
   return seconds * factor;
-
 }
 
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1343,7 +1342,8 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
-  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
+  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData),
+         varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
   int64_t unit = timeUnit * 1000 / factor;
@@ -1851,7 +1851,7 @@ int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   if (code) {
     return code;
   }
-  
+
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
@@ -2933,7 +2933,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  char  *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 

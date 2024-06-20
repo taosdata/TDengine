@@ -11192,7 +11192,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = rewriteTSMAFuncs(pCxt, pStmt, numOfCols, pCols);
   }
   if (TSDB_CODE_SUCCESS == code && !pStmt->pOptions->recursiveTsma) {
-    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_COLUMNS) {
+    if (LIST_LENGTH(pStmt->pOptions->pFuncs) + numOfTags + TSMA_RES_STB_EXTRA_COLUMN_NUM > TSDB_MAX_TSMA_COLUMNS) {
       code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
     }
   }

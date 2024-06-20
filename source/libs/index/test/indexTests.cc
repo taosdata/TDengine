@@ -501,9 +501,9 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   std::string colVal("ab");
 
   char    buf[256] = {0};
-  int16_t sz = colVal.size();
-  memcpy(buf, (uint16_t*)&sz, 2);
-  memcpy(buf + 2, colVal.c_str(), colVal.size());
+  int32_t sz = colVal.size();
+  memcpy(buf, (uint16_t*)&sz, 4);
+  memcpy(buf + 4, colVal.c_str(), colVal.size());
   SIndexTerm* term =
       indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), buf, sizeof(buf));
   SIndexTermQuery query = {term, QUERY_TERM};
@@ -571,9 +571,9 @@ class IndexCacheEnv : public ::testing::Test {
 SIndexTerm* indexTermCreateT(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                              int32_t nColName, const char* colVal, int32_t nColVal) {
   char    buf[256] = {0};
-  int16_t sz = nColVal;
-  memcpy(buf, (uint16_t*)&sz, 2);
-  memcpy(buf + 2, colVal, nColVal);
+  int32_t sz = nColVal;
+  memcpy(buf, (uint16_t*)&sz, 4);
+  memcpy(buf + 4, colVal, nColVal);
   if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_GEOMETRY) {
     return indexTermCreate(suid, oper, colType, colName, nColName, buf, sizeof(buf));
   } else {

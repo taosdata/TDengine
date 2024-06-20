@@ -165,15 +165,15 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
   return 0;
 }
 
-typedef struct SFetchWhiteListInfo{
-  int64_t connId;
+typedef struct SFetchWhiteListInfo {
+  int64_t                     connId;
   __taos_async_whitelist_fn_t userCbFn;
-  void* userParam;
+  void                       *userParam;
 } SFetchWhiteListInfo;
 
-int32_t fetchWhiteListCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
-  SFetchWhiteListInfo* pInfo = (SFetchWhiteListInfo*)param;
-  TAOS* taos = &pInfo->connId;
+int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+  SFetchWhiteListInfo *pInfo = (SFetchWhiteListInfo *)param;
+  TAOS                *taos = &pInfo->connId;
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
     taosMemoryFree(pMsg->pData);
@@ -185,7 +185,7 @@ int32_t fetchWhiteListCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   SGetUserWhiteListRsp wlRsp;
   tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp);
 
-  uint64_t* pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
+  uint64_t *pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
   if (pWhiteLists == NULL) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -213,7 +213,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
     return;
   }
 
-  int64_t connId = *(int64_t*)taos;
+  int64_t connId = *(int64_t *)taos;
 
   STscObj *pTsc = acquireTscObj(connId);
   if (NULL == pTsc) {
@@ -224,7 +224,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   SGetUserWhiteListReq req;
   memcpy(req.user, pTsc->user, TSDB_USER_LEN);
   int32_t msgLen = tSerializeSGetUserWhiteListReq(NULL, 0, &req);
-  void* pReq = taosMemoryMalloc(msgLen);
+  void   *pReq = taosMemoryMalloc(msgLen);
   if (pReq == NULL) {
     fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
     releaseTscObj(connId);
@@ -238,7 +238,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
     return;
   }
 
-  SFetchWhiteListInfo* pParam = taosMemoryMalloc(sizeof(SFetchWhiteListInfo));
+  SFetchWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchWhiteListInfo));
   if (pParam == NULL) {
     fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
     taosMemoryFree(pReq);
@@ -249,9 +249,9 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pParam->connId = connId;
   pParam->userCbFn = fp;
   pParam->userParam = param;
-  SMsgSendInfo* pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pSendInfo == NULL) {
-    fp(param,  TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
     taosMemoryFree(pParam);
     taosMemoryFree(pReq);
     releaseTscObj(connId);
@@ -266,7 +266,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
 
   int64_t transportId = 0;
-  SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
+  SEpSet  epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
   asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, &transportId, pSendInfo);
   releaseTscObj(connId);
   return;
@@ -411,7 +411,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
-    if(pRequest->inCallback) {
+    if (pRequest->inCallback) {
       tscError("can not call taos_fetch_row before query callback ends.");
       terrno = TSDB_CODE_TSC_INVALID_OPERATION;
       return NULL;
@@ -507,22 +507,23 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         len += sprintf(str + len, "%lf", dv);
       } break;
 
-      case TSDB_DATA_TYPE_VARBINARY:{
-        void* data = NULL;
+      case TSDB_DATA_TYPE_VARBINARY: {
+        void    *data = NULL;
         uint32_t size = 0;
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if(taosAscii2Hex(row[i], charLen, &data, &size) < 0){
+        int32_t  charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
+        if (taosAscii2Hex(row[i], charLen, &data, &size) < 0) {
           break;
         }
         memcpy(str + len, data, size);
         len += size;
         taosMemoryFree(data);
-      }break;
+      } break;
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_VARBINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_VARBINARY ||
+            fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
           if (ASSERT(charLen <= fields[i].bytes && charLen >= 0)) {
             tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
           }
@@ -629,7 +630,8 @@ const char *taos_get_client_info() { return version; }
 
 // return int32_t
 int taos_affected_rows(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+      TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -640,7 +642,8 @@ int taos_affected_rows(TAOS_RES *res) {
 
 // return int64_t
 int64_t taos_affected_rows64(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+      TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -690,7 +693,8 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+      TD_RES_TMQ_BATCH_META(res)) {
     return;
   }
 
@@ -715,6 +719,18 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
+
+TAOS_BLOCK_VERSION taos_fetch_block_version(TAOS_RES *res) {
+  (void)res;
+
+  if (sizeof(VarDataLenT) == 4) {
+    return TAOS_BLOCK_VERSION_2;
+  } else if (sizeof(VarDataLenT) == 2) {
+    return TAOS_BLOCK_VERSION_1;
+  } else {
+    return TAOS_BLOCK_VERSION_UNKNOWN;
+  }
+}
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   int32_t numOfRows = 0;
@@ -918,7 +934,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     memcpy(&pRequest->parseMeta, pResultMeta, sizeof(*pResultMeta));
     memset(pResultMeta, 0, sizeof(*pResultMeta));
   }
-  
+
   handleQueryAnslyseRes(pWrapper, pResultMeta, code);
 }
 
@@ -1249,7 +1265,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
   tscInfo("restart request: %s p: %p", pRequest->sqlstr, pRequest);
-  SRequestObj* pUserReq = pRequest;
+  SRequestObj *pUserReq = pRequest;
   acquireRequest(pRequest->self);
   while (pUserReq) {
     if (pUserReq->self == pUserReq->relation.userRefId || pUserReq->relation.userRefId == 0) {
@@ -1589,7 +1605,6 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
   return pStmt;
 }
 
-
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -1824,7 +1839,7 @@ int taos_stmt_close(TAOS_STMT *stmt) {
   return stmtClose(stmt);
 }
 
-int taos_set_conn_mode(TAOS* taos, int mode, int value) {
+int taos_set_conn_mode(TAOS *taos, int mode, int value) {
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;

@@ -131,9 +131,11 @@ class TDTestCase:
         sql = "select * from db.stable_17; "
         tdSql.query(sql)
         tdSql.checkCols(6)
-        sql = "alter table db.stable_17 add column col4091 binary(65518); "
+        #sql = "alter table db.stable_17 add column col4091 binary(65518); "
+        sql = "alter table db.stable_17 add column col4091 binary(262126); "
         tdSql.error(sql) 
-        sql = "alter table db.stable_17 add column col4091 binary(65517); "
+        #sql = "alter table db.stable_17 add column col4091 binary(65517); "
+        sql = "alter table db.stable_17 add column col4091 binary(262125); "
         tdSql.execute(sql)
         sql = "select * from db.stable_17; "
         tdSql.query(sql)
@@ -169,13 +171,16 @@ class TDTestCase:
 
         tdLog.info('test super table max bytes per row 65531') 
         sql = "create table db.stable_18(ts timestamp, "
-        sql += "col4091 binary(65518))"  
+        #sql += "col4091 binary(65518))"
+        sql += "col4091 binary(262127))"
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
         tdLog.info('test super table max bytes per row tag 16384') 
         sql = "create table db.stable_18(ts timestamp, "
-        sql += "col4091 binary(65517))"  
+        #sql += "col4091 binary(65517))"
+        sql += "col4091 binary(262126))"
+        #sql += " tags (loc binary(16371),tag_1 int,tag_2 int,tag_3 int) " 
         sql += " tags (loc binary(16371),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
@@ -248,9 +253,11 @@ class TDTestCase:
         sql = "select * from db.stable_27; "
         tdSql.query(sql)
         tdSql.checkCols(6)
-        sql = "alter table db.stable_27 add column col4091 binary(65518); "
+        #sql = "alter table db.stable_27 add column col4091 binary(65518); "
+        sql = "alter table db.stable_27 add column col4091 binary(262126); "
         tdSql.error(sql) 
-        sql = "alter table db.stable_27 add column col4091 binary(65517); "
+        #sql = "alter table db.stable_27 add column col4091 binary(65517); "
+        sql = "alter table db.stable_27 add column col4091 binary(262125); "
         tdSql.execute(sql)
         sql = "select * from db.stable_27; "
         tdSql.query(sql)
@@ -286,13 +293,15 @@ class TDTestCase:
 
         tdLog.info('test super table max bytes per row 65531') 
         sql = "create table db.stable_28(ts timestamp, "
-        sql += "col4091 binary(65518))"  
+        #sql += "col4091 binary(65518))"
+        sql += "col4091 binary(262127))"
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
         tdLog.info('test super table max bytes per row tag 16384') 
         sql = "create table db.stable_28(ts timestamp, "
-        sql += "col4091 binary(65517))"  
+        #sql += "col4091 binary(65517))"
+        sql += "col4091 binary(262126))"
         sql += " tags (loc binary(16371),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
@@ -304,15 +313,18 @@ class TDTestCase:
         print("==============step1, regular table, 1 ts + 4094 cols + 1 binary==============")
         startTime = time.time() 
         sql = "create table db.regular_table_1(ts timestamp, "
-        for i in range(4094):
+        #for i in range(16382):
+        for i in range(32637):
             sql += "col%d int, " % (i + 1)
-        sql += "col4095 binary(22))"  
+        #sql += "col16383 binary(22))"
+        sql += "col32638 binary(22))"
         tdLog.info(len(sql))      
         tdSql.execute(sql)
 
         for i in range(self.num):
             sql = "insert into db.regular_table_1 values(%d, "
-            for j in range(4094):
+            #for j in range(16382):
+            for j in range(32637):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
@@ -322,7 +334,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(self.num)
-        tdSql.checkCols(4096)
+        #tdSql.checkCols(4096 * 4)
+        tdSql.checkCols(32639)
 
         self.ins_query()
 
@@ -332,7 +345,7 @@ class TDTestCase:
         #insert in order
         tdLog.info('test insert in order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col4095) values(%d, "
+            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col32638) values(%d, "
             for j in range(10):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
@@ -343,12 +356,13 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(2*self.num)
-        tdSql.checkCols(4096)
+        #tdSql.checkCols(4096 * 4)
+        tdSql.checkCols(32639)
 
         #insert out of order
         tdLog.info('test insert out of order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col4095) values(%d, "
+            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col32638) values(%d, "
             for j in range(10):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
@@ -359,7 +373,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, 3*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(3*self.num)
-        tdSql.checkCols(4096)
+        #tdSql.checkCols(4096 * 4)
+        tdSql.checkCols(32639)
 
         self.ins_query()
         
@@ -369,9 +384,11 @@ class TDTestCase:
         tdLog.info('test regular table exceeds row num') 
         # column > 4096
         sql = "create table db.regular_table_2(ts timestamp, "
-        for i in range(4095):
+        #for i in range(16383):
+        for i in range(32638):
             sql += "col%d int, " % (i + 1)
-        sql += "col4096 binary(22))"  
+        #sql += "col16384 binary(22))"
+        sql += "col32639 binary(22))"
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
@@ -594,12 +611,14 @@ class TDTestCase:
             sql += "binary_%d binary(40), " % (i + 1) #290*(40+2)=12180 sum=65188
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1) #4*8=32   sum=65220
-        sql += "col4095 binary(309))"       #309+2=311 sum=65531
+        #sql += "col4095 binary(309))"       #309+2=311 sum=65531
+        sql += "col4095 binary(196917))"       #309+2=311 sum=65531
         tdSql.execute(sql)
         tdSql.query("select * from db.regular_table_5")
         tdSql.checkCols(4096)
         
-        sql = "alter table db.regular_table_5 modify column col4095 binary(310); "
+        #sql = "alter table db.regular_table_5 modify column col4095 binary(310); "
+        sql = "alter table db.regular_table_5 modify column col4095 binary(196918); "
         tdSql.error(sql)    
 
         self.ins_query() 
@@ -610,9 +629,11 @@ class TDTestCase:
         sql = "select * from db.regular_table_5; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table db.regular_table_5 add column col4095 binary(310); "
+        #sql = "alter table db.regular_table_5 add column col4095 binary(310); "
+        sql = "alter table db.regular_table_5 add column col4095 binary(196918); "
         tdSql.error(sql) 
-        sql = "alter table db.regular_table_5 add column col4095 binary(309); "
+        #sql = "alter table db.regular_table_5 add column col4095 binary(309); "
+        sql = "alter table db.regular_table_5 add column col4095 binary(196917); "
         tdSql.execute(sql)
         sql = "select * from db.regular_table_5; "
         tdSql.query(sql)
@@ -641,7 +662,8 @@ class TDTestCase:
             sql += "binary_%d binary(40), " % (i + 1)
         for i in range(4090,4094):
             sql += "timestamp_%d timestamp, " % (i + 1)
-        sql += "col4095 binary(310))"  
+        #sql += "col4095 binary(310))"
+        sql += "col4095 binary(196918))"
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
@@ -911,9 +933,11 @@ class TDTestCase:
         sql = "select * from db.stable_4; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table db.stable_4 add column col4091 binary(342); "
+        #sql = "alter table db.stable_4 add column col4091 binary(342); "
+        sql = "alter table db.stable_4 add column col4091 binary(196950); "
         tdSql.error(sql) 
-        sql = "alter table db.stable_4 add column col4091 binary(341); "
+        #sql = "alter table db.stable_4 add column col4091 binary(341); "
+        sql = "alter table db.stable_4 add column col4091 binary(196949); "
         tdSql.execute(sql)
         sql = "select * from db.stable_4; "
         tdSql.query(sql)
@@ -954,7 +978,8 @@ class TDTestCase:
             sql += "nchar_%d nchar(32), " % (i + 1)
         for i in range(3800,4090):
             sql += "binary_%d binary(40), " % (i + 1)
-        sql += "col4091 binary(342))"  
+        #sql += "col4091 binary(342))"
+        sql += "col4091 binary(196950))"
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
@@ -1138,9 +1163,11 @@ class TDTestCase:
         sql = "select * from db.stable_7; "
         tdSql.query(sql)
         tdSql.checkCols(4095)
-        sql = "alter table db.stable_7 add column col4091 binary(342); "
+        #sql = "alter table db.stable_7 add column col4091 binary(342); "
+        sql = "alter table db.stable_7 add column col4091 binary(196950); "
         tdSql.error(sql) 
-        sql = "alter table db.stable_7 add column col4091 binary(341); "
+        #sql = "alter table db.stable_7 add column col4091 binary(341); "
+        sql = "alter table db.stable_7 add column col4091 binary(196949); "
         tdSql.execute(sql)
         sql = "select * from db.stable_7; "
         tdSql.query(sql)
@@ -1194,7 +1221,8 @@ class TDTestCase:
             sql += "nchar_%d nchar(32), " % (i + 1)
         for i in range(3800,4090):
             sql += "binary_%d binary(40), " % (i + 1)
-        sql += "col4091 binary(342))"  
+        #sql += "col4091 binary(342))"  
+        sql += "col4091 binary(196950))"  
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
 
@@ -1229,9 +1257,11 @@ class TDTestCase:
         tdLog.info('test exceeds row num') 
         # column + tag > 4096 
         sql = "create stable db.stable_2(ts timestamp, "
-        for i in range(4091):
+        #for i in range(4091):
+        #for i in range(16379):
+        for i in range(32634):
             sql += "col%d int, " % (i + 1)
-        sql += "col4092 binary(22))"  
+        sql += "col32635 binary(22))"  
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdLog.info(len(sql))      
         tdSql.error(sql)
@@ -1240,9 +1270,12 @@ class TDTestCase:
         
         # column + tag > 4096
         sql = "create stable db.stable_2(ts timestamp, "
-        for i in range(4090):
+        #for i in range(4090):
+        #for i in range(16378):
+        for i in range(32633):
             sql += "col%d int, " % (i + 1)
-        sql += "col4091 binary(22))"  
+        #sql += "col4091 binary(22))"  
+        sql += "col32634 binary(22))"  
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int,tag_4 int) " 
         tdLog.info(len(sql))  
         tdSql.error(sql)

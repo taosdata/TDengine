@@ -2413,21 +2413,21 @@ _end:
 
 void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId) {
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  if (stbName == NULL){
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
-  }else{
+  if (stbName == NULL) {
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%" PRIu64, groupId);
+  } else {
     int32_t i = strlen(stbName) - 1;
-    for(; i >= 0; i--){
-      if (stbName[i] == '.'){
+    for (; i >= 0; i--) {
+      if (stbName[i] == '.') {
         break;
       }
     }
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName + i + 1, groupId);
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%" PRIu64, stbName + i + 1, groupId);
   }
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
   strcat(ctbName, tmp);
-  for(int i = 0; i < strlen(ctbName); i++){
-    if(ctbName[i] == '.'){
+  for (int i = 0; i < strlen(ctbName); i++) {
+    if (ctbName[i] == '.') {
       ctbName[i] = '_';
     }
   }
@@ -2500,7 +2500,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = BLOCK_VERSION_1;
+  *version = BLOCK_VERSION_3;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2581,9 +2581,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-    colSizes[col] = htonl(colSizes[col]);
-    //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
-    //    htonl(colSizes[col]), colSizes[col]);
+    // colSizes[col] = htonl(colSizes[col]);
+    //     uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
+    //     htonl(colSizes[col]), colSizes[col]);
   }
 
   bool* blankFill = (bool*)data;
@@ -2646,7 +2646,9 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLen[i] = htonl(colLen[i]);
+    if (version == BLOCK_VERSION_1) {
+      colLen[i] = htonl(colLen[i]);
+    }
     ASSERT(colLen[i] >= 0);
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);

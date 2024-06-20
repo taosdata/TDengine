@@ -21,9 +21,9 @@ static std::string logDir = TD_TMP_DIR_PATH "log";
 SIndexTerm* indexTermCreateT(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                              int32_t nColName, const char* colVal, int32_t nColVal) {
   char    buf[256] = {0};
-  int16_t sz = nColVal;
-  memcpy(buf, (uint16_t*)&sz, 2);
-  memcpy(buf + 2, colVal, nColVal);
+  int32_t sz = nColVal;
+  memcpy(buf, (uint16_t*)&sz, 4);
+  memcpy(buf + 4, colVal, nColVal);
   if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_GEOMETRY) {
     return indexTermCreate(suid, oper, colType, colName, nColName, buf, sizeof(buf));
   } else {

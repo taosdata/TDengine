@@ -662,7 +662,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     memset(&typedata, 0, sizeof(typedata));
     if (IS_VAR_DATA_TYPE(left->colValType)) {
       if (!IS_VAR_DATA_TYPE(right->colValType)) {
-        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
+        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - VARSTR_HEADER_SIZE, buf + VARSTR_HEADER_SIZE);
         varDataSetLen(buf, strlen(buf + VARSTR_HEADER_SIZE));
         param.val = buf;
       }

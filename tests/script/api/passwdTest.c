@@ -34,7 +34,7 @@
 #define USER_LEN 24
 #define BUF_LEN  1024
 
-typedef uint16_t VarDataLenT;
+typedef uint32_t VarDataLenT;
 
 #define TSDB_NCHAR_SIZE    sizeof(int32_t)
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
@@ -59,7 +59,8 @@ void __taos_notify_cb(void *param, void *ext, int type) {
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
       ++nPassVerNotified;
-      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int *)ext);
+      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL",
+             *(int *)ext);
       break;
     }
     case TAOS_NOTIFY_USER_DROPPED: {
@@ -301,8 +302,7 @@ void passVerTestMulti(const char *host, char *qstr) {
 
   fprintf(stderr, "######## %s #########\n", __func__);
   if (nPassVerNotified == nConn) {
-    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified,
-            nConn);
+    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified, nConn);
   } else {
     fprintf(stderr, ">>> failed to get passVer notification since nNotify %d != nConn %d\n", nPassVerNotified, nConn);
     exit(1);
@@ -337,7 +337,7 @@ void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   TAOS_RES *res = NULL;
   int32_t   nRep = 0;
 
-_REP: 
+_REP:
   fprintf(stderr, "######## %s loop:%d #########\n", __func__, nRep);
   res = taos_query(taos[0], qstr);
   if (taos_errno(res) != 0) {
@@ -375,7 +375,7 @@ _REP:
     sleep(1);
   }
 
-  if(++nRep < 5) {
+  if (++nRep < 5) {
     goto _REP;
   }
 
@@ -390,8 +390,8 @@ _REP:
   fprintf(stderr, "######## %s #########\n", __func__);
 }
 static bool isDropUser = true;
-void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
-  // users
+void        userDroppedTest(TAOS *taos, const char *host, char *qstr) {
+         // users
   int nTestUsers = nUser;
   int nLoop = 0;
 _loop:
