@@ -67,7 +67,7 @@ DROP USER user_name;
 
 ```sql
 ALTER USER user_name alter_user_clause
- 
+
 alter_user_clause: {
     PASS 'literal'
   | ENABLE value
