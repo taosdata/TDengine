@@ -359,8 +359,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             from.subject.take();
             // let source_builder = TaosBuilder::from_dsn(&from)?;
 
-            // to.subject.take();
-            let sink_builder = TaosBuilder::from_dsn(to)?;
+            let mut to = to.clone();
+            to.subject.take();
+            let sink_builder = TaosBuilder::from_dsn(&to)?;
             let mut conn = sink_builder
                 .build()
                 .await
