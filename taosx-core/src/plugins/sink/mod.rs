@@ -162,7 +162,7 @@ impl MessageMetadata {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task_id, client))]
+#[instrument(skip_all, fields(task.id = task_id))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -239,6 +239,7 @@ async fn ipc_tcp_forward(
         let batch_number = batch_number.clone();
         let tables_cache_tx = tables_cache_tx.clone();
         let cur_span = Span::current();
+        let cur_span_in_map_err = cur_span.clone();
         let is_lush = schema
             .metadata
             .get("schema")
@@ -263,8 +264,10 @@ async fn ipc_tcp_forward(
                     let _ = tables_cache_tx.send(batch.clone());
                 }
             })
-            .map_err(|err: ArrowError| {
-                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+            .map_err(move |err: ArrowError| {
+                cur_span_in_map_err.in_scope(|| {
+                    error!(error = ?err, "IPC reading error: {err:#}");
+                });
                 FlightError::from(err)
             });
         if last_retries > MAX_LAST_RETRIES {
@@ -338,11 +341,13 @@ async fn ipc_tcp_forward(
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
         client.add_header("x-trace-id", &stream_trace_id.to_string())?;
+        let cur_span_in_map_error = Span::current();
         if let Err(err) = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
-            .map_err(|err| match err {
+            .map_err(move |err| match err {
                 FlightError::Tonic(status) => {
+                    let _entered = cur_span_in_map_error.enter();
                     tracing::error!(
                         error.code = %status.code(),
                         error.message = %status.message(),
@@ -361,19 +366,24 @@ async fn ipc_tcp_forward(
         info!("Handshake done");
         // dbg!(res);
         info!("Do putting");
-        let mut stream = match client.do_put(data).await.map_err(|err| match dbg!(err) {
-            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-            FlightError::Tonic(status) => {
-                tracing::error!(
-                    error.code = %status.code(),
-                    error.message = %status.message(),
-                    error.metadata = ?status.metadata(),
-                    "Put IPC stream error: {}", status
-                );
-                anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
-            }
-            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-        }) {
+        let cur_sapn_in_map_error = Span::current();
+        let mut stream = match client
+            .do_put(data)
+            .await
+            .map_err(move |err| match dbg!(err) {
+                FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+                FlightError::Tonic(status) => {
+                    let _entered = cur_sapn_in_map_error.enter();
+                    tracing::error!(
+                        error.code = %status.code(),
+                        error.message = %status.message(),
+                        error.metadata = ?status.metadata(),
+                        "Put IPC stream error: {}", status
+                    );
+                    anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
+                }
+                err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+            }) {
             Ok(stream) => stream,
             Err(err) => {
                 tracing::warn!("Try putting stream error: {:#}", err);
