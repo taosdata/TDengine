@@ -64,6 +64,7 @@ alter_user_clause: {
     PASS 'literal'
   | ENABLE value
   | SYSINFO value
+  | CREATEDB value
 }
 ```
 
