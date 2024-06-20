@@ -76,15 +76,12 @@ For more details of the Azure AD SSO integration, please see the following Azure
 1. Sign in to the [TDengine Cloud portal](https://cloud.tdengine.com/). (If you don’t have an account yet, please register an account as an administrator account first.)
 2. Create an organization or edit an existing organization:
    1. Enable sso and select **Azure AD** in the drop-down box.
-      ![Enable Azure AD SSO](./enable-azure-ad-sso.webp)
-       <center><figcaption>Figure 8. enable Azure AD SSO </figcaption></center>
+     
    2. Fill in the form with the **Domain**, **Client ID** and **Client Secret** values you configured in the Azure portal, and click the "Save SSO Config" button.
-      ![Save Azure AD SSO config](./save-azure-ad-sso-config.webp)
-      <center><figcaption>Figure 9. save Azure AD SSO config </figcaption></center>
+      
    3. Verify your configured Azure AD single sign-on integration.
     Save the SSO configuration successfully, and you can see a verified URL link returned on the interface. Click or copy the link to your browser to verify that your configuration is valid.
-     ![Azure AD SSO verified](./azure-ad-sso-verified.webp)
-      <center><figcaption>Figure 10. Azure AD SSO verified </figcaption></center>
+     
    4. After you verify your configuration, select the "Verified" option and click the Save button to create your organization. All members of the organization will sign in to TDengine Cloud using the Azure AD you have configured.
    5. Copy the TDengine Cloud login URL unique to your organization and send it to your organization members, who can use it to log in to TDengine Cloud.
    
@@ -95,8 +92,6 @@ As follows "https://cloud.tdengine.com/auth/login?azure_sso=xxxx" where paramete
 
 ## How to update the Azure AD single sign-on configuration
 1. Log in to TDengine Cloud as an administrator.Go to the Organization Management page. Click the Change Organization button.
-    ![Update Azure AD SSO](./update-org-sso.webp)
-    <center><figcaption>Figure 11. update Azure AD SSO </figcaption></center>
 2. Then you can modify the configuration of the Azure Ad SSO configuration in the form. only Client ID and Client Secret can be modified.
    
 ## How to invite a new Azure organization user to your TDengine Cloud organization
@@ -110,7 +105,4 @@ As follows "https://cloud.tdengine.com/auth/login?azure_sso=xxxx" where paramete
    1. In the top organization drop-down selection box, select the organization that has the Azure AD SSO tag.
    2. Click the "Users" menu on the left, then click "Add new user" button.
    3. In the pop-up box, fill in the contact email address configured by the user you added in the Azure organization in the previous step. The new user will then receive an email to activate their TDengine Cloud account.
-      ![Invite user](./invite-user.webp)
-      <center><figcaption>Figure 12. invite user </figcaption></center>
-
    4. Notify users to activate their account to join your TDengine Cloud organization using Azure AD SSO.
