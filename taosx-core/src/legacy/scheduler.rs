@@ -673,18 +673,10 @@ impl Scheduler {
         target_is_v3: bool,
         task_id: Option<String>,
         cancellation: CancellationToken,
+        breakpoints: Option<BreakpointDb>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
-        let breakpoints = if let Some(id) = task_id.as_deref() {
-            Some(
-                BreakpointDb::new_with_task(&id)
-                    .await
-                    .expect("create breakpoint db failed"), // TODO: handle error
-            )
-        } else {
-            None
-        };
         let mut task_set = JoinSet::new();
 
         for i in 0..workers {
