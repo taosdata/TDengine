@@ -1112,12 +1112,11 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 #ifdef USE_ROCKSDB
   void* pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
   if (!pStr) {
-    bool isFull = (tSimpleHashGetSize(pState->parNameMap) >= MAX_TABLE_NAME_NUM);
-    if (onlyCache && isFull) {
+    if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       return TSDB_CODE_FAILED;
     }
     int32_t code = streamStateGetParName_rocksdb(pState, groupId, pVal);
-    if (code == TSDB_CODE_SUCCESS && isFull) {
+    if (code == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
     }
     return code;
