@@ -120,7 +120,8 @@ TEST(TAOS_ERROR_TEST, terror_compatibility_test) {
   int32_t errSize = taosGetErrSize();
   // for (int32_t i = 0; i < errSize; ++i) {
   //   STaosError *pInfo = &errors[i];
-  //   std::cout << i + 1 << " " << pInfo->macro << " " << pInfo->val << std::endl;
+  //   std::cout << i + 1 << " " << pInfo->macro << " ";
+  //   std::cout << "0x" << std::uppercase << std::hex << pInfo->val << std::endl;
   // }
 
 
@@ -188,7 +189,8 @@ void generateConfigFile(const string& filePath) {
 
   for (int32_t i = 0; i < errSize; ++i) {
     STaosError *pInfo = &errors[i];
-    file << std::left << std::setw(maxStringLength) << pInfo->macro << "= " << pInfo->val << endl;
+    file << std::left << std::setw(maxStringLength) << pInfo->macro << "= ";
+    file << "0x" << std::uppercase << std::hex << pInfo->val << endl;
   }
 
   if (file.fail()) {
