@@ -578,6 +578,8 @@ typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
   SArray*  pPageList;
+  SArray*  blockForNotLoaded;   // SSDataBlock that data is not loaded
+  int32_t  offsetForNotLoaded;  // read offset for SSDataBlock that data is not loaded
 } SDataGroupInfo;
 
 typedef struct SWindowRowsSup {
@@ -750,7 +752,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
 
-void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
+int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,

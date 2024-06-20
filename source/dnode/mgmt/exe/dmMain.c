@@ -236,7 +236,7 @@ static void dmPrintVersion() {
   printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
   printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
-  printf("git: %s\n", gitinfoOfInternal);
+  printf("gitOfInternal: %s\n", gitinfoOfInternal);
 #endif
   printf("build: %s\n", buildinfo);
 }

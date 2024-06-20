@@ -24,6 +24,14 @@ extern "C" {
 
 // clang-format off
 
+typedef struct {
+  int32_t     val;
+  const char* str;
+  const char* macro;
+} STaosError;
+
+extern STaosError errors[];
+
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -38,6 +46,7 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
 #define terrMsg                             (taosGetErrMsg())
 
@@ -133,7 +142,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_APP_IS_STOPPING               TAOS_DEF_ERROR_CODE(0, 0x0131)
 #define TSDB_CODE_INVALID_DATA_FMT              TAOS_DEF_ERROR_CODE(0, 0x0132)
 #define TSDB_CODE_INVALID_CFG_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0133)
-
+#define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
 
 //client
@@ -258,6 +267,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_AUTH_FAILURE              TAOS_DEF_ERROR_CODE(0, 0x0357)
 #define TSDB_CODE_MND_USER_NOT_AVAILABLE        TAOS_DEF_ERROR_CODE(0, 0x0358)
 #define TSDB_CODE_MND_PRIVILEDGE_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0359)
+#define TSDB_CODE_MND_USER_HOST_EXIST           TAOS_DEF_ERROR_CODE(0, 0x035A)
+#define TSDB_CODE_MND_USER_HOST_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x035B)
+#define TSDB_CODE_MND_TOO_MANY_USER_HOST       TAOS_DEF_ERROR_CODE(0, 0x035C)
+#define TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP       TAOS_DEF_ERROR_CODE(0, 0x035D)
+
 
 // mnode-stable-part1
 #define TSDB_CODE_MND_STB_ALREADY_EXIST         TAOS_DEF_ERROR_CODE(0, 0x0360)
@@ -737,6 +751,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED      TAOS_DEF_ERROR_CODE(0, 0x2669)
 #define TSDB_CODE_PAR_INVALID_VARBINARY         TAOS_DEF_ERROR_CODE(0, 0x266A)
 #define TSDB_CODE_PAR_ORDERBY_AMBIGUOUS         TAOS_DEF_ERROR_CODE(0, 0x266F)
+#define TSDB_CODE_PAR_INVALID_IP_RANGE          TAOS_DEF_ERROR_CODE(0, 0x266B)
 #define TSDB_CODE_PAR_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x26FF)
 
 //planner

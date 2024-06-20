@@ -14,9 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <stdio.h>
-#include "tjson.h"
 #include "mndDnode.h"
+#include <stdio.h>
+#include "audit.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -26,10 +27,9 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "tmisce.h"
-#include "mndCluster.h"
-#include "audit.h"
 #include "taos_monitor.h"
+#include "tjson.h"
+#include "tmisce.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -142,7 +142,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -435,6 +435,11 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
            tsTtlChangeOnWrite);
     return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
   }
+  int8_t enable = tsEnableWhiteList ? 1 : 0;
+  if (pCfg->enableWhiteList != enable) {
+    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
+  }
 
   return 0;
 }
@@ -486,49 +491,49 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   int32_t    code = -1;
 
   char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
-  sprintf(strClusterId, "%"PRId64, pMnode->clusterId);
+  sprintf(strClusterId, "%" PRId64, pMnode->clusterId);
 
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return code;
   }
 
-  if(tsMonitorLogProtocol){
+  if (tsMonitorLogProtocol) {
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
-  SJson* pJson = tjsonParse(statisReq.pCont);
+  SJson *pJson = tjsonParse(statisReq.pCont);
 
   int32_t ts_size = tjsonGetArraySize(pJson);
 
-  for(int32_t i = 0; i < ts_size; i++){
-    SJson* item = tjsonGetArrayItem(pJson, i);
+  for (int32_t i = 0; i < ts_size; i++) {
+    SJson *item = tjsonGetArrayItem(pJson, i);
 
-    SJson* tables = tjsonGetObjectItem(item, "tables");
+    SJson *tables = tjsonGetObjectItem(item, "tables");
 
     int32_t tableSize = tjsonGetArraySize(tables);
-    for(int32_t i = 0; i < tableSize; i++){
-      SJson* table = tjsonGetArrayItem(tables, i);
+    for (int32_t i = 0; i < tableSize; i++) {
+      SJson *table = tjsonGetArrayItem(tables, i);
 
       char tableName[MONITOR_TABLENAME_LEN] = {0};
       tjsonGetStringValue(table, "name", tableName);
 
-      SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
+      SJson *metricGroups = tjsonGetObjectItem(table, "metric_groups");
 
       int32_t size = tjsonGetArraySize(metricGroups);
-      for(int32_t i = 0; i < size; i++){
-        SJson* item = tjsonGetArrayItem(metricGroups, i);
+      for (int32_t i = 0; i < size; i++) {
+        SJson *item = tjsonGetArrayItem(metricGroups, i);
 
-        SJson* arrayTag = tjsonGetObjectItem(item, "tags");
+        SJson *arrayTag = tjsonGetObjectItem(item, "tags");
 
         int32_t tagSize = tjsonGetArraySize(arrayTag);
-        for(int32_t j = 0; j < tagSize; j++){
-          SJson* item = tjsonGetArrayItem(arrayTag, j);
+        for (int32_t j = 0; j < tagSize; j++) {
+          SJson *item = tjsonGetArrayItem(arrayTag, j);
 
           char tagName[MONITOR_TAG_NAME_LEN] = {0};
           tjsonGetStringValue(item, "name", tagName);
 
-          if(strncmp(tagName, "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
+          if (strncmp(tagName, "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
             tjsonDeleteItemFromObject(item, "value");
             tjsonAddStringToObject(item, "value", strClusterId);
           }
@@ -540,12 +545,12 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   char *pCont = tjsonToString(pJson);
   monSendContent(pCont);
 
-  if(pJson != NULL){
+  if (pJson != NULL) {
     tjsonDelete(pJson);
     pJson = NULL;
   }
 
-  if(pCont != NULL){
+  if (pCont != NULL) {
     taosMemoryFree(pCont);
     pCont = NULL;
   }
@@ -553,132 +558,132 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   tFreeSStatisReq(&statisReq);
   return 0;
 
-/*
-  SJson* pJson = tjsonParse(statisReq.pCont);
+  /*
+    SJson* pJson = tjsonParse(statisReq.pCont);
 
-  int32_t ts_size = tjsonGetArraySize(pJson);
+    int32_t ts_size = tjsonGetArraySize(pJson);
 
-  for(int32_t i = 0; i < ts_size; i++){
-    SJson* item = tjsonGetArrayItem(pJson, i);
+    for(int32_t i = 0; i < ts_size; i++){
+      SJson* item = tjsonGetArrayItem(pJson, i);
 
-    SJson* tables = tjsonGetObjectItem(item, "tables");
+      SJson* tables = tjsonGetObjectItem(item, "tables");
 
-    int32_t tableSize = tjsonGetArraySize(tables);
-    for(int32_t i = 0; i < tableSize; i++){
-      SJson* table = tjsonGetArrayItem(tables, i);
+      int32_t tableSize = tjsonGetArraySize(tables);
+      for(int32_t i = 0; i < tableSize; i++){
+        SJson* table = tjsonGetArrayItem(tables, i);
 
-      char tableName[MONITOR_TABLENAME_LEN] = {0};
-      tjsonGetStringValue(table, "name", tableName);
+        char tableName[MONITOR_TABLENAME_LEN] = {0};
+        tjsonGetStringValue(table, "name", tableName);
 
-      SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
+        SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
 
-      int32_t size = tjsonGetArraySize(metricGroups);
-      for(int32_t i = 0; i < size; i++){
-        SJson* item = tjsonGetArrayItem(metricGroups, i);
+        int32_t size = tjsonGetArraySize(metricGroups);
+        for(int32_t i = 0; i < size; i++){
+          SJson* item = tjsonGetArrayItem(metricGroups, i);
 
-        SJson* arrayTag = tjsonGetObjectItem(item, "tags");
+          SJson* arrayTag = tjsonGetObjectItem(item, "tags");
 
-        int32_t tagSize = tjsonGetArraySize(arrayTag);
+          int32_t tagSize = tjsonGetArraySize(arrayTag);
 
-        char** labels = taosMemoryMalloc(sizeof(char*) * tagSize);
-        char** sample_labels = taosMemoryMalloc(sizeof(char*) * tagSize);
+          char** labels = taosMemoryMalloc(sizeof(char*) * tagSize);
+          char** sample_labels = taosMemoryMalloc(sizeof(char*) * tagSize);
 
-        for(int32_t j = 0; j < tagSize; j++){
-          SJson* item = tjsonGetArrayItem(arrayTag, j);
+          for(int32_t j = 0; j < tagSize; j++){
+            SJson* item = tjsonGetArrayItem(arrayTag, j);
 
-          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
-          tjsonGetStringValue(item, "name", *(labels + j));
+            *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
+            tjsonGetStringValue(item, "name", *(labels + j));
 
-          *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
-          tjsonGetStringValue(item, "value", *(sample_labels + j));
-          if(strncmp(*(labels + j), "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
-            strncpy(*(sample_labels + j), strClusterId, MONITOR_TAG_VALUE_LEN);
+            *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
+            tjsonGetStringValue(item, "value", *(sample_labels + j));
+            if(strncmp(*(labels + j), "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
+              strncpy(*(sample_labels + j), strClusterId, MONITOR_TAG_VALUE_LEN);
+            }
           }
-        }
 
-        SJson* metrics = tjsonGetObjectItem(item, "metrics");
+          SJson* metrics = tjsonGetObjectItem(item, "metrics");
 
-        int32_t metricLen = tjsonGetArraySize(metrics);
-        for(int32_t j = 0; j < metricLen; j++){
-          SJson *item = tjsonGetArrayItem(metrics, j);
+          int32_t metricLen = tjsonGetArraySize(metrics);
+          for(int32_t j = 0; j < metricLen; j++){
+            SJson *item = tjsonGetArrayItem(metrics, j);
 
-          char name[MONITOR_METRIC_NAME_LEN] = {0};
-          tjsonGetStringValue(item, "name", name);
+            char name[MONITOR_METRIC_NAME_LEN] = {0};
+            tjsonGetStringValue(item, "name", name);
 
-          double value = 0;
-          tjsonGetDoubleValue(item, "value", &value);
+            double value = 0;
+            tjsonGetDoubleValue(item, "value", &value);
 
-          double type = 0;
-          tjsonGetDoubleValue(item, "type", &type);
+            double type = 0;
+            tjsonGetDoubleValue(item, "type", &type);
 
-          int32_t metricNameLen = strlen(name) + strlen(tableName) + 2;
-          char* metricName = taosMemoryMalloc(metricNameLen);
-          memset(metricName, 0, metricNameLen);
-          sprintf(metricName, "%s:%s", tableName, name);
+            int32_t metricNameLen = strlen(name) + strlen(tableName) + 2;
+            char* metricName = taosMemoryMalloc(metricNameLen);
+            memset(metricName, 0, metricNameLen);
+            sprintf(metricName, "%s:%s", tableName, name);
 
-          taos_metric_t* metric = taos_collector_registry_get_metric(metricName);
-          if(metric == NULL){
-            if(type == 0){
-              metric = taos_counter_new(metricName, "",  tagSize, (const char**)labels);
-            }
-            if(type == 1){
-              metric = taos_gauge_new(metricName, "",  tagSize, (const char**)labels);
-            }
-            mTrace("fail to get metric from registry, new one metric:%p", metric);
-
-            if(taos_collector_registry_register_metric(metric) == 1){
+            taos_metric_t* metric = taos_collector_registry_get_metric(metricName);
+            if(metric == NULL){
               if(type == 0){
-                taos_counter_destroy(metric);
+                metric = taos_counter_new(metricName, "",  tagSize, (const char**)labels);
               }
               if(type == 1){
-                taos_gauge_destroy(metric);
+                metric = taos_gauge_new(metricName, "",  tagSize, (const char**)labels);
               }
+              mTrace("fail to get metric from registry, new one metric:%p", metric);
 
-              metric = taos_collector_registry_get_metric(metricName);
+              if(taos_collector_registry_register_metric(metric) == 1){
+                if(type == 0){
+                  taos_counter_destroy(metric);
+                }
+                if(type == 1){
+                  taos_gauge_destroy(metric);
+                }
 
-              mTrace("fail to register metric, get metric from registry:%p", metric);
+                metric = taos_collector_registry_get_metric(metricName);
+
+                mTrace("fail to register metric, get metric from registry:%p", metric);
+              }
+              else{
+                mTrace("succeed to register metric:%p", metric);
+              }
             }
             else{
-              mTrace("succeed to register metric:%p", metric);
+              mTrace("get metric from registry:%p", metric);
             }
-          }
-          else{
-            mTrace("get metric from registry:%p", metric);
+
+            if(type == 0){
+              taos_counter_add(metric, value, (const char**)sample_labels);
+            }
+            if(type == 1){
+              taos_gauge_set(metric, value, (const char**)sample_labels);
+            }
+
+            taosMemoryFreeClear(metricName);
           }
 
-          if(type == 0){
-            taos_counter_add(metric, value, (const char**)sample_labels);
-          }
-          if(type == 1){
-            taos_gauge_set(metric, value, (const char**)sample_labels);
+          for(int32_t j = 0; j < tagSize; j++){
+            taosMemoryFreeClear(*(labels + j));
+            taosMemoryFreeClear(*(sample_labels + j));
           }
 
-          taosMemoryFreeClear(metricName);
+          taosMemoryFreeClear(sample_labels);
+          taosMemoryFreeClear(labels);
         }
-
-        for(int32_t j = 0; j < tagSize; j++){
-          taosMemoryFreeClear(*(labels + j));
-          taosMemoryFreeClear(*(sample_labels + j));
-        }
-
-        taosMemoryFreeClear(sample_labels);
-        taosMemoryFreeClear(labels);
       }
+
     }
 
-  }
+    code = 0;
 
-  code = 0;
+  _OVER:
+    if(pJson != NULL){
+      tjsonDelete(pJson);
+      pJson = NULL;
+    }
 
-_OVER:
-  if(pJson != NULL){
-    tjsonDelete(pJson);
-    pJson = NULL;
-  }
-
-  tFreeSStatisReq(&statisReq);
-  return code;
-  */
+    tFreeSStatisReq(&statisReq);
+    return code;
+    */
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
@@ -727,6 +732,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
   }
+  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
@@ -734,7 +740,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
+  bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
+
+  bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || enableWhiteListChanged;
+  ;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -859,6 +869,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
+    statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -938,7 +949,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1218,14 +1229,10 @@ _OVER:
 
 extern int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq);
 
-int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
-  return mndProcessRestoreDnodeReqImpl(pReq);
-}
+int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq) { return mndProcessRestoreDnodeReqImpl(pReq); }
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
-  return 0;
-}
+int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) { return 0; }
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
@@ -1274,7 +1281,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  code = 0;
+  code = mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1322,15 +1329,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s",
-          dropReq.dnodeId, dropReq.fqdn, dropReq.port, dropReq.force?"true":"false", dropReq.unsafe?"true":"false");
+  mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", dropReq.dnodeId, dropReq.fqdn, dropReq.port,
+        dropReq.force ? "true" : "false", dropReq.unsafe ? "true" : "false");
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
   bool force = dropReq.force;
-  if(dropReq.unsafe)
-  {
+  if (dropReq.unsafe) {
     force = true;
   }
 
@@ -1361,12 +1367,12 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+  bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
 
   if (isonline && force) {
     terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
@@ -1374,7 +1380,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (!isonline && !force && !isEmpty) {
     terrno = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
-            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
 
@@ -1406,6 +1412,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",
       "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
   };
+  static char *enableWhitelist_str = "enableWhitelist";
+
   int32_t optionSize = tListLen(options);
 
   SMCfgDnodeReq cfgReq = {0};
@@ -1483,8 +1491,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (code < 0) return code;
 
     if (flag < 0) {
-      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
-             flag, INT32_MAX);
+      mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId, flag,
+             INT32_MAX);
       terrno = TSDB_CODE_INVALID_CFG;
       tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
@@ -1559,6 +1567,22 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return 0;
 #endif
+  } else if (strncasecmp(cfgReq.config, enableWhitelist_str, strlen(enableWhitelist_str)) == 0) {
+    int32_t optLen = strlen(enableWhitelist_str);
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 1) {
+      mError("dnode:%d, failed to config enableWhitelist since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, enableWhitelist_str);
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
@@ -1797,4 +1821,40 @@ _err:
   mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
   terrno = TSDB_CODE_INVALID_CFG;
   return -1;
+}
+
+SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
+  SDnodeObj *pObj = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  if (fqdns == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  int32_t code = 0;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    char *fqdn = taosStrdup(pObj->fqdn);
+    if (fqdn == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      sdbRelease(pSdb, pObj);
+      code = -1;
+      break;
+    }
+    taosArrayPush(fqdns, &fqdn);
+    sdbRelease(pSdb, pObj);
+  }
+  if (code != 0) {
+    for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+      char *fqdn = taosArrayGetP(fqdns, i);
+      taosMemoryFree(fqdn);
+    }
+    taosArrayDestroy(fqdns);
+    fqdns = NULL;
+  }
+
+  return fqdns;
 }
