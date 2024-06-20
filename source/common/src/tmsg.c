@@ -1435,8 +1435,14 @@ int32_t tSerializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
 
   if (tStartEncode(&encoder) < 0) return -1;
 
-  if (tEncodeI32(&encoder, pReq->contLen) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->pCont) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->contLen) < 0) {
+    tEndEncode(&encoder);
+    return -1;
+  }
+  if (tEncodeCStr(&encoder, pReq->pCont) < 0) {
+    tEndEncode(&encoder);
+    return -1;
+  }
 
   tEndEncode(&encoder);
 

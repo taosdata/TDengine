@@ -472,21 +472,24 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 
   if (tsEnableMonitor && pVnode->monitor.insertCounter == NULL) {
     taos_counter_t *counter = NULL;
-    int32_t label_count = 7;
-    const char *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE, VNODE_METRIC_TAG_NAME_CLUSTER_ID,
-                                  VNODE_METRIC_TAG_NAME_DNODE_ID, VNODE_METRIC_TAG_NAME_DNODE_EP,
-                                  VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
-                                  VNODE_METRIC_TAG_NAME_RESULT};
-    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql",
-                                                label_count, sample_labels);
-    vInfo("vgId:%d, new metric:%p",TD_VID(pVnode), counter);
-    if(taos_collector_registry_register_metric(counter) == 1){
-      taos_counter_destroy(counter);
-      counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
-      vInfo("vgId:%d, get metric from registry:%p", TD_VID(pVnode), counter);
+    int32_t         label_count = 7;
+    const char     *sample_labels[] = {VNODE_METRIC_TAG_NAME_SQL_TYPE,  VNODE_METRIC_TAG_NAME_CLUSTER_ID,
+                                       VNODE_METRIC_TAG_NAME_DNODE_ID,  VNODE_METRIC_TAG_NAME_DNODE_EP,
+                                       VNODE_METRIC_TAG_NAME_VGROUP_ID, VNODE_METRIC_TAG_NAME_USERNAME,
+                                       VNODE_METRIC_TAG_NAME_RESULT};
+    counter = taos_counter_new(VNODE_METRIC_SQL_COUNT, "counter for insert sql", label_count, sample_labels);
+    if (counter != NULL) {
+      vInfo("vgId:%d, new metric:%p", TD_VID(pVnode), counter);
+      if (taos_collector_registry_register_metric(counter) == 1) {
+        taos_counter_destroy(counter);
+        counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
+        vInfo("vgId:%d, get metric from registry:%p", TD_VID(pVnode), counter);
+      }
+      pVnode->monitor.insertCounter = counter;
+      vInfo("vgId:%d, succeed to set metric:%p", TD_VID(pVnode), counter);
+    } else {
+      vError("vgId:%d, failed to new a counter when open vnode", TD_VID(pVnode));
     }
-    pVnode->monitor.insertCounter = counter;
-    vInfo("vgId:%d, succeed to set metric:%p", TD_VID(pVnode), counter);
   }
 
   return pVnode;
