@@ -128,7 +128,25 @@ export function getDataSources(lang) {
               }
             ]
           }
-        ]
+        ],
+        "advanced": {
+          "name": "Advanced Options",
+          "description": "Adjust the parameters related to concurrency setting for reading from data source and  writing into data sink, and error log.\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "compression",
+              "display": "Compression",
+              "hint": {
+                "type": "bool"
+              },
+              "short_description": "Enable WebSocket compression to reduce network bandwidth consumption.",
+              "description": "Enable WebSocket compression to reduce network bandwidth consumption.\n",
+              "value": "false"
+            }
+          ]
+        }
       },
       {
         "id": "taos",
@@ -485,6 +503,16 @@ export function getDataSources(lang) {
                 "type": "str"
               },
               "description": "An absolute path of the environment where taosX is running. If set, the failed data and the reason for the failure will be written to the file and will not block task execution. If not set, a failed write will cause task interruption.\n"
+            },
+            {
+              "name": "compression",
+              "display": "Compression",
+              "hint": {
+                "type": "bool"
+              },
+              "short_description": "Enable WebSocket compression to reduce network bandwidth consumption.",
+              "description": "Enable WebSocket compression to reduce network bandwidth consumption.\n",
+              "value": "false"
             }
           ]
         }
@@ -4121,7 +4149,25 @@ export function getDataSources(lang) {
           }
           ]
         }
-        ]
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "调整与读并发、写并发和错误日志相关的参数。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "compression",
+              "display": "压缩",
+              "hint": {
+                "type": "bool"
+              },
+              "short_description": "启用 WebSocket 压缩支持，以降低网络带宽占用。",
+              "description": "启用 WebSocket 压缩支持，以降低网络带宽占用。\n",
+              "value": "false"
+            }
+          ]
+        }
       },
       {
         "id": "taos",
@@ -4478,6 +4524,16 @@ export function getDataSources(lang) {
                 "type": "str"
               },
               "description": "taosX 所处运行环境的一个绝对路径。 如有值，写入失败的数据及失败原因将被写入该文件，并不阻塞任务执行。如无值，写入失败会导致任务中断。\n"
+            },
+            {
+              "name": "compression",
+              "display": "压缩",
+              "hint": {
+                "type": "bool"
+              },
+              "short_description": "启用 WebSocket 压缩支持，以降低网络带宽占用。",
+              "description": "启用 WebSocket 压缩支持，以降低网络带宽占用。\n",
+              "value": "false"
             }
           ]
         }
