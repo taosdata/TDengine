@@ -22,6 +22,7 @@
                 :data="uploadData"
                 :action="uploadUrl"
                 :on-success="handleSuccess"
+                :before-upload="checkFileName"
                 :file-list="fileList"
                 :auto-upload="true"
                 size="small"
@@ -50,7 +51,7 @@
                 <el-tooltip placement="top" effect="light" :open-delay="0">
                   <template slot="content">
                     <DocsContent
-                      :content="$t('datasource.csvFileDesc')"
+                      :content="$t('datasource.csvFileDesc')+$t('datasource.supportCharacter')"
                     />
                   </template>
                   <span>
@@ -166,6 +167,10 @@ export default {
             // trigger: "blur",
             message: this.$t("datasource.uploadcsvtip"),
           },
+          {
+            pattern: /^[\u4e00-\u9fa5A-Za-z0-9 %$@._\-\/()\[\]{}（）【】｛｝]+$/,
+            message: this.$t("datasource.fileurlTip")
+          }
         ],
       },
 
@@ -549,6 +554,16 @@ export default {
       dsn = dsn?.split('?')[1]?.split('&read_concurrency')[0] ?? ''
       return dsn;
     },
+    checkFileName(file) {
+      const regex = /^[\u4e00-\u9fa5A-Za-z0-9 %$@._\-()\[\]{}（）【】｛｝]+$/;
+      const fileName = file.name;
+      if (!regex.test(fileName)) {
+        this.$message.error(this.$t('datasource.supportCharacter'));
+        return false; // 不允许上传
+      }
+
+      return true; // 允许上传
+    }
   },
   watch:{
     "$i18n.locale": {
