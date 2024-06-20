@@ -38,13 +38,13 @@ TEST(utilTest, decompress_ts_test) {
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  int64_t tsList[4] = {1286, 1124, 2681, 2823};
+  tsList[0] = 1286; tsList[1] = 1124;  tsList[2]=2681; tsList[3] = 2823;
 
-  char*   pOutput[4 * sizeof(int64_t)] = {0};
-  int32_t len = tsCompressTimestamp(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 4,
+//  char*   pOutput[4 * sizeof(int64_t)] = {0};
+  len = tsCompressTimestamp(tsList, sizeof(tsList), sizeof(tsList) / sizeof(tsList[0]), pOutput, 4,
                                     ONE_STAGE_COMP, NULL, 0);
 
-  char* decompOutput[4 * 8] = {0};
+  decompOutput[4 * 8] = {0};
   tsDecompressTimestamp(pOutput, len, 4, decompOutput, sizeof(int64_t) * 4, ONE_STAGE_COMP, NULL, 0);
 
   for (int32_t i = 0; i < 4; ++i) {
