@@ -2260,7 +2260,7 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
       uint32_t dst = 0;
       updated = tUpdateCompress(p->alg, pReq->compress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
-      if (updated) {
+      if (updated > 0) {
         p->alg = dst;
       }
     }
@@ -2269,6 +2269,11 @@ int32_t metaUpdateTableColCompress(SMeta *pMeta, int64_t version, SVAlterTbReq *
     tdbFree(pVal);
     tDecoderClear(&dc);
     terrno = TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST;
+    goto _err;
+  } else if (updated < 0) {
+    tdbFree(pVal);
+    tDecoderClear(&dc);
+    terrno = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
     goto _err;
   }
   tbEntry.version = version;
