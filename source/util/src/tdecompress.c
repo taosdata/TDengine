@@ -351,18 +351,18 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __m128i data1;
-    if (nbytes1 == 0) {
-      data1 = _mm_setzero_si128();
-    } else {
-      memcpy(&data1, (const void*) (input + ipos), nbytes1);
+    __m128i data1 = _mm_setzero_si128();
+    if (nbytes1 > 0) {
+      int64_t tmp = 0;
+      memcpy(&tmp, (const void*) (input + ipos), nbytes1);
+      data1 = _mm_set1_epi64x(tmp);
     }
 
-    __m128i data2;
-    if (nbytes2 == 0) {
-      data2 = _mm_setzero_si128();
-    } else {
-      memcpy(&data2, (const void*) (input + ipos + nbytes1), nbytes2);
+    __m128i data2 = _mm_setzero_si128();
+    if (nbytes2 > 0) {
+      int64_t tmp = 0;
+      memcpy(&tmp, (const void*) (input + ipos + nbytes1), nbytes2);
+      data2 = _mm_set1_epi64x(tmp);
     }
 
     data2 = _mm_broadcastq_epi64(data2);
