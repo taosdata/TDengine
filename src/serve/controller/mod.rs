@@ -31,7 +31,9 @@ use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::opc::config::OPCConfig;
-use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_csv};
+use taosx_core::utils::breakpoints::{
+    breakpoints_get_all, export_breakpoints_to_compressed_csv, export_breakpoints_to_csv,
+};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
@@ -734,7 +736,7 @@ impl TaskController {
                 }
                 if from.driver == "pibackfill" {
                     let task_id = task.id.to_string();
-                    let breakpoints_file = export_breakpoints_to_csv(task_id.as_str())?;
+                    let breakpoints_file = export_breakpoints_to_compressed_csv(task_id.as_str())?;
                     if let Some(breakpoints_file) = breakpoints_file {
                         tracing::info!("Put file to agent {}: {}", via, breakpoints_file);
                         self.put_file_to_agent(via, breakpoints_file).await?;

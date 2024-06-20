@@ -1,5 +1,6 @@
 use crate::get_data_dir;
 use anyhow::Context;
+use flate2::{write::GzEncoder, Compression};
 use std::{io::Write, path::PathBuf};
 use tracing::{debug, info};
 
@@ -184,6 +185,30 @@ pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>
         file.write(b"\n")?;
     }
     let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv";
+    Ok(Some(relative_path))
+}
+
+pub fn export_breakpoints_to_compressed_csv(task_id: &str) -> anyhow::Result<Option<String>> {
+    let breakpoint_db_path = breakpoints_db_dir(task_id);
+    // if path not exist, return None to avoid create db file
+    if !breakpoint_db_path.exists() {
+        return Ok(None);
+    }
+    let db = sled::open(&breakpoint_db_path)
+        .map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    for item in db.iter() {
+        let (key, value) = item?;
+        encoder.write_all(&key)?;
+        encoder.write_all(b",")?;
+        encoder.write_all(&value)?;
+        encoder.write_all(b"\n")?;
+    }
+    let compressed_data = encoder.finish()?;
+    let export_file = breakpoint_db_path.with_extension("csv.gz");
+    let mut file = std::fs::File::create(&export_file)?;
+    file.write(&compressed_data)?;
+    let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv.gz";
     Ok(Some(relative_path))
 }
 
