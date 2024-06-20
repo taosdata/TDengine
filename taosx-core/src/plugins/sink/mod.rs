@@ -16,6 +16,7 @@ use crate::plugins::runners::opc::config::model::ColumnConfig;
 use crate::plugins::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::trace::TraceDataId;
 use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId};
 use crate::{
@@ -161,7 +162,7 @@ impl MessageMetadata {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task_id, client))]
+#[instrument(skip_all, fields(task.id = task_id))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -238,6 +239,7 @@ async fn ipc_tcp_forward(
         let batch_number = batch_number.clone();
         let tables_cache_tx = tables_cache_tx.clone();
         let cur_span = Span::current();
+        let cur_span_in_map_err = cur_span.clone();
         let is_lush = schema
             .metadata
             .get("schema")
@@ -262,8 +264,10 @@ async fn ipc_tcp_forward(
                     let _ = tables_cache_tx.send(batch.clone());
                 }
             })
-            .map_err(|err: ArrowError| {
-                tracing::info!(ipc.client.error = %err, "IPC receiving error: {err:#}");
+            .map_err(move |err: ArrowError| {
+                cur_span_in_map_err.in_scope(|| {
+                    error!(error = ?err, "IPC reading error: {err:#}");
+                });
                 FlightError::from(err)
             });
         if last_retries > MAX_LAST_RETRIES {
@@ -337,11 +341,13 @@ async fn ipc_tcp_forward(
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
         client.add_header("x-trace-id", &stream_trace_id.to_string())?;
+        let cur_span_in_map_error = Span::current();
         if let Err(err) = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
-            .map_err(|err| match err {
+            .map_err(move |err| match err {
                 FlightError::Tonic(status) => {
+                    let _entered = cur_span_in_map_error.enter();
                     tracing::error!(
                         error.code = %status.code(),
                         error.message = %status.message(),
@@ -360,19 +366,24 @@ async fn ipc_tcp_forward(
         info!("Handshake done");
         // dbg!(res);
         info!("Do putting");
-        let mut stream = match client.do_put(data).await.map_err(|err| match dbg!(err) {
-            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-            FlightError::Tonic(status) => {
-                tracing::error!(
-                    error.code = %status.code(),
-                    error.message = %status.message(),
-                    error.metadata = ?status.metadata(),
-                    "Put IPC stream error: {}", status
-                );
-                anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
-            }
-            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-        }) {
+        let cur_sapn_in_map_error = Span::current();
+        let mut stream = match client
+            .do_put(data)
+            .await
+            .map_err(move |err| match dbg!(err) {
+                FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+                FlightError::Tonic(status) => {
+                    let _entered = cur_sapn_in_map_error.enter();
+                    tracing::error!(
+                        error.code = %status.code(),
+                        error.message = %status.message(),
+                        error.metadata = ?status.metadata(),
+                        "Put IPC stream error: {}", status
+                    );
+                    anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
+                }
+                err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+            }) {
             Ok(stream) => stream,
             Err(err) => {
                 tracing::warn!("Try putting stream error: {:#}", err);
@@ -452,7 +463,11 @@ async fn ipc_tcp_forward(
                         }
                         FlightError::Arrow(arrow) => {
                             tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
-                            if msg_processed == 0 && format!("{err:#}").contains("os error 10054") {
+                            let err_msg = format!("{err:#}");
+                            if msg_processed == 0
+                                && (err_msg.contains("os error 10054")
+                                    || err_msg.contains("os error 10053"))
+                            {
                                 warn!(
                                     "Connection closed but messages are empty, consider as success"
                                 );
@@ -912,6 +927,7 @@ async fn consume_lush_record_with_transform(
     metrics_arc: &Arc<CoreMetrics>,
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
+    breakpoint_db: BreakpointDb,
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
@@ -1014,7 +1030,6 @@ async fn consume_lush_record_with_transform(
                 }
                 anyhow::Ok(count)
             });
-            // for record in record {
             let span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
                 record.into_par_iter().try_for_each_with(tx, |tx, record| {
@@ -1023,23 +1038,21 @@ async fn consume_lush_record_with_transform(
                 if num_rows == 0 {
                     tracing::debug!("No data in record");
                     return anyhow::Ok(());
-                    // continue;
                 }
                 let timer = std::time::Instant::now();
-                let name_of_table_name_column = lush_model_config.table_name_column.as_str();
+                let name_of_table_id_column = lush_model_config.table_id_column.as_str();
                 // 只包含普通列的值
                 let values_records: &RecordBatch = record.record();
-                // tracing::debug!(?values_record, "values_record"); // debug
-                let table_name_column: &Arc<dyn Array> = values_records
-                    .column_by_name(name_of_table_name_column)
+                let table_id_column: &Arc<dyn Array> = values_records
+                    .column_by_name(name_of_table_id_column)
                     .ok_or_else(|| anyhow!("table_name_column not found"))?;
-                let table_name_column: &StringArray = table_name_column
+                let table_id_column: &StringArray = table_id_column
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap();
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
-                    lush::create_tags_record(table_name_column, table_cache.clone());
+                    lush::create_tags_record(table_id_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
                     return Ok(());
@@ -1103,13 +1116,14 @@ async fn consume_lush_record_with_transform(
                 if let crate::plugins::transform::Message::Records(message) = message {
                     if message.is_empty() {
                         return Ok(());
-                        // continue;
                     }
                     let table_count = message.len();
                     let pool = pool.clone();
                     let super_table = super_table.clone();
                     let req_id = req_id.clone();
                     let metrics_ref = metrics_arc.clone();
+                    let breakpoints = breakpoint_db.clone();
+                    let table_id_column_name = name_of_table_id_column.to_string();
                     if let Err(err) = tx.send(async move {
                         let metrics = metrics_ref.ipc();
                          lush::write(
@@ -1120,6 +1134,8 @@ async fn consume_lush_record_with_transform(
                         message,
                         metrics,
                         skip_null,
+                        table_id_column_name.as_str(),
+                        breakpoints,
                     ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                         tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
@@ -2728,6 +2744,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
+    // 暂不支持无 agent 运行 pi 和 pibackfill
+    let breakpoint_db: Option<BreakpointDb> = None;
 
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
@@ -2751,6 +2769,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 &metrics_arc,
                 lush_model_config,
                 lush_table_cache.clone(),
+                breakpoint_db.as_ref().unwrap().clone(),
             )
             .await
         } else {
@@ -3358,6 +3377,7 @@ pub struct IpcStreamWorker {
     opc_table_config: OnceCell<OpcModelConfig>,
     pub lush_model_config: OnceCell<Arc<LushModelConfig>>,
     pub lush_table_cache: Option<Arc<TableTagCache>>,
+    breakpoint_db: Option<BreakpointDb>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
@@ -3380,6 +3400,7 @@ impl Clone for IpcStreamWorker {
             opc_table_config: self.opc_table_config.clone(),
             lush_model_config: self.lush_model_config.clone(),
             lush_table_cache: self.lush_table_cache.clone(),
+            breakpoint_db: self.breakpoint_db.clone(),
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
@@ -3398,6 +3419,7 @@ impl IpcStreamWorker {
         license: Option<ConnectorLicense>,
         transferred: Option<Transferred>,
         lush_table_cache: Option<Arc<TableTagCache>>,
+        breakpoint_db: Option<BreakpointDb>,
         span: tracing::Span,
         task: Option<i64>,
         // license: Option<>
@@ -3433,6 +3455,7 @@ impl IpcStreamWorker {
             opc_table_config,
             lush_model_config,
             lush_table_cache,
+            breakpoint_db,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             taos: Cell::new(Some(taos)),
@@ -3532,6 +3555,7 @@ impl IpcStreamWorker {
                         metrics_arc,
                         lush_model_config.clone(),
                         table_tag_cache,
+                        self.breakpoint_db.as_ref().unwrap().clone(),
                     )
                     .await;
                     if is_tables {

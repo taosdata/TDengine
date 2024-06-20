@@ -14,6 +14,7 @@ use taosx_core::{
         RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
     },
     utils::{
+        breakpoints::BreakpointDb,
         get_main_version_from_server_version, get_server_version,
         trace::{set_data_trace_id_for_current_span, RequestID, TraceDataId, TraceStreamId},
     },
@@ -94,6 +95,7 @@ async fn ipc_stream_writer(
     license: Option<ConnectorLicense>,
     _transferred: Option<Arc<ConnectorTransferred>>,
     lush_table_cache: Option<Arc<TableTagCache>>,
+    breakpoint_db: Option<BreakpointDb>,
     span: tracing::Span,
     abort_message_tx: flume::Sender<Result<PutResult, Status>>,
     ipc_error_strategy: IpcErrorStrategy,
@@ -114,7 +116,6 @@ async fn ipc_stream_writer(
     let task_id = task.id;
     let from = task.from.parse().unwrap();
     let taos = pool.get().await?;
-    let _ = span.clone().entered();
     let worker = IpcStreamWorker::new(
         pool.clone(),
         from,
@@ -123,6 +124,7 @@ async fn ipc_stream_writer(
         license,
         None,
         lush_table_cache,
+        breakpoint_db,
         span,
         Some(task_id),
     )
@@ -349,11 +351,11 @@ async fn spawn_stream_writer(
         _ => flume::bounded(1024),
     };
 
-    let lush_table_cache = match from_dsn.driver.as_str() {
+    let (lush_table_cache, breakpoint_db) = match from_dsn.driver.as_str() {
         "pi" | "pibackfill" => {
             let task_lush_table_cache_lock = controller.scheduler.lush_table_cache.clone();
             let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
-            if task_lush_table_cache.contains_key(&task_id) {
+            let lush_table_cache = if task_lush_table_cache.contains_key(&task_id) {
                 tracing::info!("Got existing lush_table_cache");
                 Some(task_lush_table_cache.get(&task_id).unwrap().clone())
             } else {
@@ -361,9 +363,27 @@ async fn spawn_stream_writer(
                 let table_tag_cache = Arc::new(TableTagCache::new());
                 task_lush_table_cache.insert(task_id, table_tag_cache.clone());
                 Some(table_tag_cache)
-            }
+            };
+            let task_breakpoint_db_lock = controller.scheduler.task_breakpoint_db.clone();
+            let mut task_breakpoint_db = task_breakpoint_db_lock.write().await;
+            let breakpoint_db = if task_breakpoint_db.contains_key(&task_id) {
+                tracing::info!("Got existing breakpoint_db");
+                Some(task_breakpoint_db.get(&task_id).unwrap().clone())
+            } else {
+                tracing::info!("Create new breakpoint_db");
+                let task_id_str = task_id.to_string();
+                let breakpoint_db = BreakpointDb::new_with_task(task_id_str.as_str()).await;
+                if let Err(err) = breakpoint_db {
+                    tracing::error!("BreakpointDb init error: {}", err);
+                    return Err(err);
+                }
+                let breakpoint_db = breakpoint_db.unwrap();
+                task_breakpoint_db.insert(task_id, breakpoint_db.clone());
+                Some(breakpoint_db)
+            };
+            (lush_table_cache, breakpoint_db)
         }
-        _ => None,
+        _ => (None, None),
     };
 
     let tx = Arc::new(tx);
@@ -451,6 +471,7 @@ async fn spawn_stream_writer(
                             license,
                             transferred,
                             lush_table_cache,
+                            breakpoint_db,
                             Span::current(),
                             abort_message_tx,
                             ipc_error_strategy,

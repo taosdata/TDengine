@@ -13,6 +13,7 @@ using System.Net.Sockets;
 using Newtonsoft.Json;
 using System.Linq;
 using System.Collections;
+using System.Net.Http;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
@@ -41,6 +42,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         List<KeyValuePair<string, string>> columnNameTypes;
         List<KeyValuePair<string, string>> tags;
         public string tdColomnType;
+        public int localPort = 0;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -352,6 +354,13 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
+        /// <summary>
+        /// 限制发送数据到 taosX 的速度。
+        /// actualQueueBufferSize 代表允许继续发送的批数，初始值为 30，每发送一批数据减 1，每收到一个确认消息加 1。
+        /// 当 actualQueueBufferSize 小于等于 0 时，不允许发送数，等待 500ms 在检查 actualQueueBufferSize 的值。
+        /// 如果等待是时间超过 20s，将 actualQueueBufferSize 设置为 1，允许继续发送 1 批数据。
+        /// 
+        /// </summary>
         internal void ArrowMsgQueueWait()
         {
             stopwatch.Reset();
@@ -393,7 +402,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 }
                 else
                 {
-                    log.Info("found duplicate elements when add tagVal");
+                    log.Info("Found duplicate elements when add tagVal");
                 }
             }
         }
@@ -407,7 +416,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
             else
             {
-                log.Info("found duplicate elements when add pointId");
+                log.Info("Found duplicate elements when add pointId");
             }
         }
 
@@ -415,11 +424,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             lock (stLock)
             {
                 if (builder.tagVals.Count == 0) return;
-                log.Debug($"Stable:{builder.stableName} Write tables into stream start...");
-
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName} Write tables into stream...");
+                
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort},Wrote {recordBatch.Length} tables");
                 builder.tagVals.Clear();
             }
         }
@@ -427,10 +435,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void send() {
             lock (stLock) {
                 if (builder.tableUniqKeyArrowArray.Length == 0) return;
-                log.Debug($"Stable:{builder.stableName} Write records into stream start...");
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName} Write {builder.tableUniqKeyArrowArray.Length} records into stream end.");
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort},Write {builder.tableUniqKeyArrowArray.Length} records into stream end.");
                 clear();
                 lastSend = DateTime.UtcNow;
             }
@@ -460,21 +467,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
             start();
         }
 
-        private void sendRecordBatch(RecordBatch recordBatch)
-        {
-            MemoryStream stream = new MemoryStream();
-            ArrowStreamWriter writer = new ArrowStreamWriter(stream, recordBatch.Schema);
-            writer.WriteRecordBatch(recordBatch);
-            byte[] buffer = stream.ToArray();
-            //var str = Encoding.UTF8.GetString(buffer);
-            //log.Debug($"send recordbatch: {str}");
-            var response = taosxSocket.SendData(buffer);
-
-            writer.Dispose();
-            // TODO parse response
-            return;
-        }
-
         private void writeRecordBatch(RecordBatch recordBatch) {
             if (TDEngineClient.OnlyTestConnector) return;
 
@@ -484,7 +476,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {
-                log.Error($"write record batch failed!{e.Message}");
+                log.Error($"Stable:{builder.stableName},localPort:{localPort},Write record batch failed!{e.Message}");
                 Thread.Sleep(1000);
                 reconnectTaosx();
             }
@@ -503,17 +495,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
             try {
                 // taosxSocket.Connect();
                 client = new TcpClient(hostname, port);
+                // 获取本地端口号
+                localPort = ((System.Net.IPEndPoint)client.Client.LocalEndPoint).Port;
                 stream = client.GetStream();
                 writer = new ArrowStreamWriter(stream, builder.Schema);
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},connectTaosx success");
             }
             catch (Exception e) {
-                log.Error($"Connect taosx failed! {e}");
+                log.Error($"Stable:{builder.stableName}, Connect taosx failed! {e}");
             }
-            log.Info($"Stable:{builder.stableName},SchemaMeta:{JsonConvert.SerializeObject(builder.Schema.Metadata, Formatting.Indented)}");
-            log.Info($"Stable:{builder.stableName},connectTaosx success...");
         }
         private void reconnectTaosx() {
-            log.Info($"Stable:{builder.stableName},reconnectTaosx start...");
+            log.Info($"Stable:{builder.stableName},localPort:{localPort},reconnectTaosx start...");
             writer.WriteEnd();
             stream.Close();
             client.Close();
@@ -526,6 +519,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void Stop()
         {
+            log.Info($"Stable:{builder.stableName}, localPort:{localPort},Stop client");
             if (!stopTaosxSend) {
                 stopTaosxSend = true;
                 send();

@@ -87,6 +87,7 @@ namespace TDPIConnector.TDEngine
 
             internal void ExpandCap(int num)
             {
+                log.Info($"ExpandCap {num} for {templateName}");
                 lock (clientsManagerLock)
                 {
                     int size = clients.Count;
@@ -242,7 +243,7 @@ namespace TDPIConnector.TDEngine
                         stableName, columnNameTypes, tags, maxWaitLength);
                     taosxClients.Add(stableName, new TDEngineClientManager(stableName, taosxClient));
                     taosxClient.Connect();
-                    log.Info($"create AFElements superTable {stableName}");
+                    log.Info($"Created AFElements superTable {stableName}");
                 }
             }
             return Task.FromResult<TDEngineResponse>(null);
@@ -286,18 +287,20 @@ namespace TDPIConnector.TDEngine
             var taosxClient = GetDefaultTaosxClient(superTableName);
             if (taosxClient == null)
             {
-                log.Error($"Create stable for AFElement(V2) failed, not found {superTableName}");
+                log.Error($"Create stables for AFElement(V2) failed, not found {superTableName}");
                 return null;
             }
 
             for (int i = 0; i < elements.Count; i++)
             {
                 var element = elements[i];
-                var tags = new List<KeyValuePair<string, string>>();
-                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.ID));
-                tags.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name));
-                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location));
-                tags.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories));
+                var tags = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, element.ID),
+                    new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, element.Name),
+                    new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, element.Location),
+                    new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, element.Categories)
+                };
                 foreach (TDColumn column in element.Columns)
                 {
                     if (column.IsTDengineTag())

@@ -7,7 +7,7 @@ use super::{
 use crate::{
     plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
     runners::pi::transform::PiModelType,
-    utils::sql::values_to_sqls,
+    utils::{breakpoints::BreakpointDb, sql::values_to_sqls},
 };
 use anyhow::{anyhow, Context};
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
@@ -15,6 +15,7 @@ use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_compute_ext::*;
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
+use chrono::DateTime;
 use faststr::FastStr;
 use itertools::Itertools as _;
 use lazy_static::lazy_static;
@@ -35,10 +36,14 @@ use crate::{
 
 use super::ipc_metric::IpcMetrics;
 
+/// 一批数据每个子表的最后时间戳，作为断点信息。
+/// key 为子表的唯一标识，例如 PI 系统中的 element_id
+/// value 为 DateTime<UTC> 的字符串表示
+type TableBreakPoints = Vec<(String, String)>;
 #[derive(Clone, Debug, Serialize)]
 pub struct LushModelConfig {
-    /// The name of the column that represent sub-table name in the received RecordBatch.
-    pub table_name_column: String,
+    /// The name of the column that can uniquely represent a sub-table in the received RecordBatch.
+    pub table_id_column: String,
 
     /// key:  super-table name .
     /// value: parser for the super-table.
@@ -184,7 +189,7 @@ impl From<PIPointModelConfig> for LushModelConfig {
             sub_super_mapping.insert(point.point_name, point.super_table);
         }
         LushModelConfig {
-            table_name_column: "point_name".to_string(),
+            table_id_column: "point_name".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_sqls,
             super_table_name_mapping: sub_super_mapping,
@@ -224,7 +229,7 @@ impl From<PIElementModelConfig> for LushModelConfig {
         // }
 
         LushModelConfig {
-            table_name_column: "element_id".to_string(),
+            table_id_column: "element_id".to_string(),
             super_table_parsers: super_table_parsers,
             super_table_sqls,
             super_table_name_mapping,
@@ -262,12 +267,12 @@ pub fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch)
 }
 
 pub fn create_tags_record(
-    table_name_column: &StringArray,
+    table_id_column: &StringArray,
     table_cache: Arc<TableTagCache>,
 ) -> anyhow::Result<RecordBatch> {
     // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
     let mut fields: Vec<Field> = Vec::new();
-    let table_name0 = table_name_column.value(0);
+    let table_name0 = table_id_column.value(0);
     let table0 = table_cache
         .get(table_name0)
         .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name0))?;
@@ -277,11 +282,11 @@ pub fn create_tags_record(
     // 收集每一行 tag 值
     let mut tag_values: Vec<Vec<String>> = Vec::new();
     let mut stables = Vec::new();
-    for table_name in table_name_column.iter() {
-        let table_name = table_name.unwrap();
+    for table_id in table_id_column.iter() {
+        let table_id = table_id.unwrap();
         let table = table_cache
-            .get(table_name)
-            .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_name))?;
+            .get(table_id)
+            .ok_or_else(|| anyhow!("table_name {} not found in table_cache", table_id))?;
         let tags = table.tags().as_ref().unwrap();
         let stable = table.stable_name().unwrap().clone();
         stables.push(stable);
@@ -401,7 +406,10 @@ pub async fn write(
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
     skip_null: bool,
+    table_id_column: &str,
+    breakpoints: BreakpointDb,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
+    let table_break_points = get_break_point(&messages, table_id_column);
     let mut taos = Some(pool.get().await.context("Target connection error")?);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
@@ -533,7 +541,39 @@ pub async fn write(
         }
     }
     let write_time = timer.elapsed();
+    breakpoints.batch_set(table_break_points).await?;
     Ok((written_rows, gen_sql_time, write_time))
+}
+
+// 获取每个子表的最后时间戳，作为断点信息
+fn get_break_point(messages: &Vec<MessageArrowRecords>, table_id_column: &str) -> TableBreakPoints {
+    let mut table_break_points = Vec::new();
+    for m in messages {
+        let table_key = m.table.get_tag_value_by_name(table_id_column);
+        if table_key.is_none() {
+            tracing::error!("table_id_column {} not found in tags", table_id_column);
+            break;
+        }
+        let ts_col = m.get_ts_column();
+        if ts_col.is_none() {
+            tracing::error!(
+                "Can't get primary key column. schema={}",
+                m.records.schema()
+            );
+            break;
+        }
+        let table_key = table_key.unwrap();
+        let ts_col = ts_col.unwrap();
+        let last_ts = ts_col.value(ts_col.len() - 1);
+        let last_date_time = DateTime::from_timestamp(last_ts / 1000, 0);
+        if let Some(date_time) = last_date_time {
+            let date_time = date_time.to_rfc3339();
+            table_break_points.push((table_key.to_string(), date_time));
+        } else {
+            tracing::error!("Can't convert timestamp to DateTime {}", last_ts);
+        }
+    }
+    table_break_points
 }
 
 pub async fn create_sub_tables(

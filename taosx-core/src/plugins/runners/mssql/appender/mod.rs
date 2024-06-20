@@ -487,7 +487,7 @@ pub fn to_record_batches(
                         let nsecs = time.increments() % (10_u64.pow(time.scale() as u32))
                             * 10_u64.pow(9 - time.scale() as u32);
                         // get timezone
-                        let offset = FixedOffset::east_opt((val.offset() as i32) * 60).unwrap();
+                        let _offset = FixedOffset::east_opt((val.offset() as i32) * 60).unwrap();
                         // convert to datetime(an accurate UTC time)
                         let datetime = DateTime::from_timestamp(secs as i64, nsecs as u32).unwrap();
                         // append value

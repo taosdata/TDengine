@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use anyhow::Context;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 use tracing::{debug, info};
 
 fn breakpoints_db_dir(task_id: &str) -> PathBuf {
@@ -19,6 +19,7 @@ impl BreakpointDb {
             db: std::sync::Arc::new(db),
         }
     }
+
     pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
         let path = breakpoints_db_dir(id);
         // create db file
@@ -38,11 +39,17 @@ impl BreakpointDb {
                         return Err(anyhow::anyhow!("sled open db file failed: {:?}", err));
                     }
                     retries += 1;
+                    tracing::warn!(
+                        "sled open db file failed: {:?}, retrying in 1 second, retries: {}",
+                        err,
+                        retries
+                    );
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
             }
         }
     }
+
     pub async fn set(&self, key: &str, value: &str) -> anyhow::Result<()> {
         let db = self.db.clone();
         let key = key.to_string();
@@ -52,6 +59,21 @@ impl BreakpointDb {
             .context("Breakpoint set error")?;
         Ok(())
     }
+
+    pub async fn batch_set(&self, data: Vec<(String, String)>) -> anyhow::Result<()> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut batch = sled::Batch::default();
+            for (key, value) in data {
+                batch.insert(key.as_str(), value.as_str());
+            }
+            db.apply_batch(batch)
+        })
+        .await?
+        .context("Breakpoint batch set error")?;
+        Ok(())
+    }
+
     pub async fn get(&self, key: &str) -> anyhow::Result<Option<String>> {
         let db = self.db.clone();
         let key = key.to_string();
@@ -102,6 +124,7 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
         None => Ok(None),
     }
 }
+
 pub async fn breakpoints_get_async(
     task_id: &str,
     sub_task: &str,
@@ -141,6 +164,27 @@ pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)
         ));
     }
     Ok(result)
+}
+
+pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>> {
+    let breakpoint_db_path = breakpoints_db_dir(task_id);
+    // if path not exist, return None to avoid create db file
+    if !breakpoint_db_path.exists() {
+        return Ok(None);
+    }
+    let db = sled::open(&breakpoint_db_path)
+        .map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let export_file = breakpoint_db_path.with_extension("csv");
+    let mut file = std::fs::File::create(&export_file)?;
+    for item in db.iter() {
+        let (key, value) = item?;
+        file.write(&key)?;
+        file.write(b",")?;
+        file.write(&value)?;
+        file.write(b"\n")?;
+    }
+    let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv";
+    Ok(Some(relative_path))
 }
 
 pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
@@ -302,5 +346,27 @@ mod tests {
             let task_id = format!("task{}", i);
             breakpoints_clear(&task_id).unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_export() {
+        std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
+        let task_id = "1000000";
+        let breakpoint_db = BreakpointDb::new_with_task(task_id).await.unwrap();
+        breakpoint_db
+            .set("table1", "2023-01-01 20:00:00")
+            .await
+            .unwrap();
+        breakpoint_db
+            .set("table2", "2023-01-01 20:00:00")
+            .await
+            .unwrap();
+        breakpoint_db
+            .set("table3", "2023-01-01 20:00:00")
+            .await
+            .unwrap();
+        drop(breakpoint_db);
+        let export_file = export_breakpoints_to_csv(task_id).unwrap().unwrap();
+        println!("{}", export_file);
     }
 }

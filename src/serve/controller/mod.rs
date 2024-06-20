@@ -31,7 +31,7 @@ use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::opc::config::OPCConfig;
-use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_csv};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
@@ -726,18 +726,29 @@ impl TaskController {
             if !self.agent_alive(via).await {
                 bail!("Agent {} is not alive", via);
             }
-            // 检查是否有需要发送到 agent 的文件
-            let file_to_send = from.params.get("transform_config_file");
-            if let Some(path) = file_to_send {
-                tracing::info!("Put file to agent {}: {}", via, path);
-                self.put_file_to_agent(via, path.clone()).await?;
-            }
-            let file_to_send = from.params.get("sasl_kerberos_keytab");
-            if let Some(path) = file_to_send {
-                tracing::info!("Put file to agent {}: {}", via, path);
-                self.put_file_to_agent(via, path.clone()).await?;
+            if from.driver == "pibackfill" || from.driver == "pi" {
+                let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+                if from.driver == "pibackfill" {
+                    let task_id = task.id.to_string();
+                    let breakpoints_file = export_breakpoints_to_csv(task_id.as_str())?;
+                    if let Some(breakpoints_file) = breakpoints_file {
+                        tracing::info!("Put file to agent {}: {}", via, breakpoints_file);
+                        self.put_file_to_agent(via, breakpoints_file).await?;
+                    }
+                }
+            } else {
+                let file_to_send = from.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
             }
         }
+
         let to: Dsn = task
             .to
             .parse()

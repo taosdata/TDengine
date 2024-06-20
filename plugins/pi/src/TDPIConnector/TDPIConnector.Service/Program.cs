@@ -153,6 +153,8 @@ namespace TDPIConnector.Service
             {
                 logger.Info("Running in service mode");
             }
+            // Wait visual studio to attach
+            // System.Threading.Thread.Sleep(10000);
             service.Start();
             service.Wait();
             service.Stop();

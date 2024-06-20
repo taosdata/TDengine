@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use taosx_core::{sink::lush::TableTagCache, DataSet};
+use taosx_core::{sink::lush::TableTagCache, utils::breakpoints::BreakpointDb, DataSet};
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -70,6 +70,8 @@ pub struct TaskScheduler {
     pub dropped_notifier: Arc<Notify>,
     // An Task-to-TableTagCache hashmap.
     pub lush_table_cache: Arc<RwLock<HashMap<i64, Arc<TableTagCache>>>>,
+    // 任务的断点数据库，目前只有 PI 任务从这里获取断点数据库
+    pub task_breakpoint_db: Arc<RwLock<HashMap<i64, BreakpointDb>>>,
 }
 
 impl Debug for TaskScheduler {
@@ -107,6 +109,7 @@ impl TaskScheduler {
     ) -> Result<TaskScheduler> {
         let tasks = Arc::new(RwLock::new(MultiIndexTaskJobMap::default()));
         let lush_table_cache = Arc::new(RwLock::new(HashMap::new()));
+        let task_breakpoint_db = Arc::new(RwLock::new(HashMap::new()));
         // let (notify_sender, notify_receiver) = tokio::sync::broadcast::channel(1024);
         // let owned_notify_sender = Arc::new(notify_sender);
         let notify_sender = Arc::downgrade(&owned_notify_sender);
@@ -236,9 +239,11 @@ impl TaskScheduler {
         ));
         let global_state_in_notify_handler = global_state.clone();
         let lush_table_cache_in_notify_handler = lush_table_cache.clone();
+        let task_breakpoint_db_in_notify_handler = task_breakpoint_db.clone();
         tokio::spawn(async move {
             let global = global_state_in_notify_handler;
             let lush_table_cache = lush_table_cache_in_notify_handler;
+            let task_breakpoint_db = task_breakpoint_db_in_notify_handler;
             tokio::pin!(notify_rx);
             loop {
                 match notify_rx.recv().await {
@@ -250,6 +255,7 @@ impl TaskScheduler {
                             &job_id,
                             &state,
                             &lush_table_cache,
+                            &task_breakpoint_db,
                         )
                         .await;
                     }
@@ -310,6 +316,7 @@ impl TaskScheduler {
             drop_notifier,
             dropped_notifier,
             lush_table_cache,
+            task_breakpoint_db,
         })
         // TaskScheduler { tasks: Vec::new() }
     }
@@ -417,6 +424,8 @@ impl TaskScheduler {
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         self.global_state.ensure_alive()?;
         let task_id = task.id;
+        // 防止任务意外结束，没有没有正常释放断点数据库
+        let _ = self.remove_task_breakpoint_db(task_id).await;
         {
             let mut tasks = self.tasks.write().await;
             if let Some(task) = tasks.get_by_task_id(&task_id) {
@@ -597,6 +606,10 @@ impl TaskScheduler {
         for task in tasks {
             self.wait_task(task).await;
         }
+    }
+
+    async fn remove_task_breakpoint_db(&self, task_id: i64) -> Option<BreakpointDb> {
+        self.task_breakpoint_db.write().await.remove(&task_id)
     }
 }
 
