@@ -54,8 +54,10 @@ cors = false
 
 # SSL certificate
 #
-# certificate = "/path/to/ca.file"
+# certificate = "/path/to/ca.file" # on linux/macOS
+# certificate = "C:\\path\\to\\ca.file" # on windows
 
 # SSL certificate key
 #
-# certificate_key = "/path/to/key.file"
+# certificate_key = "/path/to/key.file" # on linux/macOS
+# certificate_key = "C:\\path\\to\\key.file" # on windows
