@@ -584,7 +584,7 @@ async fn write_meta(
     tracing::debug!("End writing meta {cur}");
     Ok(())
 }
-
+type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
 async fn sync_msg(
     topic: &Topic,
     consumer: &Consumer,
@@ -595,7 +595,8 @@ async fn sync_msg(
     rows: &mut usize,
     metrics: &TmqMetrics,
     source_pool: &TaosPool,
-    taos: &Taos,
+    target_pool: &TaosPool,
+    taos: &mut TaosConnection,
     table: Option<&str>,
     actions: &[Action],
     with_meta_delete: bool,
@@ -611,8 +612,10 @@ async fn sync_msg(
             *messages as f64 / total as f64
         );
     }
+    let mut retries = 0;
+    let max_retries = 3;
     match message {
-        MessageSet::Meta(meta) => {
+        MessageSet::Meta(meta) => loop {
             let write_meta_result = write_meta(
                 id,
                 &source_pool,
@@ -627,11 +630,22 @@ async fn sync_msg(
             .in_current_span()
             .await;
             if let Err(err) = write_meta_result {
-                tracing::warn!("Ignore error: {}", err);
+                let msg = format!("{:#}", err);
+                if msg.contains("0xE00") {
+                    if retries < max_retries {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        *taos = target_pool.get().await.context("Target connection error")?;
+                        retries += 1;
+                        continue;
+                    }
+                }
+                tracing::warn!("Ignore error: {}", msg);
             }
-        }
-        MessageSet::Data(data) => {
-            write_data(
+            retries = 0;
+            break;
+        },
+        MessageSet::Data(data) => loop {
+            if let Err(err) = write_data(
                 &topic,
                 id,
                 rows,
@@ -645,9 +659,22 @@ async fn sync_msg(
             )
             .in_current_span()
             .await
-            .with_context(|| format!("[{id}] writing data message error"))?;
-        }
-        MessageSet::MetaData(meta, data) => {
+            {
+                let msg = format!("{:#}", err);
+                if msg.contains("0xE00") {
+                    if retries < max_retries {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        *taos = target_pool.get().await.context("Target connection error")?;
+                        retries += 1;
+                        continue;
+                    }
+                }
+                return Err(err).with_context(|| format!("[{id}] writing data message error"));
+            }
+            retries = 0;
+            break;
+        },
+        MessageSet::MetaData(meta, data) => loop {
             let write_meta_result = write_meta(
                 id,
                 &source_pool,
@@ -662,10 +689,19 @@ async fn sync_msg(
             .in_current_span()
             .await;
             if let Err(err) = write_meta_result {
+                let msg = format!("{:#}", err);
+                if msg.contains("0xE00") {
+                    if retries < max_retries {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        *taos = target_pool.get().await.context("Target connection error")?;
+                        retries += 1;
+                        continue;
+                    }
+                }
                 tracing::warn!("Ignore error: {}", err);
             }
             if !actions.is_empty() {
-                write_data(
+                if let Err(err) = write_data(
                     &topic,
                     id,
                     rows,
@@ -679,12 +715,26 @@ async fn sync_msg(
                 )
                 .in_current_span()
                 .await
-                .with_context(|| format!("[{id}] writing metadata message error"))?;
+                {
+                    let msg = format!("{:#}", err);
+                    if msg.contains("0xE00") {
+                        if retries < max_retries {
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            *taos = target_pool.get().await.context("Target connection error")?;
+                            retries += 1;
+                            continue;
+                        }
+                    }
+                    return Err(err)
+                        .with_context(|| format!("[{id}] writing metadata message error"));
+                }
             }
-        }
+            retries = 0;
+            break;
+        },
     }
     if let Err(err) = consumer.commit(offset).await {
-        tracing::warn!("Commit error: {err:?}");
+        tracing::warn!(retries, "Commit error: {err:?}");
     }
     anyhow::Ok(())
 }
@@ -694,8 +744,8 @@ async fn sync(
     topic: &Topic,
     id: usize,
     consumer: Consumer,
-    source_pool: TaosPool,
-    taos: &Taos,
+    source_pool: &TaosPool,
+    target_pool: &TaosPool,
     table: Option<&str>,
     actions: &[Action],
     cancel: CancellationToken,
@@ -707,6 +757,7 @@ async fn sync(
     let mut stream = consumer.stream();
     let mut rows = 0;
     let mut messages = 0;
+    let mut taos = target_pool.get().await?;
     let target_is_v3 = taos
         .exec("desc information_schema.ins_databases")
         .await
@@ -714,7 +765,6 @@ async fn sync(
     let metrics = metrics_arc.tmq();
     let refresh_progress_interval =
         crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
-
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -732,8 +782,9 @@ async fn sync(
                         &mut messages,
                         &mut rows,
                         metrics,
-                        &source_pool,
-                        taos,
+                        source_pool,
+                        target_pool,
+                        &mut taos,
                         table,
                         actions,
                         with_meta_delete,
@@ -1026,13 +1077,13 @@ pub async fn tmq_to_td(
                     let max_retries = 5; // max retries in 1m
                     let tick = IntervalLimit::new(Duration::from_secs(60));
                     loop {
-                        let taos = target.get().await?;
+                        // let taos = target.get().await?;
                         match sync(
                             &topic,
                             consumer_task_id,
                             consumer,
-                            source_pool.clone(),
-                            &taos,
+                            &source_pool,
+                            &target,
                             table.as_deref(),
                             &actions,
                             cancellation.clone(),
