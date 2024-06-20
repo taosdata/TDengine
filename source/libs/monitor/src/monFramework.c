@@ -115,7 +115,10 @@ void monInitOneGroup(char **gauges, int32_t label_count, const char **sample_lab
 
 int32_t monInitMonitorFW() {
   int32_t code = -1;
-  if (taos_collector_registry_default_init() != 0) return code;
+  //return value does indicate success or failed
+  //0 means use old one
+  //1 means new one
+  taos_collector_registry_default_init();
 
   tsMonitor.metrics = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (tsMonitor.metrics == NULL) return code;
