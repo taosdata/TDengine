@@ -7,8 +7,8 @@ description: This document describes How to configure Azure AD integration TDeng
 <!-- markdownlint-disable MD033 -->
 ## Introduction
 
-Using Azure AD to implement single sign-on for TDengine Cloud is a privatized third-party login method. 
-You can configure your Azure AD and TDengine Cloud single sign-on integration in the TDengine Cloud portal.
+Azure AD is the new enterprise single sign-on login method in TDengine Cloud, usually for Azure customers. 
+You can simply configure your Azure AD and TDengine Cloud integration in the TDengine Cloud portal.
 
 ![TDengine Cloud Architecture of Azure AD SSO](./azure-ad-sso-arch.webp)
 <center><figcaption>Figure 1. Architecture of Azure AD SSO</figcaption></center>
@@ -25,7 +25,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
 ### Step 2: Make sure you're using the Microsoft Entra tenant that contains your subscription:
 
 1. In the Azure portal toolbar, select the Directories + subscriptions icon.
-2. On the Portal settings | Directories + subscriptions page, find your Microsoft Entra directory that contains your subscription in the Directory name list, and then select Switch button next to it.
+2. On the Portal settings | Directories + subscriptions page, find your Microsoft Entra directory that contains your subscription in the Directory list, and then select Switch button next to it.
 
    ![Azure Portal settings](./azure-portal-settings.webp)
    <center><figcaption>Figure 2. Switch Microsoft Entra tenant</figcaption></center>
@@ -37,20 +37,20 @@ For more details of the Azure AD SSO integration, please see the following Azure
    ![Azure tenant management](./tenant-management.webp)
    <center><figcaption>Figure 3. tenant management </figcaption></center>
 
-2. Select “App Registrations”, then select “New Registration”.
+2. Select "App Registrations" menu, then click "New Registration" button.
    ![Azure app-registration-1](./app-registration.webp)
    <center><figcaption>Figure 4. app-registration-1 </figcaption></center>
 
-3. Enter a Name for the application.
+3. Input a Name for the application.
 
    ![Azure app-registration-2](./app-registration-2.webp)
    <center><figcaption>Figure 5. app-registration-2 </figcaption></center>
 
-4. Under "Supported account types",  select "Accounts in this organizational directory only".
+4. Under "Supported account types", please select "Accounts in this organizational directory only".
 
 5. Under Redirect URI, select Web and enter "**https://tdengine.us.auth0.com/login/callback**".
 
-6. Click to register.
+6. Click Register button to go to the next page.
 
 7. Add permissions:
    ![Azure add permissions](./add-permission.webp)
@@ -75,21 +75,16 @@ For more details of the Azure AD SSO integration, please see the following Azure
 ### Step 4: Configure Azure AD single sign-on in TDengine Cloud
 1. Sign in to the [TDengine Cloud portal](https://cloud.tdengine.com/). (If you don’t have an account yet, please register an account as an administrator account first.)
 2. Create an organization or edit an existing organization:
-   1. Enable sso and select **Azure AD** in the drop-down box.
+   1. Enable SSO and select **Azure AD** in the drop-down options.
      
-   2. Fill in the form with the **Domain**, **Client ID** and **Client Secret** values you configured in the Azure portal, and click the "Save SSO Config" button.
+   2. Input **Domain**, **Client ID** and **Client Secret** values which you configured in the Azure portal, and click the "Save SSO Config" button.
       
    3. Verify your configured Azure AD single sign-on integration.
     Save the SSO configuration successfully, and you can see a verified URL link returned on the interface. Click or copy the link to your browser to verify that your configuration is valid.
      
-   4. After you verify your configuration, select the "Verified" option and click the Save button to create your organization. All members of the organization will sign in to TDengine Cloud using the Azure AD you have configured.
-   5. Copy the TDengine Cloud login URL unique to your organization and send it to your organization members, who can use it to log in to TDengine Cloud.
+   4. After you verify your configuration, select the "Verified" option and click the Save button to create your organization. All members of the organization will sign on to TDengine Cloud through the Azure AD domain you have configured.
+   5. Copy the unique TDengine Cloud login URL, such as "https://cloud.tdengine.com/auth/login?azure_sso=xxxx" to your organization and send it to your organization members to login to TDengine Cloud.
    
-### Step 5: Single sign-on to TDengine Cloud using Azure AD
-1. After you configure your Azure AD and TDengine Cloud single sign-on integration in the TDengine Cloud portal, you can find a private login link in the organization list SSO property list.
-As follows "https://cloud.tdengine.com/auth/login?azure_sso=xxxx" where parameter azure_sso is your only private parameter.
-2. Send this private link to members of your organization so they can use Azure AD single sign-on to TDengine Cloud.
-
 ## How to update the Azure AD single sign-on configuration
 1. Log in to TDengine Cloud as an administrator.Go to the Organization Management page. Click the Change Organization button.
 2. Then you can modify the configuration of the Azure Ad SSO configuration in the form. only Client ID and Client Secret can be modified.
@@ -105,4 +100,4 @@ As follows "https://cloud.tdengine.com/auth/login?azure_sso=xxxx" where paramete
    1. In the top organization drop-down selection box, select the organization that has the Azure AD SSO tag.
    2. Click the "Users" menu on the left, then click "Add new user" button.
    3. In the pop-up box, fill in the contact email address configured by the user you added in the Azure organization in the previous step. The new user will then receive an email to activate their TDengine Cloud account.
-   4. Notify users to activate their account to join your TDengine Cloud organization using Azure AD SSO.
+   4. Notify the user to activate their account to join your TDengine Cloud organization using Azure AD SSO.
