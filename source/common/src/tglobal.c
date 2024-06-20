@@ -326,6 +326,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
   tstrncpy(tsDiskCfg[0].dir, pItem->str, TSDB_FILENAME_LEN);
   tsDiskCfg[0].level = 0;
   tsDiskCfg[0].primary = 1;
+  tsDiskCfg[0].disable = 0;
   tstrncpy(tsDataDir, pItem->str, PATH_MAX);
   if (taosMulMkDir(tsDataDir) != 0) {
     uError("failed to create dataDir:%s", tsDataDir);
