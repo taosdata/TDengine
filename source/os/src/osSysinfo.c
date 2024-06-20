@@ -250,7 +250,7 @@ void taosGetSystemInfo() {
   taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
-  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable, &tsAVX512Enable);
+  taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported);
 #endif
 }
 
