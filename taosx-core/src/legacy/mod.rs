@@ -24,6 +24,7 @@ use tracing::{debug, info, instrument, warn, Instrument};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
+    utils::breakpoints::BreakpointDb,
     utils::constants::VERSION_3_3_0,
     Action,
 };
@@ -3006,6 +3007,16 @@ async fn legacy_to_taos_impl(
         "Prepare for {} worker scheduler",
         source_opts.workers
     );
+
+    let breakpoints = if let Some(id) = task_id.as_deref() {
+        Some(
+            BreakpointDb::new_with_task(&id)
+                .await
+                .context("create breakpoint db failed")?, // TODO: handle error
+        )
+    } else {
+        None
+    };
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
@@ -3018,6 +3029,7 @@ async fn legacy_to_taos_impl(
         target_is_v3,
         task_id.clone(),
         cancel.clone(),
+        breakpoints,
     )
     // .instrument(tracing::info_span!("scheduler"))
     .await;
