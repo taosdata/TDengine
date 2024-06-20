@@ -776,8 +776,12 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       pStmt->bInfo.sBindRowNum = bind->num;
     }
 
-    qBindStmtSingleColValue(*pDataBlock, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, colIdx,
-                            pStmt->bInfo.sBindRowNum);
+    int code = qBindStmtSingleColValue(*pDataBlock, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                                       colIdx, pStmt->bInfo.sBindRowNum);
+    if (code) {
+      tscError("qBindStmtSingleColValue failed, error:%s", tstrerror(code));
+      STMT_ERR_RET(code);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
