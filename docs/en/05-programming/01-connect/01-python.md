@@ -16,15 +16,16 @@ First, you need to install the `taospy` module version >= `2.6.2`. Run the comma
 <Tabs defaultValue="pip" groupID="package">
 <TabItem value="pip" label="pip">
 
-```
+```bash
 pip3 install -U taospy
 ```
+
 You'll need to have Python3 installed.
 
 </TabItem>
 <TabItem value="conda" label="conda">
 
-```
+```bash
 conda install -c conda-forge taospy
 ```
 
@@ -62,9 +63,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 </TabItem>
 </Tabs>
 
-
 Alternatively, you can also set environment variables in your IDE's run configurations.
-
 
 <!-- exclude -->
 :::note IMPORTANT
@@ -118,7 +117,7 @@ You'll need to have Python3 installed.
 </TabItem>
 <TabItem value="conda" label="conda">
 
-```
+```bash
 conda install -c conda-forge jupyterlab
 conda install -c conda-forge taospy
 ```

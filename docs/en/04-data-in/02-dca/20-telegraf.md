@@ -30,7 +30,6 @@ For installation instructions on other platforms please refer to the [official d
 
 ## Configure
 
-
 Run this command in your terminal to save TDengine cloud token and URL as variables:
 
 ```bash
@@ -41,7 +40,6 @@ export TDENGINE_CLOUD_TOKEN="<token>"
 <!-- exclude -->
 You are expected to replace `<url>` and `<token>` with real TDengine cloud URL and token. To obtain the real values, please log in [TDengine Cloud](https://cloud.tdengine.com).
 <!-- exclude-end -->
-
 
 Then run this command to generate new telegraf.conf.
 
@@ -72,6 +70,7 @@ telegraf --config telegraf.conf
 ```sql
 show databases;
 ```
+
 ![TDengine show telegraf databases](./telegraf-show-databases.webp)
 
 Check weather super table cpu and mem exist:

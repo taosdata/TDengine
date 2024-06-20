@@ -15,16 +15,22 @@ In your TDengine cloud instance, click "Explorer" on the left panel, then click 
 ## Install Prometheus
 
 Supposed that you use Linux system with architecture amd64:
+
 1. Download
-    ```
+
+    ```bash
     wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
     ```
+
 2. Decompress and rename
-   ```
+
+   ```bash
    tar xvfz prometheus-*.tar.gz && mv prometheus-2.37.0.linux-amd64 prometheus
-   ```  
-3. Change to directory prometheus
    ```
+
+3. Change to directory prometheus
+
+   ```bash
    cd prometheus
    ```
 
@@ -52,7 +58,7 @@ The resulting configuration will collect data about prometheus itself from its o
 
 ## Start Prometheus
 
-```
+```bash
 ./prometheus --config.file prometheus.yml
 ```
 

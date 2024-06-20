@@ -75,6 +75,7 @@ In TDengine CLI `taos`, use the SQL below to get the number of rows and the maxi
 ```sql title="SQL"
 SELECT count(*), max(current) FROM test.meters where groupId = 2 and ts > now - 24h;
 ```
+
 ```txt title="output"
      count(*)  |    max(current)  |
 ==================================
@@ -151,7 +152,7 @@ Before executing the sample code in this section, you need to firstly establish 
 <Tabs>
 <TabItem value="python" label="Python">
 
-In this example, we use `query` method to execute SQL and get a `result` object. 
+In this example, we use `query` method to execute SQL and get a `result` object.
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:query:nrc}}
@@ -169,7 +170,7 @@ Get total rows from `result`:
 {{#include docs/examples/python/develop_tutorial.py:rows:nrc}}
 ```
 
-Iterate over each rows: 
+Iterate over each rows:
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:iter}}

@@ -13,6 +13,7 @@ import TabItem from '@theme/TabItem';
 ```bash
 npm install @tdengine/rest
 ```
+
 ## Config
 
 Run this command in your terminal to save TDengine cloud token as variables:

@@ -62,17 +62,17 @@ dotnet add package TDengine.Connector
 
 ## Important Updates
 
-| TDengine.Connector | Description |
-|--------------------|--------------------------------|
-|        3.0.2       | Support .NET Framework 4.5 and above. Support .Net standard 2.0. Nuget package includes dynamic library for WebSocket.|
-|        3.0.1       | Support WebSocket and Cloud，With function query, insert, and parameter binding|
-|        3.0.0       | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
-|        1.0.7       | Fixed TDengine.Query() memory leak. |
-| 1.0.6 | Fix schemaless bug in 1.0.4 and 1.0.5. |
-| 1.0.5 | Fix Windows sync query Chinese error bug. | 1.0.4 | Fix schemaless bug.   |
-| 1.0.4 | Add asynchronous query, subscription, and other functions. Fix the binding parameter bug.    |
-| 1.0.3 | Add parameter binding, schemaless, JSON tag, etc. |
-| 1.0.2 | Add connection management, synchronous query, error messages, etc.   |
+| TDengine.Connector | Description                                                  |
+| ------------------ | ------------------------------------------------------------ |
+| 3.0.2              | Support .NET Framework 4.5 and above. Support .Net standard 2.0. Nuget package includes dynamic library for WebSocket. |
+| 3.0.1              | Support WebSocket and Cloud，With function query, insert, and parameter binding |
+| 3.0.0              | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
+| 1.0.7              | Fixed TDengine.Query() memory leak.                          |
+| 1.0.6              | Fix schemaless bug in 1.0.4 and 1.0.5.                       |
+| 1.0.5              | Fix Windows sync query Chinese error bug.                    |
+| 1.0.4              | Add asynchronous query, subscription, and other functions. Fix the binding parameter bug. |
+| 1.0.3              | Add parameter binding, schemaless, JSON tag, etc.            |
+| 1.0.2              | Add connection management, synchronous query, error messages, etc. |
 
 ## Other descriptions
 
@@ -86,11 +86,11 @@ dotnet add package TDengine.Connector
 
 1. "Unable to establish connection", "Unable to resolve FQDN"
 
-  Usually, it's caused by an incorrect FQDN configuration. Please refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
+   Usually, it's caused by an incorrect FQDN configuration. Please refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
 
 2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
 
-  This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
+   This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
 
 ## API Reference
 

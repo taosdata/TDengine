@@ -17,7 +17,7 @@ Please be noted that in the context of TDengine cloud service, non privileged us
 
 There are two ways to install taosBenchmark:
 
-- Installing the official TDengine installer will automatically install taosBenchmark. 
+- Installing the official TDengine installer will automatically install taosBenchmark.
 
 - Compile taos-tools separately and install them. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
@@ -60,88 +60,88 @@ taosBenchmark -f json-file
 
 ```json
 {
-	"filetype": "insert",
-	"cfgdir": "/etc/taos",
-	"connection_pool_size": 8,
-	"thread_count": 4,
-	"create_table_thread_count": 7,
-	"result_file": "./insert_res.txt",
-	"confirm_parameter_prompt": "no",
-	"insert_interval": 0,
-	"interlace_rows": 100,
-	"num_of_records_per_req": 100,
-	"prepared_rand": 10000,
-	"chinese": "no",
-	"databases": [
-		{
-			"dbinfo": {
-				"name": "test",
-				"drop": "no",
-				"replica": 1,
-				"precision": "ms",
-				"keep": 3650,
-				"minRows": 100,
-				"maxRows": 4096,
-				"comp": 2
-			},
-			"super_tables": [
-				{
-					"name": "meters",
-					"child_table_exists": "no",
-					"childtable_count": 10000,
-					"childtable_prefix": "d",
-					"escape_character": "yes",
-					"auto_create_table": "no",
-					"batch_create_tbl_num": 5,
-					"data_source": "rand",
-					"insert_mode": "taosc",
-					"non_stop_mode": "no",
-					"line_protocol": "line",
-					"insert_rows": 10000,
-					"childtable_limit": 10,
-					"childtable_offset": 100,
-					"interlace_rows": 0,
-					"insert_interval": 0,
-					"partial_col_num": 0,
-					"disorder_ratio": 0,
-					"disorder_range": 1000,
-					"timestamp_step": 10,
-					"start_timestamp": "2020-10-01 00:00:00.000",
-					"sample_format": "csv",
-					"sample_file": "./sample.csv",
-					"use_sample_ts": "no",
-					"tags_file": "",
-					"columns": [
-						{
-							"type": "FLOAT",
-							"name": "current",
-							"count": 1,
-							"max": 12,
-							"min": 8
-						},
-						{ "type": "INT", "name": "voltage", "max": 225, "min": 215 },
-						{ "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
-					],
-					"tags": [
-						{
-							"type": "TINYINT",
-							"name": "groupid",
-							"max": 10,
-							"min": 1
-						},
-						{
-							"name": "location",
-							"type": "BINARY",
-							"len": 16,
-							"values": ["San Francisco", "Los Angles", "San Diego",
-								"San Jose", "Palo Alto", "Campbell", "Mountain View",
-								"Sunnyvale", "Santa Clara", "Cupertino"]
-						}
-					]
-				}
-			]
-		}
-	]
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "connection_pool_size": 8,
+    "thread_count": 4,
+    "create_table_thread_count": 7,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 100,
+    "num_of_records_per_req": 100,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "no",
+                "replica": 1,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 100,
+                "maxRows": 4096,
+                "comp": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10000,
+                    "childtable_prefix": "d",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10000,
+                    "childtable_limit": 10,
+                    "childtable_offset": 100,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 10,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "FLOAT",
+                            "name": "current",
+                            "count": 1,
+                            "max": 12,
+                            "min": 8
+                        },
+                        { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
+                        { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
+                    ],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "BINARY",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 }
 
 ```
@@ -150,41 +150,41 @@ taosBenchmark -f json-file
 
 ```json
 {
-	"filetype": "query",
-	"cfgdir": "/etc/taos",
-	"host": "127.0.0.1",
-	"port": 6030,
-	"user": "root",
-	"password": "taosdata",
-	"confirm_parameter_prompt": "no",
-	"databases": "test",
-	"query_times": 2,
-	"query_mode": "taosc",
-	"specified_table_query": {
-		"query_interval": 1,
-		"concurrent": 3,
-		"sqls": [
-			{
-				"sql": "select last_row(*) from meters",
-				"result": "./query_res0.txt"
-			},
-			{
-				"sql": "select count(*) from d0",
-				"result": "./query_res1.txt"
-			}
-		]
-	},
-	"super_table_query": {
-		"stblname": "meters",
-		"query_interval": 1,
-		"threads": 3,
-		"sqls": [
-			{
-				"sql": "select last_row(ts) from xxxx",
-				"result": "./query_res2.txt"
-			}
-		]
-	}
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "test",
+    "query_times": 2,
+    "query_mode": "taosc",
+    "specified_table_query": {
+        "query_interval": 1,
+        "concurrent": 3,
+        "sqls": [
+            {
+                "sql": "select last_row(*) from meters",
+                "result": "./query_res0.txt"
+            },
+            {
+                "sql": "select count(*) from d0",
+                "result": "./query_res1.txt"
+            }
+        ]
+    },
+    "super_table_query": {
+        "stblname": "meters",
+        "query_interval": 1,
+        "threads": 3,
+        "sqls": [
+            {
+                "sql": "select last_row(ts) from xxxx",
+                "result": "./query_res2.txt"
+            }
+        ]
+    }
 }
 
 ``` -->
@@ -210,9 +210,9 @@ The parameters listed in this section apply to all function modes.
 
 `filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)
 
-- ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
+- **keep_trying** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+- **trying_interval** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Stream processing related configuration parameters
 

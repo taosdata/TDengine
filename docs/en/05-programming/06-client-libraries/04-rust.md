@@ -20,7 +20,7 @@ The Rust client library is still under rapid development and is not guaranteed t
 ## Installation
 
 ### Pre-installation
-  
+
 Install the Rust development toolchain.
 
 ### Adding taos dependencies
@@ -122,11 +122,12 @@ let opts = PoolBuilder::new()
 let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
 ```
 
-In the application code, use `pool.get()? ` to get a connection object [Taos].
+In the application code, use `pool.get()?` to get a connection object [Taos].
 
 ```rust
 let taos = pool.get()? ;
 ```
+
 ### Connectors
 
 The [Taos][struct.Taos] object provides an API to perform operations on multiple databases.
@@ -196,7 +197,7 @@ The [Taos][struct.Taos] object provides an API to perform operations on multiple
         // binary/varchar to String
         location: String,
     }
-
+    
     let records: Vec<Record> = taos
         .query("select * from `meters`")
         .await?
@@ -220,6 +221,4 @@ For information about other structure APIs, see the [Rust documentation](https:/
 [taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
 [struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
-[Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html

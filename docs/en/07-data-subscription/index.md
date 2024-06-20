@@ -265,17 +265,17 @@ Replace &lt;TDENGINE_JDBC_URL&gt; with the real value, the format should be `jdb
 
 You configure the following parameters when creating a consumer:
 
-|            Parameter            |  Type   | Description                                                 | Remarks                                        |
-| :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | TDengine Cloud instance endpoint used in Python, such as "gw.us-central-1.gcp.cloud.tdengine.com";                           |                                             |
-|        `td.connect.token`         | string  | The Cloud instance token used in Python;                           |                                             |
-|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable.auto.commit`      | boolean | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
-| `enable.heartbeat.background`  | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                             |
-|     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 |
+|           Parameter           |  Type   | Description                                                  | Remarks                                          |
+| :---------------------------: | :-----: | ------------------------------------------------------------ | ------------------------------------------------ |
+|        `td.connect.ip`        | string  | TDengine Cloud instance endpoint used in Python, such as "gw.us-central-1.gcp.cloud.tdengine.com"; |                                                  |
+|      `td.connect.token`       | string  | The Cloud instance token used in Python;                     |                                                  |
+|          `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192.               |
+|          `client.id`          | string  | Client ID                                                    | Maximum length: 192.                             |
+|      `auto.offset.reset`      |  enum   | Initial offset for the consumer group                        | Specify `earliest`, `latest`, or `none`(default) |
+|     `enable.auto.commit`      | boolean | Commit automatically                                         | Specify `true` or `false`.                       |
+|   `auto.commit.interval.ms`   | integer | Interval for automatic commits, in milliseconds              |                                                  |
+| `enable.heartbeat.background` | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                                  |
+|     `msg.with.table.name`     | boolean | Specify whether to deserialize table names from messages     |                                                  |
 
 The method of specifying these parameters depends on the language used:
 

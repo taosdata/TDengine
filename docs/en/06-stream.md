@@ -14,7 +14,6 @@ TDengine stream processing supports the aggregation of supertables that are depl
 
 For more information, see [Stream Processing](../../taos-sql/stream).
 
-
 ## Create a Stream
 
 ```sql
@@ -53,6 +52,7 @@ create stream current_stream into power.current_stream_output_stb as select _wst
 ```
 
 ### Write Data
+
 ```sql
 insert into power.d101 values("2018-10-03 14:38:05.000", 10.30000, 219, 0.31000);
 insert into power.d101 values("2018-10-03 14:38:15.000", 12.60000, 218, 0.33000);
@@ -78,7 +78,6 @@ select start, end, max_current from power.current_stream_output_stb;
 Query OK, 2 rows in database (0.018762s)
 ```
 
-
 ## Usage Scenario 2
 
 In this scenario, the active power and reactive power are determined from the data gathered in the previous scenario. The location and name of each meter are concatenated with a period (.) between them, and the data set is partitioned by meter name and written to a new database.
@@ -98,9 +97,11 @@ create stream power_stream into power.power_stream_output_stb as select ts, conc
 The procedure from the previous scenario is used to write the data.
 
 ### Query the Results
+
 ```sql title="SQL"
 select ts, meter_location, active_power, reactive_power from power.power_stream_output_stb;
 ```
+
 ```txt title="output"
            ts            |         meter_location         |       active_power        |      reactive_power       |
 ===================================================================================================================
