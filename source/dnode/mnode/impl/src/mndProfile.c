@@ -298,7 +298,7 @@ _CONNECT:
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
   connectRsp.authVer = pUser->authVersion;
-  connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.whiteListVer = mndGetUserIpWhiteListVer(pMnode, pUser);
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,

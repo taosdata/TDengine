@@ -2643,3 +2643,9 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
   mndUserFreeObj(&newUser);
   return code;
 }
+
+int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
+  // ver = 0, disable ip white list
+  // ver > 0, enable ip white list
+  return tsEnableWhiteList ? pUser->ipWhiteListVer : 0;
+}
