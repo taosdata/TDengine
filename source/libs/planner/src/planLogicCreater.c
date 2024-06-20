@@ -1205,7 +1205,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.groupAction = getGroupAction(pCxt, pSelect);
   pFill->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
-  pFill->node.inputTsOrder = 0;
+  pFill->node.inputTsOrder = TSDB_ORDER_ASC;
 
   int32_t code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
