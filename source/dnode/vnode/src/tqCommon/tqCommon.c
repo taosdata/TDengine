@@ -854,7 +854,6 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   } else if (pState->state == TASK_STATUS__UNINIT) {
     tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
     ASSERT(pTask->status.downstreamReady == 0);
-//    /*int32_t ret = */ streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
   } else {
     tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
@@ -1001,7 +1000,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   if (level == TASK_LEVEL__SINK && pTask->info.fillHistory == 0) {
     if (status == TASK_STATUS__UNINIT) {
       tqDebug("s-task:%s initialize the uninit sink stream task after resume from pause", pTask->id.idStr);
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+      tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
     }
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
@@ -1031,7 +1030,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   } else if (status == TASK_STATUS__UNINIT) { // todo: fill-history task init ?
     if (pTask->info.fillHistory == 0) {
       tqDebug("s-task:%s initialize the uninit task after resume from pause", pTask->id.idStr);
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+      tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
     }
   }
 

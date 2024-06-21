@@ -683,7 +683,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
       stError("s-task:%s upload checkpointId:%" PRId64 " data failed, code:%s", id, ckId, tstrerror(code));
     }
   } else {
-    stError("s-task:%s  taskInfo failed, checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(code));
+    stError("s-task:%s taskInfo failed, checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(code));
   }
 
   // TODO: monitoring the checkpoint-report msg
