@@ -2827,7 +2827,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     }
 
     pUsers[i].version = ntohl(pUsers[i].version);
-    if (pUser->authVersion <= pUsers[i].version || ipWhiteListVer == pMnode->ipWhiteVer) {
+    if (pUser->authVersion <= pUsers[i].version && ipWhiteListVer == pMnode->ipWhiteVer) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
