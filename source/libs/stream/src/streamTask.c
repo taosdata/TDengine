@@ -836,7 +836,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   SStreamMeta* pMeta = pTask->pMeta;
 
   int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
-  stInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
+  stInfo("vgId:%d s-task:%s pause stream task. paused task num:%d", pMeta->vgId, pTask->id.idStr, num);
 
   // in case of fill-history task, stop the tsdb file scan operation.
   if (pTask->info.fillHistory == 1) {

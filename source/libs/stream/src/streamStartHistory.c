@@ -240,7 +240,6 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         if (code == TSDB_CODE_SUCCESS) {
           checkFillhistoryTaskStatus(pTask, pHisTask);
         }
-
       }
 
       streamMetaReleaseTask(pMeta, pHisTask);

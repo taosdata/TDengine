@@ -997,11 +997,19 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
   int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SINK && pTask->info.fillHistory == 0) {
-    if (status == TASK_STATUS__UNINIT) {
-      tqDebug("s-task:%s initialize the uninit sink stream task after resume from pause", pTask->id.idStr);
-      tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
-    }
+  if (level == TASK_LEVEL__SINK) {
+    ASSERT (status != TASK_STATUS__UNINIT); /*{
+//      tqDebug("s-task:%s initialize the uninit sink stream task after resume from pause", pTask->id.idStr);
+//
+//      if (pTask->pBackend == NULL) {  // TODO: add test cases for this
+//        int32_t code = pMeta->expandTaskFn(pTask);
+//        if (code != TSDB_CODE_SUCCESS) {
+//          tqError("s-task:%s vgId:%d failed to expand stream backend", pTask->id.idStr, vgId);
+//          streamMetaAddFailedTaskSelf(pTask, pTask->execInfo.readyTs);
+//        }
+//      }
+//      int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+    }*/
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
@@ -1027,11 +1035,21 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else {
       streamTrySchedExec(pTask);
     }
-  } else if (status == TASK_STATUS__UNINIT) { // todo: fill-history task init ?
-    if (pTask->info.fillHistory == 0) {
-      tqDebug("s-task:%s initialize the uninit task after resume from pause", pTask->id.idStr);
-      tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
-    }
+  } else {
+    ASSERT (status != TASK_STATUS__UNINIT);// { // todo: fill-history task init ?
+//      if (pTask->info.fillHistory == 0) {
+        //      tqDebug("s-task:%s initialize the uninit task after resume from pause", pTask->id.idStr);
+        //
+        //      if (pTask->pBackend == NULL) {  // TODO: add test cases for this
+        //        int32_t code = pMeta->expandTaskFn(pTask);
+        //        if (code != TSDB_CODE_SUCCESS) {
+        //          tqError("s-task:%s vgId:%d failed to expand stream backend", pTask->id.idStr, vgId);
+        //          streamMetaAddFailedTaskSelf(pTask, pTask->execInfo.readyTs);
+        //        }
+        //      }
+        //      int32_t ret = */streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+//      }
+//    }
   }
 
   streamMetaReleaseTask(pMeta, pTask);
