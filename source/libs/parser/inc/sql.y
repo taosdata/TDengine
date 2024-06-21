@@ -95,15 +95,25 @@ white_list(A) ::= HOST ip_range_list(B).                                        
 white_list_opt(A) ::= .                                                           { A = NULL; }
 white_list_opt(A) ::= white_list(B).                                              { A = B; }
 
+%type is_import_opt                                                                 { int8_t }
+%destructor is_import_opt                                                           { }
+is_import_opt(A) ::= .                                                              { A = 0; }
+is_import_opt(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = taosStr2Int8(B.z, NULL, 10); }
+
+%type is_createdb_opt                                                                 { int8_t }
+%destructor is_createdb_opt                                                           { }
+is_createdb_opt(A) ::= .                                                              { A = 0; }
+is_createdb_opt(A) ::= CREATEDB NK_INTEGER(B).                                        { A = taosStr2Int8(B.z, NULL, 10); }
 /************************************************ create/alter/drop user **********************************************/
-cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C)
+cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C) is_createdb_opt(F) is_import_opt(E)
                       white_list_opt(D).                                          {
-                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C);
+                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C, E, F);
                                                                                     pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);
                                                                                   }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
 cmd ::= ALTER USER user_name(A) ENABLE NK_INTEGER(B).                             { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ENABLE, &B); }
 cmd ::= ALTER USER user_name(A) SYSINFO NK_INTEGER(B).                            { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_SYSINFO, &B); }
+cmd ::= ALTER USER user_name(A) CREATEDB NK_INTEGER(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_CREATEDB, &B); }
 cmd ::= ALTER USER user_name(A) ADD white_list(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ADD_WHITE_LIST, B); }
 cmd ::= ALTER USER user_name(A) DROP white_list(B).                               { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_DROP_WHITE_LIST, B); }
 cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
@@ -353,7 +363,7 @@ cmd ::= ALTER STABLE alter_table_clause(A).                                     
 
 alter_table_clause(A) ::= full_table_name(B) alter_table_options(C).              { A = createAlterTableModifyOptions(pCxt, B, C); }
 alter_table_clause(A) ::=
-  full_table_name(B) ADD COLUMN column_name(C) type_name(D).                      { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, &C, D); }
+  full_table_name(B) ADD COLUMN column_name(C) type_name(D) column_options(E).                      { A = createAlterTableAddModifyColOptions2(pCxt, B, TSDB_ALTER_TABLE_ADD_COLUMN, &C, D, E); }
 alter_table_clause(A) ::= full_table_name(B) DROP COLUMN column_name(C).          { A = createAlterTableDropCol(pCxt, B, TSDB_ALTER_TABLE_DROP_COLUMN, &C); }
 alter_table_clause(A) ::=
   full_table_name(B) MODIFY COLUMN column_name(C) type_name(D).                   { A = createAlterTableAddModifyCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, &C, D); }
@@ -493,6 +503,7 @@ col_name(A) ::= column_name(B).                                                 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
+cmd ::= SHOW USERS FULL.                                                          { pCxt->pRootNode = createShowStmtWithFull(pCxt, QUERY_NODE_SHOW_USERS_FULL_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);

@@ -244,7 +244,7 @@ static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTask
   SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask && *ppTask) {
     pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
-    pItem->fetchResultVer = (*ppTask)->info.triggerParam;
+    pItem->fetchResultVer = (*ppTask)->info.delaySchedParam;
   }
   streamMetaRUnLock(pMeta);
 }
@@ -298,8 +298,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
     pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
-
-    pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
+    pStreamTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+    pStreamState = streamStateOpen(taskInfDir, pStreamTask, pStreamTask->id.streamId, pStreamTask->id.taskId);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;
@@ -1285,10 +1285,11 @@ _checkpoint:
         if (pItem && pItem->pStreamTask) {
           SStreamTask *pTask = pItem->pStreamTask;
           // atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
-          pTask->chkInfo.checkpointingId = checkpointId;
+          streamTaskSetActiveCheckpointInfo(pTask, checkpointId);
+
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
-          pTask->info.triggerParam = pItem->fetchResultVer;
+          pTask->info.delaySchedParam = pItem->fetchResultVer;
           pTask->info.taskLevel = TASK_LEVEL_SMA;
 
           if (!checkpointBuilt) {

@@ -131,6 +131,7 @@ const char* columnEncodeStr(uint8_t type) {
       encode = TSDB_COLUMN_ENCODE_DISABLED;
       break;
     default:
+      encode = TSDB_COLUMN_ENCODE_UNKNOWN;
       break;
   }
   return encode;
@@ -157,8 +158,8 @@ const char* columnCompressStr(uint16_t type) {
     case TSDB_COLVAL_COMPRESS_DISABLED:
       compress = TSDB_COLUMN_COMPRESS_DISABLED;
       break;
-
     default:
+      compress = TSDB_COLUMN_COMPRESS_UNKNOWN;
       break;
   }
   return compress;
@@ -326,7 +327,9 @@ int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTy
   return TSDB_CODE_SUCCESS;
 }
 
-bool useCompress(uint8_t tableType) { return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType; }
+bool useCompress(uint8_t tableType) {
+  return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
+}
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
   if (level == TSDB_COLVAL_LEVEL_DISABLED) return 1;

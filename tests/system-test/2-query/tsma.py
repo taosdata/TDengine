@@ -1270,15 +1270,14 @@ class TDTestCase:
     def test_drop_tsma(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        self.create_tsma('tsma1', 'test', 'meters', [
-                         'avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '15m', 'meters')
 
         # drop recursive tsma first
         tdSql.error('drop tsma test.tsma1', -2147482491)
         tdSql.execute('drop tsma test.tsma2', queryTimes=1)
         tdSql.execute('drop tsma test.tsma1', queryTimes=1)
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database test', queryTimes=1)
 
         self.init_data()
@@ -1319,7 +1318,7 @@ class TDTestCase:
             'create tsma tsma1 on nsdb.meters function(avg(c1), avg(c2), avg(t3)) interval(5m)', -2147471096) 
         
         tdSql.execute('alter table nsdb.meters drop tag t3', queryTimes=1)
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')
 
         # drop norm table
@@ -1346,7 +1345,7 @@ class TDTestCase:
         # test drop stream
         tdSql.error('drop stream tsma1', -2147471088) ## TSMA must be dropped first
 
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database test', queryTimes=1)
         self.init_data()
 
@@ -1449,7 +1448,7 @@ class TDTestCase:
 
         tdSql.error(
             'create tsma tsma1 on test.meters function(avg(c1), avg(c2)) interval(2h)', -2147471097)
-        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-checkpo')
+        self.wait_query('show transactions', 0, 10, lambda row: row[3] != 'stream-chkpt-u')
         tdSql.execute('drop database nsdb')
 
     def test_create_tsma_on_norm_table(self):

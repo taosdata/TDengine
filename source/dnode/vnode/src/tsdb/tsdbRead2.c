@@ -226,14 +226,10 @@ static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) { return pWindow->skey 
 // Update the query time window according to the data time to live(TTL) information, in order to avoid to return
 // the expired data to client, even it is queried already.
 static STimeWindow updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow) {
-  STsdbKeepCfg* pCfg = &pTsdb->keepCfg;
-
-  int64_t now = taosGetTimestamp(pCfg->precision);
-  int64_t earilyTs = now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
-
+  int64_t     earlyTs = tsdbGetEarliestTs(pTsdb);
   STimeWindow win = *pWindow;
-  if (win.skey < earilyTs) {
-    win.skey = earilyTs;
+  if (win.skey < earlyTs) {
+    win.skey = earlyTs;
   }
 
   return win;
@@ -2244,7 +2240,8 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
   };
 
   SSttDataInfoForTable info = {.pKeyRangeList = taosArrayInit(4, sizeof(SSttKeyRange))};
-  int32_t              code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
+
+  int32_t code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -4261,9 +4258,6 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     blockDataEnsureCapacity(pResBlock, capacity);
   }
 
-  // for debug purpose
-//  capacity = 7;
-
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
@@ -4903,7 +4897,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
 }
 
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool* hasNullSMA) {
-  SColumnDataAgg*** pBlockSMA = &pDataBlock->pBlockAgg;
+  SColumnDataAgg** pBlockSMA = &pDataBlock->pBlockAgg;
 
   int32_t code = 0;
   *allHave = false;
@@ -4958,7 +4952,13 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
 
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
-    pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    if (pResBlock->pBlockAgg == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    for(int i = 0; i < num; ++i) {
+      pResBlock->pBlockAgg[i].colId = -1;
+    }
   }
 
   // do fill all null column value SMA info
@@ -4970,13 +4970,12 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = &pSup->colAggArray.data[i];
     if (pAgg->colId == pSup->colId[j]) {
-      pResBlock->pBlockAgg[pSup->slotId[j]] = pAgg;
+      pResBlock->pBlockAgg[pSup->slotId[j]] = *pAgg;
       i += 1;
       j += 1;
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      pResBlock->pBlockAgg[pSup->slotId[j]] = NULL;
       *allHave = false;
       j += 1;
     }

@@ -625,6 +625,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
     } break;
+    case TDMT_STREAM_TASK_UPDATE_CHKPT: {
+      if (tqProcessTaskUpdateCheckpointReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_STREAM_TASK_PAUSE: {
       if (pVnode->restored && vnodeIsLeader(pVnode) &&
           tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
@@ -837,14 +842,20 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
+      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER:
+      return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
+      return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
       return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_REQ_CHKPT_RSP:
       return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
-      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
     case TDMT_VND_GET_STREAM_PROGRESS:
       return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
+    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
+      return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -1158,12 +1169,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
 _exit:
-  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-    pCreateReq = req.pReqs + iReq;
-    taosMemoryFree(pCreateReq->sql);
-    taosMemoryFree(pCreateReq->comment);
-    taosArrayDestroy(pCreateReq->ctb.tagName);
-  }
+  tDeleteSVCreateTbBatchReq(&req);
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
@@ -2017,6 +2023,9 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (pVnode->config.walCfg.level != req.walLevel) {
+    if (pVnode->config.walCfg.level == 0) {
+      pVnode->config.walCfg.clearFiles = 1;
+    }
     pVnode->config.walCfg.level = req.walLevel;
     walChanged = true;
   }

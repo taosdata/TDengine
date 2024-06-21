@@ -49,7 +49,7 @@ print ============= create database with all options
 #  | KEEP value         [max(1d ~ 365000d), default: 1d, unit may be minut/hour/day]
 #  | PRECISION          ['ms' | 'us' | 'ns', default: ms]
 #  | REPLICA value      [1 | 3, default: 1]
-#  | WAL_LEVEL value          [1 | 2, default: 1]
+#  | WAL_LEVEL value          [0 | 1 | 2, default: 1]
 #  | VGROUPS value      [default: 2]
 #  | SINGLE_STABLE      [0 | 1, default: ]
 #
@@ -404,7 +404,7 @@ endi
 sql drop database db
 sql_error create database db WAL_LEVEL 3
 sql_error create database db WAL_LEVEL -1
-sql_error create database db WAL_LEVEL 0
+#sql_error create database db WAL_LEVEL 0
 
 print ====> VGROUPS value [1~4096, default: 2]
 sql create database db VGROUPS 1

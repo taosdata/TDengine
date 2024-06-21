@@ -41,6 +41,8 @@ typedef struct SSourceDataInfo {
   SArray*            pSrcUidList;
   int32_t            srcOpType;
   bool               tableSeq;
+  char*              decompBuf;
+  int32_t            decompBufSize;
 } SSourceDataInfo;
 
 static void  destroyExchangeOperatorInfo(void* param);
@@ -93,6 +95,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         goto _error;
       }
 
+      tmemory_barrier();
       SRetrieveTableRsp*     pRsp = pDataInfo->pRsp;
       SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
 
@@ -370,7 +373,10 @@ void freeBlock(void* pParam) {
 
 void freeSourceDataInfo(void* p) {
   SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
+  taosMemoryFreeClear(pInfo->decompBuf);
   taosMemoryFreeClear(pInfo->pRsp);
+
+  pInfo->decompBufSize = 0;
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
@@ -410,6 +416,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
     pRsp->numOfRows = htobe64(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);
+    pRsp->payloadLen = htonl(pRsp->payloadLen);
     pRsp->numOfCols = htonl(pRsp->numOfCols);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
@@ -428,6 +435,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  tmemory_barrier();
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   code = tsem_post(&pExchangeInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
@@ -671,16 +679,51 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
 
-  char*   pStart = pRetrieveRsp->data;
+  char*   pNextStart = pRetrieveRsp->data;
+  char*   pStart = pNextStart;
+
   int32_t index = 0;
   int32_t code = 0;
+
+  if (pRetrieveRsp->compressed) {  // decompress the data
+    if (pDataInfo->decompBuf == NULL) {
+      pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
+      pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
+    } else {
+      if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
+        char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
+        if (p != NULL) {
+          pDataInfo->decompBuf = p;
+          pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
+        }
+      }
+    }
+  }
+
+
   while (index++ < pRetrieveRsp->numOfBlocks) {
     SSDataBlock* pb = NULL;
+    pStart = pNextStart;
+
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
       pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
       blockDataCleanup(pb);
     } else {
       pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+    }
+
+    int32_t compLen = *(int32_t*) pStart;
+    pStart += sizeof(int32_t);
+
+    int32_t rawLen = *(int32_t*) pStart;
+    pStart += sizeof(int32_t);
+    ASSERT(compLen <= rawLen && compLen != 0);
+
+    pNextStart = pStart + compLen;
+    if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+      int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(t == rawLen);
+      pStart = pDataInfo->decompBuf;
     }
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);

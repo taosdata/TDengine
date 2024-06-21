@@ -89,24 +89,28 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
-  if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-    if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
-        (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
-      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
-      atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
-      reqType = SLOW_LOG_TYPE_INSERT;
-    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+  if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
+    if (pRequest->pQuery && pRequest->pQuery->pRoot) {
+      if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
+        tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+        atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+        reqType = SLOW_LOG_TYPE_INSERT;
+      } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+        tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
-      atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
-      reqType = SLOW_LOG_TYPE_QUERY;
-    } 
+        atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+        reqType = SLOW_LOG_TYPE_QUERY;
+      } 
+    }
+
+    nodesSimReleaseAllocator(pRequest->allocatorRefId);
   }
 
   if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
@@ -330,6 +334,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
+    releaseTscObj(connId);
     doDestroyRequest(pRequest);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -370,6 +375,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
   taosMemoryFreeClear(pResInfo->convertJson);
+  taosMemoryFreeClear(pResInfo->decompBuf);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
@@ -491,7 +497,10 @@ void doDestroyRequest(void *p) {
   }
   taosMemoryFree(pRequest->body.interParam);
 
-  qDestroyQuery(pRequest->pQuery);
+  if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
+    qDestroyQuery(pRequest->pQuery);
+    nodesSimReleaseAllocator(pRequest->allocatorRefId);
+  }
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->effectiveUser);
@@ -756,7 +765,6 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
-  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   taosThreadMutexInit(&appInfo.mutex, NULL);
 

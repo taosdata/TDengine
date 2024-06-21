@@ -843,6 +843,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(isSubquery);
   COPY_SCALAR_FIELD(isEmptyResult);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);

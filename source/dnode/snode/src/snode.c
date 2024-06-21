@@ -25,34 +25,15 @@
 #define sndDebug(...) do {  if (sndDebugFlag & DEBUG_DEBUG) { taosPrintLog("SND ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
-static STaskId replaceStreamTaskId(SStreamTask *pTask) {
-  ASSERT(pTask->info.fillHistory);
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-  pTask->id.streamId = pTask->streamTaskId.streamId;
-  pTask->id.taskId = pTask->streamTaskId.taskId;
-  return id;
-}
-
-static void restoreStreamTaskId(SStreamTask *pTask, STaskId *pId) {
-  ASSERT(pTask->info.fillHistory);
-  pTask->id.taskId = pId->taskId;
-  pTask->id.streamId = pId->streamId;
-}
-
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
   int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
   pTask->pBackend = NULL;
-
   streamTaskOpenAllUpstreamInput(pTask);
-
-  code = tqExpandStreamTask(pTask, pSnode->pMeta, NULL);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
@@ -67,14 +48,14 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
             " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->streamTaskId.taskId, pTask->info.triggerParam);
+            (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
     sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
-            (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam);
+            (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
   }
   return 0;
 }
@@ -86,18 +67,17 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     return NULL;
   }
 
+  stopRsync();
+  startRsync();
+
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndExpandTask, tqExpandStreamTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
 
   streamMetaLoadAllTasks(pSnode->pMeta);
-
-  stopRsync();
-  startRsync();
-
   return pSnode;
 
 FAIL:
@@ -106,8 +86,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamMetaResetTaskStatus(pSnode->pMeta);
-  streamMetaStartAllTasks(pSnode->pMeta);
+  streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
   return 0;
 }
 
@@ -143,6 +122,12 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamProcessReqCheckpointRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
       return tqStreamProcessCheckpointReadyRsp(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
+      return tqStreamProcessChkptReportRsp(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER:
+      return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
+      return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);
@@ -168,6 +153,8 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_RESUME:
       return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
+    case TDMT_STREAM_TASK_UPDATE_CHKPT:
+      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
     default:
       ASSERT(0);
   }

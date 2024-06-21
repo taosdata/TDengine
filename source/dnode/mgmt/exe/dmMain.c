@@ -258,17 +258,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
+  printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
+  printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
+  printf("gitOfInternal: %s\n", gitinfoOfInternal);
 #endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
-#ifdef TD_ENTERPRISE
-  printf("gitinfoOfInternal: %s\n", gitinfoOfInternal);
-#endif
-  printf("buildInfo: %s\n", buildinfo);
+  printf("build: %s\n", buildinfo);
 }
 
 static void dmPrintHelp() {
@@ -403,13 +398,6 @@ int mainWindows(int argc, char **argv) {
     return -1;
   }
 
-  if(dmGetEncryptKey() != 0){
-    dError("failed to start since failed to get encrypt key");
-    taosCloseLog();
-    taosCleanupArgs();
-    return -1;
-  };
-
   if (taosConvInit() != 0) {
     dError("failed to init conv");
     taosCloseLog();
@@ -446,6 +434,13 @@ int mainWindows(int argc, char **argv) {
 
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
+
+  if(dmGetEncryptKey() != 0){
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return -1;
+  };
 
   if (dmInit() != 0) {
     if (terrno == TSDB_CODE_NOT_FOUND) {

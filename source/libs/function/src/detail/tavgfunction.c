@@ -565,7 +565,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows;
     pAvgRes->count += pInput->numOfRows;
 
-    bool simdAvailable = tsAVXEnable && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
+    bool simdAvailable = tsAVXSupported && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
 
     switch(type) {
       case TSDB_DATA_TYPE_UTINYINT:

@@ -454,7 +454,12 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     scanPathOptSetGroupOrderScan(info.pScan);
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
-    info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+    if (pCxt->pPlanCxt->streamQuery) {
+      info.pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD; // always load all data for stream query
+    } else {
+      info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+    }
+
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
   }
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
@@ -3006,7 +3011,9 @@ static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   }
 
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pFuncName);
-  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
+  if ((QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) ||
+   (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType &&
+   ((SColumnNode*)pNode)->tableAlias[0] != '\0')){
     SColumnNode* pCol = (SColumnNode*)pNode;
     partTagsSetAlias(pFunc->node.aliasName, pCol->tableAlias, pCol->colName);
   } else {
@@ -4159,8 +4166,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, pLastRowCols, false, cxt.pkBytes);
     lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols, pLastRowCols);
-    if (pPKTsCol && ((pScan->node.pTargets->length == 1) || (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
-      // when select last(ts),ts from ..., we add another ts to targets
+    if (pPKTsCol &&
+        ((cxt.pLastCols->length == 1 && nodesEqualNode((SNode*)pPKTsCol, nodesListGetNode(cxt.pLastCols, 0))) ||
+         (pScan->node.pTargets->length == 2 && cxt.pkBytes > 0))) {
+      // when select last(ts),tbname,ts from ..., we add another ts to targets
       sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
       nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
     }

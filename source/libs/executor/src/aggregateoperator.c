@@ -406,7 +406,10 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
     }
   }
 
-  setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
+  int32_t ret = setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
 }
 
 // a new buffer page for each table. Needs to opt this design

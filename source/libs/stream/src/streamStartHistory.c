@@ -155,7 +155,7 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
+int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask) {
   // set the state to be ready
   streamTaskSetReady(pTask);
   streamTaskSetRangeStreamCalc(pTask);
@@ -197,6 +197,9 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   const char*          idStr = pTask->id.idStr;
   int64_t              hStreamId = pTask->hTaskInfo.id.streamId;
   int32_t              hTaskId = pTask->hTaskInfo.id.taskId;
+  int64_t              now = taosGetTimestampMs();
+  int32_t              code = 0;
+
   ASSERT(hTaskId != 0);
 
   // check stream task status in the first place.
@@ -226,7 +229,18 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         stDebug("s-task:%s fill-history task is ready, no need to check downstream", pHisTask->id.idStr);
         streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, true);
       } else {  // exist, but not ready, continue check downstream task status
-        checkFillhistoryTaskStatus(pTask, pHisTask);
+        if (pHisTask->pBackend == NULL) {
+          code = pMeta->expandTaskFn(pHisTask);
+          if (code != TSDB_CODE_SUCCESS) {
+            streamMetaAddFailedTaskSelf(pHisTask, now);
+            stError("s-task:%s failed to expand fill-history task, code:%s", pHisTask->id.idStr, tstrerror(code));
+          }
+        }
+
+        if (code == TSDB_CODE_SUCCESS) {
+          checkFillhistoryTaskStatus(pTask, pHisTask);
+        }
+
       }
 
       streamMetaReleaseTask(pMeta, pHisTask);
@@ -306,6 +320,7 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
   SLaunchHTaskInfo* pInfo = param;
   SStreamMeta*      pMeta = pInfo->pMeta;
   int64_t           now = taosGetTimestampMs();
+  int32_t           code = 0;
 
   streamMetaWLock(pMeta);
 
@@ -362,13 +377,22 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
         streamMetaReleaseTask(pMeta, pTask);
         return;
       } else {
-        checkFillhistoryTaskStatus(pTask, pHTask);
-        streamMetaReleaseTask(pMeta, pHTask);
+        if (pHTask->pBackend == NULL) {
+          code = pMeta->expandTaskFn(pHTask);
+          if (code != TSDB_CODE_SUCCESS) {
+            streamMetaAddFailedTaskSelf(pHTask, now);
+            stError("failed to expand fill-history task:%s, code:%s", pHTask->id.idStr, tstrerror(code));
+          }
+        }
 
-        // not in timer anymore
-        int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-        stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
-                pHTaskInfo->retryTimes, ref);
+        if (code == TSDB_CODE_SUCCESS) {
+          checkFillhistoryTaskStatus(pTask, pHTask);
+          // not in timer anymore
+          int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+          stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
+              pHTaskInfo->retryTimes, ref);
+        }
+        streamMetaReleaseTask(pMeta, pHTask);
       }
     }
 
