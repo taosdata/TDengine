@@ -2053,7 +2053,11 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     stInfo("%s newly create db in state-backend", key);
     // pre create db
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
-    if (pTaskDb->db == NULL) goto _EXIT;
+    if (pTaskDb->db == NULL) {
+      stError("%s open state-backend failed, reason:%s", key, err);
+      goto _EXIT;
+    }
+
     rocksdb_close(pTaskDb->db);
 
     if (cfNames != NULL) {

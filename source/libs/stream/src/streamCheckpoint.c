@@ -737,14 +737,13 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   pActiveInfo->checkCounter = 0;
-  stDebug("s-task:%s vgId:%d checkpoint-trigger monitor in tmr, ts:%" PRId64, pTask->id.idStr, vgId, now);
+  stDebug("s-task:%s vgId:%d checkpoint-trigger monitor in tmr, ts:%" PRId64, id, vgId, now);
 
   taosThreadMutexLock(&pTask->lock);
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
   if (pState->state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", pTask->id.idStr,
-            vgId, ref);
+    stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
 
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
@@ -754,8 +753,8 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   // checkpoint-trigger recv flag is set, quit
   if (pActiveInfo->allUpstreamTriggerRecv) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d",
-            pTask->id.idStr, vgId, ref);
+    stDebug("s-task:%s vgId:%d all checkpoint-trigger recv, quit from monitor checkpoint-trigger, ref:%d", id, vgId,
+            ref);
 
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
