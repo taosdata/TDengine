@@ -1766,7 +1766,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
       uint32_t dst = 0;
       updated = tUpdateCompress(pCmpr->alg, p->bytes, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
-      if (updated) pCmpr->alg = dst;
+      if (updated > 0) pCmpr->alg = dst;
       break;
     }
   }
@@ -1774,7 +1774,11 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   if (updated == 0) {
     terrno = TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST;
     return -1;
+  } else if (updated == -1) {
+    terrno = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    return -1;
   }
+
   pNew->colVer++;
 
   return 0;

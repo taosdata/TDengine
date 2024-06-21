@@ -37,6 +37,7 @@ TEST_F(TfsTest, 01_Open_Close) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
   STfs *pTfs = tfsOpen(&dCfg, 1);
@@ -63,6 +64,7 @@ TEST_F(TfsTest, 02_AllocDisk) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
   taosMkDir(root);
@@ -114,6 +116,7 @@ TEST_F(TfsTest, 03_Dir) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
   taosMkDir(root);
@@ -330,30 +333,39 @@ TEST_F(TfsTest, 05_MultiDisk) {
   tstrncpy(dCfg[0].dir, root01, TSDB_FILENAME_LEN);
   dCfg[0].level = 0;
   dCfg[0].primary = 0;
+  dCfg[0].disable = 0;
   tstrncpy(dCfg[1].dir, root00, TSDB_FILENAME_LEN);
   dCfg[1].level = 0;
   dCfg[1].primary = 0;
+  dCfg[1].disable = 0;
   tstrncpy(dCfg[2].dir, root20, TSDB_FILENAME_LEN);
   dCfg[2].level = 2;
   dCfg[2].primary = 0;
+  dCfg[2].disable = 0;
   tstrncpy(dCfg[3].dir, root21, TSDB_FILENAME_LEN);
   dCfg[3].level = 2;
   dCfg[3].primary = 0;
+  dCfg[3].disable = 0;
   tstrncpy(dCfg[4].dir, root22, TSDB_FILENAME_LEN);
   dCfg[4].level = 2;
   dCfg[4].primary = 0;
+  dCfg[4].disable = 0;
   tstrncpy(dCfg[5].dir, root23, TSDB_FILENAME_LEN);
   dCfg[5].level = 2;
   dCfg[5].primary = 0;
+  dCfg[5].disable = 0;
   tstrncpy(dCfg[6].dir, root10, TSDB_FILENAME_LEN);
   dCfg[6].level = 1;
   dCfg[6].primary = 0;
+  dCfg[6].disable = 0;
   tstrncpy(dCfg[7].dir, root11, TSDB_FILENAME_LEN);
   dCfg[7].level = 1;
   dCfg[7].primary = 0;
+  dCfg[7].disable = 0;
   tstrncpy(dCfg[8].dir, root12, TSDB_FILENAME_LEN);
   dCfg[8].level = 1;
   dCfg[8].primary = 0;
+  dCfg[8].disable = 0;
 
   taosRemoveDir(root00);
   taosRemoveDir(root01);

@@ -524,6 +524,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -1217,6 +1218,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -2674,6 +2676,18 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
     pValNode->isNull = false;
   }
   return pValNode;
+}
+
+SNode* nodesMakeValueNodeFromInt32(int32_t value) {
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_INT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    nodesSetValueNodeValue(pValNode, &value);
+    pValNode->translate = true;
+    pValNode->isNull = false;
+  }
+  return (SNode*)pValNode;
 }
 
 bool nodesIsStar(SNode* pNode) {
