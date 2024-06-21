@@ -2140,10 +2140,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
             mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
             alterReq.tabName);
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail));
-  }
-  else if(alterReq.alterType == TSDB_ALTER_USER_SUPERUSER ||
-          alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
-          alterReq.alterType == TSDB_ALTER_USER_SYSINFO){
+  } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
+             alterReq.alterType == TSDB_ALTER_USER_SYSINFO) {
     auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, alterReq.sql, alterReq.sqlLen);
   } else if (ALTER_USER_ADD_READ_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
              ALTER_USER_ADD_WRITE_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
@@ -2699,7 +2697,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     }
 
     pUsers[i].version = ntohl(pUsers[i].version);
-    if (pUser->authVersion <= pUsers[i].version || ipWhiteListVer == pMnode->ipWhiteVer) {
+    if (pUser->authVersion <= pUsers[i].version && ipWhiteListVer == pMnode->ipWhiteVer) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
