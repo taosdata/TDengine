@@ -54,6 +54,7 @@ static int32_t  mndProcessDropUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
@@ -532,6 +533,8 @@ int32_t mndInitUser(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER_FULL, mndRetrieveUsersFull);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER_FULL, mndCancelGetNextUser);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_PRIVILEGES, mndRetrievePrivileges);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_PRIVILEGES, mndCancelGetNextPrivileges);
   return sdbSetTable(pMnode->pSdb, table);
@@ -1235,7 +1238,11 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
 
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   SUserObj userObj = {0};
-  taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+  if (pCreate->isImport != 1) {
+    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+  } else {
+    strncpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  }
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
@@ -1243,7 +1250,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
-  userObj.createdb = 0;
+  userObj.createdb = pCreate->createDb;
 
   if (pCreate->numIpRanges == 0) {
     userObj.pIpWhiteList = createDefaultIpWhiteList();
@@ -1345,9 +1352,24 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("user:%s, start to create", createReq.user);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER) != 0) {
+  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.isImport, createReq.createDb);
+
+#ifndef TD_ENTERPRISE
+  if (createReq.isImport == 1) {
     goto _OVER;
+  }
+#endif
+
+  if (createReq.isImport != 1) {
+    if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER) != 0) {
+      goto _OVER;
+    }
+  } else {
+    if (strcmp(pReq->info.conn.user, "root") != 0) {
+      mError("The operation is not permitted, user:%s", pReq->info.conn.user);
+      terrno = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
   }
 
   if (createReq.user[0] == 0) {
@@ -1355,9 +1377,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (createReq.pass[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    goto _OVER;
+  if (createReq.isImport != 1) {
+    if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
+      terrno = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+      goto _OVER;
+    }
   }
 
   if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
@@ -1388,8 +1412,14 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   char detail[1000] = {0};
   sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
           createReq.sysInfo);
+  char operation[15] = {0};
+  if (createReq.isImport == 1) {
+    strcpy(operation, "importUser");
+  } else {
+    strcpy(operation, "createUser");
+  }
 
-  auditRecord(pReq, pMnode->clusterId, "createUser", "", createReq.user, detail, strlen(detail));
+  auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2199,6 +2229,88 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   }
 
   pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  int32_t numOfRows = 0;
+#ifdef TD_ENTERPRISE
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = NULL;
+  int32_t   cols = 0;
+  int8_t    flag = 0;
+  char     *pWrite;
+  int32_t   code = 0;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_USER, pShow->pIter, (void **)&pUser);
+    if (pShow->pIter == NULL) break;
+
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    char             name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->superUser, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->enable, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pUser->sysInfo, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    cols++;
+    flag = pUser->createdb ? 1 : 0;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&flag, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    // mInfo("pUser->pass:%s", pUser->pass);
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->pass, pShow->pMeta->pSchemas[cols].bytes);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)pass, false);
+    if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+    cols++;
+
+    char   *buf = NULL;
+    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
+    // int32_t tlen = mndFetchIpWhiteList(pUser->pIpWhiteList, &buf);
+    if (tlen != 0) {
+      char *varstr = taosMemoryCalloc(1, VARSTR_HEADER_SIZE + tlen);
+      varDataSetLen(varstr, tlen);
+      memcpy(varDataVal(varstr), buf, tlen);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)varstr, false);
+      if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+
+      taosMemoryFree(varstr);
+      taosMemoryFree(buf);
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)NULL, true);
+      if (code != 0) mError("User:%s, failed to retrieve at columns:%d, cause %s", pUser->acct, cols, tstrerror(code));
+    }
+
+    numOfRows++;
+    sdbRelease(pSdb, pUser);
+  }
+
+  pShow->numOfRows += numOfRows;
+#endif
   return numOfRows;
 }
 
