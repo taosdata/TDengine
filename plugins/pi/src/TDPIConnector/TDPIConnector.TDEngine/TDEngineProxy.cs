@@ -305,9 +305,9 @@ namespace TDPIConnector.TDEngine
                 {
                     if (column.IsTDengineTag())
                     {
-                        if (column.TagValue.Length > 100) {
+                        if (column.TagValue.Length > 200) {
                             log.Debug($"{element.Location} {element.Name}.{column.Name} tag value too long {column.TagValue}！");
-                            column.TagValue = column.TagValue.Substring(0, 99);
+                            column.TagValue = column.TagValue.Substring(0, 199);
                         }
                         tags.Add(new KeyValuePair<string, string>($"{column.Name}", column.TagValue.Trim()));
                     }

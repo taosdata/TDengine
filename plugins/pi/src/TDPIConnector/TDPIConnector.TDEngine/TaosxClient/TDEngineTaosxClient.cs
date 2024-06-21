@@ -172,7 +172,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 return;
             }
             reader = new ArrowStreamReader(stream);
-            while (!stopTaosxSend)
+            while (!stopTaosxSend && stream.CanRead)
             {
                 try
                 {
@@ -209,12 +209,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     }
                     else
                     {
-                        log.Debug($"no response!");
+                        log.Debug($"Stable:{builder.stableName},localPort:{localPort}.no response!");
                         Thread.Sleep(500);
                     }
                 }
                 catch (Exception e) {
-                    log.Debug($"Exception: Arrow response handle! {e.Message}");
+                    log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Exception: Arrow response handle! {e.Message}");
                     Thread.Sleep(500);
                 }
             }
