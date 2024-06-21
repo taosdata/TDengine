@@ -375,6 +375,10 @@ export default {
             this.dynamicValidateForm.cluster
           );
         }
+
+        if (res.cluster_native) {
+          localStorage.setItem("native_url", res.cluster_native);
+        }
         
         if (res && res.dashboard) {
           localStorage.setItem("local_grafana", res.dashboard);

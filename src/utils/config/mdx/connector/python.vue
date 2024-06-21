@@ -52,7 +52,7 @@ conda install -c conda-forge taospy
     <pre
       v-highlight="
         `export TDENGINE_TOKEN=&quot;${token}&quot;
-export TDENGINE_URL=&quot;http://ip:port&quot;
+export TDENGINE_URL=&quot;${url}&quot;
 jupyter lab
 `
       "
