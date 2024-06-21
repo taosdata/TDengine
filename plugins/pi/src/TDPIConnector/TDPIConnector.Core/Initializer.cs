@@ -106,7 +106,7 @@ namespace TDPIConnector.Core
 
             //get all elements based on template
             List<AFElementWrapper> elements = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, elementTemplate.Name).ToList();
-            log.Info($"Found {elements.Count()} elements in template:{elementTemplate.Name}.");
+            log.Info($"Found {elements.Count()} elements of template:{elementTemplate.Name}.");
 
             // 切分元素列表，每组500个元素
             int chunkSize = 500;
@@ -138,7 +138,7 @@ namespace TDPIConnector.Core
                             stopwatch.Stop();
                             TimeSpan elapsed = stopwatch.Elapsed;
                             log.Info($"Start(Init) info: {Interlocked.Read(ref finishedCount)}/{elements.Count()}" +
-                                $" elements in template:{elementTemplate.Name} group:{groupIndex} cost time:{elapsed.TotalSeconds} seconds.");
+                                $" elements of template {elementTemplate.Name} group {groupIndex} cost {elapsed.TotalSeconds} seconds.");
                         }
                     }
                     catch (Exception e) {
@@ -192,7 +192,7 @@ namespace TDPIConnector.Core
                     try
                     {
                         await InitTaskForElementTemplate(tdDatabaseName, elementTemplate);
-                        log.Info($"template {elementTemplate.Name} Init finished.");
+                        log.Info($"Template {elementTemplate.Name} init finished.");
                     }
                     catch (Exception e) {
                         log.Error($"InitTaskForElementTemplate Excepiton : {e.Message}");

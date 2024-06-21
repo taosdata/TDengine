@@ -196,11 +196,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                                 Interlocked.Increment(ref actualQueueBufferSize);
                                             }
                                         }
-                                        log.Debug($"arrow response: code:{nullableValue}");
+                                        log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Arrow response code {nullableValue}, QueueSize {actualQueueBufferSize}");
                                     }
                                     break;
                                 default:
-                                    log.Info($"Unsupported arrow response array type.{array.GetType()}");
+                                    log.Info($"Stable:{builder.stableName},localPort:{localPort}.Unsupported arrow response array type.{array.GetType()}");
                                     break;
                             }
                         }
@@ -234,7 +234,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     }
                     catch (Exception e)
                     {
-                        log.Error($"Send data to taosx failed! {e.Message}");
+                        log.Error($"Stable:{builder.stableName},localPort:{localPort}.Send data to taosx failed! {e.Message}");
                         Thread.Sleep(1000);
                     }
                     Thread.Sleep(1000);
@@ -357,7 +357,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         /// <summary>
         /// 限制发送数据到 taosX 的速度。
         /// actualQueueBufferSize 代表允许继续发送的批数，初始值为 30，每发送一批数据减 1，每收到一个确认消息加 1。
-        /// 当 actualQueueBufferSize 小于等于 0 时，不允许发送数，等待 500ms 在检查 actualQueueBufferSize 的值。
+        /// 当 actualQueueBufferSize 小于等于 0 时，不允许发送数，等待 500ms 再检查 actualQueueBufferSize 的值。
         /// 如果等待是时间超过 20s，将 actualQueueBufferSize 设置为 1，允许继续发送 1 批数据。
         /// 
         /// </summary>
@@ -372,12 +372,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     long cost = stopwatch.ElapsedMilliseconds;
                     if (cost > 20000)
                     {
-                        log.Info($"ArrowMsgQueueWait cost {cost} ms!");
+                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
                         Interlocked.Exchange(ref actualQueueBufferSize, 1);
                     }
                     else if (cost > 500)
                     {
-                        log.Info($"ArrowMsgQueueWait cost {cost} ms!");
+                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
                     }
                     Thread.Sleep(500);
                 }
@@ -402,7 +402,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 }
                 else
                 {
-                    log.Info("Found duplicate elements when add tagVal");
+                    log.Info("Stable:{builder.stableName},Found duplicate elements when add tagVal");
                 }
             }
         }
@@ -416,7 +416,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
             else
             {
-                log.Info("Found duplicate elements when add pointId");
+                log.Info("Stable:{builder.stableName},localPort:{localPort},Found duplicate elements when add pointId");
             }
         }
 
@@ -426,8 +426,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 if (builder.tagVals.Count == 0) return;
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                
-                log.Debug($"Stable:{builder.stableName},localPort:{localPort},Wrote {recordBatch.Length} tables");
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {recordBatch.Length}");
                 builder.tagVals.Clear();
             }
         }
@@ -437,7 +436,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 if (builder.tableUniqKeyArrowArray.Length == 0) return;
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName},localPort:{localPort},Write {builder.tableUniqKeyArrowArray.Length} records into stream end.");
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Wrote records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
                 lastSend = DateTime.UtcNow;
             }
@@ -518,9 +517,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         internal void Stop()
-        {
+        { 
             log.Info($"Stable:{builder.stableName}, localPort:{localPort},Stop client");
-            if (!stopTaosxSend) {
+            if (!stopTaosxSend) { 
                 stopTaosxSend = true;
                 send();
             }
