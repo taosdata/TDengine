@@ -55,14 +55,14 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
 </TabItem>
 <TabItem value="GCP" label="GCP">
-9. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
-10. Find **CONNECTED ENDPOINTS** tab and then click **+CONNECT ENDPOINT**.
-11. Select **Published service**.
-12. Enter the service name that you choose in **Step 1** in the **Target service**.
-13. Enter a name in the **Endpoint name**.
-14. In the Subnets area, select the Network, and select the Subnetwork.
-15. Create a Reserve a static internal IP address for the endpoint.
-16. Click ADD ENDPOINT. Then you have the **PSC Connection ID**.
+1. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
+2. Find **CONNECTED ENDPOINTS** tab and then click **+CONNECT ENDPOINT**.
+3. Select **Published service**.
+4. Enter the service name that you choose in **Step 1** in the **Target service**.
+5. Enter a name in the **Endpoint name**.
+6. In the Subnets area, select the Network, and select the Subnetwork.
+7. Create a Reserve a static internal IP address for the endpoint.
+8. Click ADD ENDPOINT. Then you have the **PSC Connection ID**.
 </TabItem>
 </Tabs>
 
@@ -87,15 +87,11 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 </TabItem>
 <TabItem value="GCP" label="GCP">
 1. Sign in to the [GCP Cloud DNS](https://console.cloud.google.com/net-services/dns/zones).
-2. Click **CREATE ZONE** to create a new zone.
-3. Select **Private** of Zone type.
-4. Enter a name in the **Zone name**.
-5. Enter the **Private DNS Name** that you choose in **Step 1** in the **DNS Name**.
-6. Click **CREATE**.
-7. Select the zone you created in the **Cloud DNS** page.
-8. Click **ADD STANDARD** to add a new record set.
-9. Choose the static internal IP address of **Step 2** in the **IPv4 Address**.
-10. Click **CREATE**.
+2. Click **CREATE ZONE** to create a new zone and then select **Private** of Zone type.
+3. Enter a name in the **Zone name** and the **Private DNS Name** that you choose in **Step 1** in the **DNS Name**.
+4. Click **CREATE** to create a new zone.
+5. Select the zone you created in the **Cloud DNS** page and click **ADD STANDARD** to add a new record set.
+6. Choose the static internal IP address of **Step 2** in the **IPv4 Address** and click **CREATE** to create a new standard.
 </TabItem>
 </Tabs>
 
