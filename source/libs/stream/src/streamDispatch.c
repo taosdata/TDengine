@@ -781,7 +781,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s vgId:%d quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
+    stDebug("s-task:%s vgId:%d status:stop, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
@@ -799,7 +799,8 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
   if (pState->state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s vgId:%d not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId, ref);
+    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId,
+            pState->name, ref);
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
