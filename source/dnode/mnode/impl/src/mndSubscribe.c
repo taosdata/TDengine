@@ -799,6 +799,28 @@ static int32_t initRebOutput(SMqRebOutputObj *rebOutput) {
   return 0;
 }
 
+// This function only works when there are dirty consumers
+static void checkConsumer(SMnode *pMnode, SMqSubscribeObj* pSub){
+  void              *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+    SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
+    if (pConsumer != NULL) {
+      continue;
+    }
+    mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
+    taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs);
+
+    taosArrayDestroy(pConsumerEp->vgs);
+    taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
+  }
+}
+
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput){
   const char *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, key);
@@ -834,8 +856,9 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     mInfo("[rebalance] sub topic:%s has no consumers sub yet", key);
   } else {
     taosRLockLatch(&pSub->lock);
-    rebInput->oldConsumerNum = taosHashGetSize(pSub->consumerHash);
     rebOutput->pSub = tCloneSubscribeObj(pSub);
+    checkConsumer(pMnode, rebOutput->pSub);
+    rebInput->oldConsumerNum = taosHashGetSize(rebOutput->pSub->consumerHash);
     taosRUnLockLatch(&pSub->lock);
 
     mInfo("[rebalance] sub topic:%s has %d consumers sub till now", key, rebInput->oldConsumerNum);
@@ -957,12 +980,21 @@ static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgro
       break;
     }
 
-    if (strcmp(cgroup, pConsumer->cgroup) == 0 && taosArrayGetSize(pConsumer->currentTopics) == 0) {
-      int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
-      if (code != 0) {
-        sdbRelease(pMnode->pSdb, pConsumer);
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        return code;
+    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
+    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      continue;
+    }
+    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
+      if (strcmp(topic, name) == 0) {
+        int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
+        if (code != 0) {
+          sdbRelease(pMnode->pSdb, pConsumer);
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          return code;
+        }
       }
     }
     sdbRelease(pMnode->pSdb, pConsumer);
