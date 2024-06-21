@@ -811,6 +811,7 @@ static void checkConsumer(SMnode *pMnode, SMqSubscribeObj* pSub){
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
     if (pConsumer != NULL) {
+      mndReleaseConsumer(pMnode, pConsumer);
       continue;
     }
     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
@@ -933,6 +934,7 @@ END:
 static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STrans *pTrans){
   void* pIter = NULL;
   SVgObj* pVgObj = NULL;
+  int32_t ret = 0;
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgObj);
     if (pIter == NULL) {
@@ -946,8 +948,8 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
     SMqVDeleteReq *pReq = taosMemoryCalloc(1, sizeof(SMqVDeleteReq));
     if(pReq == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      sdbRelease(pMnode->pSdb, pVgObj);
-      return -1;
+      ret = -1;
+      goto END;
     }
     pReq->head.vgId = htonl(pVgObj->vgId);
     pReq->vgId = pVgObj->vgId;
@@ -963,16 +965,20 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
 
     sdbRelease(pMnode->pSdb, pVgObj);
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
+      ret = -1;
+      goto END;
     }
   }
-  return 0;
+  END:
+  sdbRelease(pMnode->pSdb, pVgObj);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return ret;
 }
 
 static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic){
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
+  int             ret = 0;
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
@@ -990,16 +996,19 @@ static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgro
       if (strcmp(topic, name) == 0) {
         int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
         if (code != 0) {
-          sdbRelease(pMnode->pSdb, pConsumer);
-          sdbCancelFetch(pMnode->pSdb, pIter);
-          return code;
+          ret = code;
+          goto END;
         }
       }
     }
 
     sdbRelease(pMnode->pSdb, pConsumer);
   }
-  return 0;
+
+END:
+  sdbRelease(pMnode->pSdb, pConsumer);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return ret;
 }
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {

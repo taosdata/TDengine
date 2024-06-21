@@ -542,6 +542,8 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       int32_t contLen = tSerializeSQueryCompactProgressReq(NULL, 0, &req);
       if (contLen < 0) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
+        sdbCancelFetch(pMnode->pSdb, pDetail);
+        sdbRelease(pMnode->pSdb, pDetail);
         continue;
       }
 
