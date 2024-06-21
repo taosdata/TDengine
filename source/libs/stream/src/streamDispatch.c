@@ -805,6 +805,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
+  taosThreadMutexUnlock(&pTask->lock);
 
   taosThreadMutexLock(&pActiveInfo->lock);
 
