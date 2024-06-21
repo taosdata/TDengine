@@ -36,8 +36,4 @@ targets
 .DS_Store
 tmp.*
 /*.ps1
-<<<<<<< Updated upstream
-.zed
-=======
 .zed/
->>>>>>> Stashed changes
