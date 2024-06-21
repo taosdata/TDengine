@@ -1,5 +1,5 @@
 <template>
-  <div v-if="config && data && display" :class="[(config.children && !config.hasValue) ? 'descriptions' : '', {'grid-item-span-two': config.grid_two}]">
+  <div v-if="config && data && displayIf" :class="[(config.children && !config.hasValue) ? 'descriptions' : '', {'grid-item-span-two': config.grid_two}]">
     <template v-if="config.children && !config.hasValue">
       <DescItem
         v-for="item in config.children"
@@ -34,10 +34,11 @@
         </el-tooltip>
       </template> -->
       <template>
-        <span style="padding-right: 10px">{{ labelText }}:</span>
-        <span v-if="config.type == 'select'">{{ getOptions(data[field]) }}</span>
-        <a v-if="config.type == 'file'" @click="handleDownloadFile(data[field])">{{ getFile(data[field]) }}</a>
-        <span v-else>{{ data[field] }}</span>
+        <span v-if="config.type !== 'dataset'" style="padding-right: 10px">{{ labelText }}:</span>
+        <span v-if="!inputType.includes(config.type)">{{ data[field] }}</span>
+        <span v-if="config.type == 'select'">{{ data[field] }}</span>
+        <a v-if="config.type == 'file' || config.type == 'dataset'" @click="handleDownloadFile(data[field])">{{ getFile(data[field]) }}</a>
+        <span v-if="config.type == 'composeAppend'">{{data[field] + data[field + '_type']}}</span>
       </template>
 
       <!-- <el-input
@@ -212,7 +213,7 @@ export default {
     PatternComp: () => import("./pattern.vue")
   },
   data() {
-    this.inputType = ["input", "textarea", "password"];
+    this.inputType = ["select", "file", "dataset", "composeAppend"];
     return {
       noLabelType: ["tab", "opcTable"],
       files: [],
@@ -237,6 +238,13 @@ export default {
     display() {
       if (this.nolabel) return false;
       if (this.config.type == 'switch' && this.config.hasValue) return false;
+      if (!hasOwn(this.config, "if")) return true;
+      if (typeof this.config.if === "function") {
+        return this.config.if(this.data, this.sourceParent.sourceForm.data);
+      }
+      return this.config.if;
+    },
+    displayIf() {
       if (!hasOwn(this.config, "if")) return true;
       if (typeof this.config.if === "function") {
         return this.config.if(this.data, this.sourceParent.sourceForm.data);

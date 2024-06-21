@@ -427,8 +427,8 @@ export default {
           this.date2 = groupsData?.endTime ? new Date(groupsData?.endTime) : 0;
           break;
         case "pibackfill": 
-          this.date1 = new Date(groupsData?.BackfillStartTime) ?? 0;
-          this.date2 = new Date(groupsData?.BackfillEndTime) ?? 0;
+          this.date1 = groupsData?.BackfillStartTime ? new Date(groupsData?.BackfillStartTime) : 0;
+          this.date2 = groupsData?.BackfillEndTime ? new Date(groupsData?.BackfillEndTime) : 0;
           break;
         default:
           break;
