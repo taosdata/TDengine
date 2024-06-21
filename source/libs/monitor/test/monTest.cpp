@@ -283,10 +283,10 @@ TEST_F(MonitorTest, 01_Full) {
   tFreeSMonSmInfo(&smInfo);
   tFreeSMonQmInfo(&qmInfo);
   tFreeSMonBmInfo(&bmInfo);
-  monSendReport();
+  monGenAndSendReport();
 }
 
 TEST_F(MonitorTest, 02_Log) {
   AddLogInfo2();
-  monSendReport();
+  monGenAndSendReport();
 }

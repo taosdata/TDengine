@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
+#include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
@@ -26,6 +27,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "tjson.h"
 #include "tmisce.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
@@ -67,6 +69,7 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
+static int32_t mndProcessStatisReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
@@ -102,6 +105,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -478,6 +482,88 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
     stateChanged = true;
   }
   return stateChanged;
+}
+
+static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  SStatisReq statisReq = {0};
+  int32_t    code = -1;
+
+  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
+  sprintf(strClusterId, "%" PRId64, pMnode->clusterId);
+
+  if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  if (tsMonitorLogProtocol) {
+    mInfo("process statis req,\n %s", statisReq.pCont);
+  }
+
+  SJson *pJson = tjsonParse(statisReq.pCont);
+  if (pJson == NULL) return code;
+  int32_t ts_size = tjsonGetArraySize(pJson);
+
+  for (int32_t i = 0; i < ts_size; i++) {
+    SJson *item = tjsonGetArrayItem(pJson, i);
+    if (item == NULL) goto _exit;
+
+    SJson *tables = tjsonGetObjectItem(item, "tables");
+    if (tables == NULL) goto _exit;
+
+    int32_t tableSize = tjsonGetArraySize(tables);
+    for (int32_t i = 0; i < tableSize; i++) {
+      SJson *table = tjsonGetArrayItem(tables, i);
+      if (table == NULL) goto _exit;
+
+      char tableName[MONITOR_TABLENAME_LEN] = {0};
+      tjsonGetStringValue(table, "name", tableName);
+
+      SJson *metricGroups = tjsonGetObjectItem(table, "metric_groups");
+      if (metricGroups == NULL) goto _exit;
+
+      int32_t size = tjsonGetArraySize(metricGroups);
+      for (int32_t i = 0; i < size; i++) {
+        SJson *item = tjsonGetArrayItem(metricGroups, i);
+        if (item == NULL) goto _exit;
+
+        SJson *arrayTag = tjsonGetObjectItem(item, "tags");
+        if (arrayTag == NULL) goto _exit;
+
+        int32_t tagSize = tjsonGetArraySize(arrayTag);
+        for (int32_t j = 0; j < tagSize; j++) {
+          SJson *item = tjsonGetArrayItem(arrayTag, j);
+          if (item == NULL) goto _exit;
+
+          char tagName[MONITOR_TAG_NAME_LEN] = {0};
+          tjsonGetStringValue(item, "name", tagName);
+
+          if (strncmp(tagName, "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
+            tjsonDeleteItemFromObject(item, "value");
+            tjsonAddStringToObject(item, "value", strClusterId);
+          }
+        }
+      }
+    }
+  }
+
+  char *pCont = tjsonToString(pJson);
+  monSendContent(pCont);
+
+_exit:
+  if (pJson != NULL) {
+    tjsonDelete(pJson);
+    pJson = NULL;
+  }
+
+  if (pCont != NULL) {
+    taosMemoryFree(pCont);
+    pCont = NULL;
+  }
+
+  tFreeSStatisReq(&statisReq);
+  return 0;
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
