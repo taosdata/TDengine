@@ -840,6 +840,9 @@ struct Profile {
     #[clap(short, long, env = "EXPLORER_CLUSTER")]
     cluster: Option<String>,
 
+    #[clap(long, env = "EXPLORER_CLUSTER_NATIVE")]
+    cluster_native: Option<String>,
+
     /// External link for Grafana TDinsight dashboard, use direct ip or hostname like: http://grafana:3000/d/tdinsight-3x/tdinsight-for-3-x?orgId=1&refresh=30s
     #[clap(short, long, env = "EXPLORER_DASHBOARD")]
     dashboard: Option<String>,
