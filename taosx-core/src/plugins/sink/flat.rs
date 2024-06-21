@@ -316,7 +316,7 @@ pub async fn flat_write_with_sql(
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
     for (stable, messages) in groups.into_iter() {
-        let sqls = message_to_sql(&messages, target_precision, true, false);
+        let sqls = message_to_sql(&messages, target_precision, true, true);
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
