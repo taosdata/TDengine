@@ -359,6 +359,7 @@ struct VerificationReqBody {
     captcha: Option<String>,
     lang: Option<String>,
     name: Option<String>,
+    taosd_version: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -460,6 +461,7 @@ async fn check_verification_code(
             str_verification_code,
             lang_code,
             body.name.as_ref().unwrap(),
+            body.taosd_version.clone(),
         )
         .await;
         if report_result.is_err() {
