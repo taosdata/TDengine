@@ -527,6 +527,9 @@ class TDTestCase:
 
         print("consume_ts_4544 ok")
         consumer.close()
+        tdSql.execute(f'drop topic t1')
+        tdSql.execute(f'drop topic t2')
+        tdSql.execute(f'drop database d1')
 
     def run(self):
         self.consume_TS_5067_Test()
