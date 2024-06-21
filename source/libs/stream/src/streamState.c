@@ -1096,7 +1096,9 @@ _end:
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
 #ifdef USE_ROCKSDB
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
-    tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+    if (tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
+      tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+    }
     streamStatePutParName_rocksdb(pState, groupId, tbname);
   }
   return TSDB_CODE_SUCCESS;
@@ -1106,12 +1108,15 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
 #endif
 }
 
-int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {
+int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache) {
 #ifdef USE_ROCKSDB
   void* pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
   if (!pStr) {
+    if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
+      return TSDB_CODE_FAILED;
+    }
     int32_t code = streamStateGetParName_rocksdb(pState, groupId, pVal);
-    if (code == TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
     }
     return code;

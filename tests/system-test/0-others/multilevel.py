@@ -52,7 +52,7 @@ class TDTestCase:
         tdLog.info("============== basic test ===============")
         cfg={
             '/mnt/data1' : 'dataDir',
-            '/mnt/data2 0 0' : 'dataDir'
+            '/mnt/data2 0 0 0' : 'dataDir'
         }
         tdSql.createDir('/mnt/data1')
         tdSql.createDir('/mnt/data2')
@@ -112,9 +112,9 @@ class TDTestCase:
         cfg={
             '/mnt/data00 0 1' : 'dataDir',
             '/mnt/data01 0 0' : 'dataDir',
-            '/mnt/data02 0 0' : 'dataDir',
+            '/mnt/data02 0 0 0' : 'dataDir',
             '/mnt/data03 0 0' : 'dataDir',
-            '/mnt/data04 0 0' : 'dataDir'
+            '/mnt/data04 0 0 0' : 'dataDir'
         }
         dir_list = ['/mnt/data00','/mnt/data01','/mnt/data02','/mnt/data03','/mnt/data04']
         for i in dir_list:
@@ -160,15 +160,15 @@ class TDTestCase:
         tdDnodes.stop(1)
         # Test1 1 dataDir
         cfg={
-            '/mnt/data000 0 1' : 'dataDir',
+            '/mnt/data000 0 1 0' : 'dataDir',
             '/mnt/data001 0 0' : 'dataDir',
-            '/mnt/data002 0 0' : 'dataDir',
+            '/mnt/data002 0 0 0' : 'dataDir',
             '/mnt/data010 1 0' : 'dataDir',
-            '/mnt/data011 1 0' : 'dataDir',
+            '/mnt/data011 1 0 0' : 'dataDir',
             '/mnt/data012 1 0' : 'dataDir',
-            '/mnt/data020 2 0' : 'dataDir',
-            '/mnt/data021 2 0' : 'dataDir',
-            '/mnt/data022 2 0' : 'dataDir'          
+            '/mnt/data020 2 0 0' : 'dataDir',
+            '/mnt/data021 2 0 0' : 'dataDir',
+            '/mnt/data022 2 0 0' : 'dataDir'
         }
         dir_list = ['/mnt/data000','/mnt/data001','/mnt/data002','/mnt/data010','/mnt/data011','/mnt/data012','/mnt/data020','/mnt/data021''/mnt/data022']
         for i in dir_list:
@@ -189,7 +189,7 @@ class TDTestCase:
             if i == 0 :
                 datadir = '/mnt/data%d 0 1' % (i+1)
             else:
-                datadir = '/mnt/data%d 0 0' % (i+1)
+                datadir = '/mnt/data%d 0 0 0' % (i+1)
             cfg.update({ datadir : 'dataDir' })
             tdSql.createDir('/mnt/data%d' % (i+1))
         
@@ -227,6 +227,22 @@ class TDTestCase:
         
         tdSql.taosdStatus(0)
 
+    def disable_create_new_file(self):
+        tdLog.info("============== disable_create_new_file_0_not_exist test ===============")
+        cfg={
+            '/mnt/data1 0 1 1' : 'dataDir',
+            '/mnt/data2 0 0 1' : 'dataDir'
+        }
+        tdSql.createDir('/mnt/data1')
+        tdSql.createDir('/mnt/data2')
+
+        tdLog.info("================= step1")
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.startWithoutSleep(1)
+
+        tdLog.info("================= step2")
+        tdSql.taosdStatus(0)
+
     def trim_database(self):
         tdLog.info("============== trim_database test ===============")
         tdDnodes.stop(1)
@@ -242,7 +258,7 @@ class TDTestCase:
         tdSql.execute('use dbtest')
         tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute('create table tb1 using stb tags(1)')
-        for i in range(10,30):
+        for i in range(1,600, 30):
             tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
         tdSql.execute('flush database dbtest')
         time.sleep(3)
@@ -250,21 +266,26 @@ class TDTestCase:
         tdDnodes.stop(1)
         cfg={
             '/mnt/data1 0 1' : 'dataDir',
-            '/mnt/data2 1 0' : 'dataDir',
-            '/mnt/data3 2 0' : 'dataDir',        
+            '/mnt/data2 1 0 0' : 'dataDir',
+            '/mnt/data3 1 0 1' : 'dataDir',
+            '/mnt/data4 2 0' : 'dataDir',
         }
         tdSql.createDir('/mnt/data2')
         tdSql.createDir('/mnt/data3')
+        tdSql.createDir('/mnt/data4')
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
         checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
         checkFiles('/mnt/data2/vnode/*/tsdb/v*',0)
         checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
+        checkFiles('/mnt/data4/vnode/*/tsdb/v*',0)
         tdSql.execute('alter database dbtest keep 10d,365d,3650d')
         tdSql.execute('trim database dbtest')
         time.sleep(3)
         checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
         checkFiles('/mnt/data2/vnode/*/tsdb/v*',1)
+        checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
+        checkFiles('/mnt/data4/vnode/*/tsdb/v*',1)
 
     def run(self):
         self.basic()
@@ -275,6 +296,7 @@ class TDTestCase:
         self.more_than_128_disks()
         self.trim_database()
         self.missing_middle_level()
+        self.disable_create_new_file()
         
 
 
