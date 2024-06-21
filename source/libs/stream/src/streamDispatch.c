@@ -795,7 +795,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   pActiveInfo->sendReadyCheckCounter = 0;
   stDebug("s-task:%s in sending checkpoint-ready msg monitor timer", id);
 
-  taosThreadMutexLock(&pActiveInfo->lock);
+  taosThreadMutexLock(&pTask->lock);
   SStreamTaskState* pState = streamTaskGetStatus(pTask);
   if (pState->state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
@@ -805,6 +805,8 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
+
+  taosThreadMutexLock(&pActiveInfo->lock);
 
   SArray* pList = pActiveInfo->pReadyMsgList;
   SArray* pNotRspList = taosArrayInit(4, sizeof(int32_t));
