@@ -248,6 +248,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_LOG_TASK_END_TS(pTask);
 
+  int32_t taskDone = atomic_add_fetch_32(&pTask->level->taskExecDoneNum, 1);
+
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PART_SUCC);
 
   SCH_ERR_RET(schRecordTaskSucceedNode(pJob, pTask));
@@ -317,8 +319,10 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
   }
 
-  SCH_ERR_RET(schLaunchJobLowerLevel(pJob, pTask));
-
+  if (taskDone == pTask->level->taskNum) {
+    SCH_ERR_RET(schLaunchJobLowerLevel(pJob, pTask));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -483,6 +487,34 @@ _return:
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
+int32_t schResetTaskSetLevelInfo(SSchJob *pJob, SSchTask *pTask) {
+  SSchLevel *pLevel = pTask->level;
+
+  SCH_TASK_DLOG("start to reset level for current task set, execDone:%d, launched:%d", 
+    atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
+
+  if (SCH_GET_TASK_STATUS(pTask) >= JOB_TASK_STATUS_PART_SUCC) {
+    atomic_sub_fetch_32(&pLevel->taskExecDoneNum, 1);
+  }
+  
+  atomic_sub_fetch_32(&pLevel->taskLaunchedNum, 1);
+
+  int32_t childrenNum = taosArrayGetSize(pTask->children);
+  for (int32_t i = 0; i < childrenNum; ++i) {
+    SSchTask *pChild = taosArrayGetP(pTask->children, i);
+    SCH_LOCK_TASK(pChild);
+    pLevel = pChild->level;
+    atomic_sub_fetch_32(&pLevel->taskExecDoneNum, 1);
+    atomic_sub_fetch_32(&pLevel->taskLaunchedNum, 1);
+    SCH_UNLOCK_TASK(pChild);
+  }  
+
+  SCH_TASK_DLOG("end to reset level for current task set, execDone:%d, launched:%d", 
+    atomic_load_32(&pLevel->taskExecDoneNum), atomic_load_32(&pLevel->taskLaunchedNum));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
 
@@ -498,12 +530,7 @@ int32_t schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, i
 
   SCH_TASK_DLOG("start to redirect current task set cause of error: %s", tstrerror(rspCode));
 
-  for (int32_t i = 0; i < pJob->levelNum; ++i) {
-    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
-
-    pLevel->taskExecDoneNum = 0;
-    pLevel->taskLaunchedNum = 0;
-  }
+  SCH_ERR_JRET(schResetTaskSetLevelInfo(pJob, pTask));
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
 
