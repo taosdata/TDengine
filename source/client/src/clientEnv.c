@@ -309,7 +309,7 @@ void stopAllRequests(SHashObj *pRequests) {
 }
 
 void destroyAppInst(void *info) {
-  SAppInstInfo* pAppInfo = (SAppInstInfo*)info;
+  SAppInstInfo* pAppInfo = *(SAppInstInfo**)info;
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
   taosThreadMutexLock(&appInfo.mutex);

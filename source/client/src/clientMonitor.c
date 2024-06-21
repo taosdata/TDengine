@@ -28,16 +28,16 @@ static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size){
   return 0;
 }
 
-static void destroyCounter(void* data){
-  if (data == NULL) {
-    return;
-  }
-  taos_counter_t* conuter = *(taos_counter_t**)data;
-  if(conuter == NULL){
-    return;
-  }
-  taos_counter_destroy(conuter);
-}
+//static void destroyCounter(void* data){
+//  if (data == NULL) {
+//    return;
+//  }
+//  taos_counter_t* conuter = *(taos_counter_t**)data;
+//  if(conuter == NULL){
+//    return;
+//  }
+//  taos_counter_destroy(conuter);
+//}
 
 static void destroyClientFile(void* data){
   if (data == NULL) {
@@ -61,7 +61,7 @@ static void destroyMonitorClient(void* data){
   }
   taosHashCleanup(pMonitor->counters);
   taos_collector_registry_destroy(pMonitor->registry);
-  taos_collector_destroy(pMonitor->colector);
+//  taos_collector_destroy(pMonitor->colector);
   taosMemoryFree(pMonitor);
 }
 
@@ -405,7 +405,7 @@ void monitorCreateClient(int64_t clusterId) {
       uError("failed to create monitor counters");
       goto fail;
     }
-    taosHashSetFreeFp(pMonitor->counters, destroyCounter);
+//    taosHashSetFreeFp(pMonitor->counters, destroyCounter);
 
     if(taosHashPut(monitorCounterHash, &clusterId, LONG_BYTES, &pMonitor, POINTER_BYTES) != 0){
       uError("failed to put monitor client to hash");
@@ -606,7 +606,7 @@ void* monitorThreadFunc(void *param){
     }
     monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
-    tsem2_wait(&monitorSem);
+    tsem2_timewait(&monitorSem, 500);
   }
 
   taosCloseQueue(monitorQueue);

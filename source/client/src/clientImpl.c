@@ -147,7 +147,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
-      destroyAppInst(p);
+      destroyAppInst(&p);
       taosThreadMutexUnlock(&appInfo.mutex);
       taosMemoryFreeClear(key);
       return NULL;
