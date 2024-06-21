@@ -1460,6 +1460,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
 
+    mndRefreshUserIpWhiteList(pMnode);
+
     strcpy(dcfgReq.config, enableWhitelist_str);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 

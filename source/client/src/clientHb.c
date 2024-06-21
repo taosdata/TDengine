@@ -132,7 +132,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->whiteListInfo.fp) {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer < pRsp->whiteListVer || pRsp->whiteListVer == 0) {
+        if (oldVer < pRsp->whiteListVer) {
           atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
@@ -856,6 +856,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     return NULL;
   }
 
+  int64_t  maxIpWhiteVer = 0;
   void    *pIter = NULL;
   SHbParam param = {0};
   while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
@@ -892,7 +893,11 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     }
 
     releaseTscObj(connKey->tscRid);
+
+    int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
+    maxIpWhiteVer = MAX(maxIpWhiteVer, ver);
   }
+  pBatchReq->ipWhiteList = maxIpWhiteVer;
 
   return pBatchReq;
 }
