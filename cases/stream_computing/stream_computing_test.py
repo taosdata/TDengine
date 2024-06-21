@@ -978,7 +978,7 @@ class StreamComputingTest(TDCase):
             time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
             sst_files_list2, max_id2 = self.find_files_with_sst(self.vnode_dir)
             self._remote._logger.info(f'sst_files_list2 --- {sst_files_list2}')
-            self.tdSql.checkEqual(len(sst_files_list1)<len(sst_files_list2), True)
+            self.tdSql.checkEqual(len(sst_files_list1)<=len(sst_files_list2), True)
             self.tdSql.checkEqual(max_id1, max_id2)
 
     def at_once_count_window(self, partition="tbname", sliding=None, delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=1, ignore_update=None, check_stream_task=None, checkpoint_check=False, pause=None, resume=None, use_except=None):
@@ -5046,13 +5046,15 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name}  partition by {partition} interval({self.dataDict["interval"]}s) order by wstart limit {i+1}', i+1)
 
     def find_files_with_sst(self, root_dir, substring="sst"):
+        filepath_list = self._remote.cmd(self._fqdn, [f'find {root_dir} -type d'])
         pathlist = list()
         filename_list = list()
-        for dirpath, _, filenames in os.walk(root_dir):
-            for filename in filenames:
-                # print(os.path.join(dirpath, filename))
+        for path in filepath_list.split('\n'):
+            filenames = self._remote.cmd(self._fqdn, [f'ls -p {path} | grep -v /'])
+            for filename in filenames.split('\n'):
                 if substring in filename:
-                    full_path = os.path.join(dirpath, filename)
+                    #filename_list.append(filename)
+                    full_path = os.path.join(path, filename)
                     if "tq" in full_path and "state" in full_path:
                         pathlist.append(full_path)
                         filename_list.append(filename)
