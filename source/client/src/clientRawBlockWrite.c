@@ -1664,7 +1664,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
     }
-    taosMemoryFreeClear(pTableMeta);
   }
 
   code = smlBuildOutput(pQuery, pVgHash);
@@ -1845,7 +1844,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
     }
-    taosMemoryFreeClear(pTableMeta);
   }
 
   code = smlBuildOutput(pQuery, pVgHash);
