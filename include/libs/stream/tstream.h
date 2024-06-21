@@ -681,7 +681,8 @@ bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeI
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
 void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);
 void    streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId);
-int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, SRpcHandleInfo* pInfo, int32_t code);
+int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
+                                           SRpcHandleInfo* pInfo, int32_t code);
 
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t streamQueueGetNumOfUnAccessedItems(const SStreamQueue* pQueue);

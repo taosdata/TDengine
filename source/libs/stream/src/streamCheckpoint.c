@@ -104,8 +104,15 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, SRpcHandleInfo* pRpcInfo, int32_t code) {
-  SCheckpointTriggerRsp* pRsp = rpcMallocCont(sizeof(SCheckpointTriggerRsp));
+int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
+                                           SRpcHandleInfo* pRpcInfo, int32_t code) {
+  int32_t size = sizeof(SMsgHead) + sizeof(SCheckpointTriggerRsp);
+
+  void* pBuf = rpcMallocCont(size);
+  SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+
+  ((SMsgHead*)pBuf)->vgId = htonl(downstreamNodeId);
+
   pRsp->streamId = pTask->id.streamId;
   pRsp->upstreamTaskId = pTask->id.taskId;
   pRsp->taskId = dstTaskId;
@@ -120,7 +127,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
 
   pRsp->rspCode = code;
 
-  SRpcMsg rspMsg = {.code = 0, .pCont = pRsp, .contLen = sizeof(SCheckpointTriggerRsp), .info = *pRpcInfo};
+  SRpcMsg rspMsg = {.code = 0, .pCont = pRsp, .contLen = size, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
   return 0;
 }
