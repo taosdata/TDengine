@@ -151,7 +151,7 @@ description: TDengine 保留关键字的详细列表
 - INTERVAL
 - INTO
 - IS
-- ISNULL
+- IS NULL
 
 ### J
 
@@ -197,7 +197,7 @@ description: TDengine 保留关键字的详细列表
 - NMATCH
 - NONE
 - NOT
-- NOTNULL
+- NOT NULL
 - NOW
 - NULL
 - NULLS
