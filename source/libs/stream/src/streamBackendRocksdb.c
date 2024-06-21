@@ -2210,7 +2210,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   sprintf(temp, "%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "tmp", chkpId);
 
   if (taosDirExist(temp)) {
-    cleanDir(temp, NULL);
+    cleanDir(temp, "");
   } else {
     taosMkDir(temp);
   }
