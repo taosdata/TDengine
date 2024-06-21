@@ -1118,6 +1118,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
           if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
             sdbCancelFetch(pSdb, pIter);
             sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
             return -1;
           }
         } else {
@@ -1126,6 +1127,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
           if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
             sdbCancelFetch(pSdb, pIter);
             sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
             return -1;
           }
         }
