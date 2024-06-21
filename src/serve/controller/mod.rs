@@ -1657,8 +1657,8 @@ impl TaskController {
                     match res {
                         Ok(_) => Ok(()),
                         Err(err) => {
-                            tracing::error!("Put file error: {err}");
-                            bail!("Put file error: {err}");
+                            tracing::error!("Put file {path} error: {err}");
+                            bail!("Put file {path} error: {err}");
                         }
                     }
                 }

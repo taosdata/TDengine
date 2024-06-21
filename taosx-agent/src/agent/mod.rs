@@ -666,6 +666,7 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
     let data_dir = get_data_dir();
     let mut path = data_dir.join(req.path);
     let decompress = req.decompress;
+    tracing::info!("[put-file] path={path:?}, decompress={decompress}");
     if decompress {
         if path.ends_with(".gz") {
             path.set_extension("");
