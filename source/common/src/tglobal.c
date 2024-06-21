@@ -498,8 +498,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 16);
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, CFG_SCOPE_BOTH) != 0) return -1;
 
   return 0;
 }
