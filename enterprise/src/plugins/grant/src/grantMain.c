@@ -1678,9 +1678,10 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
   switch (grant) {
-    case TSDB_GRANT_ALL:
+    case TSDB_GRANT_ALL: {
       grantResetMaster(pMnode, 0);
-      break;
+      grantSetClusterInfo(pMnode);
+    } break;
     case TSDB_GRANT_STORAGE:
 #ifdef GRANTS_RESERVE
       gStatus.curStorage = value;
