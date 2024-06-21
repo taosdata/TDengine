@@ -55,7 +55,7 @@ fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
     let config = KafkaTaskConfig::from_dsn(dsn)
         .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {:#}", dsn, err))?;
 
-    let client_config = build_client_config(config.connect);
+    let client_config = build_client_config(config.connect)?;
     let consumer: BaseConsumer = client_config
         .create()
         .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
@@ -110,7 +110,7 @@ async fn get_sample_impl(
 ) -> anyhow::Result<Vec<String>> {
     // create consumer
     let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
-    let mut client_config = build_client_config(connect_config);
+    let mut client_config = build_client_config(connect_config).unwrap();
     let consumer: BaseConsumer = client_config
         .set("group.id", "test")
         .set("auto.offset.reset", "earliest")
@@ -381,7 +381,7 @@ impl SubTask {
         config: KafkaTaskConfig,
         _notify: crate::TaskNotifySender,
     ) -> anyhow::Result<Vec<Self>> {
-        let client_config = build_client_config(config.connect.clone());
+        let client_config = build_client_config(config.connect.clone()).unwrap();
 
         // create a base consumer
         let consumer: BaseConsumer = client_config
@@ -639,7 +639,7 @@ impl ConsumerContext for CustomContext {
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
 fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
-    let mut client = build_client_config(config.connect.clone());
+    let mut client = build_client_config(config.connect.clone()).unwrap();
     // Client identifier, default "rdkafka".
     if config.client_id.is_some() {
         client.set("client.id", config.client_id.unwrap());
@@ -696,7 +696,7 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     Ok(consumer)
 }
 
-fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
+fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
     let mut client_config = ClientConfig::new();
 
     // set bootstrap servers
@@ -733,18 +733,65 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
         if let Some(sasl_mechanism) = config.sasl_mechanism {
             if sasl_mechanism == "GSSAPI" {
                 client_config.set("sasl.mechanisms", "GSSAPI");
-                if let Some(sasl_kerberos_service_name) = config.sasl_kerberos_service_name {
-                    client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
+                // get config or use default
+                let sasl_kerberos_service_name =
+                    if let Some(val) = config.sasl_kerberos_service_name {
+                        val
+                    } else {
+                        "".to_string()
+                    };
+                let sasl_kerberos_principal = if let Some(val) = config.sasl_kerberos_principal {
+                    val
+                } else {
+                    "".to_string()
+                };
+                let sasl_kerberos_kinit_cmd = if let Some(val) = config.sasl_kerberos_kinit_cmd {
+                    val
+                } else {
+                    "kinit -R -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal} || kinit -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal}".to_string()
+                };
+                let sasl_kerberos_keytab = if let Some(val) = config.sasl_kerberos_keytab {
+                    val
+                } else {
+                    "".to_string()
+                };
+                // verify the broker's kinit.cmd, keytab and principal
+                let init_cmd = sasl_kerberos_kinit_cmd
+                    .replace("%{sasl.kerberos.keytab}", &sasl_kerberos_keytab.as_str())
+                    .replace(
+                        "%{sasl.kerberos.principal}",
+                        &sasl_kerberos_principal.as_str(),
+                    );
+                let output = std::process::Command::new("bash")
+                    .arg("-c")
+                    .arg(init_cmd)
+                    .output();
+                match output {
+                    Ok(output) => {
+                        if !output.status.success() {
+                            tracing::error!("{}", std::str::from_utf8(&output.stderr).unwrap());
+                            anyhow::bail!(
+                                "{}",
+                                std::str::from_utf8(&output.stderr)
+                                    .unwrap()
+                                    .lines()
+                                    .next()
+                                    .unwrap()
+                            );
+                        }
+                    }
+                    Err(_) => {}
                 }
-                if let Some(sasl_kerberos_principal) = config.sasl_kerberos_principal {
-                    client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
-                }
-                if let Some(sasl_kerberos_kinit_cmd) = config.sasl_kerberos_kinit_cmd {
-                    client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
-                }
-                if let Some(sasl_kerberos_keytab) = config.sasl_kerberos_keytab {
-                    client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
-                }
+                // set to client
+                client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
+                client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
+                client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
+                client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
+                // each entry will be resolved and expanded into a list of canonical names
+                client_config.set(
+                    "client.dns.lookup",
+                    "resolve_canonical_bootstrap_servers_only",
+                );
             } else {
                 client_config.set("sasl.mechanisms", sasl_mechanism);
                 if let Some(sasl_username) = config.sasl_username {
@@ -757,7 +804,7 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
         }
     }
 
-    client_config
+    Ok(client_config)
 }
 
 #[cfg(test)]
@@ -795,7 +842,7 @@ mod tests {
         .unwrap();
 
         let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone());
+        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
@@ -821,7 +868,7 @@ mod tests {
         .unwrap();
 
         let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone());
+        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
