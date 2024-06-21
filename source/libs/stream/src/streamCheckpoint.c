@@ -464,7 +464,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   }
 
   ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer &&
-         pInfo->processedVer >= pReq->checkpointVer);
+         pInfo->processedVer <= pReq->checkpointVer);
 
   pInfo->checkpointId = pReq->checkpointId;
   pInfo->checkpointVer = pReq->checkpointVer;
