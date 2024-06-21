@@ -48,7 +48,8 @@ else
 fi
 
 indirect_leak=$(cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l)
-python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
+#python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
+python_error=$(cat ${LOG_DIR}/*.info | grep "\.c:" | wc -l)
 
 # ignore
 

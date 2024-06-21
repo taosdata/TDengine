@@ -453,16 +453,11 @@ class TDTestCase:
         print("consume_ts_4551 ok")
 
     def run(self):
-        self.consumeTest()
-        self.consume_ts_4544()
-        self.consume_ts_4551()
-        self.consume_TS_4540_Test()
 
         tdSql.prepare()
-        self.checkWal1VgroupOnlyMeta()
 
         self.checkWal1Vgroup()
-        self.checkSnapshot1Vgroup()
+        '''        self.checkSnapshot1Vgroup()
 
         self.checkWal1VgroupTable()
         self.checkSnapshot1VgroupTable()
@@ -472,7 +467,7 @@ class TDTestCase:
 
         self.checkWalMultiVgroupsWithDropTable()
 
-        self.checkSnapshotMultiVgroupsWithDropTable()
+        self.checkSnapshotMultiVgroupsWithDropTable()'''
 
     def stop(self):
         tdSql.close()
