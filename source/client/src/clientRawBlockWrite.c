@@ -1842,7 +1842,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     char  err[ERR_MSG_LEN] = {0};
     code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, fields, pSW->nCols, true, err, ERR_MSG_LEN);
     taosMemoryFree(fields);
-    //taosMemoryFreeClear(pTableMeta);
+    taosMemoryFreeClear(pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       SET_ERROR_MSG("table:%s, err:%s", tbName, err);
       goto end;
