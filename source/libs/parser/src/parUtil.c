@@ -140,7 +140,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
-      return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased";
+      return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be "
+             "increased, not decreased";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
     case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
@@ -186,6 +187,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid usage of expr: %s";
     case TSDB_CODE_PAR_INVALID_VARBINARY:
       return "Invalid varbinary type";
+    case TSDB_CODE_PAR_INVALID_IP_RANGE:
+      return "invalid ip range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
@@ -261,16 +264,15 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
-int32_t getTableTypeFromTableNode(SNode *pTable) {
+int32_t getTableTypeFromTableNode(SNode* pTable) {
   if (NULL == pTable) {
     return -1;
   }
   if (QUERY_NODE_REAL_TABLE != nodeType(pTable)) {
     return -1;
   }
-  return ((SRealTableNode *)pTable)->pMeta->tableType;
+  return ((SRealTableNode*)pTable)->pMeta->tableType;
 }
-
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
@@ -696,7 +698,6 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
-
 
 SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint) {
   SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
@@ -1164,5 +1165,3 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
   }
   return res;
 }
-
-

@@ -15,12 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "monInt.h"
+#include "taos_monitor.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "thttp.h"
 #include "ttime.h"
 
-static SMonitor tsMonitor = {0};
-static char* tsMonUri = "/report";
+SMonitor tsMonitor = {0};
+char    *tsMonUri = "/report";
+char    *tsMonFwUri = "/general-metric";
+char    *tsMonFwBasicUri = "/taosd-cluster-basic";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   taosThreadMutexLock(&tsMonitor.lock);
@@ -107,7 +111,10 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.cfg = *pCfg;
   tsLogFp = monRecordLog;
   tsMonitor.lastTime = taosGetTimestampMs();
-  taosThreadMutexInit(&tsMonitor.lock, NULL);
+  if (taosThreadMutexInit(&tsMonitor.lock, NULL) != 0) return -1;
+
+  if (monInitMonitorFW() != 0) return -1;
+
   return 0;
 }
 
@@ -121,6 +128,8 @@ void monCleanup() {
   tFreeSMonQmInfo(&tsMonitor.qmInfo);
   tFreeSMonBmInfo(&tsMonitor.bmInfo);
   taosThreadMutexDestroy(&tsMonitor.lock);
+
+  monCleanupMonitorFW();
 }
 
 static void monCleanupMonitorInfo(SMonInfo *pMonitor) {
@@ -178,12 +187,28 @@ static void monGenBasicJson(SMonInfo *pMonitor) {
   char   buf[40] = {0};
   taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI);
 
-  tjsonAddStringToObject(pJson, "ts", buf);
-  tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
-  tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  if (tjsonAddStringToObject(pJson, "ts", buf) != 0) uError("build json failed");
+  if (tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id) != 0) uError("build json failed");
+  if (tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep) != 0) uError("build json failed");
   snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
-  tjsonAddStringToObject(pJson, "cluster_id", buf);
-  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
+  if (tjsonAddStringToObject(pJson, "cluster_id", buf) != 0) uError("build json failed");
+  if (tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol) != 0) uError("build json failed");
+}
+
+static void monGenBasicJsonBasic(SMonInfo *pMonitor) {
+  SMonBasicInfo *pInfo = &pMonitor->dmInfo.basic;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
+  SJson *pJson = pMonitor->pJson;
+  char   buf[40] = {0};
+
+  sprintf(buf, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+  if (tjsonAddStringToObject(pJson, "ts", buf) != 0) uError("build json failed");
+  if (tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id) != 0) uError("build json failed");
+  if (tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep) != 0) uError("build json failed");
+  snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
+  if (tjsonAddStringToObject(pJson, "cluster_id", buf) != 0) uError("build json failed");
+  if (tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol) != 0) uError("build json failed");
 }
 
 static void monGenClusterJson(SMonInfo *pMonitor) {
@@ -242,6 +267,16 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
 
     if (tjsonAddItemToArray(pMnodesJson, pMnodeJson) != 0) tjsonDelete(pMnodeJson);
   }
+}
+
+static void monGenClusterJsonBasic(SMonInfo *pMonitor) {
+  SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
+  if (tjsonAddStringToObject(pMonitor->pJson, "first_ep", tsFirst) != 0) uError("build json failed");
+  if (tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id) != 0)
+    uError("build json failed");
+  if (tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version) != 0) uError("build json failed");
 }
 
 static void monGenVgroupJson(SMonInfo *pMonitor) {
@@ -517,21 +552,12 @@ static void monGenLogJson(SMonInfo *pMonitor) {
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 
-void monSendReport() {
-  SMonInfo *pMonitor = monCreateMonitorInfo();
-  if (pMonitor == NULL) return;
-
-  monGenBasicJson(pMonitor);
-  monGenClusterJson(pMonitor);
-  monGenVgroupJson(pMonitor);
-  monGenStbJson(pMonitor);
-  monGenGrantJson(pMonitor);
-  monGenDnodeJson(pMonitor);
-  monGenDiskJson(pMonitor);
-  monGenLogJson(pMonitor);
-
+void monSendReport(SMonInfo *pMonitor) {
   char *pCont = tjsonToString(pMonitor->pJson);
-  // uDebugL("report cont:%s\n", pCont);
+  if (pCont == NULL) return;
+  if (tsMonitorLogProtocol) {
+    uInfoL("report cont:\n%s", pCont);
+  }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
@@ -539,6 +565,82 @@ void monSendReport() {
     }
     taosMemoryFree(pCont);
   }
+}
+
+void monGenAndSendReport() {
+  SMonInfo *pMonitor = monCreateMonitorInfo();
+  if (pMonitor == NULL) return;
+
+  if (!tsMonitorForceV2) {
+    monGenBasicJson(pMonitor);
+    monGenClusterJson(pMonitor);
+    monGenVgroupJson(pMonitor);
+    monGenStbJson(pMonitor);
+    monGenGrantJson(pMonitor);
+    monGenDnodeJson(pMonitor);
+    monGenDiskJson(pMonitor);
+    monGenLogJson(pMonitor);
+
+    monSendReport(pMonitor);
+  } else {
+    monGenClusterInfoTable(pMonitor);
+    monGenVgroupInfoTable(pMonitor);
+    monGenDnodeInfoTable(pMonitor);
+    monGenDnodeStatusInfoTable(pMonitor);
+    monGenDataDiskTable(pMonitor);
+    monGenLogDiskTable(pMonitor);
+    monGenMnodeRoleTable(pMonitor);
+    monGenVnodeRoleTable(pMonitor);
+
+    monSendPromReport();
+  }
 
   monCleanupMonitorInfo(pMonitor);
+}
+
+void monSendReportBasic(SMonInfo *pMonitor) {
+  char *pCont = tjsonToString(pMonitor->pJson);
+  if (tsMonitorLogProtocol) {
+    if (pCont != NULL) {
+      uInfoL("report cont basic:\n%s", pCont);
+    } else {
+      uInfo("report cont basic is null");
+    }
+  }
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) !=
+        0) {
+      uError("failed to send monitor msg");
+    }
+    taosMemoryFree(pCont);
+  }
+}
+
+void monGenAndSendReportBasic() {
+  SMonInfo *pMonitor = monCreateMonitorInfo();
+
+  monGenBasicJsonBasic(pMonitor);
+  monGenClusterJsonBasic(pMonitor);
+
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id != 0) {
+    monSendReportBasic(pMonitor);
+  }
+
+  monCleanupMonitorInfo(pMonitor);
+}
+
+void monSendContent(char *pCont) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  if (tsMonitorLogProtocol) {
+    if (pCont != NULL) {
+      uInfoL("report client cont:\n%s\n", pCont);
+    }
+  }
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+      uError("failed to send monitor msg");
+    }
+  }
 }

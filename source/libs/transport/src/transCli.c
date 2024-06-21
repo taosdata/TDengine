@@ -382,16 +382,22 @@ void cliHandleResp(SCliConn* conn) {
 
   STransMsgHead* pHead = NULL;
 
-  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
+  int8_t  resetBuf = conn->status == ConnAcquire ? 0 : 1;
+  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
   }
 
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), conn);
+  }
+
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
     tDebug("%s conn %p recv invalid packet, failed to decompress", CONN_GET_INST_LABEL(conn), conn);
   }
+
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
   if (cliRecvReleaseReq(conn, pHead)) {
@@ -2261,7 +2267,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         }
       } else {
-        if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+        if (!transEpSetIsEqual2(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset");
           epsetAssign(&pCtx->epSet, &epSet);
           noDelay = false;
@@ -2286,7 +2292,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
     } else {
-      if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
+      if (!transEpSetIsEqual2(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
         epsetAssign(&pCtx->epSet, &epSet);
         noDelay = false;

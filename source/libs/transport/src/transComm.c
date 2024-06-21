@@ -126,7 +126,7 @@ int transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
+int transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   static const int HEADSIZE = sizeof(STransMsgHead);
 
   SConnBuffer* p = connBuf;
@@ -137,7 +137,7 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
-    if (transResetBuffer(connBuf) < 0) {
+    if (transResetBuffer(connBuf, resetBuf) < 0) {
       return -1;
     }
   } else {
@@ -146,7 +146,7 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   return total;
 }
 
-int transResetBuffer(SConnBuffer* connBuf) {
+int transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
   SConnBuffer* p = connBuf;
   if (p->total < p->len) {
     int left = p->len - p->total;
@@ -159,8 +159,10 @@ int transResetBuffer(SConnBuffer* connBuf) {
     p->total = 0;
     p->len = 0;
     if (p->cap > BUFFER_CAP) {
-      p->cap = BUFFER_CAP;
-      p->buf = taosMemoryRealloc(p->buf, p->cap);
+      if (resetBuf) {
+        p->cap = BUFFER_CAP;
+        p->buf = taosMemoryRealloc(p->buf, p->cap);
+      }
     }
   } else {
     ASSERTS(0, "invalid read from sock buf");
@@ -608,6 +610,18 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   return true;
 }
 
+bool transEpSetIsEqual2(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestoryExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
@@ -673,4 +687,87 @@ void transDestroySyncMsg(void* msg) {
   transFreeMsg(pSyncMsg->pRsp->pCont);
   taosMemoryFree(pSyncMsg->pRsp);
   taosMemoryFree(pSyncMsg);
+}
+uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
+  uint32_t ip = pRange->ip;
+  return ((ip & 0xFF) << 24) | ((ip & 0xFF00) << 8) | ((ip & 0xFF0000) >> 8) | ((ip >> 24) & 0xFF);
+}
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
+  if (pRange->mask == 32) {
+    pUtils->type = 0;
+    pUtils->address = pRange->ip;
+    return 0;
+  }
+  pUtils->address = subnetIpRang2Int(pRange);
+
+  for (int i = 0; i < pRange->mask; i++) {
+    pUtils->netmask |= (1 << (31 - i));
+  }
+
+  pUtils->network = pUtils->address & pUtils->netmask;
+  pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
+  pUtils->type = (pRange->mask == 32 ? 0 : 1);
+
+  return 0;
+}
+
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
+  sprintf(buf, "raw: %s, address: %d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
+          pUtils->netmask, pUtils->network, pUtils->broadcast);
+  return 0;
+}
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
+  // impl later
+  if (pUtils == NULL) return false;
+  if (pUtils->type == 0) {
+    return pUtils->address == ip;
+  } else {
+    SIpV4Range range = {.ip = ip, .mask = 32};
+
+    uint32_t t = subnetIpRang2Int(&range);
+    return t >= pUtils->network && t <= pUtils->broadcast;
+  }
+}
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
+  int32_t len = 0;
+
+  struct in_addr addr;
+  addr.s_addr = pRange->ip;
+
+  uv_inet_ntop(AF_INET, &addr, buf, 32);
+
+  len = strlen(buf);
+
+  if (pRange->mask != 32) {
+    len += sprintf(buf + len, "/%d", pRange->mask);
+  }
+  buf[len] = 0;
+  return len;
+}
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
+  if (pList->num == 0) {
+    *ppBuf = NULL;
+    return 0;
+  }
+  int32_t len = 0;
+  char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  if (pBuf == NULL) {
+    *ppBuf = NULL;
+    return 0;
+  }
+
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range* pRange = &pList->pIpRange[i];
+
+    char tbuf[32] = {0};
+    int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
+    len += sprintf(pBuf + len, "%s,", tbuf);
+  }
+  if (len > 0) {
+    pBuf[len - 1] = 0;
+  }
+
+  *ppBuf = pBuf;
+  return len;
 }
