@@ -1,6 +1,14 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
+      <el-tooltip
+        placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
+      >
+        <template slot="content">
+          <span v-html="$t('communityTip')"></span>
+        </template>
+        <el-button plain type="primary" @click="importDialog=true" size="small" icon="el-icon-plus" :disabled='!isRoot || $COMMUNITY' style="font-size:14px;">{{ $t("import") }}</el-button>
+      </el-tooltip>
       <el-button plain type="primary" @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isRoot' style="font-size:14px;">{{ $t("add") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
@@ -78,18 +86,24 @@
       <EditUser :user="editUser" :status="editDialog" @close="closeEditDialog"></EditUser>
     </el-dialog>
 
+    <el-dialog align="center" :title="$t('taosuser.importTitle')" width="680px" :visible.sync="importDialog" :close-on-click-modal="false">
+      <ImportInfo @close="closeImportDialog"></ImportInfo>
+    </el-dialog>
+
   </div>
 </template>
 <script>
 
 import AddUser from "./components/AddUser";
 import EditUser from "./components/EditUser";
+import ImportInfo from "./components/ImportInfo";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 export default {
   components: {
     AddUser,
-    EditUser
+    EditUser,
+    ImportInfo
   },
   filters: {
     filterVal(val) {
@@ -147,7 +161,8 @@ export default {
       usersList: [],
       editUser: "",
       currentUser: {},
-      loading: true
+      loading: true,
+      importDialog: false
     };
   },
   created() {
@@ -167,6 +182,9 @@ export default {
     closeEditDialog() {
       this.editDialog = false
       this.getUserData();
+    },
+    closeImportDialog() {
+      this.importDialog = false
     },
     filterPrivileges(val) {
       let res = [];
