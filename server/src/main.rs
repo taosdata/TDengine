@@ -337,6 +337,18 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
             }
         }
     }
+
+    match args.query_by_root("select CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster").await {
+        Ok(ok) => {
+            if let Some(version) = ok.data.get(0) {
+                profile.taosd_version.replace(version.get(0).unwrap().as_str().unwrap().into());
+            }
+        }
+        Err(err) => {
+            log::error!("Failed to get taosd version: {:?}", err);
+        }
+    }
+
     HttpResponse::Ok().json(&profile)
 }
 
@@ -843,6 +855,8 @@ struct Profile {
     /// taosX version
     #[clap(skip)]
     version: Option<String>,
+
+    taosd_version: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
@@ -958,20 +972,10 @@ impl Args {
         dsn.password = Some(credentials.password);
         Ok(dsn)
     }
-    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+
+    async fn query_inner(&self, dsn: Dsn, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
         log::info!("SQL: {sql}");
-        //token
-        let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
-        let mut dsn: Dsn = self
-            .profile
-            .cluster
-            .as_deref()
-            .unwrap_or("taos://localhost:6030")
-            .parse()
-            .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
+
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
 
         log::info!("Got connection, querying");
@@ -1021,6 +1025,38 @@ impl Args {
             rows: data.len() as _,
             data,
         })
+    }
+
+    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        //token
+        let credentials =
+            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some(credentials.user_id);
+        dsn.password = Some(credentials.password);
+        
+        self.query_inner(dsn, sql).await
+    }
+
+    // 开源版想在登录前就获取TDengine版本信息，使用root用户尝试登录获取。
+    async fn query_by_root(&self, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some("root".to_string());
+        dsn.password = Some("taosdata".to_string());
+        
+        self.query_inner(dsn, sql).await
     }
 
     async fn renew(
