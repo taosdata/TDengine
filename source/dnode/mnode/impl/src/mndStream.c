@@ -1934,9 +1934,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
       }
 
       if (pEntry->status == TASK_STATUS__UNINIT || pEntry->status == TASK_STATUS__CK) {
-        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64
-               " in checkpoint/uninit status, not ready for pause",
-               pStream->name, pStream->uid, pEntry->nodeId, pEntry->id.taskId);
+        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, not ready for pause", pStream->name,
+               pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
         readyToPause = false;
       }
 
