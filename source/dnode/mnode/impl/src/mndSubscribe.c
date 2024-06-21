@@ -798,6 +798,7 @@ static void checkConsumer(SMnode *pMnode, SMqSubscribeObj* pSub){
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
     if (pConsumer != NULL) {
+      mndReleaseConsumer(pMnode, pConsumer);
       continue;
     }
     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
