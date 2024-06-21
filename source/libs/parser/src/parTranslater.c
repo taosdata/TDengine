@@ -6027,6 +6027,9 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
     case TSDB_ALTER_USER_SYSINFO:
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false);
       break;
+    case TSDB_ALTER_USER_CREATEDB:
+      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
+      break;
   }
   return code;
 }
@@ -6042,6 +6045,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.superUser = 0;
   alterReq.enable = pStmt->enable;
   alterReq.sysInfo = pStmt->sysinfo;
+  alterReq.createdb = pStmt->createdb ? 1 : 0;
   snprintf(alterReq.pass, sizeof(alterReq.pass), "%s", pStmt->password);
   if (NULL != pCxt->pParseCxt->db) {
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);

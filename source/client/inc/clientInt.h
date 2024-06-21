@@ -406,6 +406,8 @@ void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
+SAppInstInfo* getAppInstInfo(const char* clusterKey);
+
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
@@ -435,6 +437,21 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj *pRequest);
+
+void clientSlowQueryMonitorInit(const char* clusterKey);
+void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
+
+void clientSQLReqMonitorInit(const char* clusterKey);
+
+enum {
+  MONITORSQLTYPESELECT = 0,
+  MONITORSQLTYPEINSERT = 1,
+  MONITORSQLTYPEDELETE = 2
+};
+
+void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
+
+void clientMonitorClose(const char* clusterKey);
 
 #ifdef __cplusplus
 }

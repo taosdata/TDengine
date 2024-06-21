@@ -72,6 +72,7 @@ static SKeyword keywordTable[] = {
     {"CONTAINS",             TK_CONTAINS},
     {"COUNT",                TK_COUNT},
     {"CREATE",               TK_CREATE},
+    {"CREATEDB",             TK_CREATEDB},
     {"CURRENT_USER",         TK_CURRENT_USER},
     {"DATABASE",             TK_DATABASE},
     {"DATABASES",            TK_DATABASES},
