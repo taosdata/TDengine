@@ -5,6 +5,8 @@ description: This document describes how to connect your VPC to TDengine Cloud w
 ---
 
 <!-- markdownlint-disable MD033 -->
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 ## Introduction
 
