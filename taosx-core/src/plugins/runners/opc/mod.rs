@@ -67,7 +67,7 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
 /// OPC dataIn task
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
 pub async fn opc_to_taos(
-    mut from: Dsn,
+    from: Dsn,
     _actions: Vec<Action>,
     to: Dsn,
     _jobs: usize,
@@ -93,16 +93,12 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    // let select_all_points = OPCConfig::parse_select_all_points(&from)?.unwrap_or(false);
-    // if select_all_points {
-    //     handle_select_all_points(&mut from).await?;
-    // }
+    tracing::info!("OPC DataIn task start, from: {}, to: {}", from, to);
 
-    // 将文件中的内容写入到临时文件中，然后将文件路径写入到 DSN 中
-    let certificate = get_temp_file(&mut from, "certificate");
-    let private_file = get_temp_file(&mut from, "private_key");
-    let auth_certificate = get_temp_file(&mut from, "auth_certificate");
-    let auth_private_key = get_temp_file(&mut from, "auth_private_key");
+    let certificate = get_temp_file(&from, "certificate");
+    let private_file = get_temp_file(&from, "private_key");
+    let auth_certificate = get_temp_file(&from, "auth_certificate");
+    let auth_private_key = get_temp_file(&from, "auth_private_key");
 
     let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
 
@@ -136,20 +132,6 @@ pub async fn opc_to_taos(
     tracing::info!("log file path: {}", &log_path.display());
     let log_keep_days = get_log_keep_days();
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
-
-    // save the temporary file to task dir
-    // if let Some(task_id) = task_id {
-    //     let path = get_data_dir().join("tasks").join(task_id.to_string());
-    //     fs::create_dir_all(&path).unwrap();
-    //     let path = path.join(format!(
-    //         "{}-{}-{}.{}",
-    //         task_id,
-    //         "opc",
-    //         chrono::Local::now().format("%Y%m%d%H%M"),
-    //         "toml"
-    //     ));
-    //     let _ = fs::copy(&config_path, path);
-    // }
 
     // OPCConfig -> collect.toml
     let config_dir = get_data_dir()
@@ -457,28 +439,20 @@ fn generate_stable_from_pattern(stable_expr: &String, value_type: &Option<IpcDat
     stable
 }
 
-/// 解析为文件路径.
-/// 1. 如果以@开头，表示文件路径, 直接覆盖会dsn;
-/// 2. 否则，认为是文件内容，存储到临时文件后，返回文件句柄，为了使tempfile不被删除，需要返回NamedTempFile.
-fn get_temp_file(dsn: &mut Dsn, key: &str) -> Option<NamedTempFile> {
-    let file_name = dsn.get(key);
-    if file_name.is_none() {
-        return None;
-    }
-    let file_name = file_name.unwrap();
+/// 解析为文件路径: 如果以@开头，表示文件路径, 返回 None;
+/// 否则，认为参数值是文件内容，写入临时文件后，返回 NamedTempFile。
+fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
+    dsn.get(key)
+        .map(|v| {
+            if v.is_empty() || v.starts_with('@') {
+                return None;
+            }
 
-    if file_name.starts_with('@') {
-        let file_path = &file_name[1..];
-        let f = fs::canonicalize(&PathBuf::from(file_path)).unwrap();
-        dsn.set(key, f.to_str().unwrap());
-        None
-    } else {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(file_name.as_bytes()).unwrap();
-        dsn.set(key, file.path().to_str().unwrap().to_string());
-
-        Some(file)
-    }
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(v.as_bytes()).unwrap();
+            Some(file)
+        })
+        .flatten()
 }
 
 /// 获取 opc 点位
@@ -498,11 +472,11 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     opc_datasets_impl(from).await
 }
 
-async fn opc_datasets_impl(mut from: Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let certificate = get_temp_file(&mut from, "certificate");
-    let private_key = get_temp_file(&mut from, "private_key");
-    let auth_certificate = get_temp_file(&mut from, "auth_certificate");
-    let auth_private_key = get_temp_file(&mut from, "auth_private_key");
+async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let certificate = get_temp_file(&from, "certificate");
+    let private_key = get_temp_file(&from, "private_key");
+    let auth_certificate = get_temp_file(&from, "auth_certificate");
+    let auth_private_key = get_temp_file(&from, "auth_private_key");
 
     let csv_config_file = OPCConfig::parse_csv_config_file(&from);
     let opc_points = match csv_config_file {
@@ -636,13 +610,12 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
-    let mut dsn = dsn.clone();
-    let certificate = get_temp_file(&mut dsn, "certificate");
-    let private_key = get_temp_file(&mut dsn, "private_key");
-    let auth_certificate = get_temp_file(&mut dsn, "auth_certificate");
-    let auth_private_key = get_temp_file(&mut dsn, "auth_private_key");
+    let certificate = get_temp_file(dsn, "certificate");
+    let private_key = get_temp_file(dsn, "private_key");
+    let auth_certificate = get_temp_file(dsn, "auth_certificate");
+    let auth_private_key = get_temp_file(dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_check_mode(&dsn).await;
+    let config = OPCConfig::from_dsn_check_mode(dsn).await;
     let r = match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
@@ -723,9 +696,32 @@ async fn is_valid_impl(config: OPCConfig) -> anyhow::Result<DataSourceValidation
 
 #[cfg(test)]
 mod tests {
-    use std::env;
 
     use super::*;
+
+    #[test]
+    fn test_get_temp_file() {
+        let dsn = Dsn::from_str("opcua://").unwrap();
+        let file = get_temp_file(&dsn, "certificate");
+        assert!(file.is_none());
+
+        let dsn = Dsn::from_str("opcua://?certificate=").unwrap();
+        let file = get_temp_file(&dsn, "certificate");
+        assert!(file.is_none());
+
+        let dsn = Dsn::from_str("opcua://?certificate=hello\nworld").unwrap();
+        let mut file = get_temp_file(&dsn, "certificate").unwrap();
+        let mut content = String::new();
+        file.as_file_mut()
+            .seek(std::io::SeekFrom::Start(0))
+            .unwrap();
+        file.read_to_string(&mut content).unwrap();
+        assert_eq!(content, "hello\nworld");
+
+        let dsn = Dsn::from_str("opcua://?certificate=@../tests/opc/certificate.crt").unwrap();
+        let file = get_temp_file(&dsn, "certificate");
+        assert!(file.is_none());
+    }
 
     #[test]
     fn test_tbname_pattern() {
@@ -752,7 +748,9 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_opc_ua_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
+        unsafe {
+            std::env::set_var("PLUGINS_HOME", "../plugins");
+        }
 
         let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
         let dsv = is_valid(&dsn).await;
@@ -764,7 +762,9 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_opc_da_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
+        unsafe {
+            std::env::set_var("PLUGINS_HOME", "../plugins");
+        }
 
         let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
         let dsv = is_valid(&dsn).await;
@@ -793,8 +793,10 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_opc_datasets_by_command() {
-        std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
-        std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
+        unsafe {
+            std::env::set_var("PLUGINS_HOME", "/Users/yangzy/RustProjects/taosx/plugins");
+            std::env::set_var("LOGS_HOME", "/Users/yangzy/taosx/log");
+        }
 
         let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
         let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();

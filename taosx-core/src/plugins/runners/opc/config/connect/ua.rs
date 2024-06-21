@@ -1,6 +1,9 @@
-use crate::runners::opc::config::AuthMethod;
+use std::fs;
+
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
+
+use crate::runners::opc::config::AuthMethod;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UaConnectConfig {
@@ -25,10 +28,10 @@ impl UaConnectConfig {
         let request_timeout = Self::parse_request_timeout(dsn)?;
         let security_policy = Self::parse_security_policy(dsn);
         let security_mode = Self::parse_security_mode(dsn);
-        let certificate = Self::parse_value(dsn, "certificate");
-        let private_key = Self::parse_value(dsn, "private_key");
-        let auth_certificate = Self::parse_value(dsn, "auth_certificate");
-        let auth_private_key = Self::parse_value(dsn, "auth_private_key");
+        let certificate = Self::parse_file_path(dsn, "certificate")?;
+        let private_key = Self::parse_file_path(dsn, "private_key")?;
+        let auth_certificate = Self::parse_file_path(dsn, "auth_certificate")?;
+        let auth_private_key = Self::parse_file_path(dsn, "auth_private_key")?;
         let username = dsn.username.clone();
         let password = dsn.password.clone();
         let auth_method = if username.is_some() || password.is_some() {
@@ -119,15 +122,87 @@ impl UaConnectConfig {
             .unwrap_or("None".to_string())
     }
 
-    fn parse_value(dsn: &Dsn, key: &str) -> Option<String> {
-        dsn.params.get(key).map(|v| v.to_string())
+    /// 从 dsn 中解析 key
+    /// 如果参数在 dsn 中不存在或参数值为空，返回 None
+    /// 如果参数值以 @ 开头，则认为是文件路径，返回文件的绝对路径
+    /// 如果参数值不以 @ 开头，则认为是文件内容，返回 Err
+    fn parse_file_path(dsn: &Dsn, key: &str) -> anyhow::Result<Option<String>> {
+        let value = dsn.params.get(key).map(|v| v.to_string());
+        match value {
+            None => Ok(None),
+            Some(v) => {
+                if v.is_empty() {
+                    return Ok(None);
+                }
+
+                if v.starts_with('@') {
+                    let file_path = &v[1..];
+                    let path = fs::canonicalize(file_path)
+                        .map_err(|err| {
+                            anyhow::anyhow!("{}: {} not found, cause: {}", key, file_path, err)
+                        })?
+                        .display()
+                        .to_string();
+                    Ok(Some(path))
+                } else {
+                    Err(anyhow::anyhow!(
+                        "{key} is not a file path, it should start with @, value: {v}"
+                    ))
+                }
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod ua_connect_config_tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_file_path() {
+        let dsn = Dsn::from_str("opcua://").unwrap();
+        let param = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
+        assert!(param.is_none());
+
+        let dsn = Dsn::from_str("opcua://?certificate=").unwrap();
+        let param = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
+        assert!(param.is_none());
+        // 以@开头，存在的文件
+        let file_path = std::env::current_dir()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("tests")
+            .join("opc")
+            .join("certificate.crt")
+            .display()
+            .to_string();
+        let dsn = Dsn::from_str("opcua://?certificate=@../tests/opc/certificate.crt").unwrap();
+        let absolute_path = UaConnectConfig::parse_file_path(&dsn, "certificate")
+            .unwrap()
+            .unwrap();
+        assert_eq!(file_path, absolute_path);
+
+        // 以@开头，不存在的文件
+        let dsn = Dsn::from_str("opcua://?certificate=@abc").unwrap();
+        let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
+        assert!(content.is_err());
+        assert_eq!(
+            "certificate: abc not found, cause: No such file or directory (os error 2)",
+            content.unwrap_err().to_string()
+        );
+
+        // 不以@开头，文件内容
+        let dsn = Dsn::from_str("opcua://?certificate=abc").unwrap();
+        let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
+        assert!(content.is_err());
+        assert_eq!(
+            "certificate is not a file path, it should start with @, value: abc",
+            content.unwrap_err().to_string()
+        );
+    }
 
     #[test]
     fn test_from_dsn() {
