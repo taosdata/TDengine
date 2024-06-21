@@ -668,7 +668,8 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
     let decompress = req.decompress;
     tracing::info!("[put-file] path={path:?}, decompress={decompress}");
     if decompress {
-        if path.ends_with(".gz") {
+        let extention = path.extension().unwrap_or_default();
+        if extention == "gz" {
             path.set_extension("");
         } else {
             let err_msg = "Decompress is enabled, but file extension is not .gz";
