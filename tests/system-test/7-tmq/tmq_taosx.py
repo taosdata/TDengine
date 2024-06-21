@@ -511,6 +511,9 @@ class TDTestCase:
         tdSql.query(f'show consumers')
         tdSql.checkRows(1)
         consumer1.close()
+        tdSql.execute(f'drop topic t1')
+        tdSql.execute(f'drop topic t2')
+        tdSql.execute(f'drop database d1')
 
     def run(self):
         self.consume_TS_5067_Test()

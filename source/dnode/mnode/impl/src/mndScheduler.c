@@ -228,6 +228,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, SStreamObj* pStream) {
     if (index++ == pStream->indexForMultiAggBalance) {
       pStream->indexForMultiAggBalance++;
       pStream->indexForMultiAggBalance %= pDbObj->cfg.numOfVgroups;
+      sdbRelease(pMnode->pSdb, pVgroup);
       sdbCancelFetch(pMnode->pSdb, pIter);
       break;
     }
