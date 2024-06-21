@@ -490,9 +490,11 @@ impl AgentWorker {
     ) -> anyhow::Result<()> {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
+        let decompress = path.ends_with(".gz");
         let req = PutFileReq {
             path: path.to_string(),
             data,
+            decompress,
         };
         if let Err(err) = self
             .agent_activity_sender

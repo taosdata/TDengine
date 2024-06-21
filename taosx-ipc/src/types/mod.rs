@@ -88,8 +88,12 @@ pub struct SampleResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PutFileReq {
+    /// 要发送的文件，相对于 data 目录的路径, 例如: "tasks/1/1.csv"
     pub path: String,
     pub data: Vec<u8>,
+    /// 写文件到 agent 时，是否自动解压, 默认 false,目前只支持 gzip
+    /// 如果为 true，path 必须以 .gz 结尾, 解压后的文件名为 path 去掉 .gz
+    pub decompress: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

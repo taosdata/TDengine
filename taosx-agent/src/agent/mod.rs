@@ -15,6 +15,7 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use taosx_core::utils::files::decompress_and_write_file;
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tracing::info;
@@ -601,48 +602,7 @@ impl Client {
                     "put-file" => {
                         let req: PutFileReq = serde_json::from_str(&context).unwrap();
                         let resp_tx = resp_tx.clone();
-                        tokio::spawn(async move {
-                            let data_dir = get_data_dir();
-                            let path = data_dir.join(req.path);
-                            tracing::info!("[put-file] Write file to {}", path.display());
-                            // If parent folders not exists, try to create them
-                            if let Some(parent) = path.parent() {
-                                if !parent.exists() {
-                                    match tokio::fs::create_dir_all(&parent).await {
-                                        Ok(_) => tracing::info!(
-                                            "[put-file] Directory created successfully"
-                                        ),
-                                        Err(e) => tracing::error!(
-                                            "[put-file] Failed to create directory: {}",
-                                            e
-                                        ),
-                                    }
-                                }
-                            }
-                            let result = tokio::fs::write(&path, &req.data).await;
-
-                            match result {
-                                Ok(_) => {
-                                    let _send_ok = resp_tx
-                                        .send_async(RespAction::PutFileOk(PutFileResp {
-                                            req_id,
-                                            path: path.display().to_string(),
-                                            res: Response::Ok("Ok".to_string()),
-                                        }))
-                                        .await;
-                                }
-                                Err(err) => {
-                                    tracing::error!("[put-file] Write file error: {err:#}");
-                                    let _send_ok = resp_tx
-                                        .send_async(RespAction::PutFileOk(PutFileResp {
-                                            req_id,
-                                            path: path.display().to_string(),
-                                            res: Response::Err(Fail::new(err)),
-                                        }))
-                                        .await;
-                                }
-                            }
-                        });
+                        tokio::spawn(do_put_file(req, req_id, resp_tx));
                     }
                     "query-data-source" => {
                         tracing::info!(?req_id, "[query-data-source]: {}", &context);
@@ -699,5 +659,62 @@ impl Client {
         }
 
         Ok(())
+    }
+}
+
+async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) {
+    let data_dir = get_data_dir();
+    let mut path = data_dir.join(req.path);
+    let decompress = req.decompress;
+    if decompress {
+        if path.ends_with(".gz") {
+            path.set_extension("");
+        } else {
+            let err_msg = "Decompress is enabled, but file extension is not .gz";
+            tracing::error!("[put-file] {}", err_msg);
+            let _send_err = resp_tx.send_async(RespAction::PutFileOk(PutFileResp {
+                req_id,
+                path: path.display().to_string(),
+                res: Response::Err(Fail::new(anyhow::anyhow!("{}", err_msg))),
+            }));
+        }
+        return;
+    }
+    tracing::info!("[put-file] Write file to {}", path.display());
+    // If parent folders not exists, try to create them
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            match tokio::fs::create_dir_all(&parent).await {
+                Ok(_) => tracing::info!("[put-file] Directory created successfully"),
+                Err(e) => tracing::error!("[put-file] Failed to create directory: {}", e),
+            }
+        }
+    }
+    let result = if decompress {
+        decompress_and_write_file(&path, &req.data)
+    } else {
+        tokio::fs::write(&path, &req.data).await
+    };
+
+    match result {
+        Ok(_) => {
+            let _send_ok = resp_tx
+                .send_async(RespAction::PutFileOk(PutFileResp {
+                    req_id,
+                    path: path.display().to_string(),
+                    res: Response::Ok("Ok".to_string()),
+                }))
+                .await;
+        }
+        Err(err) => {
+            tracing::error!("[put-file] Write file error: {err:#}");
+            let _send_ok = resp_tx
+                .send_async(RespAction::PutFileOk(PutFileResp {
+                    req_id,
+                    path: path.display().to_string(),
+                    res: Response::Err(Fail::new(err)),
+                }))
+                .await;
+        }
     }
 }
