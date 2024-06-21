@@ -292,7 +292,8 @@ export default {
       return decrypt(localStorage.getItem("pwd")) || '';
     },
     toUrl() {
-      let base_url = localStorage.getItem("base_url")
+      let native_url = localStorage.getItem("native_url")
+      let base_url = native_url || localStorage.getItem("base_url")
       let splitArr = base_url.split('//')
       let url = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
       return (

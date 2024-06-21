@@ -221,6 +221,7 @@ pub async fn report_verification_status_to_cloud(
     code: &str,
     lang: &str,
     name: &str,
+    taosd_version: Option<String>,
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
@@ -244,7 +245,7 @@ pub async fn report_verification_status_to_cloud(
         email: email.to_string(),
         code: code.to_string(),
         name: name.to_string(),
-        taosd_version: "".to_string(),
+        taosd_version: taosd_version.unwrap_or("".to_string()),
         explorer_version,
     };
     let json_body = serde_json::to_string(&body)?;

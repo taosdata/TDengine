@@ -106,7 +106,7 @@ export default {
   computed: {
     DSN() {
       // https://crates.io/crates/mdsn
-      return `taos://${this.user}:${this.password}@ip:port`
+      return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ? "tdengine" : "taosdata";

@@ -62,7 +62,7 @@ export default {
     getContent(cType) {
       let result = "";
       const tmpURLKey = this.urlKey;
-      const tURL = this.url.startsWith("https") ? "https://ip:port" : `http://ip:port`;
+      const tURL = this.url;
       let tmpURL = `${tmpURLKey}="${tURL}"`;
       let tmpToken = "";
       let mtoken = "";

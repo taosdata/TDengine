@@ -99,11 +99,13 @@ export default {
   },
   computed: {
     endpoint() {
-      if (this.url.startsWith("https")) {
-        return `${this.user}:${this.password}@https(ip:port)`;
-      } else {
-        return `${this.user}:${this.password}@http(ip:port)`;
+      // root:taosdata@http(localhost:6041)/test?readBufferSize=52428800
+      let uri = this.url.replace(/(https?):\/\//, "$1(");
+      // const tokenStr = this.token;
+      if (this.url.startsWith("https") && uri.indexOf(":") < 0) {
+        uri += ":443";
       }
+      return `${this.user}:${this.password}@${uri})`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
