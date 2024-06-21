@@ -738,6 +738,8 @@ impl TaskController {
                     if let Some(breakpoints_file) = breakpoints_file {
                         tracing::info!("Put file to agent {}: {}", via, breakpoints_file);
                         self.put_file_to_agent(via, breakpoints_file).await?;
+                    } else {
+                        tracing::info!("No breakpoints file to send");
                     }
                 }
             } else {

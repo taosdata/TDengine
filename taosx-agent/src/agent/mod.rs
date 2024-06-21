@@ -666,11 +666,12 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
     let data_dir = get_data_dir();
     let mut path = data_dir.join(req.path);
     let decompress = req.decompress;
-    tracing::info!("[put-file] path={path:?}, decompress={decompress}");
+    tracing::info!("[put-file] path={path:?}");
     if decompress {
         let extention = path.extension().unwrap_or_default();
         if extention == "gz" {
             path.set_extension("");
+            tracing::info!("[put-file] Decompress file to {}", path.display());
         } else {
             let err_msg = "Decompress is enabled, but file extension is not .gz";
             tracing::error!("[put-file] {}", err_msg);
@@ -679,10 +680,11 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
                 path: path.display().to_string(),
                 res: Response::Err(Fail::new(anyhow::anyhow!("{}", err_msg))),
             }));
+            return;
         }
-        return;
+    } else {
+        tracing::info!("[put-file] Write file to {}", path.display());
     }
-    tracing::info!("[put-file] Write file to {}", path.display());
     // If parent folders not exists, try to create them
     if let Some(parent) = path.parent() {
         if !parent.exists() {
