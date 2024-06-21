@@ -18,16 +18,6 @@
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 
-typedef struct {
-  ECHECKPOINT_BACKUP_TYPE type;
-
-  char*        taskId;
-  int64_t      chkpId;
-  SStreamTask* pTask;
-  int64_t      dbRefId;
-  void*        pMeta;
-} SAsyncUploadArg;
-
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path);
@@ -412,7 +402,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   }
 }
 
-int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpointInfoReq* pReq) {
+int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
   SStreamMeta*     pMeta = pTask->pMeta;
   int32_t          vgId = pMeta->vgId;
   int32_t          code = 0;
@@ -429,7 +419,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
             pReq->transId);
     taosThreadMutexUnlock(&pTask->lock);
 
-    { // destroy the related fill-history tasks
+    {  // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
       streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
@@ -446,32 +436,40 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, SVUpdateCheckpoin
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
 
-  stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint info, checkpointId:%" PRId64 "->%" PRId64
-          " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
-          id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
-          pInfo->checkpointTime, pReq->checkpointTs);
-
-  if (pStatus->state != TASK_STATUS__DROPPING) {
-    ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer);
-
-    pInfo->checkpointId = pReq->checkpointId;
-    pInfo->checkpointVer = pReq->checkpointVer;
-    pInfo->checkpointTime = pReq->checkpointTs;
-
-    streamTaskClearCheckInfo(pTask, false);
-
-    // todo handle error
-    if (pStatus->state == TASK_STATUS__CK) {
-      code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
-    } else {
-      stDebug("s-task:0x%x vgId:%d not handle checkpoint-done event, status:%s", pReq->taskId, vgId, pStatus->name);
-    }
-  } else {
-    stDebug("s-task:0x%x vgId:%d status:%s not update checkpoint info, checkpointId:%" PRId64 "->%" PRId64 " failed",
-            pReq->taskId, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
+  if ((!restored) && (pStatus->state != TASK_STATUS__CK)) {
+    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+            " failed",
+            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
     taosThreadMutexUnlock(&pTask->lock);
-
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  if (!restored) {  // during restore procedure, do update checkpoint-info
+    stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
+            " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
+            id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
+            pInfo->checkpointTime, pReq->checkpointTs);
+  } else {  // not in restore status, must be in checkpoint status
+    stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+            " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
+            id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
+            pInfo->checkpointTime, pReq->checkpointTs);
+  }
+
+  ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer &&
+         pInfo->processedVer >= pReq->checkpointVer);
+
+  pInfo->checkpointId = pReq->checkpointId;
+  pInfo->checkpointVer = pReq->checkpointVer;
+  pInfo->checkpointTime = pReq->checkpointTs;
+
+  streamTaskClearCheckInfo(pTask, false);
+
+  if (pStatus->state == TASK_STATUS__CK) {
+    // todo handle error
+    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
+  } else {
+    stDebug("s-task:0x%x vgId:%d not handle checkpoint-done event, status:%s", pReq->taskId, vgId, pStatus->name);
   }
 
   if (pReq->dropRelHTask) {

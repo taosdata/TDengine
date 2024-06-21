@@ -640,7 +640,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   return 0;
 }
 
-int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
+int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, bool restored, char* msg, int32_t msgLen) {
   SVUpdateCheckpointInfoReq* pReq = (SVUpdateCheckpointInfoReq*)msg;
 
   int32_t vgId = pMeta->vgId;
@@ -652,13 +652,14 @@ int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, char* msg, in
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
   if (ppTask != NULL && (*ppTask) != NULL) {
-    streamTaskUpdateTaskCheckpointInfo(*ppTask, pReq);
+    streamTaskUpdateTaskCheckpointInfo(*ppTask, restored, pReq);
   } else {  // failed to get the task.
     tqError("vgId:%d failed to locate the s-task:0x%x to update the checkpoint info, it may have been dropped already",
             vgId, pReq->taskId);
   }
 
   streamMetaWUnLock(pMeta);
+  // always return success when handling the requirement issued by mnode during transaction.
   return TSDB_CODE_SUCCESS;
 }
 

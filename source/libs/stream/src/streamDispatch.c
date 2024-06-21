@@ -906,9 +906,9 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
     tmsgSendRsp(&pInfo->msg);
 
     taosArrayClear(pList);
-    stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d checkpoint-source rsp completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
   } else {
-    stDebug("s-task:%s level:%d already send rsp checkpoint success to mnode", pTask->id.idStr, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d already send checkpoint-source rsp success to mnode", pTask->id.idStr, pTask->info.taskLevel);
   }
 
   taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);

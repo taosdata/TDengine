@@ -2181,7 +2181,6 @@ void taskDbDestroy(void* pDb, bool flush) {
 void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }
 
 int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char** path) {
-  int64_t st = taosGetTimestampMs();
   int32_t code = -1;
   int64_t refId = pDb->refId;
 
@@ -2202,7 +2201,7 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   return code;
 }
 
-int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list) {
+int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list, const char* idStr) {
   int32_t  code = 0;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
@@ -2210,7 +2209,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   sprintf(temp, "%s%s%s%" PRId64, pDb->path, TD_DIRSEP, "tmp", chkpId);
 
   if (taosDirExist(temp)) {
-    cleanDir(temp, "");
+    cleanDir(temp, idStr);
   } else {
     taosMkDir(temp);
   }
@@ -2220,7 +2219,8 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
 
   return code;
 }
-int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
+
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list, const char* idStr) {
   int32_t                 code = -1;
   STaskDbWrapper*         pDb = arg;
   ECHECKPOINT_BACKUP_TYPE utype = type;
@@ -2229,7 +2229,7 @@ int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t typ
   if (utype == DATA_UPLOAD_RSYNC) {
     code = taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
   } else if (utype == DATA_UPLOAD_S3) {
-    code = taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
+    code = taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list, idStr);
   }
   taskDbUnRefChkp(pDb, chkpId);
   return code;
