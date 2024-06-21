@@ -37,3 +37,4 @@ targets
 tmp.*
 /*.ps1
 .zed/
+.vs
