@@ -132,7 +132,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->whiteListInfo.fp) {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer < pRsp->whiteListVer) {
+        if (oldVer != pRsp->whiteListVer) {
           atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
