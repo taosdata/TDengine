@@ -74,6 +74,7 @@ typedef enum {
   MND_OPER_SUBSCRIBE,
   MND_OPER_CREATE_TOPIC,
   MND_OPER_DROP_TOPIC,
+  MND_OPER_BALANCE_VGROUP_LEADER,
 } EOperType;
 
 typedef enum {
@@ -286,7 +287,13 @@ typedef struct {
   int8_t    superUser;
   int8_t    sysInfo;
   int8_t    enable;
-  int8_t    reserve;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t createdb : 1;
+      uint8_t reserve : 7;
+    };
+  };
   int32_t   acctId;
   int32_t   authVersion;
   int32_t   passVersion;
