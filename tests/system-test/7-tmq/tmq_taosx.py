@@ -405,66 +405,6 @@ class TDTestCase:
         finally:
             consumer.close()
 
-    def consume_TS_5067_Test(self):
-        tdSql.execute(f'create database if not exists d1 vgroups 1')
-        tdSql.execute(f'use d1')
-        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
-        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
-        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
-        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
-        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
-
-        tdSql.query("select * from st")
-        tdSql.checkRows(8)
-
-        tdSql.execute(f'create topic t1 as select * from st')
-        tdSql.execute(f'create topic t2 as select * from st')
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-        }
-        consumer = Consumer(consumer_dict)
-
-        try:
-            consumer.subscribe(["t1"])
-        except TmqError:
-            tdLog.exit(f"subscribe error")
-
-        index = 0
-        try:
-            while True:
-                res = consumer.poll(1)
-                if not res:
-                    if index != 1:
-                        tdLog.exit("consume error")
-                    break
-                val = res.value()
-                if val is None:
-                    continue
-                cnt = 0;
-                for block in val:
-                    cnt += len(block.fetchall())
-
-                if cnt != 8:
-                    tdLog.exit("consume error")
-
-                index += 1
-        finally:
-            consumer.close()
-
-        consumer1 = Consumer(consumer_dict)
-        try:
-            consumer1.subscribe(["t2"])
-        except TmqError:
-            tdLog.exit(f"subscribe error")
-
-        tdSql.execute(f'drop consumer group g1 on t1')
-        tdSql.query(f'show consumers')
-        tdSql.checkRows(1)
-        consumer1.close()
-
     def consume_TS_4540_Test(self):
         tdSql.execute(f'create database if not exists test')
         tdSql.execute(f'use test')
@@ -527,6 +467,66 @@ class TDTestCase:
 
         print("consume_ts_4544 ok")
         consumer.close()
+
+    def consume_TS_5067_Test(self):
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
+
+        tdSql.query("select * from st")
+        tdSql.checkRows(8)
+
+        tdSql.execute(f'create topic t1 as select * from st')
+        tdSql.execute(f'create topic t2 as select * from st')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        index = 0
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer.close()
+
+        consumer1 = Consumer(consumer_dict)
+        try:
+            consumer1.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.execute(f'drop consumer group g1 on t1')
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        consumer1.close()
         tdSql.execute(f'drop topic t1')
         tdSql.execute(f'drop topic t2')
         tdSql.execute(f'drop database d1')
