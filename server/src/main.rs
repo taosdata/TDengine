@@ -1043,7 +1043,7 @@ impl Args {
             .map_err(RestErrResponse::new)?;
         dsn.username = Some(credentials.user_id);
         dsn.password = Some(credentials.password);
-        
+
         self.query_inner(dsn, sql).await
     }
 
@@ -1058,7 +1058,7 @@ impl Args {
             .map_err(RestErrResponse::new)?;
         dsn.username = Some("root".to_string());
         dsn.password = Some("taosdata".to_string());
-        
+
         self.query_inner(dsn, sql).await
     }
 
