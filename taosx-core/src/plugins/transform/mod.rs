@@ -1183,15 +1183,39 @@ impl Parser {
                         }
                         is_valid_primary_key
                     })
-                    .map(|row| (template.render("name", &json[row]).unwrap(), row))
+                    .map(|row| {
+                        let result = template.render("name", &json[row]);
+                        match result {
+                            Ok(name) => (name, row),
+                            Err(e) => {
+                                // notice: we should set a useful name for the table
+                                tracing::error!("Error rendering template: {}", e);
+                                (String::new(), row)
+                            }
+                        }
+                    })
                     .into_group_map()
             } else {
                 (0..batch.num_rows())
-                    .map(|row| (template.render("name", &json[row]).unwrap(), row))
+                    .map(|row| {
+                        let result = template.render("name", &json[row]);
+                        match result {
+                            Ok(name) => (name, row),
+                            Err(e) => {
+                                // notice: we should set a useful name for the table
+                                tracing::error!("Error rendering template: {}", e);
+                                (String::new(), row)
+                            }
+                        }
+                    })
                     .into_group_map()
             };
 
             for (name, indices) in tables {
+                // because we did not set a useful name, so we skip it
+                if name.is_empty() || indices.is_empty() {
+                    continue;
+                }
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
                 let batches = ranges
