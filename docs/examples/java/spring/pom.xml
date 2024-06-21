@@ -21,7 +21,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <spring.boot.version>2.5.12</spring.boot.version>
-    <taos.jdbc.version>3.2.7</taos.jdbc.version>
+    <taos.jdbc.version>3.2.9</taos.jdbc.version>
     <druid.version>1.2.8</druid.version>
     <mybatis.version>2.2.2</mybatis.version>
   </properties>
