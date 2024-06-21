@@ -16,7 +16,7 @@ You can create and delete users, view their information, and grant and revoke pe
 To create a user, log in to TDengine as the root user and run the following SQL statement:
 
 ```sql
-CREATE USER user_name PASS 'password' [SYSINFO {1\|0}]; 
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}];
 ```
 
 Notes:
@@ -59,7 +59,14 @@ DROP USER user_name;
 You can modify user information by running the following SQL statement:
 
 ```sql
-ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value } 
+ALTER USER user_name alter_user_clause
+
+alter_user_clause: {
+    PASS 'literal'
+  | ENABLE value
+  | SYSINFO value
+  | CREATEDB value
+}
 ```
 
 Notes:
@@ -67,12 +74,20 @@ Notes:
 - PASS: Modify the user's password.
 - ENABLE: Specify whether the user is enabled or disabled. Enter 1 to enable the user or 0 to disable the user.
 - SYSINFO: Specify whether the user can view system information. Enter 1 to allow the user to view system information or 0 to prevent the user from viewing system information.
+- CREATEDB: Specify whether the user can create databases. Enter 1 to allow the user to create databases or 0 to prevent the user from creating databases.
 
 Example; The following SQL statement disables the `test` user:
 
 ```sql
 alter user test enable 0;
 Query OK, 0 row(s) affected (0.001160s) 
+```
+
+The following SQL statement allow the `test` user to create databases:
+
+```sql
+alter user test createdb 1;
+Query OK, 0 row(s) affected (0.004010s)
 ```
 
 ## Database Permissions
@@ -89,7 +104,7 @@ Notes:
 
 
 
-- To grant permissions to all databases, enter an asterisk (*) for the database name.
+- To grant permissions to all databases, enter \*.\* for the database name.
 
 ### Description
 
@@ -98,7 +113,7 @@ Database permissions for root and normal users are described in the following ta
 | User     | Description                               | Permissions                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Superuser | root               |  All operations                                                                                                                                                                                                                                                                                                                                     |
-| Normal user | All users except root | On databases with read permissions, SELECT, DESCRIBE, SHOW, and SUBSCRIBE operations. On databases with write permissions, creating, modifying, and deleting supertables, subtables, and topics. Without sysinfo permissions, normal users cannot perform SHOW operations on dnodes, mnodes, vgroups, qnodes, or snodes. Users can change their own passwords. Users can show databases that they own, but system information such as vgroups, replicas, and cache is not displayed. Users can manage UDFs and create databases.
+| Normal user | All users except root | On databases with read permissions, SELECT, DESCRIBE, SHOW, and SUBSCRIBE operations. On databases with write permissions, creating, modifying, and deleting supertables, subtables, and topics. Without sysinfo permissions, normal users cannot perform SHOW operations on dnodes, mnodes, vgroups, qnodes, or snodes, and cannot change their own passwords. Users can show databases that they own, but system information such as vgroups, replicas, and cache is not displayed. With or without sysinfo permissions, users can manage UDFs. Users can create databases only if they have the permission to create databases.
 
 ### Data Subscription Permissions
 
@@ -117,42 +132,41 @@ REVOKE SUBSCRIBE ON topic_name FROM user_name;
 You can grant permissions to a subset of subtables in a supertable based on the tags assigned to the subtables. The following SQL statements grant and revoke tag-based permissions:
 
 ```sql
-GRANT {ALL | READ | WRITE} ON dbname.tbname WITH tag_condition TO user_name;
+GRANT privileges ON priv_level [WITH tag_condition] TO user_name
  
-
-    
-  
-  
-
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
  
-
-    
-  
-
+priv_type : {
+    READ
+  | WRITE
+}
  
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+}
 
-    
-  
-  
-  
+REVOKE privileges ON priv_level [WITH tag_condition] FROM user_name
 
-
-REVOKE {ALL | READ | WRITE} ON dbname.tbname WITH tag_condition FROM user_name;
-
-
-    
-  
-
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
  
-
-    
-  
-
+priv_type : {
+    READ
+  | WRITE
+}
  
-
-    
-  
-  
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+}
 
 ```
 
@@ -185,11 +199,40 @@ show user privileges
 1. You can use the following SQL statement to revoke database permissions:
 
 ```sql
-REVOKE {ALL | READ | WRITE} ON db_name FROM user_name;  
+REVOKE privileges ON priv_level FROM user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+
+priv_type : {
+    READ
+  | WRITE
+}
+
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.* 
+}
 ```
 
 2. You can use the following SQL statement to revoke topic permissions:
 
 ```sql
-REVOKE {ALL | READ | WRITE} ON topic_name FROM user_name; 
+REVOKE privileges ON priv_level FROM user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+
+priv_type : {
+    SUBSCRIBE
+}
+
+priv_level : {
+    topic_name
+}
 ```

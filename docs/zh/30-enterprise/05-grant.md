@@ -16,7 +16,7 @@ TDengine 中的权限管理分为用户管理、数据库授权管理以及消�
 创建用户的操作只能由 root 用户进行，语法如下
 
 ```sql
-CREATE USER user_name PASS 'password' [SYSINFO {1\|0}]; 
+CREATE USER user_name PASS 'password' [SYSINFO {1|0}]; 
 ```
 
 说明：
@@ -58,7 +58,14 @@ DROP USER user_name;
 修改用户信息的命令如下
 
 ```sql
-ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value } 
+ALTER USER user_name alter_user_clause
+
+alter_user_clause: {
+    PASS 'literal'
+  | ENABLE value
+  | SYSINFO value
+  | CREATEDB value
+}
 ```
 
 说明：
@@ -66,6 +73,7 @@ ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \
 -   PASS：修改用户密码。
 -   ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
 -   SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
+-   CREATEDB：修改用户是否可以创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。
 
 示例：禁用 test 用户
 
@@ -73,19 +81,42 @@ ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \
 alter user test enable 0; Query OK, 0 of 0 rows affected (0.001160s) 
 ```
 
+允许 test 用户创建数据库
+
+```sql
+alter user test createdb 1;
+Query OK, 0 row(s) affected (0.004010s)
+```
+
 ## 数据库访问授权
 
 系统管理员可以根据业务需要对系统中的每个用户针对每个数据库进行特定的授权，以防止业务数据被不恰当的用户读取或修改。对某个用户进行数据库访问授权的语法如下：
 
 ```sql
-GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  READ  \| WRITE }   priv_level : {  dbname.\*  \| \*.\* } 
+GRANT privileges ON priv_level TO user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+
+priv_type : {
+    READ
+  | WRITE
+}
+
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+}
 ```
 
 对数据库的访问权限包含读和写两种权限，它们可以被分别授予，也可以被同时授予。
 
 说明
 
--   priv_level 格式中 "." 之前为数据库名称， "." 之后为表名称，但目前不支持表级别的授权控制，所以 "." 之后必须写为 "\*" ，意为 "." 前所指定的数据库中的所有表
+-   priv_level 格式中 "." 之前为数据库名称， "." 之后为表名称，意思为表级别的授权控制。如果 "." 之后为 "\*" ，意为 "." 前所指定的数据库中的所有表
 -   "dbname.\*" 意思是名为 "dbname" 的数据库中的所有表
 -   "\*.\*" 意思是所有数据库名中的所有表
 
@@ -96,7 +127,7 @@ GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type 
 | 用户     | 描述                               | 权限说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 超级用户 | 只有 root 是超级用户               |  DB 外部 所有操作权限，例如user、dnode、udf、qnode等的CRUD DB 权限，包括 创建 删除 更新，例如修改 Option，移动 Vgruop等 读 写 Enable/Disable 用户                                                                                                                                                                                                                                                                                                                                     |
-| 普通用户 | 除 root 以外的其它用户均为普通用户 | 在可读的 DB 中，普通用户可以进行读操作 select describe show subscribe 在可写 DB 的内部，用户可以进行写操作： 创建、删除、修改 超级表 创建、删除、修改 子表 创建、删除、修改 topic 写入数据 被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode 修改用户包括自身密码 show db时只能看到自己的db，并且不能看到vgroups、副本、cache等信息 无论是否被限制系统信息，都可以 管理 udf 可以创建 DB 自己创建的 DB 具备所有权限 非自己创建的 DB ，参照读、写列表中的权限 |
+| 普通用户 | 除 root 以外的其它用户均为普通用户 | 在可读的 DB 中，普通用户可以进行读操作：select、describe、show、subscribe。在可写 DB 的内部，用户可以进行写操作： 创建、删除、修改 超级表 创建、删除、修改 子表 创建、删除、修改 topic 写入数据。被限制系统信息时，不可进行如下操作：show dnode、mnode、vgroups、qnode、snode，修改用户包括自身密码，show db 时只能看到自己的 db，并且不能看到 vgroups、副本、cache 等信息；无论是否被限制系统信息，都可以管理 udf。拥有建库权限后可以创建 DB；自己创建的 DB 具备所有权限，非自己创建的 DB，参照读、写列表中的权限 |
 
 ### 消息订阅授权
 
@@ -181,11 +212,40 @@ show user privileges
 1.  撤销数据库访问的授权
 
 ```sql
-REVOKE privileges ON priv_level FROM user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  READ  \| WRITE }   priv_level : {  dbname.\*  \| \*.\* }  
+REVOKE privileges ON priv_level FROM user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+
+priv_type : {
+    READ
+  | WRITE
+}
+
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+}
 ```
 
 2.  撤销数据订阅的授权
 
 ```sql
-REVOKE privileges ON priv_level FROM user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topi_name } 
+REVOKE privileges ON priv_level FROM user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+
+priv_type : {
+    SUBSCRIBE
+}
+
+priv_level : {
+    topic_name
+}
 ```

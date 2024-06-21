@@ -64,6 +64,7 @@ Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: i
 Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins\"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Excludes: "taosx-agent-srv.xml"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -73,29 +74,15 @@ Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt
 Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""{app}\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""{app}\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taoskeeper start= AUTO binPath= ""{app}\\taoskeeper.exe""" ; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
 Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
-Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"" /V ""UninstallString""  \
-  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#MyAppName}.exe\"""" /F"; StatusMsg: Installing {#MyAppName}...; Flags: RunHidden WaitUntilTerminated
-Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"" /V ""QuietUninstallString"" \
-  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#MyAppName}.exe\"" /SILENT"" /F"; StatusMsg: Installing {#MyAppName}...; Flags: RunHidden WaitUntilTerminated
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
-
-[UninstallRun]
-RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
-RunOnceId: "stoptaosadapter"; Filename: {sys}\sc.exe; Parameters: "stop taosadapter" ; Flags: runhidden
-RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
-RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosadapter" ; Flags: runhidden
-RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
-RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
-RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: "{app}\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
@@ -129,25 +116,16 @@ var
   JavaReady: Boolean;
   OPCInstallFileFlag: Boolean;
   ExplorerAddInput: string;
+  CustomFinishedLabel: TLabel;
+  CustomFinishedLabel1: TLabel;
+  CustomFinishedLabel2: TLabel;
+  CustomFinishedLabel3: TLabel;
 
-procedure CurStepChanged(CurStep: TSetupStep);
-var
-  uninspath, uninsname, NewUninsName : string;
-begin
-  if CurStep = ssDone then
-  begin
-    NewUninsName := 'uninstall_{#MyAppName}';
-    uninspath := ExtractFilePath(ExpandConstant('{uninstallexe}'));
-    uninsname := Copy(ExtractFileName(ExpandConstant('{uninstallexe}')), 1, 8);
-    RenameFile(uninspath + uninsname + '.exe', uninspath + NewUninsName + '.exe');
-    RenameFile(uninspath + uninsname + '.dat', uninspath + NewUninsName + '.dat');
-  end;
-end;
 
 function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
 var
   Lines: TArrayOfString;
-  I, PosSearch: Integer;
+  I, PosSearch, CommentSearch, FqdnSearch: Integer;
   Found: Boolean;
 begin
   Result := False;
@@ -161,6 +139,14 @@ begin
       begin
         Delete(Lines[I], PosSearch, Length(SearchText));
         Insert(ReplaceText, Lines[I], PosSearch);
+        
+        CommentSearch := Pos('#', Lines[I]);
+        FqdnSearch := Pos('fqdn', Lines[I]);
+        if CommentSearch > 0 then
+          if FqdnSearch > 0 then
+            begin
+              Delete(Lines[I], CommentSearch, 1);
+            end;
         Found := True;
       end;
     end;
@@ -182,7 +168,8 @@ begin
   begin
     ExplorerAddInput := InputQueryPage.Values[0];
     begin
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'taosx.toml', 'localhost', ExplorerAddInput);
     end;
   end;
   Result := True;
@@ -194,12 +181,12 @@ var
   DestFile: string;
   NewDestFile: string;
 begin
-  SourceFile := '{#MyAppSourceDir}\config\' + filename;
-  DestFile := ExpandConstant('{app}\config') + '\' + filename;
+  SourceFile := '{#MyAppSourceDir}\cfg\' + filename;
+  DestFile := ExpandConstant('{app}\cfg') + '\' + filename;
   if FileExists(SourceFile) then
     if FileExists(DestFile) then
       begin
-        NewDestFile := ExpandConstant('{app}\config') + '\' + filename + '.new';
+        NewDestFile := ExpandConstant('{app}\cfg') + '\' + filename + '.new';
         if not FileCopy(SourceFile, NewDestFile, False) then
         begin
           MsgBox('Error copying file.', mbError, MB_OK);
@@ -302,8 +289,16 @@ begin
   Result := PISDKVersionString;
 end;
 
+procedure ExtendFinishedPageControl(Control: TControl);
+begin
+  Control.Left := Control.Left - WizardForm.WizardBitmapImage2.Width;
+  Control.Width := Control.Width + WizardForm.WizardBitmapImage2.Width;
+end;
+
 procedure InitializeWizard;
 var
+  InstallPath: String;
+  ComputerName: String;
   AfterID: Integer;
 begin
   AfterID := wpSelectTasks;
@@ -314,29 +309,88 @@ begin
   AfterID := OutputMsgCheckJava.ID;
 
   InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
-  InputQueryPage.Add('&Default:localhost', False);
-  InputQueryPage.Values[0] := 'localhost';
+  ComputerName := GetComputerNameString();
+  InputQueryPage.Add('&Default: ' + ComputerName, False);
+  InputQueryPage.Values[0] := ComputerName;
   AfterID := InputQueryPage.ID;
+
+  InstallPath := WizardDirValue();
+  WizardForm.FinishedLabel.Visible := False;
+  WizardForm.WizardBitmapImage2.Visible := False;
+  ExtendFinishedPageControl(WizardForm.RunList);
+  ExtendFinishedPageControl(WizardForm.NoRadio);
+  ExtendFinishedPageControl(WizardForm.YesRadio);
+  ExtendFinishedPageControl(WizardForm.FinishedLabel);
+  ExtendFinishedPageControl(WizardForm.FinishedHeadingLabel);
+
+  CustomFinishedLabel := TLabel.Create(WizardForm);  
+  CustomFinishedLabel.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel.Left := WizardForm.FinishedHeadingLabel.Left;  
+  CustomFinishedLabel.Top := WizardForm.FinishedHeadingLabel.Top + WizardForm.FinishedHeadingLabel.Height + ScaleY(8); // Adjust the top position as needed  
+
+  CustomFinishedLabel.WordWrap := True;
+  CustomFinishedLabel.Width := WizardForm.FinishedHeadingLabel.Width; 
+  
+  CustomFinishedLabel.Caption := 'You can use following instructions to edit configuration files and run commands manually in terminal as Administrator:';
+
+  CustomFinishedLabel1 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel1.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel1.Left := WizardForm.FinishedHeadingLabel.Left;
+  CustomFinishedLabel1.Top := CustomFinishedLabel.Top + CustomFinishedLabel.Height;
+  CustomFinishedLabel1.Width := WizardForm.FinishedHeadingLabel.Width div 2; 
+  CustomFinishedLabel1.Height := ScaleY(120);
+  CustomFinishedLabel1.Caption := #13#10 + ''
+  + #13#10 + 'To configure TDengine:'
+  + #13#10 + 'To configure taosadapter:'
+  + #13#10 + 'To configure taos-explorer:   '
+  + #13#10 + 'To start taosd:' 
+  + #13#10 + 'To start taosadapter:' 
+  + #13#10 + 'To start taoskeeper:' 
+  + #13#10 + 'To start taosx:' 
+  + #13#10 + 'To start taos-explorer:';
+
+
+  CustomFinishedLabel2 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel2.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel2.Left := CustomFinishedLabel1.Left + CustomFinishedLabel1.Width;
+  CustomFinishedLabel2.Top := CustomFinishedLabel.Top + CustomFinishedLabel.Height;
+  CustomFinishedLabel2.Width := WizardForm.FinishedHeadingLabel.Width div 2; 
+  CustomFinishedLabel2.Height := ScaleY(120);
+  CustomFinishedLabel2.Caption := #13#10 + ''
+  + #13#10 + 'edit ' + InstallPath + '\cfg\taos.cfg'
+  + #13#10 + 'edit ' + InstallPath + '\cfg\taosadapter.toml'
+  + #13#10 + 'edit ' + InstallPath + '\cfg\explorer.toml'
+  + #13#10 + 'sc.exe start taosd' 
+  + #13#10 + 'sc.exe start taosadapter' 
+  + #13#10 + 'sc.exe start taoskeeper' 
+  + #13#10 + 'sc.exe start taosx' 
+  + #13#10 + 'sc.exe start taos-explorer';
+
+  CustomFinishedLabel3 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel3.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel3.Left := WizardForm.FinishedHeadingLabel.Left;
+  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height;
+  CustomFinishedLabel3.Width := WizardForm.FinishedHeadingLabel.Width; 
+  CustomFinishedLabel3.Caption := 'To use all TDengine services, please run start-all.bat under ' + InstallPath + ' directory';
 
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
 var
-  InstallPath: string;
   AfterID: Integer;
 begin
   if CurPageID = OutputMsgCheckJava.ID then
-  begin
-    AfterID := OutputMsgCheckJava.ID;
-    if JavaReady = False then  begin
-      MsgBox(JavaVersionString, mbInformation, MB_OK);
-      end;
+    begin
+      AfterID := OutputMsgCheckJava.ID;
+      if JavaReady = False then  begin
+        MsgBox(JavaVersionString, mbInformation, MB_OK);
+        end;
 
-    GetPISDKVersionDesc();
-    OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
-    + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
-    AfterID := OutputMsgCheckPISDK.ID;
-  end;
+      GetPISDKVersionDesc();
+      OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
+      + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
+      AfterID := OutputMsgCheckPISDK.ID;
+    end;
   if CurPageID = wpReady then
     begin
       if WizardForm.ComponentsList.Checked[0] then
@@ -350,12 +404,58 @@ begin
     end;
 end;
 
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  case CurUninstallStep of
+    usPostUninstall:
+      begin
+        if FileExists(ExpandConstant('{app}\taosd.exe')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\taosd.exe'), 10);
+          end;
+        
+        if FileExists(ExpandConstant('{app}\taosx.exe')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\taosx.exe'), 5);
+          end;
+
+        if FileExists(ExpandConstant('{app}\.taos_history')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\.taos_history'), 5);
+          end;
+
+        if FileExists(ExpandConstant('{app}\output.txt')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\output.txt'), 5);
+          end;
+
+        if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+          begin
+            if DirExists(ExpandConstant('{app}\cfg')) then
+              begin
+                DelTree(ExpandConstant('{app}\cfg'), True, True, True);
+              end;
+            if DirExists(ExpandConstant('{app}\log')) then  
+              begin
+                DelTree(ExpandConstant('{app}\log'), True, True, True);
+              end;
+            if DirExists(ExpandConstant('{app}\data')) then  
+              begin
+                DelTree(ExpandConstant('{app}\data'), True, True, True);
+              end;
+          end;        
+      end;    
+  end;
+end;
+
 function ShouldInstallOPC: Boolean;
 begin
   Result := OPCInstallFileFlag;
 end;
 
 [UninstallDelete]
+Name: {app}\cfg; Type: filesandordirs
+Name: {app}\log; Type: filesandordirs 
 Name: {app}\driver; Type: filesandordirs 
 Name: {app}\connector; Type: filesandordirs
 Name: {app}\examples; Type: filesandordirs
@@ -363,13 +463,26 @@ Name: {app}\include; Type: filesandordirs
 Name: {app}\plugins\pi; Type: filesandordirs 
 Name: {app}\plugins\opc; Type: filesandordirs 
 Name: {app}\plugins\mqtt; Type: filesandordirs 
-Name: {app}\plugins\influxdb; Type: filesandordirs 
+Name: {app}\plugins\influxdb; Type: filesandordirs
 Name: {app}\plugins\opentsdb; Type: filesandordirs
 
 [UninstallRun]
-Filename: "{app}\uninstall.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall.exe')
-Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
-Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+RunOnceId: "stopall"; Filename: {app}\stop-all.bat; Flags: runhidden
+RunOnceId: "stoptaoskeeper"; Filename: {sys}\sc.exe; Parameters: "stop taoskeeper" ; Flags: runhidden
+RunOnceId: "deltaoskeeper"; Filename: {sys}\sc.exe; Parameters: "delete taoskeeper" ; Flags: runhidden
+RunOnceId: "stoptaosadapter"; Filename: {sys}\sc.exe; Parameters: "stop taosadapter" ; Flags: runhidden
+RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosadapter" ; Flags: runhidden
+RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
+RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: "{app}\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
+RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
+
+RunOnceId: "uninstall"; Filename: "{uninstallexe}"; Parameters: "/SILENT"; Check: fileexists('{uninstallexe}')
+RunOnceId: "removeopc1"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+RunOnceId: "removeopc2"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 
 [Tasks]
 Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm:AdditionalIcons}"; Flags: checkablealone
@@ -377,8 +490,7 @@ Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm
 [Icons]
 Name:"{group}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
 Name:"{group}\Open {#CusName} Directory"; Filename: "{app}\" 
-Name:"{group}\Taosdemo"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taosdemo.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}" 
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 Name:"{commondesktop}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{app}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 
 
