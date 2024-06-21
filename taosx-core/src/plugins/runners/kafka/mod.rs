@@ -13,6 +13,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use chrono::Utc;
 use futures_util::TryStreamExt;
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
@@ -46,22 +47,33 @@ pub const KAFKA_ID: &'static str = "kafka";
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_valid_impl(dsn) {
         Ok(()) => DataSourceValidation::valid(KAFKA_ID.to_string(), None),
-        Err(err) => DataSourceValidation::invalid(KAFKA_ID.to_string(), err.to_string()),
+        Err(err) => DataSourceValidation::invalid(KAFKA_ID.to_string(), format!("{err:#}")),
     }
 }
 
 fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
     let config = KafkaTaskConfig::from_dsn(dsn)
-        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {}", dsn, err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {:#}", dsn, err))?;
 
     let client_config = build_client_config(config.connect);
     let consumer: BaseConsumer = client_config
         .create()
-        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
 
-    let _metadata = consumer
+    let metadata = consumer
         .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))?;
+
+    tracing::info!(
+        brokers = metadata
+            .brokers()
+            .iter()
+            .map(|b| format!("{}={}:{}", b.id(), b.host(), b.port()))
+            .join(","),
+        broker.id = metadata.orig_broker_id(),
+        broker.name = metadata.orig_broker_name(),
+        "kafka metadata"
+    );
     Ok(())
 }
 
@@ -104,7 +116,7 @@ async fn get_sample_impl(
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "false")
         .create()
-        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
 
     // subscribe topics
     let topics = KafkaTaskConfig::parse_topics(dsn)?;
@@ -372,16 +384,25 @@ impl SubTask {
         let client_config = build_client_config(config.connect.clone());
 
         // create a base consumer
-        let consumer: BaseConsumer = client_config.create().map_err(|err| {
-            anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string())
-        })?;
+        let consumer: BaseConsumer = client_config
+            .create()
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))?;
 
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| {
-                anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string())
-            })?;
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))?;
+
+        tracing::info!(
+            brokers = metadata
+                .brokers()
+                .iter()
+                .map(|b| format!("{}={}:{}", b.id(), b.host(), b.port()))
+                .join(","),
+            broker.id = metadata.orig_broker_id(),
+            broker.name = metadata.orig_broker_name(),
+            "kafka metadata"
+        );
 
         let mut topic_partitions: Vec<String> = Vec::new();
 
@@ -522,19 +543,16 @@ async fn poll_message(
                     consumer
                         .commit_consumer_state(CommitMode::Async)
                         .map_err(|err| {
-                            anyhow::anyhow!(
-                                "failed to commit consumer state, cause: {}",
-                                err.to_string()
-                            )
+                            anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err)
                         })?;
                 }
             }
             Err(err) => {
                 let _ = notify.send(crate::TaskNotify::error(format!(
-                    "failed to polling from kafka, cause: {}",
-                    err.to_string()
+                    "failed to polling from kafka, cause: {:#}",
+                    err
                 )));
-                tracing::error!("failed to polling from kafka, cause: {}", err.to_string());
+                tracing::error!("failed to polling from kafka, cause: {:#}", err);
             }
         };
 
@@ -781,13 +799,14 @@ mod tests {
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
-            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .unwrap();
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .unwrap();
+
         dbg!(metadata.topics().len());
     }
 
@@ -806,12 +825,12 @@ mod tests {
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
-            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .unwrap();
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .unwrap();
         dbg!(metadata.topics().len());
         // filter topics
