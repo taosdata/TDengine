@@ -189,6 +189,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x12
 #define TSDB_ALTER_USER_ADD_WHITE_LIST         0x13
 #define TSDB_ALTER_USER_DROP_WHITE_LIST        0x14
+#define TSDB_ALTER_USER_CREATEDB               0x15
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -949,20 +950,27 @@ int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq
 int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 
 typedef struct {
-  int8_t  alterType;
-  int8_t  superUser;
-  int8_t  sysInfo;
-  int8_t  enable;
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_USET_PASSWORD_LEN];
-  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
-  char    tabName[TSDB_TABLE_NAME_LEN];
-  char*   tagCond;
-  int32_t tagCondLen;
+  int8_t alterType;
+  int8_t superUser;
+  int8_t sysInfo;
+  int8_t enable;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t createdb : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  char        user[TSDB_USER_LEN];
+  char        pass[TSDB_USET_PASSWORD_LEN];
+  char        objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char        tabName[TSDB_TABLE_NAME_LEN];
+  char*       tagCond;
+  int32_t     tagCondLen;
   int32_t     numIpRanges;
-  SIpV4Range* pIpRanges;  
-  int32_t sqlLen;
-  char*   sql;
+  SIpV4Range* pIpRanges;
+  int32_t     sqlLen;
+  char*       sql;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

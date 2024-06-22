@@ -233,16 +233,17 @@ typedef struct SCreateUserStmt {
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
-  ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  int8_t    alterType;
-  char      password[TSDB_USET_PASSWORD_LEN];
-  int8_t    enable;
-  int8_t    sysinfo;
-  int32_t numIpRanges;
+  ENodeType   type;
+  char        userName[TSDB_USER_LEN];
+  int8_t      alterType;
+  char        password[TSDB_USET_PASSWORD_LEN];
+  int8_t      enable;
+  int8_t      sysinfo;
+  int8_t      createdb;
+  int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
 
-  SNodeList* pNodeListIpRanges;  
+  SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {

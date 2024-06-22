@@ -751,6 +751,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
+  }
+
   if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
     code = terrno;
     goto _OVER;

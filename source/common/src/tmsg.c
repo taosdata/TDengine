@@ -1760,6 +1760,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].mask) < 0) return -1;
   }
   ENCODESQL();
+  if (tEncodeU8(&encoder, pReq->flag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1797,6 +1798,9 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)) < 0) return -1;
   }
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeU8(&decoder, &pReq->flag) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
