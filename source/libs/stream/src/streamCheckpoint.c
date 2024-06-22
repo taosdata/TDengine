@@ -470,7 +470,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   pInfo->checkpointVer = pReq->checkpointVer;
   pInfo->checkpointTime = pReq->checkpointTs;
 
-  streamTaskClearCheckInfo(pTask, false);
+  streamTaskClearCheckInfo(pTask, true);
 
   if (pStatus->state == TASK_STATUS__CK) {
     // todo handle error
