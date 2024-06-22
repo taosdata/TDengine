@@ -557,7 +557,6 @@ void doDestroyRequest(void *p) {
   tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
-  taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
@@ -566,6 +565,7 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  taosArrayDestroy(pRequest->dbList);
   if (pRequest->body.interParam) {
     tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
   }
