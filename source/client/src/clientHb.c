@@ -133,14 +133,15 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
 
       if (pTscObj->whiteListInfo.fp) {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t    oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer < pRsp->whiteListVer) {
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+
+        if (oldVer < pRsp->whiteListVer || pRsp->whiteListVer == 0) {
           atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
           }
-          tscDebug("update whitelist version of user %s from %"PRId64" to %"PRId64", tscRid:%" PRIi64, pRsp->user, oldVer,
-                   atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
+                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
         }
       }
       releaseTscObj(pReq->connKey.tscRid);
@@ -202,8 +203,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SDbHbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
     if (rsp->useDbRsp) {
-      tscDebug("hb use db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64,
-        rsp->useDbRsp->db, rsp->useDbRsp->vgVersion, rsp->useDbRsp->stateTs, rsp->useDbRsp->uid);
+      tscDebug("hb use db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, rsp->useDbRsp->db,
+               rsp->useDbRsp->vgVersion, rsp->useDbRsp->stateTs, rsp->useDbRsp->uid);
 
       if (rsp->useDbRsp->vgVersion < 0) {
         tscDebug("hb to remove db, db:%s", rsp->useDbRsp->db);
@@ -225,7 +226,9 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
             goto _return;
           }
 
-          catalogUpdateDBVgInfo(pCatalog, (rsp->useDbRsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB, rsp->useDbRsp->uid, vgInfo);
+          catalogUpdateDBVgInfo(pCatalog,
+                                (rsp->useDbRsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB,
+                                rsp->useDbRsp->uid, vgInfo);
         }
       }
     }
@@ -238,7 +241,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (rsp->pTsmaRsp) {
       if (rsp->pTsmaRsp->pTsmas) {
         for (int32_t i = 0; i < rsp->pTsmaRsp->pTsmas->size; ++i) {
-          STableTSMAInfo* pTsma = taosArrayGetP(rsp->pTsmaRsp->pTsmas, i);
+          STableTSMAInfo *pTsma = taosArrayGetP(rsp->pTsmaRsp->pTsmas, i);
           catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion);
         }
         taosArrayClear(rsp->pTsmaRsp->pTsmas);
@@ -294,16 +297,15 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion*)value);
+  return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion *)value);
 }
 
-static void hbFreeSViewMetaInRsp(void* p) {
-  if (NULL == p || NULL == *(void**)p) {
+static void hbFreeSViewMetaInRsp(void *p) {
+  if (NULL == p || NULL == *(void **)p) {
     return;
   }
-  SViewMetaRsp *pRsp = *(SViewMetaRsp**)p;
+  SViewMetaRsp *pRsp = *(SViewMetaRsp **)p;
   tFreeSViewMetaRsp(pRsp);
   taosMemoryFreeClear(pRsp);
 }
@@ -337,7 +339,7 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbprocessTSMARsp(void* value, int32_t valueLen, struct SCatalog* pCatalog) {
+static int32_t hbprocessTSMARsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
   STSMAHbRsp hbRsp = {0};
@@ -348,7 +350,7 @@ static int32_t hbprocessTSMARsp(void* value, int32_t valueLen, struct SCatalog* 
 
   int32_t numOfTsma = taosArrayGetSize(hbRsp.pTsmas);
   for (int32_t i = 0; i < numOfTsma; ++i) {
-    STableTSMAInfo* pTsmaInfo = taosArrayGetP(hbRsp.pTsmas, i);
+    STableTSMAInfo *pTsmaInfo = taosArrayGetP(hbRsp.pTsmas, i);
 
     if (!pTsmaInfo->pFuncs) {
       tscDebug("hb to remove tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
@@ -365,7 +367,7 @@ static int32_t hbprocessTSMARsp(void* value, int32_t valueLen, struct SCatalog* 
   return TSDB_CODE_SUCCESS;
 }
 
-static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
+static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
     switch (kv->key) {
@@ -489,14 +491,14 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 
   if (kvNum > 0) {
     struct SCatalog *pCatalog = NULL;
-    int32_t code = catalogGetHandle(pReq->clusterId, &pCatalog);
+    int32_t          code = catalogGetHandle(pReq->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
     } else {
       hbProcessQueryRspKvs(kvNum, pRsp->info, pCatalog, pAppHbMgr);
     }
   }
-  
+
   taosHashRelease(pAppHbMgr->activeInfo, pReq);
 
   return TSDB_CODE_SUCCESS;
@@ -799,8 +801,9 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbCacheInfo *db = &dbs[i];
-    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64 ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
-      i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
+    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64
+             ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
+             i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
 
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
@@ -916,7 +919,7 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbGetExpiredTSMAInfo(SClientHbKey* connKey, struct SCatalog* pCatalog, SClientHbReq* pReq) {
+int32_t hbGetExpiredTSMAInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *pReq) {
   int32_t       code = 0;
   uint32_t      tsmaNum = 0;
   STSMAVersion *tsmas = NULL;
@@ -933,7 +936,7 @@ int32_t hbGetExpiredTSMAInfo(SClientHbKey* connKey, struct SCatalog* pCatalog, S
   }
 
   for (int32_t i = 0; i < tsmaNum; ++i) {
-    STSMAVersion* tsma = &tsmas[i];
+    STSMAVersion *tsma = &tsmas[i];
     tsma->dbId = htobe64(tsma->dbId);
     tsma->tsmaId = htobe64(tsma->tsmaId);
     tsma->version = htonl(tsma->version);
@@ -1012,7 +1015,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
-#endif    
+#endif
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
   } else {
     req->app.appId = 0;
@@ -1151,7 +1154,8 @@ static void *hbThreadFunc(void *param) {
     if (sz > 0) {
       hbGatherAppInfo();
       if (sz > 1 && !clientHbMgr.appHbHash) {
-        clientHbMgr.appHbHash = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+        clientHbMgr.appHbHash =
+            taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
       }
       taosHashClear(clientHbMgr.appHbHash);
     }
@@ -1433,6 +1437,4 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
 }
 
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
-void taos_set_hb_quit(int8_t quitByKill) {
-  clientHbMgr.quitByKill = quitByKill;
-}
+void taos_set_hb_quit(int8_t quitByKill) { clientHbMgr.quitByKill = quitByKill; }
