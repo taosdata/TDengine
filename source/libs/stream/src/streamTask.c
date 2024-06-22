@@ -254,7 +254,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
-  streamClearChkptReadyMsg(pTask);
+  streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
 
   if (pTask->msgInfo.pData != NULL) {
     clearBufferedDispatchMsg(pTask);

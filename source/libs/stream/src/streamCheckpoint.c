@@ -405,7 +405,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
   if (clearChkpReadyMsg) {
-    streamClearChkptReadyMsg(pTask);
+    streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
   }
 }
 
@@ -696,14 +696,16 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   // TODO: monitoring the checkpoint-report msg
   // update the latest checkpoint info if all works are done successfully, for rsma, the pMsgCb is null.
-  if (code == TSDB_CODE_SUCCESS && (pTask->pMsgCb != NULL)) {
-    code = streamSendChkptReportMsg(pTask, &pTask->chkInfo, dropRelHTask);
-  } else { // clear the checkpoint info if failed
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pTask->pMsgCb != NULL) {
+      code = streamSendChkptReportMsg(pTask, &pTask->chkInfo, dropRelHTask);
+    }
+  } else {  // clear the checkpoint info if failed
     taosThreadMutexLock(&pTask->lock);
     streamTaskClearCheckInfo(pTask, false);
-    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&pTask->lock);
 
+    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     streamTaskSetFailedCheckpointId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, id, ckId);
   }

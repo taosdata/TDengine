@@ -856,7 +856,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
         "and quit from timer, ref:%d",
         id, vgId, ref);
 
-    streamClearChkptReadyMsg(pTask);
+    streamClearChkptReadyMsg(pActiveInfo);
     taosThreadMutexUnlock(&pActiveInfo->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
   }
@@ -1128,8 +1128,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   return 0;
 }
 
-void streamClearChkptReadyMsg(SStreamTask* pTask) {
-  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+void streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo) {
   if (pActiveInfo == NULL) {
     return;
   }
