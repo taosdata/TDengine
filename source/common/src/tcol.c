@@ -250,7 +250,7 @@ bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OP
     strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnEncode(encode);
+  return checkColumnEncode(encode) && validColEncode(type, columnEncodeVal(encode));
 }
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) return true;
@@ -267,7 +267,8 @@ bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRES
     strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnCompress(compress);
+
+  return checkColumnCompress(compress) && validColCompress(type, columnCompressVal(compress));
 }
 bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) return true;
@@ -289,7 +290,7 @@ bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTI
     strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
-  return checkColumnLevel(level);
+  return checkColumnLevel(level) && validColCompressLevel(type, columnLevelVal(level));
 }
 
 void setColEncode(uint32_t* compress, uint8_t l1) {
