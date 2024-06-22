@@ -359,7 +359,7 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub(crate) async fn is_datasource_valid_impl(
+async fn is_datasource_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {
@@ -398,7 +398,15 @@ pub(super) async fn get_sample(
     query: Query<DsnAgentQuery>,
 ) -> impl Responder {
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+
+    // 获取示例数据的超时时间应该小于 query 中的timeout
+    let query_timeout = query.timeout.clone().unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let dsn = query.dsn.clone().into_dsn().map_err(|err| Failed {
+        code: Code::FAILED,
+        message: format!("DSN error: {:#}", err),
+    })?;
+    let sample_timeout = plugins::parse_sample_timeout(&dsn).as_secs();
+    let timeout_sec = core::cmp::max(query_timeout, sample_timeout) + 5;
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
@@ -419,7 +427,7 @@ pub(super) async fn get_sample(
     }
 }
 
-pub(crate) async fn get_sample_impl(
+async fn get_sample_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
