@@ -24,7 +24,7 @@
 #define UNIT_ONE_EXBIBYTE        (UNIT_ONE_PEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 
 static int32_t parseCfgIntWithUnit(const char* str, double *res) {
-  double val, temp = INT64_MAX;
+  double val, temp = (double)INT64_MAX;
   char*  endPtr;
   errno = 0;
   val = taosStr2Int64(str, &endPtr, 0);

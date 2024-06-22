@@ -220,7 +220,7 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
   return code;
 }
 
-static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg** pColsAgg, int32_t numOfCols,
+static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pColsAgg, int32_t numOfCols,
                                int32_t numOfRows) {
   if (pColsAgg == NULL || pFilterInfo == NULL) {
     return true;
@@ -725,7 +725,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   if (pInfo->countState ==  TABLE_COUNT_STATE_END) {
     return;
   }
-  if (pInfo->base.pTableListInfo->oneTableForEachGroup || pInfo->base.pTableListInfo->groupOffset) {
+  if (pInfo->base.pTableListInfo->groupOffset) {
     pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
   } else {
     taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
@@ -769,6 +769,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
   bool            hasNext = false;
   int32_t         code = TSDB_CODE_SUCCESS;
+  pBlock->info.dataLoad = false;
 
   int64_t st = taosGetTimestampUs();
 
@@ -890,7 +891,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
-    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) {  // group by tbname, group by tag + sort
+    if (pTableListInfo->groupOffset) {  // group by tbname, group by tag + sort
       if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =
@@ -1891,7 +1892,7 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
       groupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, preJ);
       if (pInfo->pPartTbnameSup) {
         void* parTbname = NULL;
-        int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
+        int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname, false);
         if (code != TSDB_CODE_SUCCESS) {
           calBlockTbName(pInfo, pPreRes, preJ);
           memcpy(varDataVal(tbname), pPreRes->info.parTbName, strlen(pPreRes->info.parTbName));
@@ -1937,7 +1938,7 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     }
     if (pInfo->tbnameCalSup.pExprInfo) {
       void* parTbname = NULL;
-      int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname);
+      int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname, false);
       if (code != TSDB_CODE_SUCCESS) {
         SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, srcUid, srcStartTsCol[i], srcStartTsCol[i], ver);
         printDataBlock(pPreRes, "pre res", GET_TASKID(pInfo->pStreamScanOp->pTaskInfo));
@@ -4960,6 +4961,7 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
 
   size_t infodbTableNum;
   getInfosDbMeta(NULL, &infodbTableNum);
+  infodbTableNum -= 1;
   size_t perfdbTableNum;
   getPerfDbMeta(NULL, &perfdbTableNum);
 

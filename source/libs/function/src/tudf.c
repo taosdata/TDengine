@@ -26,6 +26,10 @@
 #include "tudf.h"
 #include "tudfInt.h"
 
+#ifdef _TD_DARWIN_64
+#include <mach-o/dyld.h>
+#endif
+
 typedef struct SUdfdData {
   bool         startCalled;
   bool         needCleanUp;

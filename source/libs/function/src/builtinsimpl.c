@@ -3631,7 +3631,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
     SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
     ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     key.groupId = pSrcBlock->info.id.groupId;
-    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);;
+    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);

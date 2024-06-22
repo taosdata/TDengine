@@ -24,6 +24,14 @@ extern "C" {
 
 // clang-format off
 
+typedef struct {
+  int32_t     val;
+  const char* str;
+  const char* macro;
+} STaosError;
+
+extern STaosError errors[];
+
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -38,6 +46,7 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
 #define terrMsg                             (taosGetErrMsg())
 
@@ -316,7 +325,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_DB_OPTION_UNCHANGED       TAOS_DEF_ERROR_CODE(0, 0x038A) //
 #define TSDB_CODE_MND_DB_INDEX_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x038B)
 #define TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO  TAOS_DEF_ERROR_CODE(0, 0x038C)
-#define TSDB_CODE_MND_INCONSIST_ENCRYPT_KEY     TAOS_DEF_ERROR_CODE(0, 0x038D)
+// #define TSDB_CODE_MND_INCONSIST_ENCRYPT_KEY  TAOS_DEF_ERROR_CODE(0, 0x038D) // unused
 #define TSDB_CODE_MND_INVALID_ENCRYPT_KEY       TAOS_DEF_ERROR_CODE(0, 0x038E)
 // #define TSDB_CODE_MND_INVALID_DB_OPTION_DAYS TAOS_DEF_ERROR_CODE(0, 0x0390) // 2.x
 // #define TSDB_CODE_MND_INVALID_DB_OPTION_KEEP TAOS_DEF_ERROR_CODE(0, 0x0391) // 2.x
@@ -327,6 +336,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_DB_IN_CREATING            TAOS_DEF_ERROR_CODE(0, 0x0396) //
 #define TSDB_CODE_MND_INVALID_SYS_TABLENAME     TAOS_DEF_ERROR_CODE(0, 0x039A)
 #define TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE  TAOS_DEF_ERROR_CODE(0, 0x039B)
+#define TSDB_CODE_MND_INVALID_WAL_LEVEL         TAOS_DEF_ERROR_CODE(0, 0x039C)
 
 // mnode-node
 #define TSDB_CODE_MND_MNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03A0)

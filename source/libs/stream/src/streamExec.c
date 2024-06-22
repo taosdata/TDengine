@@ -541,14 +541,14 @@ int32_t streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 //static void streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime) { pTask->status.schedIdleTime = idleTime; }
 static void setLastExecTs(SStreamTask* pTask, int64_t ts) { pTask->status.lastExecTs = ts; }
 
-static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock) {
+static void doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock, int32_t num) {
   const char*      id = pTask->id.idStr;
   int32_t          blockSize = 0;
   int64_t          st = taosGetTimestampMs();
   SCheckpointInfo* pInfo = &pTask->chkInfo;
   int64_t          ver = pInfo->processedVer;
 
-  stDebug("s-task:%s start to process batch of blocks, num:%d, type:%s", id, 1, "checkpoint-trigger");
+  stDebug("s-task:%s start to process batch blocks, num:%d, type:%s", id, num, streamQueueItemGetTypeStr(pBlock->type));
 
   doSetStreamInputBlock(pTask, pBlock, &ver, id);
 
@@ -607,7 +607,7 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
   }
 
   // 2. flush data in executor to K/V store, which should be completed before do checkpoint in the K/V.
-  doStreamTaskExecImpl(pTask, pCheckpointBlock);
+  doStreamTaskExecImpl(pTask, pCheckpointBlock, 1);
 }
 
 /**
@@ -615,7 +615,7 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
  * appropriate batch of blocks should be handled in 5 to 10 sec.
  */
 static int32_t doStreamExecTask(SStreamTask* pTask) {
-  const char*      id = pTask->id.idStr;
+  const char* id = pTask->id.idStr;
 
   // merge multiple input data if possible in the input queue.
   stDebug("s-task:%s start to extract data block from inputQ", id);
@@ -643,7 +643,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (taosGetTimestampMs() - pTask->status.lastExecTs < MIN_INVOKE_INTERVAL) {
-      stDebug("s-task:%s invoke with high frequency, idle and retry exec in 50ms", id);
+      stDebug("s-task:%s invoke exec too fast, idle and retry in 50ms", id);
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
       return 0;
     }
@@ -698,21 +698,16 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (type != STREAM_INPUT__CHECKPOINT) {
-      doStreamTaskExecImpl(pTask, pInput);
-    }
-
-    streamFreeQitem(pInput);
-
-    // todo other thread may change the status
+      doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
+      streamFreeQitem(pInput);
+    } else { // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-    if (type == STREAM_INPUT__CHECKPOINT) {
-      // todo add lock
+      taosThreadMutexLock(&pTask->lock);
       SStreamTaskState* pState = streamTaskGetStatus(pTask);
       if (pState->state == TASK_STATUS__CK) {
         stDebug("s-task:%s checkpoint block received, set status:%s", id, pState->name);
         streamTaskBuildCheckpoint(pTask);
-      } else {
-        // todo refactor
+      } else { // todo refactor
         int32_t code = 0;
         if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           code = streamTaskSendCheckpointSourceRsp(pTask);
@@ -727,6 +722,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         }
       }
 
+      taosThreadMutexUnlock(&pTask->lock);
+      streamFreeQitem(pInput);
       return 0;
     }
   }

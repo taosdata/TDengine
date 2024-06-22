@@ -299,7 +299,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
   connectRsp.authVer = pUser->authVersion;
-  connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.whiteListVer = mndGetUserIpWhiteListVer(pMnode, pUser);
   connectRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
   connectRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
   connectRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;

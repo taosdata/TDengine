@@ -283,9 +283,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
-  pTask->msgInfo.pRetryList = taosArrayDestroy(pTask->msgInfo.pRetryList);
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
+
+  pTask->msgInfo.pSendInfo = taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  taosThreadMutexDestroy(&pTask->msgInfo.lock);
 
   pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
 
@@ -373,7 +375,13 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   pTask->pMeta = pMeta;
   pTask->pMsgCb = pMsgCb;
-  pTask->msgInfo.pRetryList = taosArrayInit(4, sizeof(int32_t));
+  pTask->msgInfo.pSendInfo = taosArrayInit(4, sizeof(SDispatchEntry));
+  if (pTask->msgInfo.pSendInfo == NULL) {
+    stError("s-task:%s failed to create sendInfo struct for stream task, code:Out of memory", pTask->id.idStr);
+    return terrno;
+  }
+
+  taosThreadMutexInit(&pTask->msgInfo.lock, NULL);
 
   TdThreadMutexAttr attr = {0};
 
@@ -731,35 +739,50 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   return code;
 }
 
-int32_t streamBuildAndSendCheckpointUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, STaskId* pHTaskId,
-                                              SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  SVUpdateCheckpointInfoReq* pReq = rpcMallocCont(sizeof(SVUpdateCheckpointInfoReq));
-  if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
+  int32_t     code;
+  int32_t     tlen = 0;
+  int32_t     vgId = pTask->pMeta->vgId;
+  const char* id = pTask->id.idStr;
+  SActiveCheckpointInfo* pActive = pCheckpointInfo->pActiveInfo;
+
+  SCheckpointReport req = {.streamId = pTask->id.streamId,
+                           .taskId = pTask->id.taskId,
+                           .nodeId = vgId,
+                           .dropHTask = dropRelHTask,
+                           .transId = pActive->transId,
+                           .checkpointId = pActive->activeId,
+                           .checkpointVer = pCheckpointInfo->processedVer,
+                           .checkpointTs = pCheckpointInfo->startTs};
+
+  tEncodeSize(tEncodeStreamTaskChkptReport, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report failed, code:%s", id, vgId, tstrerror(code));
     return -1;
   }
 
-  pReq->head.vgId = vgId;
-  pReq->taskId = pTaskId->taskId;
-  pReq->streamId = pTaskId->streamId;
-  pReq->dropRelHTask = dropRelHTask;
-  pReq->hStreamId = pHTaskId->streamId;
-  pReq->hTaskId = pHTaskId->taskId;
-  pReq->transId = pCheckpointInfo->pActiveInfo->transId;
-
-  pReq->checkpointId = pCheckpointInfo->pActiveInfo->activeId;
-  pReq->checkpointVer = pCheckpointInfo->processedVer;
-  pReq->checkpointTs = pCheckpointInfo->startTs;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_UPDATE_CHKPT, .pCont = pReq, .contLen = sizeof(SVUpdateCheckpointInfoReq)};
-  int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("vgId:%d task:0x%x failed to send update checkpoint info msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
-  } else {
-    stDebug("vgId:%d task:0x%x build and send update checkpoint info msg msg", vgId, pTaskId->taskId);
+  void* buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
   }
-  return code;
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeStreamTaskChkptReport(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    stError("s-task:%s vgId:%d encode stream task checkpoint-report msg failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {0};
+  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_REPORT, buf, tlen);
+  stDebug("s-task:%s vgId:%d build and send task checkpoint-report to mnode", id, vgId);
+
+  tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+  return 0;
 }
 
 STaskId streamTaskGetTaskId(const SStreamTask* pTask) {
@@ -921,32 +944,36 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
 
 static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
-  int8_t            status = TASK_INPUT_STATUS__NORMAL;
-
-  // enqueue
-  if (pData != NULL) {
-    stDebug("s-task:%s (child %d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
-            pTask->info.selfChildId, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
-
-    pData->type = STREAM_INPUT__DATA_RETRIEVE;
-    pData->srcVgId = 0;
-    streamRetrieveReqToData(pReq, pData);
-    if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pData) == 0) {
-      status = TASK_INPUT_STATUS__NORMAL;
-    } else {
-      status = TASK_INPUT_STATUS__FAILED;
-    }
-  } else {  // todo handle oom
-    /*streamTaskInputFail(pTask);*/
-    /*status = TASK_INPUT_STATUS__FAILED;*/
+  if (pData == NULL) {
+    stError("s-task:%s failed to allocated retrieve-block", pTask->id.idStr);
+    return terrno;
   }
 
-  return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
+  // enqueue
+  stDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
+          pTask->pMeta->vgId, pTask->info.taskLevel, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
+
+  pData->type = STREAM_INPUT__DATA_RETRIEVE;
+  pData->srcVgId = 0;
+
+  int32_t code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosFreeQitem(pData);
+    return code;
+  }
+
+  code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pData);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s failed to put retrieve-block into inputQ, inputQ is full, discard the retrieve msg",
+            pTask->id.idStr);
+  }
+
+  return code;
 }
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   int32_t code = streamTaskEnqueueRetrieve(pTask, pReq);
-  if(code != 0){
+  if (code != 0) {
     return code;
   }
   return streamTrySchedExec(pTask);

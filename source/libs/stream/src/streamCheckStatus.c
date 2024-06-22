@@ -299,12 +299,10 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
 
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id) {
   taosThreadMutexLock(&pInfo->checkInfoLock);
-  streamTaskCompleteCheckRsp(pInfo, false, id);
-
   pInfo->stopCheckProcess = 1;
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
-  stDebug("s-task:%s set stop check-rsp monit", id);
+  stDebug("s-task:%s set stop check-rsp monitor flag", id);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -438,6 +436,7 @@ int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id) {
     ASSERT(pInfo->startTs > 0);
     stError("s-task:%s already in check procedure, checkTs:%" PRId64 ", start monitor check rsp failed", id,
             pInfo->startTs);
+    pInfo->stopCheckProcess = 0; // disable auto stop of check process
     return TSDB_CODE_FAILED;
   }
 
@@ -509,7 +508,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
   if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
     STaskDispatcherFixed* pDispatch = &pOutputInfo->fixedDispatcher;
-    setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->taskId);
+    setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->nodeId);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) reqId:0x%" PRIx64,
             id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);

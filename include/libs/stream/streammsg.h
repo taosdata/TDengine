@@ -190,6 +190,20 @@ typedef struct SCheckpointTriggerRsp {
   int32_t  rspCode;
 } SCheckpointTriggerRsp;
 
+typedef struct SCheckpointReport {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+  int64_t checkpointId;
+  int64_t checkpointVer;
+  int64_t checkpointTs;
+  int32_t transId;
+  int8_t  dropHTask;
+} SCheckpointReport;
+
+int32_t tEncodeStreamTaskChkptReport(SEncoder* pEncoder, const SCheckpointReport* pReq);
+int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq);
+
 typedef struct {
   SMsgHead head;
   int64_t  streamId;

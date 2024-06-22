@@ -1849,3 +1849,7 @@ int taos_set_conn_mode(TAOS* taos, int mode, int value) {
   }
   return 0;
 }
+
+char* getBuildInfo(){
+    return buildinfo;
+}
