@@ -596,9 +596,9 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     }
 
     tstrncpy(desc.sql, pRequest->sqlstr, sizeof(desc.sql));
-    desc.stime = pRequest->metric.start / 1000000;
+    desc.stime = pRequest->metric.start / 1000;
     desc.queryId = pRequest->requestId;
-    desc.useconds = now - pRequest->metric.start/1000;
+    desc.useconds = now - pRequest->metric.start;
     desc.reqRid = pRequest->self;
     desc.stableQuery = pRequest->stableQuery;
     desc.isSubQuery = pRequest->isSubReq;

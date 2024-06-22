@@ -97,9 +97,23 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
     tscError("[monitor] cJSON_CreateObject failed");
     return;
   }
-  cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateNumber(pTscObj->pAppInfo->clusterId));
-  cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateNumber(pRequest->metric.start));
-  cJSON_AddItemToObject(json, "request_id",  cJSON_CreateNumber(pRequest->requestId));
+  char clusterId[32] = {0};
+  if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0){
+    uError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
+  }
+
+  char startTs[32] = {0};
+  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start) < 0){
+    uError("failed to generate startTs:%" PRId64, pRequest->metric.start);
+  }
+
+  char requestId[32] = {0};
+  if (snprintf(requestId, sizeof(requestId), "%" PRId64, pRequest->requestId) < 0){
+    uError("failed to generate requestId:%" PRId64, pRequest->requestId);
+  }
+  cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateString(clusterId));
+  cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateString(startTs));
+  cJSON_AddItemToObject(json, "request_id",  cJSON_CreateString(requestId));
   cJSON_AddItemToObject(json, "query_time",         cJSON_CreateNumber(duration/1000));
   cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
   cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
@@ -153,7 +167,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
-  int64_t duration = taosGetTimestampUs() - pRequest->metric.start/1000;
+  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
            " elapsed:%.2f ms, "
            "current:%d, app current:%d",
@@ -193,10 +207,10 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if (duration >= (pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest)) {
+  if (duration >= (pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest * 1000000UL)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " ns, Duration:%" PRId64 "us, SQL:%s",
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
       if(pTscObj->pAppInfo->monitorParas.tsEnableMonitor){
@@ -419,7 +433,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
-  pRequest->metric.start = taosGetTimestampNs();
+  pRequest->metric.start = taosGetTimestampUs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   pRequest->type = type;
