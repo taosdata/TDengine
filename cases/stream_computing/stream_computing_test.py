@@ -5101,7 +5101,8 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
             self.at_once_session(session=random.randint(10, 15),subtable=None, partition="abs(c1)")
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True, inc_cpt=True)
+            if self.replica == 1:
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True, inc_cpt=True)
             self.at_once_event_window(partition="c1")
             self.at_once_event_window(partition="abs(c1)")
             self.at_once_event_window(partition=None)
