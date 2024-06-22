@@ -40,7 +40,13 @@ typedef struct {
   taos_collector_registry_t* registry;
   taos_collector_t*          colector;
   SHashObj*                  counters;
+  void*                      timer;
 } MonitorClient;
+
+typedef struct {
+  TdFilePtr                  pFile;
+  void*                      timer;
+} SlowLogClient;
 
 typedef struct {
   int64_t  clusterId;

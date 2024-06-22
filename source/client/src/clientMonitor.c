@@ -39,16 +39,25 @@ static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size){
 //  taos_counter_destroy(conuter);
 //}
 
-static void destroyClientFile(void* data){
+static void destroySlowLogClient(void* data){
   if (data == NULL) {
     return;
   }
-  TdFilePtr pFile = *(TdFilePtr*)data;
-  if(pFile == NULL){
+  SlowLogClient* slowLogClient = *(SlowLogClient**)data;
+  if(slowLogClient == NULL){
     return;
   }
+  taosTmrStopA(&(*(SlowLogClient**)data)->timer);
+
+  TdFilePtr pFile = slowLogClient->pFile;
+  if(pFile == NULL){
+    taosMemoryFree(slowLogClient);
+    return;
+  }
+
   taosUnLockFile(pFile);
   taosCloseFile(&pFile);
+  taosMemoryFree(slowLogClient);
 }
 
 static void destroyMonitorClient(void* data){
@@ -59,6 +68,7 @@ static void destroyMonitorClient(void* data){
   if(pMonitor == NULL){
     return;
   }
+  taosTmrStopA(&pMonitor->timer);
   taosHashCleanup(pMonitor->counters);
   taos_collector_registry_destroy(pMonitor->registry);
 //  taos_collector_destroy(pMonitor->colector);
@@ -237,7 +247,7 @@ static void sendAllSlowLog(){
   taosRLockLatch(&monitorLock);
   void* data = taosHashIterate(monitorSlowLogHash, NULL);
   while (data != NULL) {
-    TdFilePtr pFile = *(TdFilePtr*)data;
+    TdFilePtr pFile = (*(SlowLogClient**)data)->pFile;
     if (pFile != NULL){
       int64_t clusterId = *(int64_t*)taosHashGetKey(data, NULL);
       SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
@@ -351,7 +361,7 @@ void monitorInit() {
   if (monitorSlowLogHash == NULL) {
     uError("failed to create monitorSlowLogHash");
   }
-  taosHashSetFreeFp(monitorSlowLogHash, destroyClientFile);
+  taosHashSetFreeFp(monitorSlowLogHash, destroySlowLogClient);
 
   monitorTimer = taosTmrInit(0, 0, 0, "MONITOR");
   if (monitorTimer == NULL) {
@@ -418,7 +428,11 @@ void monitorCreateClient(int64_t clusterId) {
       pMonitor = NULL;
       goto fail;
     }
-    taosTmrStart(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
+    pMonitor->timer = taosTmrStart(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
+    if(pMonitor->timer == NULL){
+      uError("failed to start timer");
+      goto fail;
+    }
     uInfo("[monitor] monitorCreateClient for %"PRIx64 "finished %p.", clusterId, pMonitor);
   }
   taosWUnLockLatch(&monitorLock);
@@ -504,7 +518,7 @@ void reportSlowLog(void* param, void* tmrId) {
   }
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-  monitorReadSendSlowLog(*(TdFilePtr*)tmp, pInst->pTransporter, &ep);
+  monitorReadSendSlowLog((*(SlowLogClient**)tmp)->pFile, pInst->pTransporter, &ep);
   taosRUnLockLatch(&monitorLock);
 
   taosTmrReset(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
@@ -530,9 +544,17 @@ void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
       goto FAILED;
     }
 
-    if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pFile, POINTER_BYTES) != 0){
+    SlowLogClient *pClient = taosMemoryCalloc(1, sizeof(SlowLogClient));
+    if (pClient == NULL){
+      uError("failed to allocate memory for slow log client");
+      taosCloseFile(&pFile);
+      goto FAILED;
+    }
+    pClient->pFile = pFile;
+    if (taosHashPut(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES, &pClient, POINTER_BYTES) != 0){
       uError("failed to put clusterId:%" PRId64 " to hash table", slowLogData->clusterId);
       taosCloseFile(&pFile);
+      taosMemoryFree(pClient);
       goto FAILED;
     }
 
@@ -547,9 +569,9 @@ void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
       goto FAILED;
     }
 
-    taosTmrStart(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, (void*)slowLogData->clusterId, monitorTimer);
+    pClient->timer = taosTmrStart(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, (void*)slowLogData->clusterId, monitorTimer);
   }else{
-    pFile = *(TdFilePtr*)tmp;
+    pFile = (*(SlowLogClient**)tmp)->pFile;
   }
 
   if (taosWriteFile(pFile, slowLogData->value, strlen(slowLogData->value) + 1) < 0){
