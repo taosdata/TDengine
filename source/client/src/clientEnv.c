@@ -137,7 +137,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
     uError("failed to generate pid:%d", appInfo.pid);
   }
 
-  cJSON_AddItemToObject(json, "process_id",   cJSON_CreateNumber(appInfo.pid));
+  cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
   char dbList[1024] = {0};
   concatStrings(pRequest->dbList, dbList, sizeof(dbList));
   cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
