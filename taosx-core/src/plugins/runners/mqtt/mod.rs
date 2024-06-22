@@ -105,7 +105,9 @@ pub async fn mqtt_to_taos(
     match task_id {
         Some(task_id) => {
             let path = get_data_dir().join("tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
+            std::fs::create_dir_all(&path).map_err(|err| {
+                anyhow::format_err!("failed to create task dir: {:?}, cause: {:?}", path, err)
+            })?;
             let path = path.join(format!(
                 "{}-{}-{}.{}",
                 task_id,
@@ -168,7 +170,10 @@ pub async fn mqtt_to_taos(
         let mut line = String::new();
         loop {
             // Read a line from stderr
-            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            let bytes_read = reader
+                .read_line(&mut line)
+                .await
+                .expect("failed to read line from stderr");
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
@@ -181,7 +186,7 @@ pub async fn mqtt_to_taos(
                 is_killed_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             }
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line).unwrap();
+            write!(log_rotation, "{}", line).expect("failed to write line to log_rotation");
             line.clear();
         }
         Ok::<(), std::io::Error>(())
@@ -484,9 +489,18 @@ async fn get_sample_impl_v5(
     let mut count = 0;
     let mut payload_list: Vec<String> = Vec::new();
     'GET_SAMPLE_V5: loop {
-        let event = event_loop.poll().await.unwrap();
+        let event = event_loop
+            .poll()
+            .await
+            .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?;
         if let rumqttc::v5::Event::Incoming(rumqttc::v5::Incoming::Publish(publish)) = event {
-            let payload = String::from_utf8(publish.payload.to_vec()).unwrap();
+            let payload = String::from_utf8(publish.payload.to_vec()).map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to parse mqtt payload: {:?}, cause: {:?}",
+                    publish,
+                    err
+                )
+            })?;
             payload_list.push(payload);
             count += 1;
         }
