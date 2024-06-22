@@ -142,6 +142,14 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
                    oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
         }
+      } else {
+        // Need to update version information to prevent frequent fetching of authentication
+        // information.
+        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
+        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
+                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
       releaseTscObj(pReq->connKey.tscRid);
     }
