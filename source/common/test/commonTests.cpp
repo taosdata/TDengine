@@ -730,7 +730,7 @@ TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
 #define SLOW_LOG_TYPE_QUERY  0x1
 #define SLOW_LOG_TYPE_INSERT 0x2
 #define SLOW_LOG_TYPE_OTHERS 0x4
-#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+#define SLOW_LOG_TYPE_ALL    0x7
 
 static int32_t taosSetSlowLogScope(char *pScope) {
   if (NULL == pScope || 0 == strlen(pScope)) {

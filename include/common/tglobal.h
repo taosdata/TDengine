@@ -28,7 +28,7 @@ extern "C" {
 #define SLOW_LOG_TYPE_QUERY  0x1
 #define SLOW_LOG_TYPE_INSERT 0x2
 #define SLOW_LOG_TYPE_OTHERS 0x4
-#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+#define SLOW_LOG_TYPE_ALL    0x7
 
 typedef enum {
   DND_CA_SM4 = 1,
