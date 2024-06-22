@@ -24,9 +24,6 @@ from frame.autogen import *
 class TDTestCase(TBase):
 
     def td_30642(self):
-        tdLog.info("create database td_30642")
-        tdSql.execute(f"create database td_30642")
-        tdSql.execute(f"use td_30642")
         sqls = [
             "CREATE DATABASE IF NOT EXISTS `_xTest2`",
             "CREATE USER `_xTest` PASS 'taosdata'",
@@ -43,12 +40,14 @@ class TDTestCase(TBase):
         sql1_verify = "select * from information_schema.ins_user_privileges where user_name='_xTest' and privilege='read' and db_name='_xTest2' and table_name='meters'"
         tdSql.query(sql1_verify)
         tdSql.checkRows(1)
+        tdSql.checkData(0, 4, '(`_xTest2`.`meters`.`t1` = 1)')
 
         sql2 = 'GRANT write ON test2.meters2 WITH (t1 = 1) TO user1'
         tdSql.query(sql2)
         sql2_verify = "select * from information_schema.ins_user_privileges where user_name='user1' and privilege='write' and db_name='test2' and table_name='meters2'"
         tdSql.query(sql2_verify)
         tdSql.checkRows(1)
+        tdSql.checkData(0, 4, '(`test2`.`meters2`.`t1` = 1)')
 
     # run
     def run(self):
