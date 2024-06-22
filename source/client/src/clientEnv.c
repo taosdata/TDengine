@@ -131,6 +131,12 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_AddItemToObject(json, "user",         cJSON_CreateString(pTscObj->user));
   cJSON_AddItemToObject(json, "process_name", cJSON_CreateString(appInfo.appName));
   cJSON_AddItemToObject(json, "ip",           cJSON_CreateString(tsLocalFqdn));
+
+  char pid[32] = {0};
+  if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0){
+    uError("failed to generate pid:%d", appInfo.pid);
+  }
+
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateNumber(appInfo.pid));
   char dbList[1024] = {0};
   concatStrings(pRequest->dbList, dbList, sizeof(dbList));
