@@ -152,6 +152,7 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
 
 void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
   char buf[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
+  char pCont[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
   int32_t offset = 0;
   if(taosLSeekFile(pFile, 0, SEEK_SET) < 0){
     uError("failed to seek file:%p code: %d", pFile, errno);
@@ -164,32 +165,28 @@ void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
       return;
     }
 
-    cJSON* pArray = cJSON_CreateArray();
+    memset(pCont, 0, sizeof(pCont));
+    strcat(pCont, "[");
     char* string = buf;
     for(int i = 0; i < readSize + offset; i++){
       if (buf[i] == '\0') {
-        cJSON_AddItemToArray(pArray, cJSON_CreateString(string));
-        uDebug("[monitor] slow log:%s", string);
+        if (string != buf) strcat(pCont, ",");
+        strcat(pCont, string);
+        uDebug("[monitor] monitorReadSendSlowLog slow log:%s", string);
         string = buf + i + 1;
       }
     }
-
-    ASSERT(cJSON_GetArraySize(pArray) > 0);   // make sure SLOW_LOG_SEND_SIZE is bigger than one line in pFile
-    char* pCont = cJSON_PrintUnformatted(pArray);
+    strcat(pCont, "]");
     if (pTransporter && pCont != NULL) {
       if(sendReport(pTransporter, epSet, pCont, MONITOR_TYPE_SLOW_LOG) != 0){
         if(taosLSeekFile(pFile, -readSize, SEEK_CUR) < 0){
           uError("failed to seek file:%p code: %d", pFile, errno);
         }
         uError("failed to send report:%s", pCont);
-        cJSON_free(pCont);
-        cJSON_Delete(pArray);
         return;
       }
-      uDebug("[monitor] send slow log:%s", pCont)
+      uDebug("[monitor] monitorReadSendSlowLog send slow log to mnode:%s", pCont)
     }
-    cJSON_free(pCont);
-    cJSON_Delete(pArray);
 
     if (readSize + offset < SLOW_LOG_SEND_SIZE) {
       break;
@@ -197,13 +194,13 @@ void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
     offset = SLOW_LOG_SEND_SIZE - (string - buf);
     if(buf != string && offset != 0){
       memmove(buf, string, offset);
-      uDebug("[monitor] left slow log:%s", buf)
+      uDebug("[monitor] monitorReadSendSlowLog left slow log:%s", buf)
     }
   }
   if(taosFtruncateFile(pFile, 0) < 0){
     uError("failed to truncate file:%p code: %d", pFile, errno);
   }
-  uDebug("[monitor] send slow log file:%p", pFile);
+  uDebug("[monitor] monitorReadSendSlowLog send slow log file:%p", pFile);
 }
 
 static void generateClusterReport(taos_collector_registry_t* registry, void* pTransporter, SEpSet *epSet) {
@@ -253,6 +250,8 @@ static void sendAllSlowLog(){
     }
     data = taosHashIterate(monitorSlowLogHash, data);
   }
+  uDebug("[monitor] sendAllSlowLog when client close");
+
   taosRUnLockLatch(&monitorLock);
 }
 
@@ -296,7 +295,6 @@ void monitorSendAllSlowLogFromTempDir(void* inst){
 
     char filename[PATH_MAX] = {0};
     snprintf(filename, sizeof(filename), "%s%s", tmpPath, name);
-    uDebug("[monitor] send slow log file:%s", filename);
     TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
     if (pFile == NULL) {
       uError("failed to open file:%s since %s", filename, terrstr());
@@ -312,6 +310,8 @@ void monitorSendAllSlowLogFromTempDir(void* inst){
     taosUnLockFile(pFile);
     taosCloseFile(&pFile);
     taosRemoveFile(filename);
+    uDebug("[monitor] send and delete slow log file when reveive connect rsp:%s", filename);
+
   }
 
   taosCloseDir(&pDir);
