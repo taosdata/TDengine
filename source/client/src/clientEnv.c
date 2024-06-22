@@ -103,13 +103,13 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
 
   char startTs[32] = {0};
-  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start) < 0){
-    uError("failed to generate startTs:%" PRId64, pRequest->metric.start);
+  if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start/1000) < 0){
+    uError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
   }
 
   char requestId[32] = {0};
-  if (snprintf(requestId, sizeof(requestId), "%" PRId64, pRequest->requestId) < 0){
-    uError("failed to generate requestId:%" PRId64, pRequest->requestId);
+  if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0){
+    uError("failed to generate requestId:%" PRIu64, pRequest->requestId);
   }
   cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateString(clusterId));
   cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateString(startTs));
