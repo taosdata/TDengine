@@ -387,6 +387,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
+- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 数量大小写入数据库的 vgroups 数量， thread_count 自动调整为 vgroups 数量，如果 thread_count 数量小于 vgroups 数量，写入线程数量不做调整，一个写入线程写完一个 vgroup 后再写下一个，始终保持一个 vgroup 同时只能由一个线程写入的规则。
+
 - **create_table_thread_count** : 建表的线程数量，默认为 8。
 
 - **connection_pool_size** : 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
@@ -406,6 +408,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   每次向 TDengine 请求写入的数据行数，默认值为 30000 。当其设置过大时，TDengine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 
 - **prepare_rand** : 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
+
+- **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可以提高写入时速。
 
 ### 查询场景配置参数
 
