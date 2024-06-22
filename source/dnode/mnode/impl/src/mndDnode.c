@@ -1292,7 +1292,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",
       "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
   };
+
   static char *enableWhitelist_str = "enableWhitelist";
+  int8_t       updateWhiteList = 0;
 
   int32_t optionSize = tListLen(options);
 
@@ -1460,10 +1462,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
 
-    mndRefreshUserIpWhiteList(pMnode);
-
     strcpy(dcfgReq.config, enableWhitelist_str);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+    updateWhiteList = 1;
 
   } else {
     bool findOpt = false;
@@ -1536,6 +1537,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     sdbRelease(pSdb, pDnode);
   }
+
+  if (updateWhiteList) mndRefreshUserIpWhiteList(pMnode);
 
   if (code == -1) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
