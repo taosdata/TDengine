@@ -2547,12 +2547,11 @@ export function getDataSources(lang) {
                   "type": "str",
                   "choices": [
                     "Earliest",
-                    "Latest",
-                    "ByTime"
+                    "Latest"
                   ]
                 },
                 "short_description": "Possible values when querying a topic’s offset.",
-                "description": "Possible values when querying a topic’s offset.\n* Earliest: Receive the earliest available offset. * Latest: Receive the latest offset. * ByTime: Used to ask for all messages before a certain time (ms); unix timestamp in milliseconds.\ndefault is Earliest.\n",
+                "description": "Possible values when querying a topic’s offset.\n* `Earliest`: Receive the earliest available offset. \n* `Latest`: Receive the latest offset. \n* default is Earliest.",
                 "required": false,
                 "placeholder": "Earliest",
                 "value": "Earliest"
@@ -6577,12 +6576,11 @@ export function getDataSources(lang) {
                   "type": "str",
                   "choices": [
                     "Earliest",
-                    "Latest",
-                    "ByTime"
+                    "Latest"
                   ]
                 },
                 "short_description": "Fallback Offset 参数可以指定以下值：",
-                "description": "Fallback Offset 参数可以指定以下值：\n* `Earliest`：用于请求最早的 offset. * `Latest`：用于请求最晚的 offset. * `ByTime`：用于请求在特定时间（毫秒）之前的所有消息; 时间戳为毫秒精度。\n默认值为Earliest。\n",
+                "description": "Fallback Offset 参数可以指定以下值：\n* `Earliest`：用于请求最早的 offset. \n* `Latest`：用于请求最晚的 offset. \n* 默认值为Earliest。",
                 "required": false,
                 "placeholder": "Earliest",
                 "value": "Earliest"
