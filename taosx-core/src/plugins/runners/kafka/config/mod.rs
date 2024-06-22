@@ -59,7 +59,7 @@ impl KafkaTaskConfig {
             .ok_or(anyhow::anyhow!("topics is required"))?)
     }
 
-    fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
+    pub fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
         let fallback_offset = dsn.params.get("fallback_offset").map(String::as_str);
 
         match fallback_offset {

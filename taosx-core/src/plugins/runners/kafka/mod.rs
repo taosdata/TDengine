@@ -108,12 +108,14 @@ async fn get_sample_impl(
     limit: usize,
     timeout: Duration,
 ) -> anyhow::Result<Vec<String>> {
-    // create consumer
     let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
+    let fallback_offset = KafkaTaskConfig::parse_fallback_offset(dsn)?;
+
+    // create consumer
     let mut client_config = build_client_config(connect_config).unwrap();
     let consumer: BaseConsumer = client_config
         .set("group.id", "test")
-        .set("auto.offset.reset", "earliest")
+        .set("auto.offset.reset", &fallback_offset)
         .set("enable.auto.commit", "false")
         .create()
         .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
@@ -124,10 +126,27 @@ async fn get_sample_impl(
     consumer
         .subscribe(&topics)
         .expect("Can't subscribe to specified topics");
-    // assign offset to the beginning
-    let mut partitions = consumer.assignment().unwrap();
-    partitions.set_all_offsets(Offset::Beginning).unwrap();
-    consumer.assign(&partitions).unwrap();
+
+    let _ = tracing_all_topics(topics, &consumer);
+
+    // assign offset to the beginning or end
+    let mut tp_list = consumer.assignment().unwrap();
+    match fallback_offset.as_str() {
+        "smallest" | "earliest" | "beginning" => {
+            tp_list
+                .set_all_offsets(Offset::Beginning)
+                .expect("failed to set offset");
+        }
+        "largest" | "latest" | "end" => {
+            tp_list
+                .set_all_offsets(Offset::End)
+                .expect("failed to set offset");
+        }
+        _ => {
+            // nothing to do
+        }
+    };
+    consumer.assign(&tp_list).unwrap();
 
     // polling message from kafka
     let start = Utc::now().timestamp();
@@ -139,7 +158,6 @@ async fn get_sample_impl(
             match msg {
                 Ok(m) => {
                     m.payload().map(|p| {
-                        // println!("payload: {}", String::from_utf8_lossy(p));
                         payload_list.push(String::from_utf8_lossy(p).to_string());
                     });
                 }
@@ -157,6 +175,43 @@ async fn get_sample_impl(
     }
 
     Ok(payload_list)
+}
+
+fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Result<()> {
+    for topic in topics {
+        let metadata = consumer
+            .fetch_metadata(Some(topic), Duration::from_secs(1))
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to load meta data for topic: {}, cause: {:#}",
+                    topic,
+                    err
+                )
+            })?;
+
+        for topic_meta in metadata.topics() {
+            for partition in topic_meta.partitions() {
+                let (low, high) = consumer
+                    .fetch_watermarks(topic_meta.name(), partition.id(), Duration::from_secs(1))
+                    .map_err(|err| {
+                        anyhow::anyhow!(
+                            "failed to fetch watermarks for topic: {}, partition: {}, cause: {:#}",
+                            topic_meta.name(),
+                            partition.id(),
+                            err
+                        )
+                    })?;
+                tracing::info!(
+                    "topic: {}, partition: {}, low: {}, high: {}",
+                    topic_meta.name(),
+                    partition.id(),
+                    low,
+                    high
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 pub async fn kafka_to_taos(
