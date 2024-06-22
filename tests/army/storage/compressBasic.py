@@ -194,11 +194,11 @@ class TDTestCase(TBase):
         # alter float(c9) double(c10) to tsz
         comp = "tsz"
         sql = f"alter table {tbname} modify column c9 COMPRESS '{comp}';"
-        tdSql.execute(sql)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 10, 5, comp)
         self.writeData(10000)
         sql = f"alter table {tbname} modify column c10 COMPRESS '{comp}';"
-        tdSql.execute(sql)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 11, 5, comp)
         self.writeData(10000)
 
@@ -207,8 +207,47 @@ class TDTestCase(TBase):
             for i in range(self.colCnt - 1):
                 col = f"c{i}"
                 sql = f"alter table {tbname} modify column {col} LEVEL '{level}';"
-                tdSql.execute(sql)
+                tdSql.execute(sql, show=True)
+                self.checkDataDesc(tbname, i + 1, 6, level)
                 self.writeData(1000)
+
+        # modify two combine
+
+
+        i = 9
+        encode   = "delta-d"
+        compress = "zlib"
+        sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' COMPRESS '{compress}';"
+        tdSql.execute(sql, show=True)
+        self.checkDataDesc(tbname, i + 1, 4, encode)
+        self.checkDataDesc(tbname, i + 1, 5, compress)
+        
+        i = 10
+        encode = "delta-d"
+        level  = "high"
+        sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' LEVEL '{level}';"
+        tdSql.execute(sql, show=True)
+        self.checkDataDesc(tbname, i + 1, 4, encode)
+        self.checkDataDesc(tbname, i + 1, 6, level)
+
+        i = 2
+        compress = "zlib"
+        level    = "high"
+        sql = f"alter table {tbname} modify column c{i} COMPRESS '{compress}' LEVEL '{level}';"
+        tdSql.execute(sql, show=True)
+        self.checkDataDesc(tbname, i + 1, 5, compress)
+        self.checkDataDesc(tbname, i + 1, 6, level)
+
+        # modify three combine
+        i = 7
+        encode   = "simple8b"
+        compress = "zstd"
+        level    = "medium"
+        sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}';"
+        tdSql.execute(sql, show=True)
+        self.checkDataDesc(tbname, i + 1, 4, encode)
+        self.checkDataDesc(tbname, i + 1, 5, compress)
+        self.checkDataDesc(tbname, i + 1, 6, level)
 
         # alter error 
         sqls = [
