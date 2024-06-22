@@ -1083,10 +1083,10 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
       }
     }
 
-    releaseTscObj(connKey->tscRid);
-
     int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
     maxIpWhiteVer = MAX(maxIpWhiteVer, ver);
+    releaseTscObj(connKey->tscRid);
+
   }
   pBatchReq->ipWhiteList = maxIpWhiteVer;
 
