@@ -142,7 +142,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   pTscObj->pAppInfo->monitorParas = connectRsp.monitorParas;
-  tscDebug("[monitor] paras from connect rsp, clusterId:%" PRIx64 " monitorParas threshold:%d", connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold);
+  tscDebug("[monitor] paras from connect rsp, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;
 
   pTscObj->connType = connectRsp.connType;
