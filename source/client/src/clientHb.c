@@ -891,7 +891,6 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
                 connKey->tscRid, connKey->connType);
       }
     }
-
     int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
     maxIpWhiteVer = MAX(maxIpWhiteVer, ver);
 
