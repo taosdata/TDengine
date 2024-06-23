@@ -376,7 +376,7 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   for (int32_t i = *index; i < size; i++) {
     SWinKey* pWin = taosArrayGet(pWins, i);
     void*    tbname = NULL;
-    pInfo->stateStore.streamStateGetParName(pInfo->pState, pWin->groupId, &tbname);
+    pInfo->stateStore.streamStateGetParName(pInfo->pState, pWin->groupId, &tbname, false);
     if (tbname == NULL) {
       appendDataToSpecialBlock(pBlock, &pWin->ts, &pWin->ts, &uid, &pWin->groupId, NULL);
     } else {
@@ -750,7 +750,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, void* pState, SSDat
     if (pBlock->info.id.groupId == 0) {
       pBlock->info.id.groupId = groupId;
       void* tbname = NULL;
-      if (pAPI->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
+      if (pAPI->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname, false) < 0) {
         pBlock->info.parTbName[0] = 0;
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
@@ -2276,7 +2276,7 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
     SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
     void* tbname = NULL;
-    pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname);
+    pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname, false);
     if (tbname == NULL) {
       colDataSetNULL(pTableCol, pBlock->info.rows);
     } else {
@@ -2446,7 +2446,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
 
       void* tbname = NULL;
       if (pAPI->stateStore.streamStateGetParName((void*)pTaskInfo->streamInfo.pState, pBlock->info.id.groupId,
-                                                 &tbname) < 0) {
+                                                 &tbname, false) < 0) {
         pBlock->info.parTbName[0] = 0;
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);

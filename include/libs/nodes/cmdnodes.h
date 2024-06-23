@@ -258,6 +258,8 @@ typedef struct SCreateUserStmt {
   char        userName[TSDB_USER_LEN];
   char        password[TSDB_USET_PASSWORD_LEN];
   int8_t      sysinfo;
+  int8_t      createDb;
+  int8_t      isImport;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
 
@@ -311,6 +313,7 @@ typedef struct SShowStmt {
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
+  bool          withFull; // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {

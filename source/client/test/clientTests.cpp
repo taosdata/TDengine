@@ -828,12 +828,8 @@ TEST(clientCase, projection_query_tables) {
   //    printf("error in create db, reason:%s\n", taos_errstr(pRes));
   //  }
   //  taos_free_result(pRes);
-/*
-  TAOS_RES* pRes = taos_query(pConn, "select last(ts), ts from cache_1.t1");
-//  pRes = taos_query(pConn, "select last(ts), ts from cache_1.no_pk_t1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
+
+  pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tu using st2 tags(2)");
@@ -868,7 +864,6 @@ TEST(clientCase, projection_query_tables) {
       createNewTable(pConn, i, 100000, 0, pstr);
     }
   }
-*/
 
     pRes = taos_query(pConn, "select * from abc1.st2");
     if (taos_errno(pRes) != 0) {
@@ -1525,6 +1520,13 @@ TEST(clientCase, sub_tb_test) {
 }
 
 TEST(clientCase, sub_tb_mt_test) {
+  char *user = NULL;
+  char *auth = NULL;
+  char *ip = NULL;
+  int port = 0;
+  char key[512] = {0};
+  snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TdThread qid[20] = {0};
 

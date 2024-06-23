@@ -1157,7 +1157,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   pDest->info.parTbName[0] = 0;
   if (pInfo->tbnameCalSup.numOfExprs > 0) {
     void* tbname = NULL;
-    if (pAPI->stateStore.streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
+    if (pAPI->stateStore.streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname, false) == 0) {
       memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       pAPI->stateStore.streamStateFreeVal(tbname);
     }
@@ -1178,7 +1178,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
 void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
                           SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock, SStateStore* pAPI) {
   void* pValue = NULL;
-  if (pAPI->streamStateGetParName(pState, groupId, &pValue) != 0) {
+  if (pAPI->streamStateGetParName(pState, groupId, &pValue, true) != 0) {
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;

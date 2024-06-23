@@ -23,6 +23,7 @@ extern "C" {
 #include "taos_monitor.h"
 #include "thash.h"
 #include "query.h"
+#include "tqueue.h"
 
 typedef enum SQL_RESULT_CODE {
   SQL_RESULT_SUCCESS = 0,
@@ -30,23 +31,41 @@ typedef enum SQL_RESULT_CODE {
   SQL_RESULT_CANCEL = 2,
 } SQL_RESULT_CODE;
 
-const char* resultStr(SQL_RESULT_CODE code);
+#define SLOW_LOG_SEND_SIZE 1024*1024
+extern tsem2_t     monitorSem;
+extern STaosQueue* monitorQueue;
 
 typedef struct {
-  char                       clusterKey[512];
-  SEpSet                     epSet;
-  void*                      pTransporter;
+  int64_t                    clusterId;
   taos_collector_registry_t* registry;
   taos_collector_t*          colector;
   SHashObj*                  counters;
-} ClientMonitor;
+  void*                      timer;
+} MonitorClient;
 
-void            clusterMonitorInit(const char* clusterKey, SEpSet epSet, void* pTransporter);
-void            clusterMonitorClose(const char* clusterKey);
-taos_counter_t* createClusterCounter(const char* clusterKey, const char* name, const char* help, size_t label_key_count,
-                                     const char** label_keys);
-int             taosClusterCounterInc(const char* clusterKey, const char* counterName, const char** label_values);
-void            cluster_monitor_stop();
+typedef struct {
+  TdFilePtr                  pFile;
+  void*                      timer;
+} SlowLogClient;
+
+typedef struct {
+  int64_t  clusterId;
+  char    *value;
+} MonitorSlowLogData;
+
+void            monitorClose();
+void            monitorInit();
+void            monitorSendAllSlowLogFromTempDir(void* pInst);
+
+void            monitorClientSQLReqInit(int64_t clusterKey);
+void            monitorClientSlowQueryInit(int64_t clusterId);
+void            monitorCreateClient(int64_t clusterId);
+void            monitorCreateClientCounter(int64_t clusterId, const char* name, const char* help, size_t label_key_count, const char** label_keys);
+void            monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values);
+void*           monitorThreadFunc(void *param);
+void            monitorFreeSlowLogData(MonitorSlowLogData* pData);
+const char*     monitorResultStr(SQL_RESULT_CODE code);
+void            monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet);
 
 #ifdef __cplusplus
 }

@@ -206,7 +206,7 @@ int32_t catalogInit(SCatalogCfg* cfg);
  * @param catalogHandle (output, NO need to free it)
  * @return error code
  */
-int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
+int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle);
 
 int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum, int64_t* stateTs);
 

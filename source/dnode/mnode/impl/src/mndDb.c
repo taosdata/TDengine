@@ -495,6 +495,16 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
 #else
   if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
 #endif
+
+  if (pNewCfg->walLevel == 0 && pOldCfg->replications > 1) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+  if (pNewCfg->replications > 1 && pOldCfg->walLevel == 0) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+
   if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
   if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;

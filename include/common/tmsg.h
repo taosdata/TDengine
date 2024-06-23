@@ -158,6 +158,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_ARBGROUP,
   TSDB_MGMT_TABLE_ENCRYPTIONS,
+  TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -362,6 +363,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_TAGS_STMT,
   QUERY_NODE_SHOW_USERS_STMT,
+  QUERY_NODE_SHOW_USERS_FULL_STMT,
   QUERY_NODE_SHOW_LICENCES_STMT,
   QUERY_NODE_SHOW_VGROUPS_STMT,
   QUERY_NODE_SHOW_TOPICS_STMT,
@@ -651,6 +653,14 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_COLID(s) ((s)->colId)
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
+
+typedef struct {
+  bool    tsEnableMonitor;
+  int32_t tsMonitorInterval;
+  int32_t tsSlowLogThreshold;
+  int32_t tsSlowLogMaxLen;
+  int32_t tsSlowLogScope;
+} SMonitorParas;
 
 typedef struct {
   int32_t  nCols;
@@ -966,6 +976,7 @@ typedef struct {
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
   int64_t  whiteListVer;
+  SMonitorParas monitorParas;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1017,6 +1028,8 @@ typedef struct {
   SIpV4Range* pIpRanges;
   int32_t     sqlLen;
   char*       sql;
+  int8_t      isImport;
+  int8_t      createDb;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1631,6 +1644,7 @@ typedef struct {
   int8_t   enableWhiteList;
   int8_t   encryptionKeyStat;
   uint32_t encryptionKeyChksum;
+  SMonitorParas monitorParas;
 } SClusterCfg;
 
 typedef struct {
@@ -1722,9 +1736,15 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef enum {
+  MONITOR_TYPE_COUNTER = 0,
+  MONITOR_TYPE_SLOW_LOG = 1,
+} MONITOR_TYPE;
+
 typedef struct {
-  int32_t contLen;
-  char*   pCont;
+  int32_t       contLen;
+  char*         pCont;
+  MONITOR_TYPE  type;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
@@ -2111,6 +2131,7 @@ typedef struct {
   char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
   int64_t compactId;  // for compact
+  bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {
@@ -3254,6 +3275,7 @@ typedef struct {
   int64_t rspId;
   int32_t svrTimestamp;
   SArray* rsps;  // SArray<SClientHbRsp>
+  SMonitorParas monitorParas;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }

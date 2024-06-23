@@ -33,6 +33,20 @@
 
 #define SYSTABLE_SHOW_TYPE_OFFSET QUERY_NODE_SHOW_DNODES_STMT
 
+#define CHECK_RES_OUT_OF_MEM(p)       \
+  do {                                \
+    if (TSDB_CODE_SUCCESS != (p)) {   \
+      return TSDB_CODE_OUT_OF_MEMORY; \
+    }                                 \
+  } while (0)
+
+#define CHECK_POINTER_OUT_OF_MEM(p)   \
+  do {                                \
+    if (NULL == (p)) {                \
+      return TSDB_CODE_OUT_OF_MEMORY; \
+    }                                 \
+  } while (0)
+
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
   char*   pTbName;
@@ -180,6 +194,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_USERS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_USERS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_USERS_FULL_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_USERS_FULL,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -7302,7 +7323,17 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
                                      "Invalid option, wal_level 0 should be used with replica 1");
     }
   }
-
+#if 0
+  if (pStmt->pOptions->replica > 1 && pStmt->pOptions->walLevel < 1) {
+    SDbCfgInfo dbCfg = {0};
+    dbCfg.walLevel = -1;
+    int32_t code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == code && dbCfg.walLevel == 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option, wal_level 0 should be used with replica 1");
+    }
+  }
+#endif
   int32_t code = checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -8494,6 +8525,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
+  createReq.isImport = pStmt->isImport;
+  createReq.createDb = pStmt->createDb;
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
@@ -11597,20 +11630,6 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowAliveResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 1;
-  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
-  if (NULL == (*pSchema)) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pSchema)[0].type = TSDB_DATA_TYPE_INT;
-  (*pSchema)[0].bytes = sizeof(int32_t);
-  strcpy((*pSchema)[0].name, "status");
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -11708,9 +11727,6 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
-    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return extractShowAliveResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
@@ -11834,6 +11850,24 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
   snprintf(((SColumnNode*)pOper->pLeft)->colName, sizeof(((SColumnNode*)pOper->pLeft)->colName), "%s", pColName);
 
   *pOp = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createParOperatorNode(EOperatorType opType, const char* pLeftCol, const char* pRightCol, SNode** ppResOp) {
+  SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  CHECK_POINTER_OUT_OF_MEM(pOper);
+
+  pOper->opType = opType;
+  pOper->pLeft = nodesMakeNode(QUERY_NODE_COLUMN);
+  pOper->pRight = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pOper->pLeft || NULL == pOper->pRight) {
+    nodesDestroyNode((SNode*)pOper);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(((SColumnNode*)pOper->pLeft)->colName, pLeftCol);
+  strcpy(((SColumnNode*)pOper->pRight)->colName, pRightCol);
+
+  *ppResOp = (SNode*)pOper;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13364,6 +13398,203 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   return code;
 }
 
+static int32_t createParWhenThenNode(SNode* pWhen, SNode* pThen, SNode** ppResWhenThen) {
+  SWhenThenNode* pWThen = (SWhenThenNode*)nodesMakeNode(QUERY_NODE_WHEN_THEN);
+  CHECK_POINTER_OUT_OF_MEM(pWThen);
+
+  pWThen->pWhen = pWhen;
+  pWThen->pThen = pThen;
+  *ppResWhenThen = (SNode*)pWThen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createParCaseWhenNode(SNode* pCase, SNodeList* pWhenThenList, SNode* pElse, const char* pAias, SNode** ppResCaseWhen) {
+  SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)nodesMakeNode(QUERY_NODE_CASE_WHEN);
+  CHECK_POINTER_OUT_OF_MEM(pCaseWhen);
+
+  pCaseWhen->pCase = pCase;
+  pCaseWhen->pWhenThenList = pWhenThenList;
+  pCaseWhen->pElse = pElse;
+  if (pAias) {
+    strcpy(pCaseWhen->node.aliasName, pAias);
+    strcpy(pCaseWhen->node.userAlias, pAias);
+  }
+  *ppResCaseWhen = (SNode*)pCaseWhen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createParFunctionNode(const char* pFunName, const char* pAias, SNodeList* pParameterList, SNode** ppResFunc) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_POINTER_OUT_OF_MEM(pFunc);
+  strcpy(pFunc->functionName, pFunName);
+  strcpy(pFunc->node.aliasName, pAias);
+  strcpy(pFunc->node.userAlias, pAias);
+  pFunc->pParameterList = pParameterList;
+  *ppResFunc = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createParListNode(SNode* pItem, SNodeList** ppResList) {
+  SNodeList* pList = nodesMakeList();
+  CHECK_POINTER_OUT_OF_MEM(pList);
+  CHECK_RES_OUT_OF_MEM(nodesListStrictAppend(pList, pItem));
+  *ppResList = pList;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createParTempTableNode(SSelectStmt* pSubquery, SNode** ppResTempTable) {
+  STempTableNode* pTempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
+  CHECK_POINTER_OUT_OF_MEM(pTempTable);
+  pTempTable->pSubquery = (SNode*)pSubquery;
+  taosRandStr(pTempTable->table.tableAlias, 8);
+  strcpy(pSubquery->stmtName, pTempTable->table.tableAlias);
+  pSubquery->isSubquery = true;
+  *ppResTempTable = (SNode*)pTempTable;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char*   pDbName = ((SShowAliveStmt*)pQuery->pRoot)->dbName;
+  if (pDbName && pDbName[0] != 0) {
+    SDbCfgInfo dbCfg = {0};
+    code = getDBCfg(pCxt, pDbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  SValueNode*  pValNode = nodesMakeValueNodeFromString("leader");
+  CHECK_POINTER_OUT_OF_MEM(pValNode);
+
+  SNode*       pCond1 = NULL;
+  SNode*       pCond2 = NULL;
+  SNode*       pCond3 = NULL;
+  SNode*       pCond4 = NULL;
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v1_status", (SNode*)pValNode, &pCond1));
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v2_status", (SNode*)pValNode, &pCond2));
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v3_status", (SNode*)pValNode, &pCond3));
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v4_status", (SNode*)pValNode, &pCond4));
+  nodesDestroyNode((SNode*)pValNode);
+
+  SNode* pTemp1 = NULL;
+  SNode* pTemp2 = NULL;
+  SNode* pFullCond = NULL;
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pCond1, pCond2, &pTemp1, LOGIC_COND_TYPE_OR));
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pTemp1, pCond3, &pTemp2, LOGIC_COND_TYPE_OR));
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pTemp2, pCond4, &pFullCond, LOGIC_COND_TYPE_OR));
+
+  SNode* pThen = nodesMakeValueNodeFromInt32(1);
+  CHECK_POINTER_OUT_OF_MEM(pThen);
+
+  SNode* pWhenThen = NULL;
+  CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pFullCond, pThen, &pWhenThen));
+  SNodeList* pWhenThenlist = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pWhenThen, &pWhenThenlist));
+
+  SNode* pElse = nodesMakeValueNodeFromInt32(0);
+  CHECK_POINTER_OUT_OF_MEM(pElse);
+
+  // case when (v1_status = "leader" or v2_status = "lead er"  or v3_status = "leader" or v4_status = "leader")  then 1 else 0 end
+  SNode* pCaseWhen = NULL;
+  CHECK_RES_OUT_OF_MEM(createParCaseWhenNode(NULL, pWhenThenlist, pElse, NULL, &pCaseWhen));
+
+  SNodeList* pParaList = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pCaseWhen, &pParaList));
+
+
+  // sum( case when ... end) as leader_col
+  SNode* pSumFun = NULL;
+  const char* pSumColAlias = "leader_col";
+  CHECK_RES_OUT_OF_MEM(createParFunctionNode("sum", pSumColAlias, pParaList, &pSumFun));
+
+  SNode* pPara1 = nodesMakeValueNodeFromInt32(1);
+  CHECK_POINTER_OUT_OF_MEM(pThen);
+  pParaList = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pPara1, &pParaList));
+
+  // count(1) as count_col
+  SNode* pCountFun = NULL;
+  const char* pCountColAlias = "count_col";
+  CHECK_RES_OUT_OF_MEM(createParFunctionNode("count", pCountColAlias, pParaList, &pCountFun));
+
+  SNodeList* pProjList = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pSumFun, &pProjList));
+  CHECK_RES_OUT_OF_MEM(nodesListStrictAppend(pProjList, pCountFun));
+
+  SSelectStmt* pSubSelect = NULL;
+  // select sum( case when .... end) as leader_col, count(*) as count_col from information_schema.ins_vgroups
+  CHECK_RES_OUT_OF_MEM(createSimpleSelectStmtFromProjList(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, pProjList, &pSubSelect));
+
+  if (pDbName && pDbName[0] != 0) {
+    // for show db.alive
+    // select sum( case when .... end) as leader_col, count(*) as count_col from information_schema.ins_vgroups where db_name = "..."
+    SNode* pDbCond = NULL;
+    pValNode = nodesMakeValueNodeFromString(pDbName);
+    CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "db_name", (SNode*)pValNode, &pDbCond));
+    nodesDestroyNode((SNode*)pValNode);
+    pCxt->showRewrite = false;
+    pQuery->showRewrite = false;
+    pSubSelect->pWhere = pDbCond;
+  }
+
+
+
+  pCond1 = NULL;
+  CHECK_RES_OUT_OF_MEM(createParOperatorNode(OP_TYPE_EQUAL, pSumColAlias, pCountColAlias, &pCond1));
+  pCond2 = NULL;
+  SNode* pTempVal = nodesMakeValueNodeFromInt32(0);
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_GREATER_THAN, pSumColAlias, pTempVal, &pCond2));
+  //leader_col = count_col and leader_col > 0
+  pTemp1 = NULL;
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pCond1, pCond2, &pTemp1, LOGIC_COND_TYPE_AND));
+
+  pThen = nodesMakeValueNodeFromInt32(1);
+  CHECK_POINTER_OUT_OF_MEM(pThen);
+  pWhenThen = NULL;
+  CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pTemp1, pThen, &pWhenThen));
+  pWhenThenlist = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pWhenThen, &pWhenThenlist));
+
+  pCond1 = NULL;
+  CHECK_RES_OUT_OF_MEM(createParOperatorNode(OP_TYPE_LOWER_THAN, pSumColAlias, pCountColAlias, &pCond1));
+  pCond2 = NULL;
+  CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_GREATER_THAN, pSumColAlias, pTempVal, &pCond2));
+  // leader_col < count_col and leader_col > 0
+  pTemp2 = NULL;
+  CHECK_RES_OUT_OF_MEM(createLogicCondNode(pCond1, pCond2, &pTemp2, LOGIC_COND_TYPE_AND));
+  nodesDestroyNode((SNode*)pTempVal);
+
+  pThen = nodesMakeValueNodeFromInt32(2);
+  CHECK_POINTER_OUT_OF_MEM(pThen);
+  pWhenThen = NULL;
+  CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pTemp2, pThen, &pWhenThen));
+  CHECK_RES_OUT_OF_MEM(nodesListStrictAppend(pWhenThenlist, pWhenThen));
+
+  // case when leader_col = count_col and count_col > 0 then 1 when leader_col < count_col and count_col > 0 then 2 else 0 end as status
+  pCaseWhen = NULL;
+  pElse = nodesMakeValueNodeFromInt32(0);
+  CHECK_POINTER_OUT_OF_MEM(pElse);
+  CHECK_RES_OUT_OF_MEM(createParCaseWhenNode(NULL, pWhenThenlist, pElse, "status", &pCaseWhen));
+
+  pProjList = NULL;
+  CHECK_RES_OUT_OF_MEM(createParListNode(pCaseWhen, &pProjList));
+
+  SNode* pTempTblNode = NULL;
+  CHECK_RES_OUT_OF_MEM(createParTempTableNode(pSubSelect, &pTempTblNode));
+
+
+  SSelectStmt* pStmt = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  CHECK_POINTER_OUT_OF_MEM(pStmt);
+  pStmt->pProjectionList = pProjList;
+  pStmt->pFromTable = pTempTblNode;
+  sprintf(pStmt->stmtName, "%p", pStmt);
+
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = (SNode*)pStmt;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -13372,6 +13603,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -13439,6 +13671,10 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      code = rewriteShowAliveStmt(pCxt, pQuery);
       break;
     default:
       break;
@@ -13531,8 +13767,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
