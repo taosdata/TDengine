@@ -933,6 +933,32 @@ _OVER:
   return code;
 }
 
+static void getSlowLogScopeString(int32_t scope, char* result){
+  if(scope == SLOW_LOG_TYPE_NULL) {
+    strcat(result, "NONE");
+    return;
+  }
+  while(scope > 0){
+    if(scope & SLOW_LOG_TYPE_QUERY) {
+      strcat(result, "QUERY");
+      scope &= ~SLOW_LOG_TYPE_QUERY;
+    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+      strcat(result, "INSERT");
+      scope &= ~SLOW_LOG_TYPE_INSERT;
+    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+      strcat(result, "OTHERS");
+      scope &= ~SLOW_LOG_TYPE_OTHERS;
+    } else{
+      printf("invalid slow log scope:%d", scope);
+      return;
+    }
+
+    if(scope > 0) {
+      strcat(result, "|");
+    }
+  }
+}
+
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = -1;
@@ -941,7 +967,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
+  rsp.variables = taosArrayInit(16, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
     mError("failed to alloc SVariablesInfo array while process show variables req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -968,6 +994,33 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   strcpy(info.name, "charset");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
   strcpy(info.scope, "both");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "monitor");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "monitorInterval");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "slowLogThreshold");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "slowLogMaxLen");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  char scopeStr[64] = {0};
+  getSlowLogScopeString(tsSlowLogScope, scopeStr);
+  strcpy(info.name, "slowLogScope");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
+  strcpy(info.scope, "server");
   taosArrayPush(rsp.variables, &info);
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
@@ -1488,32 +1541,6 @@ static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
-void getSlowLogScopeString(int32_t scope, char* result){
-  if(scope == SLOW_LOG_TYPE_NULL) {
-    strcat(result, "NONE");
-    return;
-  }
-  while(scope > 0){
-    if(scope & SLOW_LOG_TYPE_QUERY) {
-      strcat(result, "QUERY");
-      scope &= ~SLOW_LOG_TYPE_QUERY;
-    } else if(scope & SLOW_LOG_TYPE_INSERT) {
-      strcat(result, "INSERT");
-      scope &= ~SLOW_LOG_TYPE_INSERT;
-    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
-      strcat(result, "OTHERS");
-      scope &= ~SLOW_LOG_TYPE_OTHERS;
-    } else{
-      printf("invalid slow log scope:%d", scope);
-      return;
-    }
-
-    if(scope > 0) {
-      strcat(result, "|");
-    }
-  }
-}
-
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t totalRows = 0;
@@ -1551,14 +1578,14 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
   totalRows++;
 
+  cfgOpts[totalRows] = "slowLogMaxLen";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  totalRows++;
+
   char scopeStr[64] = {0};
   getSlowLogScopeString(tsSlowLogScope, scopeStr);
   cfgOpts[totalRows] = "slowLogScope";
   snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
-  totalRows++;
-
-  cfgOpts[totalRows] = "slowLogMaxLen";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
   totalRows++;
 
   char buf[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
