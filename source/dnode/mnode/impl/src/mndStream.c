@@ -1075,7 +1075,7 @@ static bool taskNodeIsUpdated(SMnode *pMnode) {
     mWarn("not all vnodes ready, quit from vnodes status check");
     taosArrayDestroy(pNodeSnapshot);
     taosThreadMutexUnlock(&execInfo.lock);
-    return 0;
+    return true;
   }
 
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, pNodeSnapshot);
@@ -1911,7 +1911,49 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   bool updated = taskNodeIsUpdated(pMnode);
   if (updated) {
     mError("tasks are not ready for pause, node update detected");
+    sdbRelease(pMnode->pSdb, pStream);
     return -1;
+  }
+
+
+  { // check for tasks, if tasks are not ready, not allowed to pause
+    bool found = false;
+    bool readyToPause = true;
+    taosThreadMutexLock(&execInfo.lock);
+
+    for(int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
+      STaskId *p = taosArrayGet(execInfo.pTaskList, i);
+
+      STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
+      if (pEntry == NULL) {
+        continue;
+      }
+
+      if (pEntry->id.streamId != pStream->uid) {
+        continue;
+      }
+
+      if (pEntry->status == TASK_STATUS__UNINIT || pEntry->status == TASK_STATUS__CK) {
+        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, not ready for pause", pStream->name,
+               pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
+        readyToPause = false;
+      }
+
+      found = true;
+    }
+
+    taosThreadMutexUnlock(&execInfo.lock);
+    if (!found) {
+      mError("stream:%s task not report status yet, not ready for pause", pauseReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      return -1;
+    }
+
+    if (!readyToPause) {
+      mError("stream:%s task not ready for pause yet", pauseReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      return -1;
+    }
   }
 
   STrans *pTrans =
