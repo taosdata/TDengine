@@ -1488,6 +1488,32 @@ static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
+void getSlowLogScopeString(int32_t scope, char* result){
+  if(scope == SLOW_LOG_TYPE_NULL) {
+    strcat(result, "NONE");
+    return;
+  }
+  while(scope > 0){
+    if(scope & SLOW_LOG_TYPE_QUERY) {
+      strcat(result, "QUERY");
+      scope &= ~SLOW_LOG_TYPE_QUERY;
+    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+      strcat(result, "INSERT");
+      scope &= ~SLOW_LOG_TYPE_INSERT;
+    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+      strcat(result, "OTHERS");
+      scope &= ~SLOW_LOG_TYPE_OTHERS;
+    } else{
+      printf("invalid slow log scope:%d", scope);
+      return;
+    }
+
+    if(scope > 0) {
+      strcat(result, "|");
+    }
+  }
+}
+
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t totalRows = 0;
@@ -1511,6 +1537,28 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
   cfgOpts[totalRows] = "charset";
   snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  totalRows++;
+
+  cfgOpts[totalRows] = "monitor";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  totalRows++;
+
+  cfgOpts[totalRows] = "monitorInterval";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  totalRows++;
+
+  cfgOpts[totalRows] = "slowLogThreshold";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  totalRows++;
+
+  char scopeStr[64] = {0};
+  getSlowLogScopeString(tsSlowLogScope, scopeStr);
+  cfgOpts[totalRows] = "slowLogScope";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
+  totalRows++;
+
+  cfgOpts[totalRows] = "slowLogMaxLen";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
   totalRows++;
 
   char buf[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};

@@ -11,7 +11,8 @@
 SRWLatch    monitorLock;
 void*       monitorTimer;
 SHashObj*   monitorCounterHash;
-int32_t     monitorStop = -1;
+int32_t     slowLogFlag = -1;
+int32_t     monitorFlag = -1;
 tsem2_t     monitorSem;
 STaosQueue* monitorQueue;
 SHashObj*   monitorSlowLogHash;
@@ -99,12 +100,12 @@ static int32_t tscMonitortInit() {
 }
 
 static void tscMonitorStop() {
-  if (atomic_val_compare_exchange_32(&monitorStop, 0, 1)) {
+  if (atomic_val_compare_exchange_32(&slowLogFlag, 0, 1)) {
     uDebug("monitor thread already stopped");
     return;
   }
 
-  while (atomic_load_32(&monitorStop) > 0) {
+  while (atomic_load_32(&slowLogFlag) > 0) {
     taosMsleep(100);
   }
 }
@@ -230,6 +231,11 @@ static void generateClusterReport(taos_collector_registry_t* registry, void* pTr
 
 static void reportSendProcess(void* param, void* tmrId) {
   taosRLockLatch(&monitorLock);
+  if (atomic_load_32(&monitorFlag) == 1) {
+    taosRUnLockLatch(&monitorLock);
+    return;
+  }
+
   MonitorClient* pMonitor = (MonitorClient*)param;
   SAppInstInfo* pInst = getAppInstByClusterId(pMonitor->clusterId);
   if(pInst == NULL){
@@ -244,7 +250,6 @@ static void reportSendProcess(void* param, void* tmrId) {
 }
 
 static void sendAllSlowLog(){
-  taosRLockLatch(&monitorLock);
   void* data = taosHashIterate(monitorSlowLogHash, NULL);
   while (data != NULL) {
     TdFilePtr pFile = (*(SlowLogClient**)data)->pFile;
@@ -261,8 +266,6 @@ static void sendAllSlowLog(){
     data = taosHashIterate(monitorSlowLogHash, data);
   }
   uDebug("[monitor] sendAllSlowLog when client close");
-
-  taosRUnLockLatch(&monitorLock);
 }
 
 void monitorSendAllSlowLogFromTempDir(void* inst){
@@ -331,7 +334,6 @@ END:
 }
 
 static void sendAllCounter(){
-  taosRLockLatch(&monitorLock);
   MonitorClient** ppMonitor = (MonitorClient**)taosHashIterate(monitorCounterHash, NULL);
   while (ppMonitor != NULL) {
     MonitorClient* pMonitor = *ppMonitor;
@@ -346,7 +348,6 @@ static void sendAllCounter(){
     }
     ppMonitor = taosHashIterate(monitorCounterHash, ppMonitor);
   }
-  taosRUnLockLatch(&monitorLock);
 }
 
 void monitorInit() {
@@ -374,12 +375,18 @@ void monitorInit() {
 
 void monitorClose() {
   uInfo("[monitor] tscMonitor close");
+  taosRLockLatch(&monitorLock);
+
+  if (atomic_val_compare_exchange_32(&monitorFlag, 0, 1)) {
+    uDebug("[monitor] monitorFlag is not 0");
+  }
   tscMonitorStop();
   sendAllSlowLog();
   sendAllCounter();
   taosHashCleanup(monitorCounterHash);
   taosHashCleanup(monitorSlowLogHash);
   taosTmrCleanUp(monitorTimer);
+  taosRUnLockLatch(&monitorLock);
 }
 
 void monitorCreateClient(int64_t clusterId) {
@@ -436,6 +443,9 @@ void monitorCreateClient(int64_t clusterId) {
     uInfo("[monitor] monitorCreateClient for %"PRIx64 "finished %p.", clusterId, pMonitor);
   }
   taosWUnLockLatch(&monitorLock);
+  if (-1 != atomic_val_compare_exchange_32(&monitorFlag, -1, 0)) {
+    uDebug("[monitor] monitorFlag already is 0");
+  }
   return;
 
 fail:
@@ -499,10 +509,14 @@ void monitorFreeSlowLogData(MonitorSlowLogData* pData) {
   taosMemoryFree(pData->value);
 }
 
-void monitorThreadFuncUnexpectedStopped(void) { atomic_store_32(&monitorStop, -1); }
+void monitorThreadFuncUnexpectedStopped(void) { atomic_store_32(&slowLogFlag, -1); }
 
 void reportSlowLog(void* param, void* tmrId) {
   taosRLockLatch(&monitorLock);
+  if (atomic_load_32(&monitorFlag) == 1) {
+    taosRUnLockLatch(&monitorLock);
+    return;
+  }
   SAppInstInfo* pInst = getAppInstByClusterId((int64_t)param);
   if(pInst == NULL){
     uError("failed to get app inst, clusterId:%"PRIx64, (int64_t)param);
@@ -592,7 +606,7 @@ void* monitorThreadFunc(void *param){
   }
 #endif
 
-  if (-1 != atomic_val_compare_exchange_32(&monitorStop, -1, 0)) {
+  if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
     return NULL;
   }
 
@@ -618,7 +632,7 @@ void* monitorThreadFunc(void *param){
     return NULL;
   }
   while (1) {
-    if (monitorStop > 0) break;
+    if (slowLogFlag > 0) break;
 
     MonitorSlowLogData* slowLogData = NULL;
     taosReadQitem(monitorQueue, (void**)&slowLogData);
@@ -633,6 +647,6 @@ void* monitorThreadFunc(void *param){
 
   taosCloseQueue(monitorQueue);
   tsem2_destroy(&monitorSem);
-  monitorStop = -2;
+  slowLogFlag = -2;
   return NULL;
 }
