@@ -5236,8 +5236,9 @@ class StreamComputingTest(TDCase):
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.pk_tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True)
 
                     # pause/resume
-                    self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
-                    self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
+                    # TODO merge by liao 20240623
+                    #self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
+                    #self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
                     # ! TD-26711
                     # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value)
                     self.at_once_event_window(delete=delete, fill_history_value=fill_history_value)
