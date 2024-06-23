@@ -13,7 +13,7 @@
 
 import sys
 import time
-import random
+import shutil
 import socket
 import taos
 import frame
@@ -34,23 +34,13 @@ from frame.taosadapter import *
 
 
 class TDTestCase(TBase):
-    
-    # VAR_SHOW_LOG_SCOPE_POSITIVE_CASES =['ALL','QUERY','INSERT','OTHERS','NONE','ALL|Query|INSERT|OTHERS|NONE','QUERY|Insert|OTHERS','INSERT|OThers','QUERY|none']
-    # VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVLIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','OTHERS','NONE','','NULL','100']
-
-    # VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES =['1','2','10','10086','2147483646','2147483647']
-    # VAR_SHOW_LOG_THRESHOLD_NAGATIVE_CASES =['INVLIDVALUE','-1','0','01','0.1','2147483648','NONE','NULL','']
-
-    # VAR_SHOW_LOG_MAX_LEN_POSITIVE_CASES =['1','2','10','10086','999999','1000000']
-    # VAR_SHOW_LOG_MAX_LEN_NAGATIVE_CASES =['INVLIDVALUE','-1','0','01','0.1','1000001','NONE','NULL','']
-
 
     updatecfgDict = {
         "slowLogThresholdTest": "0",  # special setting only for testing
         "monitor": "1",
         "monitorInterval": "5",
         "monitorFqdn": "localhost"
-        # "monitorPort": "6041"
+        # "monitorPort": "6043"
     }
 
 
@@ -60,7 +50,6 @@ class TDTestCase(TBase):
         # start taosadapter
         tAdapter.init("")
         tAdapter.deploy()
-        # # stop taosadapter
         tAdapter.start()
 
         # start taoskeeper
@@ -144,8 +133,8 @@ class TDTestCase(TBase):
         else:
             tdSql.execute(f"create database {db_name}")
             tdSql.execute(f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)")
-            tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
-            tdSql.execute(f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
+            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
+            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
             tdSql.query(f"select * from {db_name}.t100 order by ts")
 
         # check data in taos_slow_sql_detail
@@ -205,24 +194,17 @@ class TDTestCase(TBase):
         else:
             tdSql.checkRows(0)
 
-    def failed_to_start_taosd_with_special_cfg(self, cfg: str):
+    def failed_to_start_taosd_with_special_cfg(self, cfg: str, expect_err: str):
         if not os.path.exists(cfg):
             tdLog.exit(f'config file does not exist, file: {cfg}')
 
         try:
             rets = frame.etool.runBinFile("taosd", f" -c {cfg}", timeout=3)
-            if not frame.etool.checkErrorFromBinFile(rets):
-                tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
-            else:
-                catch_err = False
-                for value in rets:
-                    if 'statusInterval' in str(value).lower():
-                        catch_err = True
-                        break
-                if not catch_err:
-                    tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+            if frame.etool.checkErrorFromBinFile(ret_list=rets, expect_err=expect_err):
+                return True
+            return False
         except subprocess.TimeoutExpired as err_msg:
-            tdLog.exit(f"start taosd with special config file successfully, no error found, config: {cfg}")
+            tdLog.exit(f"start taosd with special config file timeout, config: {cfg}")
         
 
     def failed_to_create_dnode_with_setting_not_match(self, cfg: str, taos_error_dir: str, endpoint: str, err_msg: str):
@@ -277,59 +259,75 @@ class TDTestCase(TBase):
                 file.write(f'{key} {value}\n')
         file.close()
         return taos_cfg
+    
+    def check_variable_setting(self, key: str, value: str):
+        tdSql.execute(f"select value from information_schema.ins_configs where name='{key}'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, value)
 
     def test_show_log_scope(self):
         tdLog.info(f"check_show_log_scope")
 
-        # # 1.check nagative value of show_log_scope
-        # VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVLIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','','NULL','100']
-        # taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
-        # # endpoint = f'{socket.gethostname()}:6630'
-        # for value in VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES:
-        #     params = {
-        #         'slowLogScope': value,
-        #         'fqdn': socket.gethostname(),
-        #         'firstEp': f'{socket.gethostname()}:6030',
-        #         'serverPort': '6630',
-        #         'dataDir': f'{taos_error_dir}/data',
-        #         'logDir': f'{taos_error_dir}/log',
-        #         'slowLogThresholdTest': '0',
-        #         'monitorInterval': '5',
-        #         'monitorFqdn': 'localhost'}
-        #     new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
-        #     self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg)
-        #     tdLog.info(f"check invalid value '{value}' of 'statusInterval' - PASS")
+        # 1.check nagative value of show_log_scope
+        VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES ={
+            'INVALIDVALUE': 'Invalid slowLog scope value',
+            'ALL|INSERT1': 'Invalid slowLog scope value',
+            'QUERY,Insert,OTHERS': 'Invalid slowLog scope value',
+            'NULL': 'Invalid slowLog scope value',
+            '100': 'Invalid slowLog scope value'}
+        # VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVALIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','','NULL','100']
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
 
-        # # 2. check valid setting of show_log_scope
-        # VAR_SHOW_LOG_SCOPE_POSITIVE_CASES = {
-        #     'ALL': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-        #     'QUERY': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
-        #     'INSERT': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'false'},
-        #     'OTHERS': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'true'},
-        #     'NONE': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
-        #     'ALL|Query|INSERT|OTHERS|NONE': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-        #     'QUERY|Insert|OTHERS': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-        #     'INSERT|OThers': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-        #     'QUERY|none': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'}}
+        for value, err_info in VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES.items():
+            params = {
+                'slowLogScope': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
+            check_result = self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg, expect_err=err_info)
+            if check_result:
+                tdLog.info(f"check invalid value '{value}' of variable 'slowLogScope' - PASS")
+            else:
+                tdLog.exit(f"check invalid value '{value}' of variable 'slowLogScope' - FAIL")
 
-        # for scope_value, verifications in VAR_SHOW_LOG_SCOPE_POSITIVE_CASES.items():
-        #     updatecfgDict = {"slowLogScope": scope_value}
+        # 2. check valid setting of show_log_scope
+        VAR_SHOW_LOG_SCOPE_POSITIVE_CASES = {
+            'ALL': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
+            'QUERY': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
+            'INSERT': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'false'},
+            'OTHERS': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'true'},
+            'NONE': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
+            'ALL|Query|INSERT|OTHERS|NONE': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
+            'QUERY|Insert|OTHERS': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
+            'INSERT|OThers': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
+            'QUERY|none': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'}}
 
-        #     # set slowLogScope=ALL via taos.cfg
-        #     self.update_taos_cfg(1, updatecfgDict)
-        #     self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
+        for scope_value, verifications in VAR_SHOW_LOG_SCOPE_POSITIVE_CASES.items():
+            updatecfgDict = {"slowLogScope": scope_value}
 
-        #     # set slowLogScope=ALL via alter operation
-        #     self.alter_variables(1, updatecfgDict)
-        #     self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
+            # set slowLogScope=ALL via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogScope', value=scope_value)
+            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
 
-        # # 3.config in client is not available
-        # updatecfgDict = {"slowLogScope": "INSERT"}
-        # self.update_taos_cfg(1, updatecfgDict)
+            # set slowLogScope=ALL via alter operation
+            self.alter_variables(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogScope', value=scope_value)
+            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
 
-        # updatecfgDict = {"slowLogScope":"QUERY"}
-        # taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
-        # self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
+        # 3.config in client is not available
+        updatecfgDict = {"slowLogScope": "INSERT"}
+        self.update_taos_cfg(1, updatecfgDict)
+
+        updatecfgDict = {"slowLogScope":"QUERY"}
+        taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
+        self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
 
         # 4.add node failed if setting is different
         VAR_SHOW_LOG_SCOPE_DIFF_CASES =['ALL','ALL|INSERT','QUERY','OTHERS','NONE']
@@ -347,81 +345,213 @@ class TDTestCase(TBase):
                 'monitorInterval': '5',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = self.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
-            
             self.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogScope not match')
         tdLog.info(f"check_show_log_scope is done")
 
-    def checkShowTags(self):
-        # verification for TD-29904
-        tdSql.error("show tags from t100000", expectErrInfo='Fail to get table info, error: Table does not exist')
+    def test_show_log_threshold(self):
+        tdLog.info(f"check_show_log_threshold")
 
-        sql = "show tags from child1"
-        tdSql.query(sql)
-        tdSql.checkRows(5)
+        # 1.check nagative value of slowLogThreshold
+        VAR_SHOW_LOG_THRESHOLD_NAGATIVE_CASES ={
+            '-1': 'Out of range',
+            '0': 'Out of range',
+            'INVALIDVALUE': 'Invalid configuration value',
+            # '001': 'Invalid configuration value',
+            '0.1': 'Out of range',
+            '1e6': 'Invalid configuration value',
+            'NULL': 'Invalid configuration value',
+            '2147483648': 'Out of range',
+            'one': 'Invalid configuration value'}
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
 
-        sql = f"show tags from child1 from {self.db}"
-        tdSql.query(sql)
-        tdSql.checkRows(5)
+        for value, err_info in VAR_SHOW_LOG_THRESHOLD_NAGATIVE_CASES.items():
+            params = {
+                'slowLogThreshold': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
+            check_result = self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg, expect_err=err_info)
+            if check_result:
+                tdLog.info(f"check invalid value '{value}' of variable 'slowLogThreshold' - PASS")
+            else:
+                tdLog.exit(f"check invalid value '{value}' of variable 'slowLogThreshold' - FAIL")
 
-        sql = f"show tags from {self.db}.child1"
-        tdSql.query(sql)
-        tdSql.checkRows(5)
+        # 2. check valid setting of show_log_scope
+        VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '1']
 
-        # verification for TD-30030
-        tdSql.execute("create table t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)")
-        tdSql.execute("insert into ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
-        tdSql.execute("insert into ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
-        tdSql.execute("insert into ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a3', '300')")
-        tdSql.execute("insert into ct2 using t100 tags(2) values('2024-05-17 14:58:52.902', 'a2', '200')")
-        tdSql.execute("create view v100 as select * from t100")
-        tdSql.execute("create view v200 as select * from ct1")
+        for threshold_value in VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES:
+            updatecfgDict = {"slowLogThreshold": threshold_value, "slowLogScope": "QUERY"}
 
-        tdSql.error("show tags from v100", expectErrInfo="Tags can only applied to super table and child table")
-        tdSql.error("show tags from v200", expectErrInfo="Tags can only applied to super table and child table")
+            # set slowLogThreshold via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogThreshold', value=threshold_value)
 
-        tdSql.execute("create table t200 (ts timestamp, pk varchar(20) primary key, c1 varchar(100))")
+            # set slowLogThreshold via alter operation
+            self.alter_variables(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogThreshold', value=threshold_value)
 
-        tdSql.error("show tags from t200", expectErrInfo="Tags can only applied to super table and child table")
+        # 3.config in client is not available
+        updatecfgDict = {"slowLogThresholdTest": "1"}
+        self.update_taos_cfg(1, updatecfgDict)
 
-    def checkShow(self):
-        # not support
-        sql = "show accounts;"
-        tdSql.error(sql)
+        updatecfgDict = {"slowLogThreshold":"10"}
+        taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
+        self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
 
-        # check result
-        sql = "SHOW CLUSTER;"
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        sql = "SHOW COMPACTS;"
-        tdSql.query(sql)
-        tdSql.checkRows(0)
-        sql = "SHOW COMPACT 1;"
-        tdSql.query(sql)
-        tdSql.checkRows(0)
-        sql = "SHOW CLUSTER MACHINES;"
-        tdSql.query(sql)
-        tdSql.checkRows(1)
+        # 4.add node failed if setting is different
+        VAR_SHOW_LOG_THRESHOLD_DIFF_CASES =['10086']
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
+        endpoint = f'{socket.gethostname()}:6630'
+        for value in VAR_SHOW_LOG_THRESHOLD_DIFF_CASES:
+            params = {
+                'slowLogThreshold': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
+            
+            self.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogThreshold not match')
+        tdLog.info(f"check_show_log_threshold is done")
 
-        # run to check crash 
+    def test_show_log_maxlen(self):
+        tdLog.info(f"check_show_log_maxlen")
+
+        # 1.check nagative value of slowLogMaxLen
+        VAR_SHOW_LOG_MAXLEN_NAGATIVE_CASES ={
+            '-1': 'Out of range',
+            # '0': 'Out of range',
+            'INVALIDVALUE': 'Invalid configuration value',
+            # '001': 'Invalid configuration value',
+            # '0.1': 'Out of range',
+            '1e6': 'Invalid configuration value',
+            'NULL': 'Invalid configuration value',
+            '16385': 'Out of range',
+            'one': 'Invalid configuration value'}
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
+
+        for value, err_info in VAR_SHOW_LOG_MAXLEN_NAGATIVE_CASES.items():
+            params = {
+                'slowLogMaxLen': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
+            check_result = self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg, expect_err=err_info)
+            if check_result:
+                tdLog.info(f"check invalid value '{value}' of variable 'slowLogMaxLen' - PASS")
+            else:
+                tdLog.exit(f"check invalid value '{value}' of variable 'slowLogMaxLen' - FAIL")
+
+        # 2. check valid setting of slowLogMaxLen
+        VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['16384', '1']
+
+        for maxlen_value in VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES:
+            updatecfgDict = {"slowLogMaxLen": maxlen_value, "slowLogScope": "QUERY"}
+
+            # set slowLogMaxLen via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogMaxLen', value=maxlen_value)
+
+            # set slowLogMaxLen via alter operation
+            self.alter_variables(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogMaxLen', value=maxlen_value)
+
+        # 3.config in client is not available
+        updatecfgDict = {"slowLogMaxLen": "1"}
+        self.update_taos_cfg(1, updatecfgDict)
+
+        updatecfgDict = {"slowLogMaxLen":"10"}
+        taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
+        self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
+
+        # 4.add node failed if setting is different
+        VAR_SHOW_LOG_THRESHOLD_DIFF_CASES =['10086']
+        taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
+        endpoint = f'{socket.gethostname()}:6630'
+        for value in VAR_SHOW_LOG_THRESHOLD_DIFF_CASES:
+            params = {
+                'slowLogMaxLen': value,
+                'fqdn': socket.gethostname(),
+                'firstEp': f'{socket.gethostname()}:6030',
+                'serverPort': '6630',
+                'dataDir': f'{taos_error_dir}/data',
+                'logDir': f'{taos_error_dir}/log',
+                'slowLogThresholdTest': '0',
+                'monitorInterval': '5',
+                'monitorFqdn': 'localhost'}
+            new_taos_cfg = self.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
+            
+            self.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogMaxLen not match')
+        tdLog.info(f"check_show_log_maxlen is done")
+      
+    def check_maxlen(self, length: int, less_then: bool, is_record: bool):
+        db_name = 'check_maxlen'
         sqls = [
-            "show scores;",
-            "SHOW CLUSTER VARIABLES",
-            # "SHOW BNODES;",
+            f"DROP DATABASE IF EXISTS {db_name}",
+            f"CREATE DATABASE IF NOT EXISTS {db_name}",
+            f"CREATE TABLE IF NOT EXISTS {db_name}.meters (ts timestamp, col int) tags(t1 int)"
         ]
         tdSql.executes(sqls)
 
-        self.checkShowTags()
+        quotient = (length - 32) // 20
+        remainder = (length - 32) % 20
 
+        if less_then:
+            count = quotient
+        else:
+            count = quotient + 1
+            
+        sub_sql = ''
+        for _ in range(count):
+            sub_sql = sub_sql + f'col as {self.generate_random_string(length=11)}, '
+        sub_sql = sub_sql[0: -2]
 
+        sql = f'select {sub_sql} from check_maxlen.meters'
+        tdSql.execute(sql)
+
+        sql = f"select * from log.taos_slow_sql_detail where db='{db_name}' and sql like '%from check_maxlen.meter%'"
+        tdSql.execute(sql)
+        if is_record:
+            tdSql.checkRows(1)
+        else:
+            tdSql.checkRows(0)
+        
+
+    
+    def generate_random_string(self, length):
+        characters = string.ascii_letters
+        random_string = ''.join(random.choice(characters) for _ in range(length))
+        return random_string
+    
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
-
         
-
         self.init_env()
 
-        self.test_show_log_scope()
+        self.check_maxlen(length=150, less_then=True, is_record=True)
+
+        # self.test_show_log_scope()
+
+        # self.test_show_log_threshold()
+
+        self.test_show_log_maxlen()
 
 
         tdLog.success(f"{__file__} successfully executed")
