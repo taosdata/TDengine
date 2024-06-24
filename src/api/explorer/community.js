@@ -3,7 +3,12 @@ export function getDataSource(lang, type) {
 
   for (let i = 0; i < allDataSources.length; i++) {
     if (allDataSources[i].id === type) {
-      return JSON.parse(JSON.stringify(allDataSources[i]));
+      return JSON.parse(JSON.stringify(allDataSources[i], (k, v) => {
+        if (v instanceof RegExp) {
+          return v.toString()
+        }
+        return v
+      }));
     }
   }
 
