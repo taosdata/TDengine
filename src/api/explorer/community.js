@@ -98,8 +98,8 @@ export function getDataSources(lang) {
                 "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n- `0`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
                 "placeholder": "5",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "experimental.snapshot.enable",
@@ -290,8 +290,8 @@ export function getDataSources(lang) {
                 "placeholder": "5",
                 "value": "5",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           },
@@ -378,8 +378,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1d",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           },
@@ -419,8 +419,8 @@ export function getDataSources(lang) {
                 "description": "Retrospect data from some time ago into target before realtime data migrating.<br>\nSupports abbreviations of numbers and units, such as \"1ms\" for 1 millisecond, \"1s\" for 1 seconds, \"1m\" for 1 minute, \"1h\" for 1 hour, \"1d\" for 1 day, and \"1w\" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>",
                 "value": "0",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "interval",
@@ -443,8 +443,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "excursion",
@@ -467,8 +467,8 @@ export function getDataSources(lang) {
                 "placeholder": "5",
                 "value": "500ms",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -581,8 +581,8 @@ export function getDataSources(lang) {
                 "placeholder": "30",
                 "value": "0",
                 "type_value": "m",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -2534,8 +2534,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "500",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "topics",
@@ -2953,8 +2953,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "retrieveInterval",
@@ -2990,8 +2990,8 @@ export function getDataSources(lang) {
                 "placeholder": "10",
                 "value": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "tolerance",
@@ -3027,8 +3027,8 @@ export function getDataSources(lang) {
                 "placeholder": "0",
                 "value": "0",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -3319,8 +3319,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "delay",
@@ -3343,8 +3343,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -3540,8 +3540,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "delay",
@@ -3564,8 +3564,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -3724,8 +3724,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "delay",
@@ -3748,8 +3748,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -3976,8 +3976,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               },
               {
                 "name": "delay",
@@ -4000,8 +4000,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "Please enter the number",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
               }
             ]
           }
@@ -4127,8 +4127,8 @@ export function getDataSources(lang) {
             "description": "超时时间范围内没有新增数据，同步任务将自动结束。\n可配置为：\n- `0`: 表示无超时时间，持续进行订阅。\n- 指定超时时间：`5s`, `1m` 等。\n",
             "placeholder": "5",
             "type_value": "s",
-            "pattern": /^[0-9]+$/,
-            "patternMsg": "请输入数字",
+            "pattern": "^[0-9]+$",
+            "patternMsg": "只能输入正整数或者0",
           }, {
             "name": "experimental.snapshot.enable",
             "display": "同步已落盘数据",
@@ -4315,8 +4315,8 @@ export function getDataSources(lang) {
                 "placeholder": "5",
                 "value": "5",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           },
@@ -4403,8 +4403,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           },
@@ -4445,8 +4445,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "0",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "interval",
@@ -4469,8 +4469,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "excursion",
@@ -4493,8 +4493,8 @@ export function getDataSources(lang) {
                 "placeholder": "5",
                 "value": "500",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -4607,8 +4607,8 @@ export function getDataSources(lang) {
                 "placeholder": "30",
                 "value": "0",
                 "type_value": "m",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -6566,8 +6566,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "500",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "topics",
@@ -6983,8 +6983,8 @@ export function getDataSources(lang) {
                 "placeholder": "1",
                 "value": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "retrieveInterval",
@@ -7020,8 +7020,8 @@ export function getDataSources(lang) {
                 "placeholder": "10",
                 "value": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "tolerance",
@@ -7057,8 +7057,8 @@ export function getDataSources(lang) {
                 "placeholder": "0",
                 "value": "0",
                 "type_value": "ms",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -7349,8 +7349,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "delay",
@@ -7373,8 +7373,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -7570,8 +7570,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "delay",
@@ -7594,8 +7594,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -7754,8 +7754,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "delay",
@@ -7778,8 +7778,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
@@ -8006,8 +8006,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "1",
                 "type_value": "d",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               },
               {
                 "name": "delay",
@@ -8030,8 +8030,8 @@ export function getDataSources(lang) {
                 "required": false,
                 "placeholder": "10",
                 "type_value": "s",
-                "pattern": /^[0-9]+$/,
-                "patternMsg": "请输入数字",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
               }
             ]
           }
