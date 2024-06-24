@@ -86,7 +86,7 @@ static void concatStrings(SArray *list, char* buf, int size){
       strcat(buf, ",");
       len += 1;
     }
-    int ret = snprintf(buf + len, size - len, "%s,", db);
+    int ret = snprintf(buf + len, size - len, "%s", db);
     if (ret < 0)  {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
