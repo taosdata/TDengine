@@ -3018,6 +3018,7 @@ typedef struct {
 typedef struct {
   int64_t reqId;
   SArray* reqs;  // SArray<SClientHbReq>
+  int64_t ipWhiteList;
 } SClientHbBatchReq;
 
 typedef struct {
