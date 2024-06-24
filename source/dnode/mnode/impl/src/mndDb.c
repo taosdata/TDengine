@@ -1115,11 +1115,21 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
         if (pNewDb->cfg.withArbitrator) {
           SArbGroup arbGroup = {0};
           mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
-          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
+            return -1;
+          }
         } else {
           SArbGroup arbGroup = {0};
           mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
-          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
+            return -1;
+          }
         }
       }
     }
