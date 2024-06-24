@@ -238,7 +238,8 @@ export default {
       return this.$store.state.app.resultTbTitle
     },
     limitOffset() {
-      return this.$store.state.app.limitOffset
+      // return this.$store.state.app.limitOffset
+      return 100;
     }
   },
   watch: {
