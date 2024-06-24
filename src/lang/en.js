@@ -1407,7 +1407,7 @@ export default {
         type3: "Upload File",
         retrieve: "Retrieve From Server",
       },
-      
+      retrieveTip: "No sample data was obtained",
       filterexecuted: "Filter condition triggered",
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",

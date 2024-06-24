@@ -954,6 +954,9 @@ export default {
       }
       let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       if (isSupportType) {
+        if (result.input.length <= 0) {
+          this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
+        }
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
         })
