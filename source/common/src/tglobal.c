@@ -1530,6 +1530,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     return 0;
   }
 
+  if (strcasecmp("slowLogExceptDb", name) == 0) {
+    tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
+    cfgUnLock(pCfg);
+    return 0;
+  }
+
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
         {"dDebugFlag", &dDebugFlag},     {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
