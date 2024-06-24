@@ -62,6 +62,7 @@ typedef struct {
   int32_t onlineDnodes;
   SEpSet  epSet;
   SArray *pQnodeList;
+  int64_t ipWhiteListVer;
 } SConnPreparedObj;
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
@@ -300,7 +301,7 @@ _CONNECT:
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
   connectRsp.authVer = pUser->authVersion;
-  connectRsp.whiteListVer = mndGetUserIpWhiteListVer(pMnode, pUser);
+  connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -568,7 +569,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_USER_AUTHINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen);
+        mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen,
+                                pObj->ipWhiteListVer);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_USER_AUTHINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
@@ -650,6 +652,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
+  obj.ipWhiteListVer = batchReq.ipWhiteList;
   mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes);
   mndGetMnodeEpSet(pMnode, &obj.epSet);
   mndCreateQnodeList(pMnode, &obj.pQnodeList, -1);
