@@ -225,7 +225,6 @@ _OVER:
   return code;
 }
 
-
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
@@ -278,7 +277,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
-  pRsp->whiteListVer = pUser->ipWhiteListVer;
+  pRsp->whiteListVer = pMnode->ipWhiteVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
   taosRLockLatch(&pUser->lock);
