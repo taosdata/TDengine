@@ -78,7 +78,15 @@ static void concatStrings(SArray *list, char* buf, int size){
   int  len = 0;
   for(int i = 0; i < taosArrayGetSize(list); i++){
     char* db = taosArrayGet(list, i);
-    int ret = snprintf(buf, size - len, "%s,", db);
+    char* dot = strchr(db, '.');
+    if (dot != NULL) {
+      db = dot + 1;
+    }
+    if (i != 0){
+      strcat(buf, ",");
+      len += 1;
+    }
+    int ret = snprintf(buf + len, size - len, "%s,", db);
     if (ret < 0)  {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
@@ -139,7 +147,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
 
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
   char dbList[1024] = {0};
-  concatStrings(pRequest->dbList, dbList, sizeof(dbList));
+  concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
   cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
 
   MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
