@@ -182,11 +182,13 @@ export default {
           let versionName = ''
           switch (this.grants[0].version) {
             case "trial":
+            case "TDengine Enterprise Edition trial":
               versionName = this.license[0].valid
                 ? "Trial Expired"
                 : "Trial"
               break;
             case "official":
+            case "TDengine Enterprise Edition official":
               versionName = this.license[0].valid
                 ? "Enterprise License Expired"
                 : "Enterprise"
