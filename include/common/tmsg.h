@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 
 static inline bool tmsgIsValid(tmsg_t type) {
   // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
-  int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG);
+  int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
   int    segIdx = TMSG_SEG_CODE(type);
   if (segIdx >= 0 && segIdx < maxSegIdx) {
     return type < tMsgRangeDict[segIdx];
