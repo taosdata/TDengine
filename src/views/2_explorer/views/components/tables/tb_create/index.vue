@@ -702,6 +702,7 @@ export default {
       }
     },
     handleTypeChange(column, index) {
+      if (this.isEdit) return;
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.table_form.columns[index], "encode", defaultEncode);

@@ -580,6 +580,7 @@ export default {
     },
     // columns 修改时encode/compress 变更
     handleTypeChange(column, index) {
+      if (this.isEdit) return;
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.stable_form.columns[index], "encode", defaultEncode);
