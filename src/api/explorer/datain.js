@@ -108,7 +108,10 @@ function mergeTaskDetailOptions(cfgOptions, data) {
     }
 
     if (cfgOptions.endpoint && !cfgOptions.endpoint.value) {
-        cfgOptions.endpoint.value = `${data.host}:${data.port}`;
+        cfgOptions.endpoint.value = `${data.host}`;
+        if (data.port) {
+            cfgOptions.endpoint.value += `:${data.port}`
+        }
         if (data.subject) {
             cfgOptions.endpoint.value += `/${data.subject}`;
         }
