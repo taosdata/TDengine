@@ -375,10 +375,14 @@ alter_table_clause(A) ::=
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
 multi_create_clause(A) ::= create_subtable_clause(B).                             { A = createNodeList(pCxt, B); }
 multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).      { A = addNodeToList(pCxt, B, C); }
+multi_create_clause(A) ::= create_from_file_clause(B).                            { A = createNodeList(pCxt, B); }
 
 create_subtable_clause(A) ::=
   not_exists_opt(B) full_table_name(C) USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP table_options(G).    { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
+
+create_from_file_clause(A) ::= not_exists_opt(B) USING full_table_name(C)
+  NK_LP tag_list_opt(D) NK_RP NK_STRING(E).                                       { A = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
@@ -521,7 +525,7 @@ cmd ::= SHOW GRANTS LOGS.                                                       
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
-cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT, 
+cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
 A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
@@ -809,13 +813,13 @@ tags_literal(A) ::= NK_INTEGER(B).                                              
 tags_literal(A) ::= NK_INTEGER(B) NK_PLUS duration_literal(C).                    {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_INTEGER(B) NK_MINUS duration_literal(C).                   {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_INTEGER(C).                                     {
@@ -826,13 +830,13 @@ tags_literal(A) ::= NK_PLUS(B) NK_INTEGER(C).                                   
 tags_literal(A) ::= NK_PLUS(B) NK_INTEGER NK_PLUS duration_literal(C).            {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_INTEGER NK_MINUS duration_literal(C).           {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_INTEGER(C).                                    {
@@ -843,13 +847,13 @@ tags_literal(A) ::= NK_MINUS(B) NK_INTEGER(C).                                  
 tags_literal(A) ::= NK_MINUS(B) NK_INTEGER NK_PLUS duration_literal(C).           {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_INTEGER NK_MINUS duration_literal(C).          {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_FLOAT(B).                                                  { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B, NULL); }
@@ -868,13 +872,13 @@ tags_literal(A) ::= NK_BIN(B).                                                  
 tags_literal(A) ::= NK_BIN(B) NK_PLUS duration_literal(C).                        {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_BIN(B) NK_MINUS duration_literal(C).                       {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_BIN(C).                                         {
@@ -885,13 +889,13 @@ tags_literal(A) ::= NK_PLUS(B) NK_BIN(C).                                       
 tags_literal(A) ::= NK_PLUS(B) NK_BIN NK_PLUS duration_literal(C).                {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_BIN NK_MINUS duration_literal(C).               {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_BIN(C).                                        {
@@ -902,26 +906,26 @@ tags_literal(A) ::= NK_MINUS(B) NK_BIN(C).                                      
 tags_literal(A) ::= NK_MINUS(B) NK_BIN NK_PLUS duration_literal(C).               {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_BIN NK_MINUS duration_literal(C).              {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_HEX(B).                                                    { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B, NULL); }
 tags_literal(A) ::= NK_HEX(B) NK_PLUS duration_literal(C).                        {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_HEX(B) NK_MINUS duration_literal(C).                       {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_HEX(C).                                         {
@@ -932,13 +936,13 @@ tags_literal(A) ::= NK_PLUS(B) NK_HEX(C).                                       
 tags_literal(A) ::= NK_PLUS(B) NK_HEX NK_PLUS duration_literal(C).                {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_PLUS(B) NK_HEX NK_MINUS duration_literal(C).               {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_HEX(C).                                        {
@@ -949,13 +953,13 @@ tags_literal(A) ::= NK_MINUS(B) NK_HEX(C).                                      
 tags_literal(A) ::= NK_MINUS(B) NK_HEX NK_PLUS duration_literal(C).               {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_MINUS(B) NK_HEX NK_MINUS duration_literal(C).              {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 
@@ -963,13 +967,13 @@ tags_literal(A) ::= NK_STRING(B).                                               
 tags_literal(A) ::= NK_STRING(B) NK_PLUS duration_literal(C).                     {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_STRING(B) NK_MINUS duration_literal(C).                    {
                                                                                     SToken l = B;
                                                                                     SToken r = getTokenFromRawExprNode(pCxt, C);
-                                                                                    l.n = (r.z + r.n) - l.z;  
+                                                                                    l.n = (r.z + r.n) - l.z;
                                                                                     A = createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C);
                                                                                   }
 tags_literal(A) ::= NK_BOOL(B).                                                   { A = createRawValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B, NULL); }
@@ -1337,9 +1341,9 @@ parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.    
 
 /************************************************ joined_table ********************************************************/
 joined_table(A) ::=
-  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) join_on_clause_opt(F) 
-  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { 
-                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F); 
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) join_on_clause_opt(F)
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               {
+                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F);
                                                                                     A = addWindowOffsetClause(pCxt, A, G);
                                                                                     A = addJLimitClause(pCxt, A, H);
                                                                                   }
@@ -1365,16 +1369,16 @@ join_on_clause_opt(A) ::= .                                                     
 join_on_clause_opt(A) ::= ON search_condition(B).                                 { A = B; }
 
 window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
-window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B) 
+window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B)
   NK_COMMA window_offset_literal(C) NK_RP.                                        { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 
 window_offset_literal(A) ::= NK_VARIABLE(B).                                      { A = createRawExprNode(pCxt, &B, createTimeOffsetValueNode(pCxt, &B)); }
 window_offset_literal(A) ::= NK_MINUS(B) NK_VARIABLE(C).                          {
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t)); 
+                                                                                    A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t));
                                                                                   }
-                                                                                  
+
 jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
 jlimit_clause_opt(A) ::= JLIMIT NK_INTEGER(B).                                    { A = createLimitNode(pCxt, &B, NULL); }
 
