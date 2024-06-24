@@ -181,7 +181,7 @@ bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 10;   // seconds
 int32_t tsSlowLogThresholdTest = 10;   // seconds
-char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "log";   // seconds
+char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
 char*   tsSlowLogScopeString = "query";
 int32_t tsSlowLogMaxLen = 4096;
@@ -703,11 +703,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "slowLogThresholdTest", tsSlowLogThresholdTest, 0, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddInt32(pCfg, "slowLogThresholdTest", tsSlowLogThresholdTest, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogMaxLen", tsSlowLogMaxLen, 1, 16384, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", tsSlowLogScopeString, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddString(pCfg, "slowLogExceptDb", tsSlowLogExceptDb, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "slowLogExceptDb", tsSlowLogExceptDb, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1549,6 +1549,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitor", &tsEnableMonitor},
                                          {"monitorInterval", &tsMonitorInterval},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"slowLogThresholdTest", &tsSlowLogThresholdTest},
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},

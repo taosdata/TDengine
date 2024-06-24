@@ -441,16 +441,23 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
 #define CHECK_MONITOR_PARA(para) \
 if (pCfg->monitorParas.para != para) { \
   mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = TSDB_CODE_DNODE_INVALID_STATUS_INTERVAL; \
-  return DND_REASON_STATUS_INTERVAL_NOT_MATCH;\
+  terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS; \
+  return DND_REASON_STATUS_MONITOR_NOT_MATCH;\
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor);
   CHECK_MONITOR_PARA(tsMonitorInterval);
   CHECK_MONITOR_PARA(tsSlowLogThreshold);
+  CHECK_MONITOR_PARA(tsSlowLogThresholdTest);
   CHECK_MONITOR_PARA(tsSlowLogMaxLen);
   CHECK_MONITOR_PARA(tsSlowLogScope);
+
+  if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
+    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
+    terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS;
+    return DND_REASON_STATUS_MONITOR_NOT_MATCH;
+  }
 
   if (pCfg->statusInterval != tsStatusInterval) {
     mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusInterval,

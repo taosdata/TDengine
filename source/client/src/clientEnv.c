@@ -175,6 +175,24 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_Delete(json);
 }
 
+static bool checkSlowLogExceptDb(SRequestObj *pRequest, char* exceptDb) {
+  if (pRequest->pDb != NULL) {
+    return strcmp(pRequest->pDb, exceptDb) != 0;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pRequest->dbList); i++) {
+    char *db = taosArrayGet(pRequest->dbList, i);
+    char *dot = strchr(db, '.');
+    if (dot != NULL) {
+      db = dot + 1;
+    }
+    if(strcmp(db, exceptDb) == 0){
+      return false;
+    }
+  }
+  return true;
+}
+
 static void deregisterRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) {
     tscError("pRequest == NULL");
@@ -228,8 +246,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest * 1000000UL) &&
-      (pRequest->pDb == NULL || strcmp(pRequest->pDb, tsSlowLogExceptDb) != 0)) {
+  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+      checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
