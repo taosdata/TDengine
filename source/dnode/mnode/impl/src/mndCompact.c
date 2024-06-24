@@ -386,12 +386,16 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
       if (pVgroup == NULL) {
         mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
         mndTransDrop(pTrans);
         return -1;
       }
 
       if (mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId, pDetail->dnodeId) != 0) {
         mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
         mndTransDrop(pTrans);
         return -1;
       }
@@ -479,6 +483,7 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
       pDetail->newNumberFileset = rsp->numberFileset;
       pDetail->newFinished = rsp->finished;
 
+      sdbCancelFetch(pMnode->pSdb, pIter);
       sdbRelease(pMnode->pSdb, pDetail);
 
       return 0;
@@ -656,6 +661,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
         mError("compact:%d, trans:%d, failed to append commit log since %s", pDetail->compactId, pTrans->id, terrstr());
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
         mndTransDrop(pTrans);
         return -1;
       }
@@ -678,11 +685,13 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
 
       if (pDetail->numberFileset == -1 && pDetail->finished == -1) {
         allFinished = false;
+        sdbCancelFetch(pMnode->pSdb, pIter);
         sdbRelease(pMnode->pSdb, pDetail);
         break;
       }
       if (pDetail->numberFileset != -1 && pDetail->finished != -1 && pDetail->numberFileset != pDetail->finished) {
         allFinished = false;
+        sdbCancelFetch(pMnode->pSdb, pIter);
         sdbRelease(pMnode->pSdb, pDetail);
         break;
       }
@@ -713,6 +722,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
         if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
           mError("compact:%d, trans:%d, failed to append commit log since %s", pDetail->compactId, pTrans->id,
                  terrstr());
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pDetail);
           mndTransDrop(pTrans);
           return -1;
         }
