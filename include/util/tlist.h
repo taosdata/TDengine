@@ -218,6 +218,7 @@ typedef struct {
 #define listEleSize(l)  ((l)->eleSize)
 #define isListEmpty(l)  (TD_DLIST_NELES(l) == 0)
 #define listNodeFree(n) taosMemoryFree(n)
+#define listNode(data) (SListNode*)(((void*)(data)) - sizeof(SListNode))
 
 void       tdListInit(SList *list, int32_t eleSize);
 void       tdListEmpty(SList *list);
