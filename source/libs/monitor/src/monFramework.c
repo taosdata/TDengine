@@ -99,10 +99,10 @@ extern char    *tsMonFwUri;
 #define MNODE_ROLE "taosd_mnodes_info:role"
 #define VNODE_ROLE "taosd_vnodes_info:role"
 
-void monInitOneGroup(char **gauges, int32_t label_count, const char **sample_labels) {
+void monInitOneGroup(int32_t gaugeCount, char **gauges, int32_t labelCount, const char **sampleLabels) {
   taos_gauge_t *gauge = NULL;
-  for (int32_t i = 0; i < 3; i++) {
-    gauge = taos_gauge_new(gauges[i], "", label_count, sample_labels);
+  for (int32_t i = 0; i < gaugeCount; i++) {
+    gauge = taos_gauge_new(gauges[i], "", labelCount, sampleLabels);
     if (gauge == NULL) continue;
     if (taos_collector_registry_register_metric(gauge) == 1) {
       taos_counter_destroy(gauge);
@@ -130,17 +130,17 @@ int32_t monInitMonitorFW() {
                                  IO_READ,        IO_WRITE,        IO_READ_DISK,   IO_WRITE_DISK, /*ERRORS,*/
                                  VNODES_NUM,     MASTERS,         HAS_MNODE,      HAS_QNODE,     HAS_SNODE,  DNODE_LOG_ERROR,
                                  DNODE_LOG_INFO, DNODE_LOG_DEBUG, DNODE_LOG_TRACE};
-  monInitOneGroup(dnodes_gauges, dnodes_label_count, dnodes_sample_labels);
+  monInitOneGroup(25, dnodes_gauges, dnodes_label_count, dnodes_sample_labels);
 
   int32_t     dnodes_data_label_count = 5;
   const char *dnodes_data_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep", "data_dir_name", "data_dir_level"};
   char       *dnodes_data_gauges[] = {DNODE_DATA_AVAIL, DNODE_DATA_USED, DNODE_DATA_TOTAL};
-  monInitOneGroup(dnodes_data_gauges, dnodes_data_label_count, dnodes_data_sample_labels);
+  monInitOneGroup(3, dnodes_data_gauges, dnodes_data_label_count, dnodes_data_sample_labels);
 
   int32_t     dnodes_log_label_count = 4;
   const char *dnodes_log_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep", "data_dir_name"};
   char       *dnodes_log_gauges[] = {DNODE_LOG_AVAIL, DNODE_LOG_USED, DNODE_LOG_TOTAL};
-  monInitOneGroup(dnodes_log_gauges, dnodes_log_label_count, dnodes_log_sample_labels);
+  monInitOneGroup(3, dnodes_log_gauges, dnodes_log_label_count, dnodes_log_sample_labels);
 
   return 0;
 }

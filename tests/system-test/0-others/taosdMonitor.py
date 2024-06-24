@@ -108,15 +108,13 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if "grant_info" not in infoDict or infoDict["grant_info"]== None:
             tdLog.exit("grant_info is null!")
 
-                #grant have different behavior in 3.1 and 3.0, so comment out 
-        if "expire_time" not in infoDict["grant_info"]: #or not infoDict["grant_info"]["expire_time"] > 0:
+        if "expire_time" not in infoDict["grant_info"] or not infoDict["grant_info"]["expire_time"] > 0:
             tdLog.exit("expire_time is null!")
 
         if "timeseries_used" not in infoDict["grant_info"]:# or not infoDict["grant_info"]["timeseries_used"] > 0:
             tdLog.exit("timeseries_used is null!")
 
-        #grant have different behavior in 3.1 and 3.0, so comment out 
-        if "timeseries_total" not in infoDict["grant_info"]: #or not infoDict["grant_info"]["timeseries_total"] > 0:
+        if "timeseries_total" not in infoDict["grant_info"] or not infoDict["grant_info"]["timeseries_total"] > 0:
             tdLog.exit("timeseries_total is null!")
 
         # dnode_info  ====================================
