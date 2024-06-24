@@ -1095,24 +1095,45 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     char  fraction[20] = {0};
     bool  hasFraction = false;
     NUM_TO_STRING(type, input, sizeof(fraction), fraction);
-    int32_t tsDigits = (int32_t)strlen(fraction);
+    int32_t fractionLen;
 
     char    buf[64] = {0};
     int64_t timeVal;
+    char*   format = NULL;
+    int64_t  quot = 0;
+    long    mod = 0;
+
     GET_TYPED_DATA(timeVal, int64_t, type, input);
-    if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
-      if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-        timeVal = timeVal / 1000;
-      } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000));
-      } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000 * 1000));
-      } else {
+
+    switch (pInput->columnData[0].info.precision) {
+      case TSDB_TIME_PRECISION_MILLI: {
+        quot = timeVal / 1000;
+        fractionLen = 5;
+        format = ".%03" PRId64;
+        mod = timeVal % 1000;
+        break;
+      }
+
+      case TSDB_TIME_PRECISION_MICRO: {
+        quot = timeVal / 1000000;
+        fractionLen = 8;
+        format = ".%06" PRId64;
+        mod = timeVal % 1000000;
+        break;
+      }
+
+      case TSDB_TIME_PRECISION_NANO: {
+        quot = timeVal / 1000000000;
+        fractionLen = 11;
+        format = ".%09" PRId64;
+        mod = timeVal % 1000000000;
+        break;
+      }
+
+      default: {
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
-      hasFraction = true;
-      memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
     // trans current timezone's unix ts to dest timezone
@@ -1122,49 +1143,24 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     if (0 != offsetOfTimezone(tz, &offset)) {
       goto _end;
     }
-    timeVal -= offset + 3600 * ((int64_t)tsTimezone);
+    quot -= offset + 3600 * ((int64_t)tsTimezone);
 
     struct tm tmInfo;
     int32_t len = 0;
 
-    if (taosLocalTime((const time_t *)&timeVal, &tmInfo, buf) == NULL) {
+    if (taosLocalTime((const time_t *)&quot, &tmInfo, buf) == NULL) {
       len = (int32_t)strlen(buf);
       goto _end;
     }
 
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
-    len = (int32_t)strlen(buf);
+    len = (int32_t)strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+
+    len += snprintf(buf + len, fractionLen, format, mod);
 
     // add timezone string
     if (tzLen > 0) {
       snprintf(buf + len, tzLen + 1, "%s", tz);
       len += tzLen;
-    }
-
-    if (hasFraction) {
-      int32_t fracLen = (int32_t)strlen(fraction) + 1;
-
-      char *tzInfo;
-      if (buf[len - 1] == 'z' || buf[len - 1] == 'Z') {
-        tzInfo = &buf[len - 1];
-        memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
-      } else {
-        tzInfo = strchr(buf, '+');
-        if (tzInfo) {
-          memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
-        } else {
-          // search '-' backwards
-          tzInfo = strrchr(buf, '-');
-          if (tzInfo) {
-            memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
-          }
-        }
-      }
-
-      char tmp[32] = {0};
-      sprintf(tmp, ".%s", fraction);
-      memcpy(tzInfo, tmp, fracLen);
-      len += fracLen;
     }
 
 _end:
