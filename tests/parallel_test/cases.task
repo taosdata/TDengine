@@ -1178,7 +1178,7 @@
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
-,,y,script,./test.sh -f tsim/query/sort-pre-cols.sim 
+,,y,script,./test.sh -f tsim/query/sort-pre-cols.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/query/groupby_distinct.sim
 ,,y,script,./test.sh -f tsim/query/event.sim
@@ -1186,7 +1186,7 @@
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange_scl.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
-,,y,script,./test.sh -f tsim/query/tableCount.sim 
+,,y,script,./test.sh -f tsim/query/tableCount.sim
 ,,y,script,./test.sh -f tsim/query/show_db_table_kind.sim
 ,,y,script,./test.sh -f tsim/query/bi_star_table.sim
 ,,y,script,./test.sh -f tsim/query/bi_tag_scan.sim
@@ -1450,13 +1450,13 @@
 ,,y,script,./test.sh -f tsim/tag/tinyint.sim
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
-,,y,script,./test.sh -f tsim/tag/create_null_tag.sim 
+,,y,script,./test.sh -f tsim/tag/create_null_tag.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
-,,y,script,./test.sh -f tsim/query/cache_last.sim 
-,,y,script,./test.sh -f tsim/query/const.sim 
+,,y,script,./test.sh -f tsim/query/cache_last.sim
+,,y,script,./test.sh -f tsim/query/const.sim
 ,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
 
 
