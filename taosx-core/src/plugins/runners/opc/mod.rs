@@ -96,11 +96,16 @@ pub async fn opc_to_taos(
     tracing::info!("OPC DataIn task start, from: {}, to: {}", from, to);
 
     let certificate = get_temp_file(&from, "certificate");
-    let private_file = get_temp_file(&from, "private_key");
+    let private_key = get_temp_file(&from, "private_key");
     let auth_certificate = get_temp_file(&from, "auth_certificate");
     let auth_private_key = get_temp_file(&from, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
+    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
+
+    config.set_temp_filepath("certificate", certificate.as_ref())?;
+    config.set_temp_filepath("private_key", private_key.as_ref())?;
+    config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
+    config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
 
     // create IPC handler
     let connector = match config.opc_type {
@@ -220,7 +225,7 @@ pub async fn opc_to_taos(
                 });
                 // let _ = temp_path.close();
                 certificate.map(|f| f.close());
-                private_file.map(|f| f.close());
+                private_key.map(|f| f.close());
                 auth_certificate.map(|f| f.close());
                 auth_private_key.map(|f| f.close());
 
@@ -492,7 +497,13 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
         }
         // 通过 taosx-opc points 命令获取点位
         None => {
-            let config = OPCConfig::from_dsn_point_mode(&from)?;
+            let mut config = OPCConfig::from_dsn_point_mode(&from)?;
+
+            config.set_temp_filepath("certificate", certificate.as_ref())?;
+            config.set_temp_filepath("private_key", private_key.as_ref())?;
+            config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
+            config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
+
             opc_datasets_by_command(&config).await?
         }
     };
@@ -610,46 +621,30 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
+    is_valid_impl(dsn)
+        .await
+        .unwrap_or_else(|err| DataSourceValidation::invalid("opc".to_string(), err.to_string()))
+}
+
+async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     let certificate = get_temp_file(dsn, "certificate");
     let private_key = get_temp_file(dsn, "private_key");
     let auth_certificate = get_temp_file(dsn, "auth_certificate");
     let auth_private_key = get_temp_file(dsn, "auth_private_key");
 
-    let config = OPCConfig::from_dsn_check_mode(dsn).await;
-    let r = match config {
-        Err(err) => DataSourceValidation::invalid(
-            "opc".to_string(),
-            format!(
-                "invalid opc dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
-        ),
-        Ok(c) => {
-            let res = is_valid_impl(c).await;
-            res.unwrap_or_else(|err| {
-                DataSourceValidation::invalid(
-                    "opc".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
-                )
-            })
-        }
-    };
+    let mut config = OPCConfig::from_dsn_check_mode(dsn).await.map_err(|err| {
+        anyhow::anyhow!(
+            "failed to create opc config from dsn: {}, cause: {}",
+            dsn.to_string(),
+            err.to_string()
+        )
+    })?;
 
-    // clean temporary files
-    certificate.map(|f| f.close());
-    private_key.map(|f| f.close());
-    auth_certificate.map(|f| f.close());
-    auth_private_key.map(|f| f.close());
+    config.set_temp_filepath("certificate", certificate.as_ref())?;
+    config.set_temp_filepath("private_key", private_key.as_ref())?;
+    config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
+    config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
 
-    r
-}
-
-async fn is_valid_impl(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -672,7 +667,7 @@ async fn is_valid_impl(config: OPCConfig) -> anyhow::Result<DataSourceValidation
         .await
         .with_context(|| format!("failed to execute: {:?}", opc_exe_path.as_path()))?;
 
-    if output.status.success() {
+    let result = if output.status.success() {
         let mut result: DataSourceValidation =
             serde_json::from_slice(&output.stdout).map_err(|err| {
                 anyhow::anyhow!(
@@ -682,16 +677,24 @@ async fn is_valid_impl(config: OPCConfig) -> anyhow::Result<DataSourceValidation
                 )
             })?;
         result.data_source = "opc".to_string();
-        Ok(result)
+        result
     } else {
-        Ok(DataSourceValidation::invalid(
+        DataSourceValidation::invalid(
             "opc".to_string(),
             format!(
                 "failed to execute opc: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ))
-    }
+        )
+    };
+
+    // clean temporary files
+    certificate.map(|f| f.close());
+    private_key.map(|f| f.close());
+    auth_certificate.map(|f| f.close());
+    auth_private_key.map(|f| f.close());
+
+    Ok(result)
 }
 
 #[cfg(test)]
