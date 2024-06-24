@@ -2408,6 +2408,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_service_name",
                 "display": "Kerberos Service Name",
                 "description": "The Kerberos service name for GSSAPI authentication mechanism.",
+                "placeholder": "for example: kafka",
                 "required": true,
                 "hint": {
                   "type": "str"
@@ -2417,6 +2418,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_principal",
                 "display":" Kerberos Principal",
                 "description": "The Kerberos principal for GSSAPI authentication mechanism.",
+                "placeholder": "for example: kafkaclient",
                 "required": true,
                 "hint": {
                   "type": "str"
@@ -2426,6 +2428,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_kinit_cmd",
                 "display": "Kerberos Init Command",
                 "description": "The Kerberos init command for GSSAPI authentication mechanism.",
+                "placeholder": "for example: kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}",
                 "required": false,
                 "hint": {
                   "type": "str"
@@ -6437,6 +6440,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_service_name",
                 "display": "Kerberos 服务名",
                 "description":" 用于 GSSAPI 认证机制的 Kerberos 服务名",
+                "placeholder": "示例：kafka",
                 "required": true,
                 "hint": {
                   "type": "str"
@@ -6446,6 +6450,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_principal",
                 "display": "Kerberos 主体",
                 "description":" 用于 GSSAPI 认证机制的 Kerberos 主体",
+                "placeholder": "示例：kafkaclient",
                 "required": true,
                 "hint": {
                   "type": "str"
@@ -6455,6 +6460,7 @@ export function getDataSources(lang) {
                 "name": "sasl_kerberos_kinit_cmd",
                 "display": "Kerberos 初始化命令",
                 "description": "用于 GSSAPI 认证机制的 Kerberos 初始化命令",
+                "placeholder": "示例：kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}",
                 "required": false,
                 "hint": {
                   "type": "str"
