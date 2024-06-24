@@ -51,7 +51,7 @@
             label-position="left"
           >
             <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
-              <a @click="handleDownloadFile(fileForm.fileurl)">{{ fileForm.fileurl }}</a>
+              <a @click="handleDownloadFile(fileForm.fileurl)" href="javascript:void(0);">{{ fileForm.fileurl }}</a>
             </el-form-item>
           </el-form>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
@@ -194,8 +194,7 @@ export default {
     handleDownloadFile(val) {
       if (val) {
         let name = val?.substr(val.lastIndexOf("/") + 1)
-        let path = val?.split('@')[1]
-        handleDownload(path, name)
+        handleDownload(val, name)
       }
     },
     submitUrl() {
