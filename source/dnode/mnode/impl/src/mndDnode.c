@@ -1457,7 +1457,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
+  int8_t updateIpWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
     tFreeSMCfgDnodeReq(&cfgReq);
@@ -1492,6 +1492,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_INVALID_CFG;
       goto _err_out;
     }
+    if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
+      updateIpWhiteList = 1;
+    }
 
     if (cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true) != 0) goto _err_out;
   }
@@ -1505,7 +1508,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
-  return mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
+  int32_t code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
+
+  // dont care suss or succ;
+  if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
+  return code;
 
 _err_out:
   tFreeSMCfgDnodeReq(&cfgReq);
