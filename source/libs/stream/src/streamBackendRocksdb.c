@@ -3424,7 +3424,7 @@ SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const 
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     winKeyDecode((void*)&curKey, keyStr);
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) < 0) {
       return pCur;
     }
     rocksdb_iter_next(pCur->iter);
