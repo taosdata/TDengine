@@ -796,8 +796,9 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
       return;
     }
     getWindowFromDiscBuf(pOperator, range->skey, range->groupId, pInfo->pFillSup);
-    if (pInfo->pFillInfo->type == TSDB_FILL_NEXT && pInfo->pFillSup->next.key != range->ekey) {
-      getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, range->ekey, range->groupId, &pInfo->pFillSup->next);
+    TSKEY realEnd = range->ekey + 1;
+    if (pInfo->pFillInfo->type == TSDB_FILL_NEXT && pInfo->pFillSup->next.key != realEnd) {
+      getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, realEnd, range->groupId, &pInfo->pFillSup->next);
     }
     setDeleteFillValueInfo(range->skey, range->ekey, pInfo->pFillSup, pInfo->pFillInfo);
     if (pInfo->pFillInfo->needFill) {
