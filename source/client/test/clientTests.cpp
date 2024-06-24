@@ -1539,4 +1539,38 @@ TEST(clientCase, sub_tb_mt_test) {
   }
 }
 
+//static void concatStrings(SArray *list, char* buf, int size){
+//  int  len = 0;
+//  for(int i = 0; i < taosArrayGetSize(list); i++){
+//    char* db = (char*)taosArrayGet(list, i);
+//    char* dot = strchr(db, '.');
+//    if (dot != NULL) {
+//      db = dot + 1;
+//    }
+//    if (i != 0){
+//      strcat(buf, ",");
+//      len += 1;
+//    }
+//    int ret = snprintf(buf + len, size - len, "%s", db);
+//    if (ret < 0)  {
+//      printf("snprintf failed, buf:%s, ret:%d", buf, ret);
+//      break;
+//    }
+//    len += ret;
+//    if (len >= size){
+//      printf("dbList is truncated, buf:%s, len:%d", buf, len);
+//      break;
+//    }
+//  }
+//}
+//
+//TEST(clientCase, concat_string_test) {
+//  SArray* list = taosArrayInit(10, TSDB_DB_FNAME_LEN);
+//  taosArrayPush(list, "1.db1");
+//  taosArrayPush(list, "2.db2");
+//
+//  char buf[32] = {0};
+//  concatStrings(list, buf, sizeof(buf) - 1);
+//}
+
 #pragma GCC diagnostic pop
