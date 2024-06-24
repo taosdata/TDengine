@@ -184,7 +184,7 @@ impl KafkaTaskConfig {
             .get("timeout")
             .map(String::as_str)
             .unwrap_or("0ms");
-        if timeout.eq("never") || timeout.eq("0ms") || timeout.starts_with("-1") {
+        if timeout.eq("never") || timeout.starts_with("0") || timeout.starts_with("-1") {
             return Ok(-1);
         }
 
