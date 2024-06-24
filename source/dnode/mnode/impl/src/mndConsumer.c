@@ -512,13 +512,21 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SCMSubscribeReq subscribe = {0};
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
 
-  int64_t        consumerId = subscribe.consumerId;
+  int64_t         consumerId = subscribe.consumerId;
   char           *cgroup = subscribe.cgroup;
   SMqConsumerObj *pExistedConsumer = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans       = NULL;
+  int32_t         code = -1;
 
-  int32_t code = -1;
+  if(taosArrayGetSize(subscribe.topicNames) == 0){
+    SMqConsumerObj *pConsumerTmp = mndAcquireConsumer(pMnode, subscribe.consumerId);
+    if(pConsumerTmp == NULL){
+      goto _over;
+    }
+    mndReleaseConsumer(pMnode, pConsumerTmp);
+  }
+
   SArray *pTopicList = subscribe.topicNames;
   taosArraySort(pTopicList, taosArrayCompareString);
   taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
