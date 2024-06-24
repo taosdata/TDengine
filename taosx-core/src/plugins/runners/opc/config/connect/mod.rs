@@ -9,7 +9,7 @@ mod ua;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectConfig {
-    ua: Option<UaConnectConfig>,
+    pub ua: Option<UaConnectConfig>,
     da: Option<DaConnectConfig>,
 }
 

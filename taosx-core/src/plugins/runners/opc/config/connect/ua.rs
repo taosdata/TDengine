@@ -1,3 +1,4 @@
+use anyhow::bail;
 use std::fs;
 
 use serde::{Deserialize, Serialize};
@@ -59,6 +60,17 @@ impl UaConnectConfig {
             auth_certificate,
             auth_private_key,
         })
+    }
+
+    pub fn set_temp_filepath(&mut self, key: &str, filepath: &str) -> anyhow::Result<()> {
+        match key {
+            "certificate" => self.certificate = Some(filepath.to_string()),
+            "private_key" => self.private_key = Some(filepath.to_string()),
+            "auth_certificate" => self.auth_certificate = Some(filepath.to_string()),
+            "auth_private_key" => self.auth_private_key = Some(filepath.to_string()),
+            _ => bail!("invalid temp filepath key: {}", key),
+        }
+        Ok(())
     }
 
     fn parse_endpoint(dsn: &Dsn) -> anyhow::Result<String> {
@@ -145,9 +157,7 @@ impl UaConnectConfig {
                         .to_string();
                     Ok(Some(path))
                 } else {
-                    Err(anyhow::anyhow!(
-                        "{key} is not a file path, it should start with @, value: {v}"
-                    ))
+                    Ok(None)
                 }
             }
         }
@@ -196,12 +206,8 @@ mod ua_connect_config_tests {
 
         // 不以@开头，文件内容
         let dsn = Dsn::from_str("opcua://?certificate=abc").unwrap();
-        let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
-        assert!(content.is_err());
-        assert_eq!(
-            "certificate is not a file path, it should start with @, value: abc",
-            content.unwrap_err().to_string()
-        );
+        let content = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
+        assert!(content.is_none());
     }
 
     #[test]

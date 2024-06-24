@@ -5,6 +5,7 @@ use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, Dsn, Taos};
+use tempfile::NamedTempFile;
 
 use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
@@ -150,6 +151,38 @@ impl OPCConfig {
 
     pub fn get_model_config(&self) -> Option<&OpcModelConfig> {
         self.model_config.as_ref()
+    }
+
+    pub fn set_temp_filepath(
+        &mut self,
+        key: &str,
+        temp_file: Option<&NamedTempFile>,
+    ) -> anyhow::Result<()> {
+        match temp_file {
+            None => Ok(()),
+            Some(temp_file) => {
+                let file_path = temp_file
+                    .path()
+                    .canonicalize()
+                    .map(|p| p.display().to_string())
+                    .map_err(|err| anyhow::anyhow!("failed to get temp file path: {}", err))?;
+
+                match key {
+                    "certificate" | "private_key" | "auth_certificate" | "auth_private_key" => {
+                        let connect = self.connect.ua.as_mut();
+                        match connect {
+                            None => {
+                                bail!("connect is None");
+                            }
+                            Some(connect) => connect.set_temp_filepath(key, file_path.as_str()),
+                        }
+                    }
+                    _ => {
+                        bail!("invalid key: {}, v", key);
+                    }
+                }
+            }
+        }
     }
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
