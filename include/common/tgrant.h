@@ -30,9 +30,8 @@ extern "C" {
 #define GRANTS_COL_MAX_LEN 196
 #endif
 
-#define GRANT_HEART_BEAT_MIN      2
-#define GRANT_EXPIRE_VALUE        4102416000
-#define GRANT_EXPIRE_UNLIMITED(v) ((v) == GRANT_EXPIRE_VALUE)
+#define GRANT_HEART_BEAT_MIN 2
+#define GRANT_EXPIRE_VALUE   4102416000
 
 typedef enum {
   TSDB_GRANT_ALL,

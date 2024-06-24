@@ -303,24 +303,11 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_RET((const char *)ver, false, pCluster);
 
-    char expireTime[25] = {0};
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (GRANT_EXPIRE_UNLIMITED(tsExpireTime / 1000)) {
-      STR_WITH_MAXSIZE_TO_VARSTR(expireTime, "unlimited", pShow->pMeta->pSchemas[cols].bytes);
-      COL_DATA_SET_VAL_RET(expireTime, false, pCluster);
-    } else if (tsExpireTime <= 0) {
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (tsExpireTime <= 0) {
       colDataSetNULL(pColInfo, numOfRows);
     } else {
-      char      ts[20] = {0};
-      time_t    expireSec = tsExpireTime / 1000;
-      struct tm ptm;
-      if (taosLocalTime(&expireSec, &ptm, ts) != NULL) {
-        strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
-      } else {
-        ts[0] = 0;
-      }
-      STR_WITH_MAXSIZE_TO_VARSTR(expireTime, ts, pShow->pMeta->pSchemas[cols].bytes);
-      COL_DATA_SET_VAL_RET(expireTime, false, pCluster);
+      COL_DATA_SET_VAL_RET((const char *)&tsExpireTime, false, pCluster);
     }
 
     sdbRelease(pSdb, pCluster);
