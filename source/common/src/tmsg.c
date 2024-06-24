@@ -485,6 +485,8 @@ int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBa
     SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
     if (tSerializeSClientHbReq(&encoder, pReq) < 0) return -1;
   }
+
+  if (tEncodeI64(&encoder, pBatchReq->ipWhiteList) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -509,6 +511,10 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
     SClientHbReq req = {0};
     tDeserializeSClientHbReq(&decoder, &req);
     taosArrayPush(pBatchReq->reqs, &req);
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    tDecodeI64(&decoder, &pBatchReq->ipWhiteList);
   }
 
   tEndDecode(&decoder);
