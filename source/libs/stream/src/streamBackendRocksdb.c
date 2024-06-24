@@ -140,7 +140,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest);
 int32_t valueToString(void* k, char* buf);
 int32_t valueIsStale(void* k, int64_t ts);
 
-void destroyCompare(void* arg);
+void        destroyCompare(void* arg);
 static void cleanDir(const char* pPath, const char* id);
 
 static bool                streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len);
@@ -194,9 +194,7 @@ int32_t getCfIdx(const char* cfName) {
   return idx;
 }
 
-bool isValidCheckpoint(const char* dir) {
-  return true;
-}
+bool isValidCheckpoint(const char* dir) { return true; }
 
 int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   // impl later
@@ -486,9 +484,7 @@ _ERROR:
   return code;
 }
 
-int32_t backendCopyFiles(const char* src, const char* dst) {
-  return backendFileCopyFilesImpl(src, dst);
-}
+int32_t backendCopyFiles(const char* src, const char* dst) { return backendFileCopyFilesImpl(src, dst); }
 
 static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* checkpointPath, int64_t checkpointId,
                                           const char* defaultPath) {
@@ -540,7 +536,8 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   char* chkptPath = taosMemoryCalloc(1, pathLen);
   if (chkptId > 0) {
-    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkptId);
+    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
+             chkptId);
 
     code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath);
     if (code != 0) {
@@ -549,11 +546,12 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
     if (code != 0) {
       stError("failed to start stream backend at %s, reason: %s, restart from default defaultPath:%s", chkptPath,
-             tstrerror(code), defaultPath);
-      code = 0;    // reset the error code
+              tstrerror(code), defaultPath);
+      code = 0;  // reset the error code
     }
   } else {  // no valid checkpoint id
-    stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data, clean defaultPath:%s", key, defaultPath);
+    stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data, clean defaultPath:%s", key,
+           defaultPath);
     cleanDir(defaultPath, key);
   }
 
@@ -1142,7 +1140,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
 
     int64_t chkpId = pTaskDb->chkpId;
     taskDbRefChkp(pTaskDb, chkpId);
-    code = taskDbDoCheckpoint(pTaskDb, chkpId);
+    code = taskDbDoCheckpoint(pTaskDb, chkpId, 0);
     if (code != 0) {
       taskDbUnRefChkp(pTaskDb, chkpId);
     }
@@ -1230,7 +1228,106 @@ int64_t taskGetDBRef(void* arg) {
   return pDb->refId;
 }
 
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
+int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId) {
+  TdFilePtr pFile = NULL;
+  int32_t   code = -1;
+
+  int32_t len = strlen(pChkpIdDir);
+  if (len == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    stError("failed to load extra info, dir:%s, reason:%s", pChkpIdDir, tstrerror(terrno));
+    return -1;
+  }
+
+  char* pDst = taosMemoryCalloc(1, len + 64);
+  if (pDst == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("failed to alloc memory to load extra info, dir:%s", pChkpIdDir);
+    goto _EXIT;
+  }
+
+  if (sprintf(pDst, "%s%sinfo", pChkpIdDir, TD_DIRSEP) <= 0) {
+    code = -1;
+    stError("failed to build dst to load extra info, dir:%s", pChkpIdDir);
+    goto _EXIT;
+  }
+
+  pFile = taosOpenFile(pDst, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    stError("failed to open file to load extra info, file:%s", pDst);
+    goto _EXIT;
+  }
+
+  char buf[256] = {0};
+  if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    stError("failed to read file to load extra info, file:%s, reason:%s", pDst, tstrerror(terrno));
+    code = -1;
+    goto _EXIT;
+  }
+
+  if (sscanf(buf, "%" PRId64 " %" PRId64 "", chkpId, processId) < 2) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    stError("failed to read file content to load extra info, file:%s, reason:%s", pDst, tstrerror(terrno));
+  }
+  code = 0;
+_EXIT:
+  taosMemoryFree(pDst);
+  taosCloseFile(&pFile);
+  return code;
+}
+int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
+  TdFilePtr pFile = NULL;
+  int32_t   code = -1;
+
+  int32_t len = strlen(pChkpIdDir);
+  if (len == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    stError("failed to add extra info, dir:%s, reason:%s", pChkpIdDir, tstrerror(terrno));
+    return -1;
+  }
+
+  char* pDst = taosMemoryCalloc(1, len + 64);
+  if (pDst == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("failed to alloc memory to add extra info, dir:%s", pChkpIdDir);
+    goto _EXIT;
+  }
+
+  if (sprintf(pDst, "%s%sinfo", pChkpIdDir, TD_DIRSEP) < 0) {
+    stError("failed to build dst to add extra info, dir:%s", pChkpIdDir);
+    goto _EXIT;
+  }
+
+  pFile = taosOpenFile(pDst, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    stError("failed to open file to add extra info, file:%s", pDst);
+    goto _EXIT;
+  }
+
+  char buf[256] = {0};
+  int  n = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
+  if (n <= 0 || n >= sizeof(buf)) {
+    code = -1;
+    stError("failed to build content to add extra info, dir:%s", pChkpIdDir);
+    goto _EXIT;
+  }
+
+  if (taosWriteFile(pFile, buf, strlen(buf)) <= 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    stError("failed to write file to add extra info, file:%s, reason:%s", pDst, tstrerror(terrno));
+    goto _EXIT;
+  }
+  code = 0;
+
+_EXIT:
+  taosCloseFile(&pFile);
+  taosMemoryFree(pDst);
+  return code;
+}
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
   int32_t         code = -1;
@@ -1254,32 +1351,58 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
 
   int64_t written = atomic_load_64(&pTaskDb->dataWritten);
 
+  // flush db
   if (written > 0) {
     stDebug("stream backend:%p start to flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
     code = chkpPreFlushDb(pTaskDb->db, ppCf, nCf);
+    if (code != 0) goto _EXIT;
   } else {
     stDebug("stream backend:%p not need flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
   }
+
+  // do checkpoint
   if ((code = chkpDoDbCheckpoint(pTaskDb->db, pChkpIdDir)) != 0) {
     stError("stream backend:%p failed to do checkpoint at:%s", pTaskDb, pChkpIdDir);
+    goto _EXIT;
   } else {
     stDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pTaskDb, pChkpIdDir,
             taosGetTimestampMs() - st);
   }
 
+  // add extra info to checkpoint
+  if ((code = chkpAddExtraInfo(pChkpIdDir, chkpId, processId)) != 0) {
+    stError("stream backend:%p failed to add extra info to checkpoint at:%s", pTaskDb, pChkpIdDir);
+    goto _EXIT;
+  }
+
+  // delete ttl checkpoint
   code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir);
+  if (code < 0) {
+    goto _EXIT;
+  }
+
   atomic_store_64(&pTaskDb->dataWritten, 0);
   pTaskDb->chkpId = chkpId;
 
 _EXIT:
-  taosMemoryFree(pChkpDir);
+
+  // clear checkpoint dir if failed
+  if (code != 0 && pChkpDir != NULL) {
+    if (taosDirExist(pChkpIdDir)) {
+      taosRemoveDir(pChkpIdDir);
+    }
+  }
   taosMemoryFree(pChkpIdDir);
+  taosMemoryFree(pChkpDir);
+
   taosReleaseRef(taskDbWrapperId, refId);
   taosMemoryFree(ppCf);
   return code;
 }
 
-int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskDbDoCheckpoint(arg, chkpId); }
+int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer) {
+  return taskDbDoCheckpoint(arg, chkpId, processVer);
+}
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
@@ -2205,7 +2328,8 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   return code;
 }
 
-int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list, const char* idStr) {
+int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list,
+                                    const char* idStr) {
   int32_t  code = 0;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
@@ -2224,7 +2348,8 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 
-int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list, const char* idStr) {
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list,
+                                const char* idStr) {
   int32_t                 code = -1;
   STaskDbWrapper*         pDb = arg;
   ECHECKPOINT_BACKUP_TYPE utype = type;
