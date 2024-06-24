@@ -146,9 +146,16 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
 
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
-  char dbList[1024] = {0};
-  concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
-  cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+  if(pRequest->dbList != NULL){
+    char dbList[1024] = {0};
+    concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+  }else if(pRequest->pDb != NULL){
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb));
+  }else{
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString("unknown"));
+  }
+
 
   MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
   if (slowLogData == NULL) {
@@ -166,6 +173,24 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
     taosFreeQitem(slowLogData);
   }
   cJSON_Delete(json);
+}
+
+static bool checkSlowLogExceptDb(SRequestObj *pRequest, char* exceptDb) {
+  if (pRequest->pDb != NULL) {
+    return strcmp(pRequest->pDb, exceptDb) != 0;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pRequest->dbList); i++) {
+    char *db = taosArrayGet(pRequest->dbList, i);
+    char *dot = strchr(db, '.');
+    if (dot != NULL) {
+      db = dot + 1;
+    }
+    if(strcmp(db, exceptDb) == 0){
+      return false;
+    }
+  }
+  return true;
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
@@ -221,7 +246,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if (duration >= (pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest * 1000000UL)) {
+  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThresholdTest * 1000000UL) &&
+      checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->monitorParas.tsSlowLogExceptDb)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
@@ -579,7 +605,6 @@ void doDestroyRequest(void *p) {
   destorySqlCallbackWrapper(pRequest->pWrapper);
 
   taosMemoryFreeClear(pRequest->msgBuf);
-  taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   tsem_destroy(&pRequest->body.rspSem);
@@ -593,6 +618,7 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  taosMemoryFreeClear(pRequest->pDb);
   taosArrayDestroy(pRequest->dbList);
   if (pRequest->body.interParam) {
     tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);

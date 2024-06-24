@@ -75,6 +75,8 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas* p
   if (tEncodeI32(encoder, pMonitorParas->tsSlowLogScope) < 0) return -1;
   if (tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen) < 0) return -1;
   if (tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest) < 0) return -1;
+  if (tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb) < 0) return -1;
   return 0;
 }
 
@@ -84,6 +86,8 @@ static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas* pMoni
   if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope) < 0) return -1;
   if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen) < 0) return -1;
   if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest) < 0) return -1;
+  if (tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb) < 0) return -1;
   return 0;
 }
 

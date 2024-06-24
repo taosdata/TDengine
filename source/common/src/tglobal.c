@@ -181,6 +181,7 @@ bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 10;   // seconds
 int32_t tsSlowLogThresholdTest = 10;   // seconds
+char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
 char*   tsSlowLogScopeString = "query";
 int32_t tsSlowLogMaxLen = 4096;
@@ -706,6 +707,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 1, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogMaxLen", tsSlowLogMaxLen, 1, 16384, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", tsSlowLogScopeString, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "slowLogExceptDb", tsSlowLogExceptDb, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1147,6 +1149,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsSIMDEnable = (bool)cfgGetItem(pCfg, "simdEnable")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
 
+  tstrncpy(tsSlowLogExceptDb, cfgGetItem(pCfg, "slowLogExceptDb")->str, TSDB_DB_NAME_LEN);
   tsSlowLogThresholdTest = cfgGetItem(pCfg, "slowLogThresholdTest")->i32;
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
   tsSlowLogMaxLen = cfgGetItem(pCfg, "slowLogMaxLen")->i32;
@@ -1527,6 +1530,12 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     return 0;
   }
 
+  if (strcasecmp("slowLogExceptDb", name) == 0) {
+    tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
+    cfgUnLock(pCfg);
+    return 0;
+  }
+
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
         {"dDebugFlag", &dDebugFlag},     {"vDebugFlag", &vDebugFlag},     {"mDebugFlag", &mDebugFlag},
@@ -1546,6 +1555,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitor", &tsEnableMonitor},
                                          {"monitorInterval", &tsMonitorInterval},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"slowLogThresholdTest", &tsSlowLogThresholdTest},
                                          {"slowLogMaxLen", &tsSlowLogMaxLen},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
