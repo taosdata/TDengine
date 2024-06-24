@@ -781,7 +781,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s vgId:%d quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
+    stDebug("s-task:%s vgId:%d status:stop, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
@@ -794,6 +794,18 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
 
   pActiveInfo->sendReadyCheckCounter = 0;
   stDebug("s-task:%s in sending checkpoint-ready msg monitor timer", id);
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  if (pState->state != TASK_STATUS__CK) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId,
+            pState->name, ref);
+    taosThreadMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
 
   taosThreadMutexLock(&pActiveInfo->lock);
 
@@ -844,7 +856,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
         "and quit from timer, ref:%d",
         id, vgId, ref);
 
-    streamClearChkptReadyMsg(pTask);
+    streamClearChkptReadyMsg(pActiveInfo);
     taosThreadMutexUnlock(&pActiveInfo->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
   }
@@ -906,9 +918,9 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
     tmsgSendRsp(&pInfo->msg);
 
     taosArrayClear(pList);
-    stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d checkpoint-source rsp completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
   } else {
-    stDebug("s-task:%s level:%d already send rsp checkpoint success to mnode", pTask->id.idStr, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d already send checkpoint-source rsp success to mnode", pTask->id.idStr, pTask->info.taskLevel);
   }
 
   taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
@@ -1116,8 +1128,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   return 0;
 }
 
-void streamClearChkptReadyMsg(SStreamTask* pTask) {
-  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+void streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo) {
   if (pActiveInfo == NULL) {
     return;
   }

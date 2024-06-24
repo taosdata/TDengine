@@ -231,7 +231,6 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
     return 0;
   } else if (compatible == STREAM_STATA_NEED_CONVERT) {
     stInfo("vgId:%d stream state need covert backend format", pMeta->vgId);
-
     return streamMetaCvtDbFormat(pMeta);
   } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
     stError(
