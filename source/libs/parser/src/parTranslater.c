@@ -7254,6 +7254,7 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
   pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq);
