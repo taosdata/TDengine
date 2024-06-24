@@ -146,9 +146,16 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
 
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
-  char dbList[1024] = {0};
-  concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
-  cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+  if(pRequest->dbList != NULL){
+    char dbList[1024] = {0};
+    concatStrings(pRequest->dbList, dbList, sizeof(dbList) - 1);
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(dbList));
+  }else if(pRequest->pDb != NULL){
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb));
+  }else{
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString("unknown"));
+  }
+
 
   MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
   if (slowLogData == NULL) {
@@ -221,8 +228,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if (duration >= ((pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest * 1000000UL) &&
-      (pRequest->pDb == NULL || strcmp(pRequest->pDb, tsSlowLogExceptDb) != 0))) {
+  if ((duration >= pTscObj->pAppInfo->monitorParas.tsSlowLogThreshold * 1000000UL || duration >= tsSlowLogThresholdTest * 1000000UL) &&
+      (pRequest->pDb == NULL || strcmp(pRequest->pDb, tsSlowLogExceptDb) != 0)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->monitorParas.tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
