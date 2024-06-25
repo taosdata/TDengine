@@ -1048,7 +1048,8 @@ int32_t streamTaskBuildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRp
   return 0;
 }
 
-int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask) {
+int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo,
+                                        SStreamTask* pTask) {
   STaskCheckpointReadyInfo info = {
       .recvTs = taosGetTimestampMs(), .transId = pReq->transId, .checkpointId = pReq->checkpointId};
 
@@ -1069,7 +1070,7 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
       stError("s-task:%s checkpointId:%" PRId64 " transId:%d not completed, new transId:%d checkpointId:%" PRId64
               " recv from mnode",
               pTask->id.idStr, pReady->checkpointId, pReady->transId, pReq->transId, pReq->checkpointId);
-      ASSERT(0); // failed to handle it
+      ASSERT(0);  // failed to handle it
     }
   } else {
     taosArrayPush(pActiveInfo->pReadyMsgList, &info);
@@ -1080,187 +1081,184 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
   return TSDB_CODE_SUCCESS;
 }
 
-  int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo * pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
-                                  int32_t childId, SEpSet * pEpset, int64_t checkpointId) {
-    ASSERT(upstreamTaskId != 0);
+int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
+                                int32_t childId, SEpSet* pEpset, int64_t checkpointId) {
+  ASSERT(upstreamTaskId != 0);
 
-    pReadyInfo->upstreamTaskId = upstreamTaskId;
-    pReadyInfo->upstreamNodeEpset = *pEpset;
-    pReadyInfo->upstreamNodeId = upstreamNodeId;
-    pReadyInfo->recvTs = taosGetTimestampMs();
-    pReadyInfo->checkpointId = checkpointId;
-    pReadyInfo->childId = childId;
+  pReadyInfo->upstreamTaskId = upstreamTaskId;
+  pReadyInfo->upstreamNodeEpset = *pEpset;
+  pReadyInfo->upstreamNodeId = upstreamNodeId;
+  pReadyInfo->recvTs = taosGetTimestampMs();
+  pReadyInfo->checkpointId = checkpointId;
+  pReadyInfo->childId = childId;
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, int32_t index, int64_t checkpointId) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t streamAddCheckpointReadyMsg(SStreamTask * pTask, int32_t upstreamTaskId, int32_t index,
-                                      int64_t checkpointId) {
-    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-      return TSDB_CODE_SUCCESS;
-    }
+  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
 
-    SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  STaskCheckpointReadyInfo info = {0};
+  initCheckpointReadyInfo(&info, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
 
-    STaskCheckpointReadyInfo info = {0};
-    initCheckpointReadyInfo(&info, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
+  stDebug("s-task:%s (level:%d) prepare checkpoint-ready msg to upstream s-task:0x%" PRIx64 "-0x%x (vgId:%d) idx:%d",
+          pTask->id.idStr, pTask->info.taskLevel, pTask->id.streamId, pInfo->taskId, pInfo->nodeId, index);
 
-    stDebug("s-task:%s (level:%d) prepare checkpoint-ready msg to upstream s-task:0x%" PRIx64 "-0x%x (vgId:%d) idx:%d",
-            pTask->id.idStr, pTask->info.taskLevel, pTask->id.streamId, pInfo->taskId, pInfo->nodeId, index);
+  SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
 
-    SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
+  taosThreadMutexLock(&pActiveInfo->lock);
+  taosArrayPush(pActiveInfo->pReadyMsgList, &info);
 
-    taosThreadMutexLock(&pActiveInfo->lock);
-    taosArrayPush(pActiveInfo->pReadyMsgList, &info);
+  int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
+  int32_t total = streamTaskGetNumOfUpstream(pTask);
+  if (numOfRecv == total) {
+    stDebug("s-task:%s recv checkpoint-trigger from all upstream, continue", pTask->id.idStr);
+    pActiveInfo->allUpstreamTriggerRecv = 1;
+  } else {
+    ASSERT(numOfRecv <= total);
+    stDebug("s-task:%s %d/%d checkpoint-trigger recv", pTask->id.idStr, numOfRecv, total);
+  }
 
-    int32_t numOfRecv = taosArrayGetSize(pActiveInfo->pReadyMsgList);
-    int32_t total = streamTaskGetNumOfUpstream(pTask);
-    if (numOfRecv == total) {
-      stDebug("s-task:%s recv checkpoint-trigger from all upstream, continue", pTask->id.idStr);
-      pActiveInfo->allUpstreamTriggerRecv = 1;
-    } else {
-      ASSERT(numOfRecv <= total);
-      stDebug("s-task:%s %d/%d checkpoint-trigger recv", pTask->id.idStr, numOfRecv, total);
-    }
+  taosThreadMutexUnlock(&pActiveInfo->lock);
+  return 0;
+}
 
-    taosThreadMutexUnlock(&pActiveInfo->lock);
+void streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo) {
+  if (pActiveInfo == NULL) {
+    return;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); i++) {
+    STaskCheckpointReadyInfo* pInfo = taosArrayGet(pActiveInfo->pReadyMsgList, i);
+    rpcFreeCont(pInfo->msg.pCont);
+  }
+
+  taosArrayClear(pActiveInfo->pReadyMsgList);
+}
+
+// this message has been sent successfully, let's try next one.
+static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId, int32_t downstreamNodeId) {
+  stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
+
+  bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
+  clearBufferedDispatchMsg(pTask);
+
+  int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
+
+  // put data into inputQ of current task is also allowed
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+    pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
+    stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
+            pTask->id.idStr, downstreamId, el);
+  } else {
+    stDebug("s-task:%s dispatch completed, elapsed time:%" PRId64 "ms", pTask->id.idStr, el);
+  }
+
+  // now ready for next data output
+  atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
+
+  // otherwise, continue dispatch the first block to down stream task in pipeline
+  if (delayDispatch) {
     return 0;
+  } else {
+    streamDispatchStreamBlock(pTask);
   }
 
-  void streamClearChkptReadyMsg(SActiveCheckpointInfo * pActiveInfo) {
-    if (pActiveInfo == NULL) {
-      return;
+  return 0;
+}
+
+static int32_t setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t code, int64_t now, const char* id) {
+  int32_t numOfRsp = 0;
+  bool    alreadySet = false;
+  bool    updated = false;
+
+  taosThreadMutexLock(&pMsgInfo->lock);
+  for (int32_t j = 0; j < taosArrayGetSize(pMsgInfo->pSendInfo); ++j) {
+    SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
+    if (pEntry->nodeId == vgId) {
+      ASSERT(!alreadySet);
+      pEntry->rspTs = now;
+      pEntry->status = code;
+      alreadySet = true;
+      updated = true;
+      stDebug("s-task:%s record the rsp recv, ts:%" PRId64 " code:%d, idx:%d", id, now, code, j);
     }
 
-    for (int i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); i++) {
-      STaskCheckpointReadyInfo* pInfo = taosArrayGet(pActiveInfo->pReadyMsgList, i);
-      rpcFreeCont(pInfo->msg.pCont);
+    if (pEntry->rspTs != -1) {
+      numOfRsp += 1;
     }
-
-    taosArrayClear(pActiveInfo->pReadyMsgList);
   }
 
-  // this message has been sent successfully, let's try next one.
-  static int32_t handleDispatchSuccessRsp(SStreamTask * pTask, int32_t downstreamId, int32_t downstreamNodeId) {
-    stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
+  taosThreadMutexUnlock(&pMsgInfo->lock);
+  ASSERT(updated);
 
-    bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
-    clearBufferedDispatchMsg(pTask);
+  return numOfRsp;
+}
 
-    int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
+bool isDispatchRspTimeout(SDispatchEntry* pEntry, int64_t now) {
+  return (pEntry->rspTs == -1) && (now - pEntry->sendTs) > 30 * 1000;
+}
 
-    // put data into inputQ of current task is also allowed
-    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-      pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
-      stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
-              pTask->id.idStr, downstreamId, el);
+int32_t getFailedDispatchInfo(SDispatchMsgInfo* pMsgInfo, int64_t now) {
+  int32_t numOfFailed = 0;
+  taosThreadMutexLock(&pMsgInfo->lock);
+
+  for (int32_t j = 0; j < taosArrayGetSize(pMsgInfo->pSendInfo); ++j) {
+    SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
+    if (pEntry->status != TSDB_CODE_SUCCESS || isDispatchRspTimeout(pEntry, now)) {
+      numOfFailed += 1;
+    }
+  }
+  taosThreadMutexUnlock(&pMsgInfo->lock);
+  return numOfFailed;
+}
+
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
+  const char*       id = pTask->id.idStr;
+  int32_t           vgId = pTask->pMeta->vgId;
+  SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+  int32_t           msgId = pMsgInfo->msgId;
+  int64_t           now = taosGetTimestampMs();
+  int32_t           totalRsp = 0;
+
+  // follower not handle the dispatch rsp
+  if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
+    stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id,
+            vgId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  // discard invalid dispatch rsp msg
+  if ((pRsp->msgId != msgId) || (pRsp->stage != pTask->pMeta->stage)) {
+    stError("s-task:%s vgId:%d not expect rsp, expected: msgId:%d, stage:%" PRId64 " actual msgId:%d, stage:%" PRId64
+            " discard it",
+            id, vgId, msgId, pTask->pMeta->stage, pRsp->msgId, pRsp->stage);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    // dispatch message failed: network error, or node not available.
+    // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp->inputStatus will be set
+    // flag. Here we need to retry dispatch this message to downstream task immediately. handle the case the failure
+    // happened too fast.
+    if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {  // destination task does not exist, not retry anymore
+      stError("s-task:%s failed to dispatch msg to task:0x%x(vgId:%d), msgId:%d no retry, since task destroyed already",
+              id, pRsp->downstreamTaskId, pRsp->downstreamNodeId, msgId);
+      totalRsp = setDispatchRspInfo(pMsgInfo, pRsp->downstreamNodeId, TSDB_CODE_SUCCESS, now, id);
     } else {
-      stDebug("s-task:%s dispatch completed, elapsed time:%" PRId64 "ms", pTask->id.idStr, el);
+      stError("s-task:%s failed to dispatch msgId:%d to task:0x%x(vgId:%d), code:%s, add to retry list", id, msgId,
+              pRsp->downstreamTaskId, pRsp->downstreamNodeId, tstrerror(code));
+      totalRsp = setDispatchRspInfo(pMsgInfo, pRsp->downstreamNodeId, code, now, id);
     }
 
-    // now ready for next data output
-    atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
-
-    // otherwise, continue dispatch the first block to down stream task in pipeline
-    if (delayDispatch) {
-      return 0;
-    } else {
-      streamDispatchStreamBlock(pTask);
-    }
-
-    return 0;
-  }
-
-  static int32_t setDispatchRspInfo(SDispatchMsgInfo * pMsgInfo, int32_t vgId, int32_t code, int64_t now,
-                                    const char* id) {
-    int32_t numOfRsp = 0;
-    bool    alreadySet = false;
-    bool    updated = false;
-
-    taosThreadMutexLock(&pMsgInfo->lock);
-    for (int32_t j = 0; j < taosArrayGetSize(pMsgInfo->pSendInfo); ++j) {
-      SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
-      if (pEntry->nodeId == vgId) {
-        ASSERT(!alreadySet);
-        pEntry->rspTs = now;
-        pEntry->status = code;
-        alreadySet = true;
-        updated = true;
-        stDebug("s-task:%s record the rsp recv, ts:%" PRId64 " code:%d, idx:%d", id, now, code, j);
-      }
-
-      if (pEntry->rspTs != -1) {
-        numOfRsp += 1;
-      }
-    }
-
-    taosThreadMutexUnlock(&pMsgInfo->lock);
-    ASSERT(updated);
-
-    return numOfRsp;
-  }
-
-  bool isDispatchRspTimeout(SDispatchEntry * pEntry, int64_t now) {
-    return (pEntry->rspTs == -1) && (now - pEntry->sendTs) > 30 * 1000;
-  }
-
-  int32_t getFailedDispatchInfo(SDispatchMsgInfo * pMsgInfo, int64_t now) {
-    int32_t numOfFailed = 0;
-    taosThreadMutexLock(&pMsgInfo->lock);
-
-    for (int32_t j = 0; j < taosArrayGetSize(pMsgInfo->pSendInfo); ++j) {
-      SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
-      if (pEntry->status != TSDB_CODE_SUCCESS || isDispatchRspTimeout(pEntry, now)) {
-        numOfFailed += 1;
-      }
-    }
-    taosThreadMutexUnlock(&pMsgInfo->lock);
-    return numOfFailed;
-  }
-
-  int32_t streamProcessDispatchRsp(SStreamTask * pTask, SStreamDispatchRsp * pRsp, int32_t code) {
-    const char*       id = pTask->id.idStr;
-    int32_t           vgId = pTask->pMeta->vgId;
-    SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
-    int32_t           msgId = pMsgInfo->msgId;
-    int64_t           now = taosGetTimestampMs();
-    int32_t           totalRsp = 0;
-
-    // follower not handle the dispatch rsp
-    if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
-      stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id,
-              vgId);
-      return TSDB_CODE_STREAM_TASK_NOT_EXIST;
-    }
-
-    // discard invalid dispatch rsp msg
-    if ((pRsp->msgId != msgId) || (pRsp->stage != pTask->pMeta->stage)) {
-      stError("s-task:%s vgId:%d not expect rsp, expected: msgId:%d, stage:%" PRId64 " actual msgId:%d, stage:%" PRId64
-              " discard it",
-              id, vgId, msgId, pTask->pMeta->stage, pRsp->msgId, pRsp->stage);
-      return TSDB_CODE_INVALID_MSG;
-    }
-
-    if (code != TSDB_CODE_SUCCESS) {
-      // dispatch message failed: network error, or node not available.
-      // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp->inputStatus will be set
-      // flag. Here we need to retry dispatch this message to downstream task immediately. handle the case the failure
-      // happened too fast.
-      if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {  // destination task does not exist, not retry anymore
-        stError(
-            "s-task:%s failed to dispatch msg to task:0x%x(vgId:%d), msgId:%d no retry, since task destroyed already",
-            id, pRsp->downstreamTaskId, pRsp->downstreamNodeId, msgId);
-        totalRsp = setDispatchRspInfo(pMsgInfo, pRsp->downstreamNodeId, TSDB_CODE_SUCCESS, now, id);
-      } else {
-        stError("s-task:%s failed to dispatch msgId:%d to task:0x%x(vgId:%d), code:%s, add to retry list", id, msgId,
-                pRsp->downstreamTaskId, pRsp->downstreamNodeId, tstrerror(code));
-        totalRsp = setDispatchRspInfo(pMsgInfo, pRsp->downstreamNodeId, code, now, id);
-      }
-
-    } else {  // code == 0
-      if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-        pTask->inputq.status = TASK_INPUT_STATUS__BLOCKED;
-        // block the input of current task, to push pressure to upstream
+  } else {  // code == 0
+    if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+      pTask->inputq.status = TASK_INPUT_STATUS__BLOCKED;
+      // block the input of current task, to push pressure to upstream
       totalRsp = setDispatchRspInfo(pMsgInfo, pRsp->downstreamNodeId, pRsp->inputStatus, now, id);
       stTrace("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for retry dispatch", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId);
@@ -1278,7 +1276,7 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
       {
         bool delayDispatch = (pMsgInfo->dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
         if (delayDispatch) {
-        taosThreadMutexLock(&pTask->lock);
+          taosThreadMutexLock(&pTask->lock);
           // we only set the dispatch msg info for current checkpoint trans
           if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK &&
               pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId) {
@@ -1287,65 +1285,65 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
                     pTask->id.idStr, pRsp->downstreamTaskId, pMsgInfo->checkpointId, pMsgInfo->transId);
 
             streamTaskSetTriggerDispatchConfirmed(pTask, pRsp->downstreamNodeId);
-        } else {
+          } else {
             stWarn("s-task:%s checkpoint-trigger msg rsp for checkpointId:%" PRId64
                    " transId:%d discard, since expired",
                    pTask->id.idStr, pMsgInfo->checkpointId, pMsgInfo->transId);
           }
           taosThreadMutexUnlock(&pTask->lock);
         }
-        }
       }
     }
-
-    int32_t notRsp = taosArrayGetSize(pMsgInfo->pSendInfo) - totalRsp;
-    if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      if (notRsp > 0) {
-        stDebug(
-            "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, "
-            "waiting "
-            "for %d rsp",
-            id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code), notRsp);
-      } else {
-        stDebug(
-            "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, all "
-            "rsp",
-            id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
-      }
-    } else {
-      stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s",
-              id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
-    }
-
-    // all msg rsp already, continue
-    if (notRsp == 0) {
-      ASSERT(pTask->outputq.status == TASK_OUTPUT_STATUS__WAIT);
-
-      // we need to re-try send dispatch msg to downstream tasks
-      int32_t numOfFailed = getFailedDispatchInfo(pMsgInfo, now);
-      if (numOfFailed == 0) {  // this message has been sent successfully, let's try next one.
-        // trans-state msg has been sent to downstream successfully. let's transfer the fill-history task state
-        if (pMsgInfo->dispatchMsgType == STREAM_INPUT__TRANS_STATE) {
-          stDebug("s-task:%s dispatch trans-state msgId:%d to downstream successfully, start to prepare transfer state",
-                  id, msgId);
-          ASSERT(pTask->info.fillHistory == 1);
-
-          code = streamTransferStatePrepare(pTask);
-          if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
-          }
-
-          clearBufferedDispatchMsg(pTask);
-
-          // now ready for next data output
-          atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
-        } else {
-          handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
-        }
-      }
-    }
-
-    return 0;
   }
+
+  int32_t notRsp = taosArrayGetSize(pMsgInfo->pSendInfo) - totalRsp;
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (notRsp > 0) {
+      stDebug(
+          "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, "
+          "waiting "
+          "for %d rsp",
+          id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code), notRsp);
+    } else {
+      stDebug(
+          "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, all "
+          "rsp",
+          id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
+    }
+  } else {
+    stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s", id,
+            msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
+  }
+
+  // all msg rsp already, continue
+  if (notRsp == 0) {
+    ASSERT(pTask->outputq.status == TASK_OUTPUT_STATUS__WAIT);
+
+    // we need to re-try send dispatch msg to downstream tasks
+    int32_t numOfFailed = getFailedDispatchInfo(pMsgInfo, now);
+    if (numOfFailed == 0) {  // this message has been sent successfully, let's try next one.
+      // trans-state msg has been sent to downstream successfully. let's transfer the fill-history task state
+      if (pMsgInfo->dispatchMsgType == STREAM_INPUT__TRANS_STATE) {
+        stDebug("s-task:%s dispatch trans-state msgId:%d to downstream successfully, start to prepare transfer state",
+                id, msgId);
+        ASSERT(pTask->info.fillHistory == 1);
+
+        code = streamTransferStatePrepare(pTask);
+        if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
+        }
+
+        clearBufferedDispatchMsg(pTask);
+
+        // now ready for next data output
+        atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
+      } else {
+        handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+      }
+    }
+  }
+
+  return 0;
+}
 
 static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t status, void** pBuf) {
   *pBuf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
@@ -1410,7 +1408,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     if (pReq->stage > pInfo->stage) {
       // upstream task has restarted/leader-follower switch/transferred to other dnodes
       stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
-                  ", current:%" PRId64 " dispatch msg rejected",
+              ", current:%" PRId64 " dispatch msg rejected",
               id, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
       status = TASK_INPUT_STATUS__REFUSED;
     } else {
@@ -1446,5 +1444,5 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   streamTrySchedExec(pTask);
-    return 0;
-  }
+  return 0;
+}
