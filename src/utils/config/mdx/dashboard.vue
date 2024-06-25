@@ -95,10 +95,10 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
           "
         ><code class="language-bash"></code></pre>
     </p>
-     
-   
-  
-  
+
+
+
+
     <p v-html="$t('docs.virtual.grafana.step3desc3')"></p>
     <!-- <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
     <p v-if="!isOEM">

@@ -53,18 +53,15 @@
           </el-select>
           <el-input-number
             size="small"
-            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-            :value="
-              column.type == 'VARCHAR'
-                ? column.varcharLength
-                : column.ncharLength
+            v-if="VariableTableColumnType.includes(column.type)"
+            :value="column.length
             "
             @change="
               (newVal, oldVal) =>
                 handleChange(newVal, oldVal, column.type, index)
             "
             :min="1"
-            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            :max="column.type == 'NCHAR' ? 4093 : 65517"
             label="Length"
             controls-position="right"
             class="custom-length"
@@ -77,7 +74,7 @@
               style="min-width: 60px"
             >
           </el-input>
-          <el-tag effect="plain" type="info" v-if="index==1">
+          <el-tag effect="plain" type="info" v-if="index==1 && version_gt_3300">
               <el-checkbox 
                 v-model="column.primaryKey"  
                 :disabled="parmaryKeyType.findIndex((item) => column.type.startsWith(item.value)) == -1"
@@ -85,7 +82,7 @@
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -104,7 +101,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -123,7 +120,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -182,18 +179,14 @@
           </el-select>
           <el-input-number
             size="small"
-            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-            :value="
-              column.type == 'VARCHAR'
-                ? column.varcharLength
-                : column.ncharLength
-            "
+            v-if="VariableTableColumnType.includes(column.type)"
+            :value="column.length"
             @change="
               (newVal, oldVal) =>
                 tagLengthChange(newVal, oldVal, column.type, index)
             "
             :min="1"
-            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            :max="column.type == 'NCHAR' ? 4093 : 16382"
             label="Length"
             controls-position="right"
             class="custom-length"
@@ -225,6 +218,8 @@ import {
   tagType,
   parmaryKeyType, storageCompression, levelList, groupOne, groupTwo, groupThree, groupFour, groupFive
 } from "../../2_explorer/views/components/utils/index";
+import { VariableTableColumnType } from "@/const"
+import VersionMixin from "@/mixins/version";
 export default {
   name: "CreateSTB",
   data() {
@@ -238,8 +233,7 @@ export default {
         type: "INT",
         field: "",
         value: "",
-        varcharLength: 8,
-        ncharLength: 8,
+        length: 8,
         encode: "simple8b", 
         compress: "lz4", 
         level: "medium",
@@ -248,8 +242,7 @@ export default {
         type: "TIMESTAMP", 
         field: "", 
         value: "",
-        varcharLength:8,
-        ncharLength:8, 
+        length:8, 
         encode: "delta-i", 
         compress: "lz4", 
         level: "medium", 
@@ -286,6 +279,7 @@ export default {
         ],
       },
       activeNames: ["1", "2"],
+      VariableTableColumnType
     };
   },
   props: {
@@ -294,8 +288,9 @@ export default {
       default: () => [],
     }
   },
+  mixins: [VersionMixin],
   watch: {
-    "columnsArr": {
+    "$store.state.app.stbDefaultColumns": {
       handler(columnsArr_new) {
         if (columnsArr_new.length > 0) {
           let arr = columnsArr_new;
@@ -327,20 +322,10 @@ export default {
   },
   methods: {
     handleChange(newVal, oldVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.stable_form.columns[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.stable_form.columns[index], "ncharLength", newVal);
-      }
+      this.$set(this.stable_form.columns[index], "length", newVal);
     },
     tagLengthChange(newVal, oldVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.stable_form.tags[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.stable_form.tags[index], "ncharLength", newVal);
-      }
+      this.$set(this.stable_form.tags[index], "length", newVal);
     },
     minusColumn(index) {
       if (this.stable_form.columns.length > 1) {

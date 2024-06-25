@@ -108,9 +108,6 @@ export default {
     return {};
   },
   computed: {
-    DSN() {
-      return this.url + "?token=" + this.token;
-    },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },

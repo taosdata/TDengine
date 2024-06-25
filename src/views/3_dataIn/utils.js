@@ -6,6 +6,7 @@ import { Loading } from 'element-ui';
 import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
+import { cs } from 'date-fns/locale';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
@@ -19,8 +20,9 @@ const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
-export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
+export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance','','delay'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
@@ -130,15 +132,15 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
 
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
-    handleOptions(options, paramsConfig);
+    handleOptions(options, paramsConfig, id);
     handleAuthentication(authentication, paramsConfig);
     
-    handleGroups(groups, paramsConfig, true);
+    handleGroups(groups, paramsConfig, true, id);
     if (id != 'csv') {
       handleConnectivityCheck(paramsConfig)
     }
     handleDatasets(datasets, paramsConfig);
-    handleGroups(groups, paramsConfig, false);
+    handleGroups(groups, paramsConfig, false, id);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
@@ -277,30 +279,10 @@ function handleAuthentication(authentication, paramsConfig) {
           label: display,
           description,
           placeholder,
-          required: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              return checkValue(authenticationData.certificates.security_mode) && 
-                authenticationData.certificates.security_mode !== opcuaSecuritymodeValue && index > 1
-            } else {
-              return required
-            }
-          },
+          required,
           field: name,
           defaultValue: defaultValue ?? '',
           accept: '.pem,.der,.cert,.key,.crt',
-          disabled: (_, originalData,currentDefinition) => {
-            if (currentDefinition?.id?.startsWith('opcua')) {
-              let authenticationData = originalData[authenticationField];
-              // 特殊处理 opcua 安全策略
-              if ( authenticationData.certificates.security_mode == opcuaSecuritymodeValue) {
-                authenticationData.certificates.security_policy = ''
-              }
-              return authenticationData.certificates.security_mode == opcuaSecuritymodeValue && index == 1
-            } else {
-              return false
-            }
-          },
         };
         if (name == 'orgId') {
           config.pattern = /^[0-9a-fA-F]+$/
@@ -372,7 +354,7 @@ function handleAuthentication(authentication, paramsConfig) {
     }
 }
  */
-function handleOptions(options, paramsConfig) {
+function handleOptions(options, paramsConfig, id) {
   if (!options) return;
   const children = paramsConfig[0]?.children ?? [];
   const keys = Object.keys(options);
@@ -384,14 +366,36 @@ function handleOptions(options, paramsConfig) {
       description,
       field: key,
       placeholder,
-      required,
+      // required,
       pattern: pattern || null,
       patternMsg,
       defaultValue: value ?? '',
       if: currentData => {
         if (!currentData.system_configuration || key == 'host') return true;
         return currentData.system_configuration == piOptionShowValue;
-      }
+      },
+      required: (currentData) => {
+        if (id?.startsWith('opcua')) {
+          return ['private_key','security_policy','certificate'].includes(key)
+            ? checkValue(currentData.security_mode) && 
+              currentData.security_mode !== opcuaSecuritymodeValue 
+            : required
+        } else {
+          return required
+        }
+      },
+       disabled: (currentData) => {
+        if (id?.startsWith('opcua')) {
+          // 特殊处理 opcua 安全策略
+          if ( currentData.security_mode == opcuaSecuritymodeValue) {
+            currentData.security_policy = '';
+          }
+          return currentData.security_mode == opcuaSecuritymodeValue &&
+            ['security_policy'].includes(key)
+        } else {
+          return false
+        }
+      },
     };
     if (key == 'host') {
       config.display_order = 1;
@@ -595,7 +599,7 @@ function handleDatasets(datasets, paramsConfig) {
           return config;
         })
       : categories.map((item, index) => {
-          const { category, display, description: desc, target, params: categoryParams } = item;
+          const { category, display, short_description, description: desc, target, params: categoryParams } = item;
           const paramConfig = {
             label: display,
             name: category,
@@ -604,6 +608,7 @@ function handleDatasets(datasets, paramsConfig) {
             category,
             radio: !!index,
             description: desc,
+            short_description,
             field: handleField(target.name),
             type: 'dataset',
             accept: '.csv',
@@ -622,9 +627,11 @@ function handleDatasets(datasets, paramsConfig) {
                     defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
                     multiple: categoryParam.multiple ?? false
                   };
+
                   handleHintType(config, categoryParam.hint);
                   // 特殊处理 opc 的点位过滤
                   if (currentType.startsWith('opc')) {
+
                     if (config.field == 'pattern') {
                       config.type = 'pattern';
                     }
@@ -638,6 +645,19 @@ function handleDatasets(datasets, paramsConfig) {
                           }
                         })
                         return list
+                      }
+                    }
+                  } else if (currentType == 'pi' || currentType == 'pibackfill') {
+                    if (config.field == 'filter_value') {
+                      config.options = (that) => {
+                        let activeTabValues = getActiveTabValueObject(that.sourceParent.sourceForm.data);
+                        if (that.sourceParent.sourceForm.data[optionsField]['system_configuration'].indexOf('AF') < 0) {
+                          activeTabValues['filter_value_type'] = 'point'
+                          return [{label: 'point name',value: 'point'}]
+                        } else {
+                          activeTabValues['filter_value_type'] = 'template'
+                          return [{label: 'template',value: 'template'}]
+                        }
                       }
                     }
                   }
@@ -700,7 +720,7 @@ function handleDatasets(datasets, paramsConfig) {
     }
 ]
  */
-function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
+function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
   if (!groups) return;
   groups = groups.sort((a, b) => a.display_order - b.display_order);
   const children = [];
@@ -725,7 +745,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple, pattern, patternMsg } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -733,7 +753,15 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         // if: collapsible ? data => data[valueField] : true,
         if: (currentData, originalData) => {
           const datasetsData = originalData[datasetsField];
-          if (collapsible) return currentData[valueField];
+          if (collapsible) {
+            if (id === 'kafka' && group.display_order == 1) {
+              return (currentData.sasl_mechanism == "GSSAPI" )
+                ? currentData[valueField] && !['sasl_username','sasl_password'].includes(name) 
+                : currentData[valueField] && ['sasl_mechanism','sasl_username','sasl_password'].includes(name)
+            } else {
+              return currentData[valueField];
+            }
+          } 
           // if (!currentData.table) return true;
           if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
             return !['update_interval', 'update_mode'].includes(name)
@@ -743,6 +771,8 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
             } else {
               return !['endDateTime'].includes(name)
             }
+          } else if (currentData.trust_cert){
+            return !['trust_cert_ca'].includes(name)
           } else {
             return !['table','retrieveInterval','tolerance'].includes(name)
           }
@@ -753,23 +783,28 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
         multiple,
         pattern: pattern || null,
         patternMsg,
+        grid_two,
+        type_value
       };
       handleHintType(paramConfig, hint, value);
-      if (isArray(conflicts_with)) {
-        paramConfig.disabled = currentData => {
-          const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
-          if (conflict && conflict?.when == currentData[paramConfig.field]) {
-            currentData[paramConfig.field] = '';
-          }
-          return !!conflict;
-        };
-      }
-      // postgres/mysql 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle') && paramConfig.field == 'sql') {
+      // 2024-05-17，pibackfill remove the special rule
+      // if (isArray(conflicts_with)) {
+      //   paramConfig.disabled = currentData => {
+      //     const conflict = conflicts_with.find(item => currentData?.[item.name] == item.value);
+      //     if (conflict && conflict?.when == currentData[paramConfig.field]) {
+      //       currentData[paramConfig.field] = '';
+      //     }
+      //     return !!conflict;
+      //   };
+      // }
+
+      // postgres/mysql/sql server 的 sql 在编辑状态下不能修改
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
       }
+
       // 特殊处理 influxdb 的 bucket
       if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
@@ -787,6 +822,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck) {
       // TODO: 临时解决
       if (paramConfig.type == 'file') {
         paramConfig.templateUrl = templateUrlMap[currentType] ?? '';
+        if (currentType == 'mssql') {
+          paramConfig.accept = '.pem'
+        }
       }
       // 针对opc的opc_table_config特殊处理
       if (name == 'opc_table_config') {
@@ -949,11 +987,14 @@ export function handleHintType(config, hint) {
     case 'time':
       config.type = 'time';
       break;
-    case 'timeout':
-      config.type = 'input';
-      break;
+    // case 'timeout':
+    //   config.type = 'input';
+    //   break;
     case 'file':
       config.type = 'file';
+      break;
+    case 'password':
+      config.type = 'password';
       break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
@@ -962,6 +1003,23 @@ export function handleHintType(config, hint) {
         config.defaultValue = hint.find(item => item.selected)?.value;
       }
       break;
+    case 'compose':
+      config.type = 'compose';
+      if (hint?.choices) {
+        config.options = hint.choices.filter(item => item != '--NONE--').map(item => ({
+          label: item,
+          value: item
+        }));
+      }
+      break;
+    case 'duration':
+    case 'timeout':
+      config.type = 'composeAppend';
+      if (hint?.choices) {
+        config.options = hint.choices;
+      }
+      break;
+
     default:
       if (hint?.choices) {
         config.type = 'select';
@@ -1010,6 +1068,13 @@ export function generateFormInitData(paramsConfig) {
       }
     } else {
       data[item.field] = value;
+      if (item.type === 'compose' && item.hint?.choices) {
+        data[item.field + '_type'] = item.type_value || "";
+      }
+      if (item.type === 'composeAppend') {
+        data[item.field + '_type'] = item.type_value || "";
+        data[item.field] = value ? value?.match(/\d+/)[0] : "";
+      }
     }
     return data;
   }, {});
@@ -1017,6 +1082,19 @@ export function generateFormInitData(paramsConfig) {
 export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
+
+export function getActiveTabValueObject(data) {
+  const activeTab = data[datasetsField][valueField];
+  return data[datasetsField][activeTab];
+}
+
+export function getActiveTabKey(data) {
+  return data[datasetsField][valueField];
+}
+
+export function getOptionsValue(data) {
+  return data[optionsField];
+}
 
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
@@ -1037,9 +1115,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
-  // if(definition.id=='csv'){
-  //   dsn+=`&headers=c0,c1`
-  // }
+  if (definition.id == 'pi' || definition.id == 'pibackfill') {
+    dsn += '&model=' + getActiveTabKey(data);
+  }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {
@@ -1072,6 +1150,7 @@ function handleProtocolData(protocol, definition) {
 // }
 
 function getGroupsQuery(groups, query) {
+  groups = cloneDeep(groups)
   if (!groups) return query;
   for (let key in groups) {
     if (typeof groups[key] == 'object') {
@@ -1088,6 +1167,11 @@ function getGroupsQuery(groups, query) {
               value = formatTime(groups[key][k])
             }
             query.push(field + '=' + getQueryParamValue(value));
+          } else if (ComposeParams.includes(k)) {
+            let type_value = checkValue(getQueryParamValue(groups[key][k+'_type'])) ? getQueryParamValue(groups[key][k+'_type']) : ''
+            query.push(field + '=' + getQueryParamValue(groups[key][k]) + type_value);
+          } else if (/_type$/.test(k)) {
+            delete groups[key][k+'_type'];
           } else {
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
@@ -1213,7 +1297,11 @@ function handleEndpoint(endpoint) {
   if (url.includes("://")) {
     try {
       let parsed_url = new URL(url);
-      return "tmq+" + parsed_url.toString();
+      if (parsed_url.protocol == "taos:" || parsed_url.protocol == "tmq:") {
+        return parsed_url.toString().replace('taos:','tmq:');
+      } else {
+        return "tmq+" + parsed_url.toString();
+      }
     } catch (error) {
       console.log("Invalid URL: ", url, error);
       // not a valid url, use as is.
@@ -1236,7 +1324,7 @@ function getOriginField(field) {
 }
 
 function checkValue(value) {
-  if (value === undefined || value === null || value === '') return false;
+  if (value === undefined || value === null || value === '' || value === 'undefined') return false;
   if (Array.isArray(value)) {
     if (!value.length) return false;
   }
@@ -1283,7 +1371,6 @@ export async function handleDownload(filePath, fileName) {
   link.click();
   document.body.removeChild(link);
 }
-
 
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {

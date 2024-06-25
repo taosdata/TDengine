@@ -301,11 +301,11 @@
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
-                @click="edit(scope.row, scope.row.status.toLowerCase())"
+                @click="view(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-view"
               ></el-button>
             </el-tooltip>
-            <!-- <el-tooltip
+            <el-tooltip
               placement="bottom"
               effect="light"
               :content="
@@ -316,13 +316,14 @@
                 type="primay"
                 size="mini"
                 :disabled="
+                  $COMMUNITY ? $COMMUNITY :
                   scope.row.from_detail === undefined ||
                   !getEditStatus(scope.row.labels)
                 "
                 @click="edit(scope.row, scope.row.status.toLowerCase())"
                 icon="el-icon-edit"
               ></el-button>
-            </el-tooltip> -->
+            </el-tooltip>
             <el-tooltip
               placement="bottom"
               effect="light"
@@ -375,6 +376,7 @@
     </div>
     <el-alert
       v-if="$COMMUNITY"
+      class="my-alert"
       style="margin-top: 8px"
       type="warning"
       :description="$t('communityDemoDataTip')"
@@ -498,13 +500,130 @@ export default {
         })
       });
     },
-    view() {},
+    view(data, status) {
+      this.$parent.isViewable = true;
+      this.$parent.sourceName = data.name;
+      this.$parent.currentTaskStatus = status;
+      this.$parent.agentID = data?.via;
+      this.$parent.setEditID(data.id);
+      if (data.from_detail) {
+        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
+        this.$store.commit("app/SET_CURRENT_RESUME", data.trigger?.resume);
+        this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
+        this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
+        this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
+        let editDdata = deepClone([].concat(data.from_detail));
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
+          this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
+        }
+        if (data.from_expand && data.from_expand.id == "mqtt") {
+          let dnsarr = data.from.split("?")[1].split("&");
+          let caindex = dnsarr.findIndex((item) => item.includes("ca="));
+          let certindex = dnsarr.findIndex((item) => item.includes("cert="));
+          let certkeyindex = dnsarr.findIndex((item) =>
+            item.includes("cert_key=")
+          );
+          if (caindex > -1) {
+            let file = dnsarr[caindex].split("=")[1].replace("@", "");
+            this.$store.commit("app/SET_MQTT_CAFILE", [].concat(file));
+          }
+          if (certindex > -1) {
+            let file = dnsarr[certindex].split("=")[1].replace("@", "");
+            this.$store.commit("app/SET_MQTT_CERTFILE", [].concat(file));
+          }
+          if (certkeyindex > -1) {
+            let file = dnsarr[certkeyindex].split("=")[1].replace("@", "");
+            this.$store.commit("app/SET_MQTT_CERTKEYFILE", [].concat(file));
+          }
+          this.$store.commit("app/SET_MQTT_PARSER", data.parser);
+          this.$parent.parserobj = deepClone(data.parser);
+        }
+        if(this.$store.state.app.supportSQL){
+          this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
+          this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
+        }
+        // if (data.from_expand && data.from_expand.id == "kafka") {
+        //   let payload = deepClone(data.parser.parse.value);
+        //   let parser = {
+        //     ...data.parser,
+        //     parse: {
+        //       payload,
+        //     },
+        //   };
+        //   this.$store.commit("app/SET_MQTT_PARSER", parser);
+        //   this.$parent.parserobj = deepClone(parser);
+        // }
+        if (
+          data.from_expand &&
+          (data.from_expand.id == "opcua" || data.from_expand.id == "opcda")
+        ) {
+          let dnsarr = data.from.split("?")[1].split("&");
+          let fileindex = dnsarr.findIndex((item) =>
+            item.includes("csv_config_file=")
+          );
+          if (fileindex > -1) {
+            let file = dnsarr
+              .filter((item) => item.includes("csv_config_file="))[0]
+              .split("=")[1]
+              .replace("@", "");
+            editDdata[0].datasets.value = "csv_config_file";
+            this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          } else {
+            editDdata[0].datasets.value = "select_all_points";
+          }
+
+          let certfile = dnsarr
+            .filter((item) => item.includes("certificate="))[0]
+            ?.split("=")[1]
+            .replace("@", "");
+          let privatefile = dnsarr
+            .filter((item) => item.includes("private_key="))[0]
+            ?.split("=")[1]
+            .replace("@", "");
+
+          this.$store.commit("app/SET_OPC_CERTFILES", [].concat(certfile));
+          this.$store.commit(
+            "app/SET_OPC_PRIVATEFILES",
+            [].concat(privatefile)
+          );
+        }
+
+        if (data.from_expand && data.from_expand.id == "csv") {
+          this.$store.commit("app/SET_CSV_PARSER", data.parser);
+          
+          this.$parent.echoData = deepClone([].concat(data.parser));
+          let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
+          let hasheader = data.from.match(/has_header=([^&]*)/)[1];
+          let localCols=data.from.match(/(?<=header=).*/)[0]
+          if(localCols&&localCols.includes('=')){
+            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+          }
+          this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
+          this.$store.commit("app/SET_CSV_FILES", filelist);
+        }
+        let dbname =
+          data.to_expand && data.to_expand.subject
+            ? data.to_expand.subject
+            : "";
+        this.$emit("setEditData", editDdata);
+        // this.$set(this.$parent.uidata,0,editDdata)
+        // this.$parent.uidata = editDdata;
+        localStorage.setItem("datainName", data.name);
+        this.$parent.toggleComponent(
+          "",
+          data.from_detail.id,
+          data.id,
+          dbname,
+        );
+      }
+    },
     edit(data, status, iscopy) {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       this.$parent.setEditID(data.id);
       this.$parent.isCopyable = iscopy;
+      this.$parent.isViewable = false;
       this.$store.commit("app/SET_CURRENT_EDITID", data.id);
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
@@ -1004,6 +1123,9 @@ export default {
 }
 .err-circle {
   animation: circle 1s infinite;
+}
+.my-alert ::v-deep.el-alert .el-alert__description  {
+  font-size: 14px;
 }
 @keyframes circle {
   0% {

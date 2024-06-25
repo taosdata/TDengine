@@ -25,6 +25,7 @@
 import { SlideHeader, SiderMenuItem } from "./components";
 import _ from "lodash";
 import i18n from "@/lang";
+import LicenseMixin from "@/mixins/license"
 const flag =
   !_.isEmpty(process.env.VUE_APP_CUS_NAME) &&
   process.env.VUE_APP_CUS_NAME !== "TDengine";
@@ -91,7 +92,7 @@ export default {
             icon: "stream",
             role: ["1"],
             meta: {
-              show: true,
+              show: this.getMetaShow('stream')
             },
           },
           {
@@ -100,7 +101,7 @@ export default {
             icon: "topic",
             role: ["1"],
             meta: {
-              show: true,
+              show: this.getMetaShow('subscription'),
             },
           },
           
@@ -127,6 +128,8 @@ export default {
         ]
     };
   },
+
+  mixins: [LicenseMixin],
 
   computed: {
     sider_style() {

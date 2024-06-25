@@ -634,11 +634,11 @@ export default {
     align-items: center;
   }
 }
-// .language-sql {
-//   white-space: normal;
-//   word-break: break-all;
-//   word-wrap: break-word;
-// }
+.language-sql {
+  white-space: normal;
+  word-break: break-all;
+  word-wrap: break-word;
+}
 </style>
 <style>
 .show-topic-sql .pre-code {

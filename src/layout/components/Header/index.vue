@@ -11,7 +11,7 @@
           <span class="value">{{this.license[0].expire_time | filterNull}}</span>
         </li> -->
         <li>
-          <span class="version">{{ $t("header.version") }}：</span>
+          <span class="version">{{ $t(`header.${industry}`) }}：</span>
           <span class="value" :style="{ color: version.includes('Expired') ? 'red': ''}">{{ version }}</span>
         </li>
       </ul>
@@ -71,6 +71,8 @@ export default {
       version: "",
       supportUrl: localStorage.getItem("supportWebsite"),
       docUrl: localStorage.getItem("documentWebsite"),
+      grants: [],
+      industry: 'version'
     };
   },
   filters: {
@@ -158,6 +160,14 @@ export default {
     },
     async getLicense() {
       try {
+        let res = await sendSQLReq('show grants;')
+        this.grants = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
         await sendSQLReq(
           `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         ).then((res) => {
@@ -170,16 +180,26 @@ export default {
           });
           localStorage.setItem("agent_version", this.getVersion(this.license[0]["server_version()"]));
           let versionName = ''
-          switch (this.license[0].version) {
+          switch (this.grants[0].version) {
             case "trial":
+            case "TDengine Enterprise Edition trial":
               versionName = this.license[0].valid
                 ? "Trial Expired"
                 : "Trial"
               break;
             case "official":
+            case "TDengine Enterprise Edition official":
               versionName = this.license[0].valid
                 ? "Enterprise License Expired"
                 : "Enterprise"
+              break;
+            case "TDengine Power Edition trial":
+              versionName = "Trial";
+              this.industry = "power";
+              break;
+            case "TDengine Power Edition official":
+              versionName = "Official"
+              this.industry = "power";
               break;
             default:
               versionName = "Community"

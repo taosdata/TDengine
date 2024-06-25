@@ -9,6 +9,7 @@
             :parent="parent"
             v-bind="item"
             :key="item.label"
+            ref="checkConnectivity"
           ></ConnectivityCheck>
 
         <section
@@ -57,6 +58,7 @@
                 :name="child.name"
                 :disabled="tabDisabled(child, item)"
               >
+                <p class="docs-content" v-if="child.short_description">{{ child.short_description }}</p>
                 <FormItem
                   v-if="tabContentShow(child, item)"
                   :config="child"
@@ -133,6 +135,7 @@ import ParserComp from '../components/parserComp.vue';
 // import OpcTable from './opcTable.vue';
 import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
+import { getOptionsValue } from '../utils.js';
 import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
 import CommonTransformer from './commonTransformer.vue'
@@ -200,6 +203,11 @@ export default {
   methods: {
     tabDisabled(child, parent) {
       if (!hasOwn(child, 'disabled')) return false;
+
+      if (child.category === 'multi-column' && getOptionsValue(this.sourceParent.sourceForm.data)['system_configuration'].indexOf('AF') < 0) {
+        return true;
+      }
+
       const isFn = typeof child.disabled === 'function';
       return isFn ? child.disabled(this.data[parent.field], this.sourceParent.sourceForm.data) : child.disabled;
     },
@@ -225,6 +233,7 @@ export default {
   .docs-content {
     color: $color-description;
     font-size: 14px;
+    margin-bottom: 10px;
   }
   &:deep(.el-tabs__item) {
     max-width: 240px;

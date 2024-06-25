@@ -63,6 +63,8 @@ export default {
   fullName: "全称",
   total: "全部",
   tips: "提示",
+  yes: "是",
+  no: "否",
   continue: "继续",
   change: "修改",
   copySucc: "复制成功",
@@ -72,6 +74,7 @@ export default {
   back: "返回",
   date: "日期",
   time: "时间",
+  timeUnit: "时间单位",
   status: "状态",
   events: "事件",
   user: "用户",
@@ -195,7 +198,9 @@ export default {
   microseconds: '微秒',
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
-  communityDemoDataTip: '当前列表数据仅为示例数据',
+  communityDemoDataTip: '当前列表仅为示例数据',
+  fullscreen: "全屏显示",
+  import: "导入",
   statuses: {
     created: "已创建",
     queued: "排队中",
@@ -229,7 +234,7 @@ export default {
   updateContent: '发现新版本，点击"更新"获取,请在刷新前注意保存当前页面数据',
   contact: '联系',
   close: '关闭',
-  communityContent: '目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理，无视图等诸多高级功能。而 TDengine 企业版解决了这些问题，而且还提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版和云服务。',
+  communityContent: '您目前使用的是 TDengine 开源版，无数据库备份恢复功能，无数据库实时同步功能，无法使用多级存储，无法零代码接入各种数据源，无权限管理，无视图等诸多高级功能。而 TDengine 企业版解决了这些问题，并提供更多的功能。欢迎联系 TDengine 团队，咨询 TDengine 企业版和云服务。',
   dontDisturbMe: '7天内不再提醒',
   plan: {
     pricePlan: "价格方案",
@@ -1189,6 +1194,7 @@ export default {
         type3: "上传文件",
         retrieve: "从服务器检索",
       },
+      retrieveTip: "未获取到示例数据",
       filterexecuted: "筛选条件已触发",
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",
@@ -1196,11 +1202,13 @@ export default {
       jsonPlaceholder: "请选择要提取的 json 属性，可选项来自于第一条示例数据，请确保其完整性。",
       jsontip: "请输入正确JSON格式",
       texttip:"请输入正确格式文本",
-      mappingvaildtip: "请填写正确的主键，列和tag",
+      mappingvaildtip: "请填写正确的主键列的映射规则",
+      mappingvaildColtip: "请至少填写一个普通列和标签列的映射规则",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      extractdesc: `<strong>taosX 目前支持 2 种规则解析原始消息体</strong>：<br/>
+      extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
+      3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/example-code.rhai" download>示例代码<a>进行参考。<br/>
       <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#12-解析" target="_blank">企业版文档<a>。</span>`,
       filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>：可直接使用 BOOL 类型的变量名作为表达式。<br/>
@@ -1260,7 +1268,12 @@ export default {
       defaultValuePlaceholder: "默认值",
       dataRangeInputTip: "请输入{min}到{max}之间的整数",
       defaultValueErrorTip: "字段[{}]映射的默认值输入有误",
-      jsonExtractTip: 'JSON 提取表达式编辑器'
+      jsonExtractTip: 'JSON 提取表达式编辑器',
+      udtTip: 'UDT 编辑',
+      uploadCode: "上传代码"
+    },
+    pi: {
+      confirmOverwriteConfigFile: "请确认是否覆盖已有配置文件?",
     },
     opcurl: "请输入OPC服务地址",
     selecttargetdb: "请选择目标数据源",
@@ -1283,6 +1296,7 @@ export default {
     upfile: "上传文件",
     selectfile: "选取文件",
     fileurl: "文件地址",
+    fileurlTip: "输入了不支持的字符，所有支持的字符列表请查看帮助提示",
     csvcol: "CSV列",
     dbcol: "DB列",
     percisiontip: "请选择精度",
@@ -1292,6 +1306,7 @@ export default {
     csvtable: "表名",
     csvNext: "解析",
     csvFileDesc: '请将文件上传到 taosx server 所在服务器，并将目录填写到这里；taosx 服务将遍历这个目录下所有 csv 文件，批量同步数据。',
+    supportCharacter: '文件名只支持以下字符：中文、大小写字母、数字、空格、%、$、@、点、中横线、下划线、括号（包括圆括号、方括号、大括号和中文括号）',
     ms: "毫秒",
     μs: "微秒",
     ns: "纳秒",
@@ -2317,6 +2332,19 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     clientAddress: "客户端 IP",
     db: "数据库",
     resource: "资源",
+    licenseSuccTip: "激活许可证成功，请退出后重新登录",
+    server: "服务地址",
+    importTitle: "导入用户/权限",
+    items: "导入内容",
+    userItem: "用户名和密码",
+    privilegesItem: "权限",
+    whitelistItem: "白名单",
+    succ1: "项用户信息",
+    succ2: "项权限信息已导入",
+    fail1: "部分项导入失败。",
+    fail2: "导入失败:",
+    fail3: "请检查失败原因",
+    formatError: "格式错误。示例: http://localhost:6041、http://127.0.0.1:6041"
   },
   taosagents: {
     step1: "安装",
@@ -2527,6 +2555,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
   taosx500: "TaosX API 无法访问，请检查 taosx 服务状态",
   header: {
     version: `${oem} 服务版本`,
+    power: `${oem} 电力版`,
   },
   explorerfns: {
     NumbericFn: "数学函数",

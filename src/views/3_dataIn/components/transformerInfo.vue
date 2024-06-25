@@ -10,7 +10,7 @@
         </div>
         <el-row class="mt10">
           <el-col
-            :span="$store.state.app.currentDBType == 'csv' ? 24: 17"
+            :span="$store.state.app.currentDBType == 'csv' ? 24: 24"
             >
               <el-form
                 @submit.native.prevent
@@ -21,79 +21,17 @@
                   prop="msgbody"
                   >
                   <el-input
-                    :disabled="!!$store.state.app.supportSQL"
-                    class="msgbody"
                     v-model="msgForm.msgbody"
+                    class="msgbody"
                     :placeholder="$t('datasource.transformer.msgbodytip')"
                     size="small"
                     type="textarea"
                     :autosize="{ minRows: 7, maxRows: 7 }"
+                    :readonly="true"
                   ></el-input>
                 </el-form-item>
               </el-form>
           </el-col>
-          <el-col :span="7" v-if="$store.state.app.currentDBType !== 'csv'" style="padding-left: 8px">
-            <el-col class="flexBetween">
-              {{
-                $t("datasource.transformer.dataLimit")
-              }}
-              <el-input-number v-model="limitOffset" size="small" :min="1" :max="100" controls-position="right" @change="handleLimit"></el-input-number>
-            </el-col>
-            <el-col
-              name="second"
-              :class="['mt5','msg-right']"
-            >
-              <el-tooltip
-                placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-              >
-                <template slot="content">
-                  <span v-html="$t('communityTip')"></span>
-                </template>
-                <el-button type="primary" plain size="small" :loading="requesting" :disabled="$COMMUNITY" @click="getMsgBody">{{
-                  $t("datasource.transformer.msgbodytypes.retrieve")
-                }}</el-button>
-              </el-tooltip>
-            </el-col>
-            <el-col
-              name="third"
-              :class="['mt5','msg-right']"
-              v-if="!$store.state.app.supportSQL"
-            >
-              <el-tooltip
-                  placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-                >
-                  <template slot="content">
-                    <span v-html="$t('communityTip')"></span>
-                  </template>
-                  <el-upload
-                    class="upload-demo"
-                    :action="uploadUrl"
-                    :data="{req_id: 'taosx-demo-file'}"
-                    :before-remove="beforeRemove"
-                    :on-success="handleSuccess"
-                    :on-progress="handleStart"
-                    :on-error="handleError"
-                    :on-exceed="handleExceed"
-                    :file-list="fileList"
-                    :show-file-list="false"
-                  >
-                    <el-button size="small" type="primary" plain :loading="request" :disabled="$COMMUNITY">{{
-                      $t("datasource.transformer.msgbodytypes.type3")
-                    }}</el-button>
-                  </el-upload>
-              </el-tooltip> 
-            </el-col>
-            <el-col
-              name="first"
-              :class="['mt5','msg-right']"
-              v-if="!$store.state.app.supportSQL"
-            >
-            <el-button size="small" @click="clearMsgBody">{{
-                $t("datasource.transformer.msgbodytypes.type1")
-              }}</el-button>
-            </el-col>
-          </el-col>
-
         </el-row>
       </section>
       <section class="extract">
@@ -103,20 +41,6 @@
               ? $t("datasource.transformer.identified")
               : $t("datasource.transformer.parse")
           }}</span>
-          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop1">
-            <div style="position: relative">
-              <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('1')"></i>
-              <DocsContent
-                :style="docsStyle"
-                :content="$t('datasource.transformer.extractdesc')"
-              />
-            </div>
-            <span style="margin-left: 1px"
-              slot="reference"
-              v-if="!$store.state.app.supportSQL && $store.state.app.currentDBType !== 'csv'"
-              ><Icon name="label_info" class="info_icon_custom"></Icon>
-            </span>
-          </el-popover>
         </div>
         <div
           class="extrac-parse"
@@ -124,26 +48,16 @@
         >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
-              <el-select
+              <span
                 size="small"
                 :placeholder="$t('datasource.transformer.filter_type')"
-                v-model="parseruleForm.type"
                 @change="handleTypeChange"
               >
-                <el-option
-                  v-for="item in parseTypes"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                ></el-option>
-              </el-select>
+              {{ parseruleForm.type }}
+              </span>
             </el-form-item>
             <el-form-item prop="expression">
-              <template v-if="parseruleForm.type == 'split'">
-                <SplitExpression ref="splitExpression"></SplitExpression>
-              </template>
               <el-input
-                v-else-if="parseruleForm.type == 'regex'"
                 v-model="parseruleForm.expression"
                 :placeholder="
                   parseruleForm.type == 'json'
@@ -151,61 +65,17 @@
                     : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
                 "
                 size="small"
-                :disabled="parseruleForm.type == 'json'"
+                type="textarea"
+                :autosize="{ minRows: 7, maxRows: 7 }"
+                :readonly="true"
               >
               </el-input>
-              <cusSelect
-                v-else-if="parseruleForm.type == 'json'"
-                v-model="parseruleForm.expression"
-                :allProperties="allProperties"
-                :selectJson="selectJson"
-                @updateData="updateData"
-              />
-              <div v-else style="display: inline-flex; align-items: start; width: 100%;">
-                <el-input 
-                  size="small"
-                  v-model="parseruleForm.expression"
-                  type="textarea" 
-                  :autosize="{ minRows: 1, maxRows: 7}"></el-input>
-                <el-upload 
-                  size="small" 
-                  @click="createST" 
-                  style="margin-left: 10px"
-                  :action="uploadUrl"
-                  :data="uploadData"
-                  :before-remove="beforeRemove"
-                  :on-success="handleSuccessUdt"
-                  :on-error="handleError"
-                  :file-list="fileList"
-                  :show-file-list="false">
-                  <el-button size="small" plain type="primary" style="width: auto; padding: 0 6px; margin-top: 0;" :disabled="$COMMUNITY">
-                    {{ $t("datasource.transformer.uploadCode") }}
-                  </el-button>
-                </el-upload>
-              </div>
             </el-form-item>
-            <el-tooltip
-              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-            >
-              <template slot="content">
-                <span v-html="$t('communityTip')"></span>
-              </template>
-              <el-button
-                size="small"
-                icon="el-icon-PREVIEW"
-                @click="submitParse"
-                style="display: flex"
-                :disabled="
-                  msgForm.msgbody == '' || 
-                  ((parseruleForm.type == 'udt' || parseruleForm.type == 'regex') && parseruleForm.expression == '') || 
-                  $COMMUNITY
-                  "
-              ></el-button>
-            </el-tooltip>
+           
           </el-form>
         </div>
       </section>
-      <section v-if="columnsArr.length > 0">
+      <!-- <section v-if="columnsArr.length > 0">
         <ul
           :class="[
             'col-list',
@@ -231,11 +101,11 @@
             </el-tooltip>
           </li>
         </ul>
-      </section>
+      </section> -->
       <section class="extract">
         <div class="block-title top">
           <span>{{ $t("datasource.transformer.extract") }}</span>
-          <el-popover placement="top" trigger="hover" width="520" v-model="visiblePop2">
+          <!-- <el-popover placement="top" trigger="hover" width="520" v-model="visiblePop2">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('2')"></i>
               <DocsContent
@@ -247,7 +117,7 @@
               slot="reference"
               ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
-          </el-popover>
+          </el-popover> -->
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -269,23 +139,13 @@
           <template slot="content">
             <span v-html="$t('communityTip')"></span>
           </template>
-          <el-button 
-            type="primary"
-            icon="el-icon-plus" 
-            size="small" 
-            class="btn-icon-small"
-            plain
-            @click="addNewExtract" 
-            :disabled="columnsArr.length == 0 || $COMMUNITY"
-          >
-            {{ $t("datasource.transformer.addExtract") }}
-          </el-button>
+         
         </el-tooltip>
       </section>
       <section class="filter">
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
-          <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop3">
+          <!-- <el-popover placement="top" effect="light" trigger="hover" width="520" v-model="visiblePop3">
             <div style="position: relative">
               <i style="position: absolute; right: 0px" class="el-icon-close" @click="handleClickPop('3')"></i>
               <DocsContent
@@ -297,10 +157,10 @@
               slot="reference"
               ><Icon name="label_info" class="info_icon_custom"></Icon>
             </span>
-          </el-popover>
+          </el-popover> -->
         </div>
         <template v-for="(item, index) in filterArr">
-          <FilterExpression
+          <!-- <FilterExpression
             :key="index"
             :index="index"
             :itemData="item"
@@ -310,7 +170,8 @@
             @deleteFilter="deleteFilter"
             @changeFilter="changeFilter"
             ref="filter"
-          ></FilterExpression>
+          ></FilterExpression> -->
+          <span :key="index">{{ item.expression }}</span>
         </template>
         <el-tooltip
           placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
@@ -318,17 +179,6 @@
           <template slot="content">
             <span v-html="$t('communityTip')"></span>
           </template>
-          <el-button
-              type="primary"
-              icon="el-icon-plus"
-              size="small"
-              class="btn-icon-small"
-              plain
-              @click="addNewFilter"
-              :disabled="filterArr.length >= 1 || columnsArr.length == 0 || $COMMUNITY"
-            >
-              {{ $t("datasource.transformer.addfilter") }}
-          </el-button>
         </el-tooltip>
       </section>
       <section>
@@ -338,17 +188,17 @@
         <div class="table-content">
           <div class="table-title"  style="margin-bottom: 16px">
             <div class="title">
-              <span style="color: #4259ce">
+              <span style="color: #4259ce; margin-right: 10px">
                 {{ $t("datasource.transformer.targetSt") }}
               </span>
-              <el-form :model="sruleForm" ref="sruleForm" :rules="srules">
+              <!-- <el-form :model="sruleForm" ref="sruleForm" :rules="srules">
                 <el-form-item prop="s_name">
                   <el-select
                     v-model="sruleForm.s_name"
                     allow-create
                     default-first-option
                     size="small"
-                    @change="() => getSTbaleList(false)"
+                    @change="getSTbaleList"
                     :placeholder = "$store.state.app.currentDBName ? $t('datasource.transformer.stableSelectOrCreateTip') : $t('datasource.transformer.databaseSelectTip')"
                     :disabled="!$store.state.app.currentDBName || columnsArr.length === 0"
                   >
@@ -360,26 +210,9 @@
                     ></el-option>
                   </el-select>
                 </el-form-item>
-              </el-form>
+              </el-form> -->
+              <div>{{sruleForm.s_name }}</div>
             </div>
-            <el-tooltip
-              placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
-            >
-              <template slot="content">
-                <span v-html="$t('communityTip')"></span>
-              </template>
-              <el-button
-                type="primary"
-                class="btn-icon-small"
-                size="small"
-                icon="el-icon-plus"
-                plain
-                @click="createStable"
-                :disabled="$store.state.app.currentDBName == '' || $COMMUNITY"
-              >
-                {{ $t("datasource.transformer.createstb") }}
-              </el-button>
-            </el-tooltip>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
             <el-table :data="pageTableData" border style="width: 100%">
@@ -436,31 +269,19 @@
               </template>
                 <div class="box-expression" slot-scope="scope">
                   <template v-if="scope.row['Name'] == 'SubTableName'">
-                    <el-input
+                    <span
                       size="small"
-                      v-model="scope.row.Expression"
                       :placeholder="exprformat"
-                    ></el-input>
+                    >{{ scope.row.Expression }}</span>
                   </template>
                   <template v-else>
-                    <el-select
-                      size="small"
-                      v-model="scope.row.exprname"
+                    <span
                       class="mapping-rule-select"
-                      @change="changeCurrentMapExpr(scope)"
                     >
-                      <el-option
-                        v-for="item in mappingTypes"
-                        :key="item"
-                        :label="item"
-                        :value="item"
-                        >{{ item }}</el-option
-                      >
-                    </el-select>
+                      {{ scope.row.exprname }}
+                    </span>
             
-                    <el-select
-                      v-if="scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'"
-                      v-model="scope.row.Expression"
+                    <span
                       :placeholder="$t('datasource.transformer.coltip')"
                       :clearable="scope.row.exprname == 'mapping'"
                       size="small"
@@ -469,90 +290,32 @@
                       class="mapping-rule-expression"
                       :multiple="scope.row.exprname != 'mapping'"
                     >
-                      <el-option
-                        v-for="val in mappingcolumns"
-                        :key="val.label"
-                        :value="val.value"
-                        :label="val.label"
-                      ></el-option>
-                    </el-select>
-                    <el-input
-                      v-else
-                      slot="reference"
-                      :key="'expr'"
-                      class="mapping-rule-expression"
-                      @change="statisticCol"
-                      v-model="scope.row.Expression"
-                      :placeholder="
-                        scope.row.exprname == 'format'
-                          ? exprformat
-                          : scope.row.exprname == 'expr'
-                          ? exprexpression
-                          : scope.row.exprname == 'value'
-                          ? $t('datasource.transformer.valuetip')
-                          : ''
-                      "
-                      size="small"
-                      :disabled="scope.row['exprname'] == 'generator'"
-                    ></el-input>
-
-                    <el-input
+                     {{ scope.row.Expression }}
+                    </span>
+                    <span
                       v-if="scope.row.exprname == 'join'"
                       size="small"
                       :key="'exprjoin'"
                       class="mapping-rule-extra"
-                      v-model="scope.row.joinwith"
                       style="height: 32px;"
                     >
-                      <template slot="prepend">with</template>
-                    </el-input>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
-                      size="small"
-                      type="number"
-                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
-                      :maxlength="scope.row.dataRange[2]"
-                      :key="'default-value-of-' + scope.row['Name']"
-                      v-model="scope.row.default"
-                      class="mapping-rule-extra"
-                      @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
-                    >
-                    </el-input>
-                    <el-date-picker
+                      with {{ scope.row.joinwith }}
+                    </span>
+                    <span
                       v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'TIMESTAMP'"
-                      v-model="scope.row.default"
-                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
                       :key="'default-value-of-' + scope.row['Name']"
-                      value-format="timestamp"
-                      type="datetime"
-                      size="small"
                       class="mapping-rule-extra"
                     >
-                    </el-date-picker>
-                    <el-select 
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
-                      v-model="scope.row.default"
-                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
-                      :key="'default-value-of-' + scope.row['Name']"
-                      size="small"
-                      class="mapping-rule-extra"
-                    >
-                      <el-option label="true" value="true"></el-option>
-                      <el-option label="false" value="false"></el-option>
-                      <el-option label="null" value="null"></el-option>
-                    </el-select>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
+                      {{ scope.row.default && parsinginZone(Number(scope.row.default)) }}
+                    </span>
+                    <span
+                      v-else-if="scope.row.exprname == 'mapping' && (scope.row.dataType || scope.row.dataRange || scope.row.dataType == 'BOOL' )"
                       size="small"
                       :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
                       :key="'default-value-of-' + scope.row['Name']"
-                      v-model="scope.row.default"
                       class="mapping-rule-extra"
-                    ></el-input>
+                    >{{ scope.row.default }}</span>
                   </template>
-                  <div class="default-value-error" v-if="scope.row.defaultValueError">
-                    {{ scope.row.defaultValueError }}
-                  </div>
                 </div>
               </el-table-column>
             </el-table>
@@ -575,75 +338,16 @@
                 </div>
               </el-pagination>
 
-              <el-button
+              <!-- <el-button
                 size="small"
                 icon="el-icon-PREVIEW"
                 @click="caculateMappingResult"
-              ></el-button>
+              ></el-button> -->
               
             </div>
           </div>
         </div>
       </section>
-      <el-dialog
-        :title="$t('datasource.transformer.create_st')"
-        :visible.sync="showCreateDialog"
-        width="1000px"
-        center
-        :append-to-body="true"
-        @close="closeDialog"
-        :close-on-click-modal="false"
-      >
-        <CreateSTB ref="createstb" :columnsArr="columnsArr"></CreateSTB>
-        <div class="buttons">
-          <el-button type="primary" size="small" @click="createST">
-            {{ $t("create") }}
-          </el-button>
-          <el-button size="small" @click="closeDialog">
-            {{ $t("cancel") }}
-          </el-button>
-        </div>
-      </el-dialog>
-      <!-- <el-dialog
-        :title="$t('datasource.transformer.udtTip')"
-        :visible.sync="dialogVisible"
-        width="1000px"
-        destroy-on-close
-        :append-to-body="true"
-        @close="closeDialog"
-        :close-on-click-modal="false"
-      >
-        <el-input 
-          type="textarea" 
-          class="udt" 
-          :autosize="{ minRows: 10, maxRows: 10}"
-          v-model="parseruleForm.expression"></el-input>
-        <div class="flexBetween">
-          <a>下载示例代码</a>
-          <span class="flexStart">
-            <el-button size="small" @click="createST" plain type="primary">
-              {{ $t("preview") }}
-            </el-button>
-            <el-upload 
-              size="small" 
-              @click="createST" 
-              style="margin-left: 10px"
-              :action="uploadUrl"
-              :before-remove="beforeRemove"
-              :on-success="handleSuccess"
-              :on-error="handleError"
-              :file-list="fileList"
-              :show-file-list="false">
-              <el-button size="small" plain type="primary">
-                {{ $t("datasource.transformer.uploadCode") }}
-              </el-button>
-            </el-upload>
-            <el-button size="small" type="primary" @click="closeDialog" style="margin-left: 10px">
-              {{ $t("confirm") }}
-            </el-button>
-          </span>
-        </div>
-      </el-dialog> -->
     </template>
   </div>
 </template>
@@ -658,9 +362,10 @@ import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
-import { extractAllProperties, deepClone } from "@/utils"
+import { extractAllProperties, deepClone, parsinginZone } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
+
 export default {
   name: "CommonTransformer",
   inject: ['sourceParent'],
@@ -756,7 +461,7 @@ export default {
         ],
       },
 
-      showCreateDialog: false,
+      showCreateDIalog: false,
       stableLists: [],
       sruleForm: {
         s_name: "",
@@ -803,7 +508,7 @@ export default {
       allProperties: [],
       dialogVisible: false,
       checkedProperties: [],
-      requesting: false
+      parsinginZone
     };
   },
   computed: {
@@ -841,6 +546,7 @@ export default {
 
     if (
       this.$parent.$parent.$parent.isEditable ||
+      this.$parent.$parent.$parent.isViewable ||
       (this.$store.state.app.csvParser &&
         Object.hasOwn(this.$store.state.app.csvParser, "parser"))
     ) {
@@ -922,7 +628,6 @@ export default {
       });
     },
     async getMsgBody() {
-      this.$refs.sruleForm.clearValidate();
       this.$parent.$parent.$parent.validateRetrieve();
       let flag = false;
       await this.$nextTick(() => {
@@ -935,7 +640,6 @@ export default {
       if (flag) {
         return;
       }
-      this.requesting = true;
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
@@ -949,25 +653,10 @@ export default {
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$message.error(result.message)
         this.msgForm.msgbody = '';
-        this.requesting = false;
         return
       }
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
-      if (isSupportType) {
-        if (result.input.length <= 0) {
-          this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
-        }
-        result.input.map(item => {
-          this.msgForm.msgbody += item.payload + "\n";
-        })
-      } else {
-        this.msgForm.msgbody = JSON.stringify(result);
-      }
-      this.requesting = false;
-      // mqtt 和 kafka 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
-      if (!isSupportType) {
-        await this.submitParse();
-      }
+      this.msgForm.msgbody = JSON.stringify(result);
+      await this.submitParse();
     },
     clearMsgBody() {
       this.msgForm.msgbody = ''
@@ -1034,8 +723,7 @@ export default {
     handleSuccessUdt(_, file, fileList) {
       const reader = new FileReader();
       const _this = this;
-      this.parseruleForm.expression = "";
-      
+    
       reader.onload = function(e) {
         const contents = e.target.result;
         _this.parseruleForm.expression += contents + "\n";
@@ -1208,11 +896,9 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
-        this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",this.columnsArr)
-
         // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
         this.handelExtractArr(this.columnsArr,this.extractArr)
-        this.showIndentifyResulttb();
+        // this.showIndentifyResulttb();
       } catch (error) {
         console.log(error);
       }
@@ -1308,6 +994,7 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
         value = this.$store.state.app.historianechodata;
       } else {
+        console.log('this.$store.state.app.csvTransformerParser',this.$store.state.app.csvTransformerParser);
         let csvechoTransData = null;
         this.currentPage = value?.format?.currentPage;
         if (this.$store.state.app.currentDBType == "csv") {
@@ -1436,16 +1123,16 @@ export default {
           await this.$refs.extract[0].submitExtract(true);
           await Promise.all(newarr);
         }
-        if (isincludeFilter) {
-          await this.$refs.filter[0].submitFilter();
-        }
+        // if (isincludeFilter) {
+        //   await this.$refs.filter[0].submitFilter();
+        // }
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList(true);
+        await this.getSTbaleList();
         await this.echoFetchMap();
         await this.selectJson();
-        this.$store.commit("app/SET_RESULTTB_SHOW", false);
-        this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+        // this.$store.commit("app/SET_RESULTTB_SHOW", false);
+        // this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
     },
     clearTargetTBWhenDelete() {
@@ -1524,13 +1211,18 @@ export default {
     },
     validateTargetStb() {
       let flag = false;
-      this.$refs.sruleForm.validate((valid) => {
-        if (valid) {
-          flag = true;
-        } else {
-          flag = false;
-        }
-      });
+      if (this.sruleForm.s_name) {
+        flag = true;
+      } else {
+        flag = false;
+      }
+      // this.$refs.sruleForm.validate((valid) => {
+      //   if (valid) {
+      //     flag = true;
+      //   } else {
+      //     flag = false;
+      //   }
+      // });
       return flag;
     },
     //计算mapping的结果
@@ -1558,7 +1250,6 @@ export default {
       this.isbreak = false;
       let tags = [];
       let columns = [];
-      let commonColumns = [];
       let mutates = [];
       let mutateMap = {};
   
@@ -1576,9 +1267,6 @@ export default {
           }
           if (this.params_tags.includes(item["Name"])) {
             tags.push(item["Name"]);
-          }
-          if (!item["PrimaryKey"] && this.params_columns.includes(item["Name"])) {
-            commonColumns.push(item["Name"])
           }
           let key = item.exprname == "mapping" ? "cast" : item.exprname; //此处处理了编辑回显
           if (item["Type"] !== "Tablename") {
@@ -1668,8 +1356,8 @@ export default {
       };
 
       // 至少必须配置一个tag和一个column 
-      if (tags.length == 0 || commonColumns.length == 0) {
-        Message.warning(this.$t("datasource.transformer.mappingvaildColtip"));
+      if (tags.length == 0 || columns.length == 0) {
+        Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
         return;
       }
@@ -1782,10 +1470,10 @@ export default {
           const { __using__, __tbname__, ...rest } = item;
           return rest;
         });
-        this.$store.commit('app/SET_RESULTTB_SHOW',true);
-        this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'mappingResTb');
-        this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultTableData);
-        this.$store.commit("app/SET_TRANS_RESULT_NAME",'mappping');
+        // this.$store.commit('app/SET_RESULTTB_SHOW',true);
+        // this.$store.commit("app/SET_RESULTTB_TITLE_SHOW", 'mappingResTb');
+        // this.$store.commit("app/SET_TRANS_RESULT_TABLE", resultTableData);
+        // this.$store.commit("app/SET_TRANS_RESULT_NAME",'mappping');
 
         this.setPageTableData();
       } catch (error) {
@@ -1895,7 +1583,7 @@ export default {
     },
     closeDialog() {
       this.dialogForm.st_name = "";
-      this.showCreateDialog = false;
+      this.showCreateDIalog = false;
     },
     //创建或者查询
     async createST() {
@@ -1951,7 +1639,7 @@ export default {
             Message.success(this.$t("operateSucc"));
             await this.getInitStables();
             this.sruleForm.s_name = this.$refs.createstb.stable_form.name;
-            this.getSTbaleList(false);
+            this.getSTbaleList();
             this.closeDialog();
           } catch (error) {
             error.desc ? this.$error(error.desc) : "";
@@ -1983,12 +1671,8 @@ export default {
       } else {
         this.$store.commit("app/SET_CREATESTWITHOUT_DB", 2);
       }
-      // 获取最新的拆分后的列
-      if (this.$refs.extract && this.$refs.extract.length > 0) {
-        this.$refs.extract[this.$refs.extract.length - 1].submitExtract(true);
-      }
 
-      this.showCreateDialog = true;
+      this.showCreateDIalog = true;
     },
     //回显数据调用mapping接口
     echoFetchMap() {
@@ -2037,7 +1721,7 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList(isEcho) {
+    async getSTbaleList() {
       try {
         this.currentPage = 1;
         let res = await sendSQLReq(
@@ -2112,7 +1796,7 @@ export default {
               equalindex > -1
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"];
-          tableRow.Expression = (equalindex > -1 && !isEcho) ? defaultmap[equalindex] : "";
+          tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
           tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || (val[1] == "TIMESTAMP" && !index)
           
           return tableRow;
@@ -2503,6 +2187,14 @@ export default {
     .mapping-rule-extra {
       width: 100px;
       margin-left: 5px;
+      // 考虑是换行显示 还是出现滚动的样式 
+      // overflow-x: auto;
+      // white-space: nowrap;
+      // scrollbar-width: none;
+      // -ms-overflow-style: none;
+      // &::-webkit-scrollbar {
+      //   display: none; 
+      // }
     }
     .default-value-error {
       width: 100%;
@@ -2592,12 +2284,15 @@ export default {
   display: flex;
   ::v-deep {
     .el-form {
-      display: flex !important;
+      // display: flex !important;
       flex: 1;
       align-items: flex-start;
       .el-form-item {
         margin-bottom: 0px;
-        margin-right: 15px;
+        // margin-right: 15px;
+        &:nth-child(1) {
+          margin-right: 10px;
+        }
         &:nth-child(2) {
           flex: 1;
         }

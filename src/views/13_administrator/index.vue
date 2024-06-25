@@ -6,25 +6,26 @@
         <el-tab-pane name="user" :label="$t('taosuser.users')">
           <MgUser></MgUser>
         </el-tab-pane>
-        <el-tab-pane name="backup" :label="$t('taosuser.backup')" :disabled='taosxDisabled' lazy>
+        <el-tab-pane name="backup" :label="$t('taosuser.backup')" :disabled='taosxDisabled' lazy v-if="getMetaShow('backup_restore')">
           <AdBackup ></AdBackup>
         </el-tab-pane>
-        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled' lazy>
+        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled' lazy v-if="getMetaShow('td3.0')">
           <AdReplication ></AdReplication>
         </el-tab-pane>
-        <el-tab-pane name="cluster" :label="$t('route.cluster')" lazy>
+        <el-tab-pane name="cluster" :label="$t('route.cluster')" lazy v-if="getMetaShow('dnodes')">
           <Cluster></Cluster>
         </el-tab-pane>
         <el-tab-pane name="license" :label="$t('topic.license')" lazy v-if="!$COMMUNITY">
           <License></License>
         </el-tab-pane>
-        <el-tab-pane name="audit" :label="$t('topic.audit')" lazy>
+        <el-tab-pane name="audit" :label="$t('topic.audit')" lazy v-if="getMetaShow('audit')">
           <Audit :activeName="activeName"></Audit>
         </el-tab-pane>
       </el-tabs>
       <el-alert
         v-if="$COMMUNITY && (activeName == 'backup' || activeName == 'replication' || activeName == 'audit')"
         style="margin-top: 8px"
+        class="my-alert"
         type="warning"
         :description="$t('communityDemoDataTip')"
         :closable="true"
@@ -41,11 +42,13 @@ import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 import Audit from './views/audit.vue'
+import LicenseMixin from "@/mixins/license"
 export default {
   name: "Admin",
   components:{
     MgUser,AdBackup,AdReplication,License,Activities,Cluster,Audit
   },
+  mixins: [LicenseMixin],
   data() {
     return {
       message: "这是Admin页面",
@@ -55,3 +58,8 @@ export default {
   }
 };
 </script>
+<style scoped lang="scss">
+  .my-alert ::v-deep.el-alert .el-alert__description  {
+    font-size: 14px;
+  }
+</style>

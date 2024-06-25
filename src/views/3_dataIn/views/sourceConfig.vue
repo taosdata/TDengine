@@ -1,6 +1,6 @@
 <template>
   <div class="source-ui">
-    <div :class="['left-ui', isShowEditBtn ? 'readable': '']">
+    <div :class="['left-ui']">
       <el-form
         :model="sourceForm"
         ref="form"
@@ -20,7 +20,7 @@
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
-          <el-form-item :label="$t('type')" prop="type">
+          <el-form-item :label="$t('type')" prop="type" class="hidden-required">
             <el-select
               v-model="sourceForm.type"
               id="type"
@@ -35,7 +35,7 @@
               ></el-option>
             </el-select>
           </el-form-item>
-          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
+          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent" class="hidden-required">
             <template slot="label">
               <el-tooltip placement="top" effect="light">
                 <template slot="content">
@@ -43,8 +43,7 @@
                 </template>
                 <div>
                   <span>{{ $t('agent') }}</span>
-                  <span style="margin-left: 4px">
-                    <!-- <i class="el-icon-info"></i> -->
+                  <span style="margin-left: 1px">
                     <Icon name="label_info" class="info_icon_custom"></Icon>
                   </span>
                 </div>
@@ -130,15 +129,15 @@
         <!-- <el-button @click="cancel" type="primary" class="preview-btn" size="small">{{
           $t("preview")
         }}</el-button> -->
-        <el-button
+        <!-- <el-button
           v-if="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
           size="small"
           >{{ $t("edit") }}</el-button
-        >
-        <template v-else>
+        > -->
+        <template>
           <el-tooltip
             placement="top" effect="light" :open-delay="0" :disabled="!$COMMUNITY"
           >
@@ -293,7 +292,8 @@ export default {
       return decrypt(localStorage.getItem("pwd")) || '';
     },
     toUrl() {
-      let base_url = localStorage.getItem("base_url")
+      let native_url = localStorage.getItem("native_url")
+      let base_url = native_url || localStorage.getItem("base_url")
       let splitArr = base_url.split('//')
       let url = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
       return (
@@ -354,7 +354,9 @@ export default {
       deep: true,
       handler(val) {
         if (!this.isEditable && !this.sourceForm.type) {
-          this.$set(this.sourceForm, "type", "tmq");
+          this.$INDUSTRY 
+          ? this.$set(this.sourceForm, "type", "csv")
+          : this.$set(this.sourceForm, "type", "tmq");
         }
       },
       immediate: true,
@@ -388,6 +390,7 @@ export default {
           this.$store.commit('app/SET_RESULTTB_SHOW',false)
           this.$store.commit('app/SET_HISTORIAN_ECHODATA',null)
           this.$store.commit('app/SET_HISTORIAN_DSN','')
+          this.$store.commit("app/SET_STB_DEFAULT_COLUMNS",[]);
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);
@@ -405,6 +408,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", { valid: true });
+        this.$store.commit('app/SET_CONNECTIVITY_CHECKRESULT',{})
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
@@ -501,7 +505,9 @@ export default {
               return
             }
           }
-          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+          const type = this.sourceForm.type;
+          let dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+          dsn = type === "tmq" ? dsn : (type === 'csv' ? type + ':' + dsn : type + dsn)
            if (this.sourceForm.type.startsWith('opc') 
               && dsn.includes('csv_config_file')
               && !this.$store.state.app.validOpcFileRes?.valid
@@ -510,11 +516,21 @@ export default {
             this.loading = false;
             return
           }
-          const type = this.sourceForm.type;
+          if (this.sourceForm.type !== "csv") {
+            await this.$refs.configform.$refs.checkConnectivity[0].getValidateResult(dsn,this.sourceForm.agent);
+            const { valid, support} = this.$store.state.app.connectivityCheckResult
+            if (!valid || !support) {
+              this.loading = false;
+              this.$nextTick(() => {
+                document.querySelector('.source-ui .left-ui .box-check-connectivity')?.scrollIntoView();
+              });
+              return
+            }
+          }
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {
-            from: type === "tmq" ? dsn : type=='csv'?type+':'+dsn:type + dsn,
+            from: dsn,
             name: this.sourceForm.name,
             to: this.toUrl,
             labels: [

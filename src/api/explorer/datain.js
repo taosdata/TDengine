@@ -1,8 +1,9 @@
-
 import { request } from "@/utils/request";
 import JSONbig from "json-bigint";
 import { getLocalTimezone } from "@/utils";
 import i18n from '@/lang/index'
+import { getDataSource } from "./community";
+
 let language = i18n.locale.includes('zh') ? 'zh' : 'en'
 export function getTask(id, type) {
     return request({
@@ -26,6 +27,21 @@ export function getUIData() {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/ds/in?lang=${i18n.locale}`,
+        method: 'get'
+    })
+}
+
+export function generatePIDefaultConfigFile(dsn, taskId, agentId) {
+    let url = `/ds/in/download/pi_default_config?from=${encodeURIComponent(dsn)}`;
+    if (taskId) {
+        url += `&task_id=${taskId}`;
+    }
+    if (agentId) {
+        url += `&via=${agentId}`;
+    }
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url,
         method: 'get'
     })
 }
@@ -70,7 +86,7 @@ export function getUaAndDaData(data) {
     })
 }
 
-export function refreshTask(id) {
+function loadTaskDetail(id) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/tasks/${id}?detail=true&lang=${i18n.locale}`,
@@ -80,6 +96,144 @@ export function refreshTask(id) {
         }
 
     })
+}
+
+function mergeTaskDetailOptions(cfgOptions, data) {
+    for (let key in cfgOptions) {
+        if (data[key]) {
+            cfgOptions[key].value = data[key];
+        } else if (data.params[key]) {
+            cfgOptions[key].value = data.params[key];
+        }
+    }
+
+    if (cfgOptions.endpoint && !cfgOptions.endpoint.value) {
+        cfgOptions.endpoint.value = `${data.host}`;
+        if (data.port) {
+            cfgOptions.endpoint.value += `:${data.port}`
+        }
+        if (data.subject) {
+            cfgOptions.endpoint.value += `/${data.subject}`;
+        }
+        if (data.id === 'tmq') {
+            if (data.username && data.password) {
+                cfgOptions.endpoint.value = `tmq${data.protocol ? '+' + data.protocol: ''}://${data.username}:${data.password}@${cfgOptions.endpoint.value}`;
+            } else {
+                cfgOptions.endpoint.value = `tmq${data.protocol ? '+' + data.protocol: ''}://${cfgOptions.endpoint.value}`;
+            }
+        }
+    }
+}
+
+function mergeTaskDetailParams(cfgParams, dataParams) {
+    let haveAvailable = false;
+    for (let i = 0; i < cfgParams.length; i++) {
+        let key = cfgParams[i].name;
+        if (dataParams[key]) {
+            cfgParams[i].value = dataParams[key];
+            haveAvailable = true;
+            if (cfgParams[i].hint?.type === 'compose') {
+                cfgParams[i].type_value = dataParams[key + '_type'];
+            }
+            if (cfgParams[i].hint?.type === 'timeout' || cfgParams[i].hint?.type === 'duration') {
+                // dataParams[key + '_type'] 不存在，则是纯字符串版本
+                cfgParams[i].type_value = dataParams[key] 
+                    ? dataParams[key].match(/[a-zA-Z]+$/) 
+                        ? dataParams[key].match(/[a-zA-Z]+$/)[0] 
+                        : cfgParams[i].type_value
+                    : '';
+                cfgParams[i].value = dataParams[key] ? dataParams[key].match(/\d+/)[0] : '';
+            }
+        }
+    }
+    return haveAvailable;
+}
+
+function haveAuthentication(auth_alternatives, auth_type) {
+    for (let i = 0; i < auth_alternatives.length; i++) {
+        if (auth_alternatives[i].name === auth_type) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function mergeAuthentication(cfgAuth, data) {
+    if (cfgAuth.alternatives.length > 1) {
+        // 多种认证方式时，需要判断用的是那种认证类型
+        if (data.username && data.password && haveAuthentication(cfgAuth.alternatives, 'plain')) {
+            cfgAuth.value = 'plain';
+        } else if (data.params.auth_certificate && haveAuthentication(cfgAuth.alternatives, 'certificates')) {
+            cfgAuth.value = 'certificates';
+        }
+    }
+
+    for (let i = 0; i < cfgAuth.alternatives.length; i++) {
+        let authentication = cfgAuth.alternatives[i];
+        if (authentication.name === cfgAuth.value) {
+            for (let key in authentication) {
+                if (key === 'params' && authentication[key].length > 0) {
+                    for (let j = 0; j < authentication[key].length; j++) {
+                        let param = authentication[key][j];
+                        if (data.params[param.name]) {
+                            param.value = data.params[param.name];
+                        }
+                    }
+                } else if (authentication[key].display && data[key]) {
+                    authentication[key].value = data[key];
+                }
+            }
+        }
+    }
+}
+
+// 前端组装数据，不使用后端的 from_detail
+export async function refreshTask(id) {
+    let taskDetail = await loadTaskDetail(id)
+    let dsType = taskDetail.from_expand.id;
+
+    let dsConfig = getDataSource(i18n.locale, dsType);
+    const data = taskDetail.from_expand;
+    
+    mergeTaskDetailOptions(dsConfig.options, data);
+    if (dsConfig.advanced && dsConfig.advanced.params) {
+        mergeTaskDetailParams(dsConfig.advanced.params, data.params);
+    }
+    if (dsConfig.params) {
+        mergeTaskDetailParams(dsConfig.params, data.params);
+    }
+    if (dsConfig.authentication) {
+        mergeAuthentication(dsConfig.authentication, data);
+    }
+    
+    for (let i = 0; i < dsConfig.groups.length; i++) {
+        let haveAvailable = mergeTaskDetailParams(dsConfig.groups[i].params, data.params);
+        if (haveAvailable && dsConfig.groups[i].collapsed === false) {
+            dsConfig.groups[i].collapsed = true;
+        }
+    }
+    if (dsConfig.datasets) {
+        const categories = dsConfig.datasets.categories;
+        for (let i = 0; i < categories.length; i++) {
+            if (data.params[categories[i].category]) {
+                dsConfig.datasets.value = categories[i].category
+                if (categories[i].params) {
+                    mergeTaskDetailParams(categories[i].params, data.params);
+                }
+                if (categories[i].target && categories[i].target.name === categories[i].category) {
+                    if (categories[i].target.multiple) {
+                        categories[i].target.value = [data.params[categories[i].category]];
+                    } else {
+                        categories[i].target.value = data.params[categories[i].category];
+                    }
+                }
+                break;
+            }
+        }
+    }
+    taskDetail.from_detail = dsConfig;
+    console.log("taskDetail.from_detail:", dsConfig)
+    return taskDetail;
 }
 
 export function uploadFile(file) {

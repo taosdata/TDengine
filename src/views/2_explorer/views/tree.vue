@@ -395,7 +395,6 @@ export default {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
     async clickAdd(data, all) {
-      console.log('clickadd')
       if (all) {
         let columns = [];
         let db = "";
@@ -411,9 +410,7 @@ export default {
             columns: [],
             tags: [],
           }));
-          columns = [`\`${sdata.ts_field_name}\``].concat(
-            sdata.columns.map((item) => `\`${item.field}\``)
-          );
+          columns = sdata.columns.map((item) => `\`${item.field}\``);
         }
         if (data.typeName === "table") {
           db = data.stable_name ? data.parent.split(".")[0] : data.parent;

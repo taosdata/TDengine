@@ -67,6 +67,8 @@ export default {
   copySucc: "Copy Success!",
   fullName: "Full Name",
   tips: "Tips",
+  yes: "yes",
+  no: "no",
   time: "Time",
   date: "Date",
   nickname: "Nickname",
@@ -109,6 +111,7 @@ export default {
   start: "start",
   end: "end",
   userName: "User Name",
+  timeUnit: "Time unit",
   phone: "Phone",
   country: "Country",
   companyName: "Company",
@@ -215,7 +218,9 @@ export default {
   communityContent: 'You are using the community version of TDengine, some functionalities are not available, e.g. database backup and recovery, data replication, multi-level storage, data in for various kinds of data sources, access control, view, etc. TDengine Enterprise or Cloud provides these and some other functionalities to facilitate your business needs. Please feel free to contact the TDengine team to get access to TDengine Enterprise or Cloud. ',
   dontDisturbMe: 'No more reminders within 7 days',
   communityTip: "Only available in TDengine Enterprise or Cloud. To learn more, please visit the TDengine <a href='https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>official website</a>.",
-  communityDemoDataTip: 'The current list data is only sample data',
+  communityDemoDataTip: 'The current list is only sample data',
+  fullscreen: "Full screen",
+  import: "Import",
   statuses: {
     created: "Created",
     queued: "Queued",
@@ -1402,7 +1407,7 @@ export default {
         type3: "Upload File",
         retrieve: "Retrieve From Server",
       },
-      
+      retrieveTip: "No sample data was obtained",
       filterexecuted: "Filter condition triggered",
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",
@@ -1411,13 +1416,14 @@ export default {
       jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
       jsontip: "Please enter the correct JSON format",
       texttip:"Please enter correct text format",
-      mappingvaildtip:
-        "Please fill in the correct primary key, column, and tag",
+      mappingvaildtip: "Please fill in the correct primary key column",
+      mappingvaildColtip: "Enter at least one mapping rule for the common column and the tag column",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-      extractdesc: `<strong style='paddingRight: 20px'>taosX supports two kinds of extractor currently</strong>:<br/>
+      extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank">the enterprise version documentation</a>.</span>`,
+      3. <strong>UDT</strong>: Use custom scripts parse data. Download the <a href="/example-code.rhai" download>sample code<a> for reference.<br/>
+      <span style="${IS_COMMUNITY ? 'display:none': 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank"> the enterprise version documentation</a>.</span>`,
       subextractdesc:`<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
@@ -1477,7 +1483,12 @@ export default {
       defaultValuePlaceholder: "default value",
       dataRangeInputTip: "Please input integer value between {min} and {max}",
       defaultValueErrorTip: "default value for column[{}] input error",
-      jsonExtractTip: 'JSON extract expression editor'
+      jsonExtractTip: 'JSON extract expression editor',
+      udtTip: 'UDT editor',
+      uploadCode: "Upload Code"
+    },
+    pi: {
+      confirmOverwriteConfigFile: "The configuration file already exists. Do you want to overwrite it?",
     },
     opcurl: "Please enter the OPC url",
     selecttargetdb: "Please select the target database",
@@ -1503,6 +1514,7 @@ export default {
     upfile: "Upload",
     selectfile: "Select File",
     fileurl: "File URL",
+    fileurlTip: "An unsupported character was entered. For a list of supported characters, see the help prompt",
     csvcol: "CSV Column",
     dbcol: "DB Column",
     tabletip: "Please enter the table name",
@@ -1512,6 +1524,7 @@ export default {
     csvtable: "Table Name",
     csvNext: "Parse",
     csvFileDesc: 'Please upload the file to the server where taosx server resides and fill in the directory here; The taosx service will traverse all csv files in this directory, synchronizing data in batches.',
+    supportCharacter: 'The file name can contain only the following characters: Chinese, uppercase and lowercase letters, digits, Spaces, %, $, @, dots, hyphens, underscores, and brackets (including parentheses, square brackets, braces, and Chinese brackets).',
     ms: "ms",
     μs: "μs",
     ns: "ns",
@@ -1969,7 +1982,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step3username: "UserName",
         ste3pwd: "Pawword",
         step3desc3: `Input your password to login to TDengine, then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
-        step3desc: `    Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
+        step3desc: `Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
         step4: "Use Grafana",
         step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
         step4desc1: "You can refer to the ",
@@ -2565,6 +2578,19 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     clientAddress: "Client IP",
     db: "Database",
     resource: "Resource",
+    licenseSuccTip: "Activate the license successfully. Please log out and log in again",
+    server: "Server",
+    importTitle: "Import Users/Privileges",
+    items: "Items",
+    userItem: "User & Password",
+    privilegesItem: "Privileges",
+    whitelistItem: "Hosts Whitelist",
+    succ1: "user information",
+    succ2: "permission information have been imported",
+    fail1: "some items failed to be imported.",
+    fail2: "import failure:",
+    fail3: "Check the cause of the failure",
+    formatError: "The format is incorrect. For example: http://localhost:6041、http://127.0.0.1:6041"
   },
   taosagents: {
     step1: "Install",
@@ -2765,6 +2791,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     "The Taosx API cannot be accessed. Please check the Taosx service status",
   header: {
     version: `${oem} Server Version`,
+    power: `${oem} Power Edition`,
   },
   explorerfns: {
     NumbericFn: "Mathematical Functions",

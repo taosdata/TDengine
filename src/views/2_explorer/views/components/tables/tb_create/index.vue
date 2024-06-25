@@ -66,18 +66,14 @@
                 ></el-option>
               </el-select>
               <el-input-number
-                v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
-                :value="
-                  column.type == 'VARCHAR'
-                    ? column.varcharLength
-                    : column.ncharLength
-                "
+                v-if="VariableTableColumnType.includes(column.type)"
+                :value="column.length"
                 @change="
                   (newVal, oldVal) =>
                     handleChange(newVal,  column.type, index)
                 "
                 :min="1"
-                :max="column.type == 'VARCHAR' ? 16374 : 4093"
+                :max="column.type == 'NCHAR' ? 4093 : 65517"
                 label="Length"
                 controls-position="right"
                 class="custom-length"
@@ -88,7 +84,7 @@
                 :placeholder="$t('data.columnNameTip')"
               >
               </el-input>
-              <el-tag effect="plain" type="info" v-if="index == 1">
+              <el-tag effect="plain" type="info" v-if="index == 1 && version_gt_3300">
               <el-checkbox 
                 :disabled="isEdit || parmaryKeyType.findIndex((item) => item.value.includes(column.type)) == -1" 
                 v-model="column.primaryKey" 
@@ -96,7 +92,7 @@
             </el-tag>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.encode')">
+              :content="$t('console.encode')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -114,7 +110,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.compress')">
+              :content="$t('console.compress')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -132,7 +128,7 @@
             </el-tooltip>
             <el-tooltip
               placement="top" effect="light" :open-delay="100"
-              :content="$t('console.level')">
+              :content="$t('console.level')" v-if="version_gt_3300">
               <el-select
                 size="small"
                 default-first-option
@@ -186,18 +182,14 @@
                 ></el-option>
               </el-select>
               <el-input-number
-                v-if="currentData.type == 'VARCHAR' || currentData.type == 'NCHAR'"
-                :value="
-                  currentData.type == 'VARCHAR'
-                    ? currentData.varcharLength
-                    : currentData.ncharLength
-                "
+                v-if="VariableTableColumnType.includes(currentData.type)"
+                :value="currentData.length"
                 @change="
                   (newVal, oldVal) =>
                     handleEditChange(newVal, currentData.type)
                 "
                 :min="1"
-                :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+                :max="currentData.type == 'NCHAR' ? 4093 : 65517"
                 label="Length"
                 controls-position="right"
                 class="custom-length"
@@ -210,7 +202,7 @@
               </el-input>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.encode')">
+                :content="$t('console.encode')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -227,7 +219,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.compress')">
+                :content="$t('console.compress')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -245,7 +237,7 @@
               </el-tooltip>
               <el-tooltip
                 placement="top" effect="light" :open-delay="100"
-                :content="$t('console.level')">
+                :content="$t('console.level')" v-if="version_gt_3300">
                 <el-select
                   size="small"
                   default-first-option
@@ -362,6 +354,7 @@ import { changeTableStruct, getTagValue, changeTableStructOther } from "@/api/ga
 import { VariableTableColumnType } from "@/const";
 import { validDatabaseName } from "@/utils/validate";
 import { Message } from "element-ui";
+import VersionMixin from "@/mixins/version";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -383,8 +376,10 @@ export default {
       columnEdit: false,
       currentData: {},
       loading: false,
+      VariableTableColumnType: VariableTableColumnType
     };
   },
+  mixins: [VersionMixin],
   computed: {
     ...mapState({
       selected_db: (state) => state.dbs.selected_db,
@@ -442,20 +437,11 @@ export default {
   },
   methods: {
     handleChange(newVal, type, index) {
-      if (type === "VARCHAR") {
-        this.$set(this.table_form.columns[index], "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.table_form.columns[index], "ncharLength", newVal);
-      }
+      this.$set(this.table_form.columns[index], "length", newVal);
     },
     handleEditChange(newVal, type) {
-      if (type === "VARCHAR") {
-        this.$set(this.currentData, "varcharLength", newVal);
-      }
-      if (type === "NCHAR") {
-        this.$set(this.currentData, "ncharLength", newVal);
-      }
+      this.$set(this.currentData, "length", newVal);
+     
     },
     // 判断类型是不是可以修改的类型
     typeHasSpe(currentType) {
@@ -472,8 +458,7 @@ export default {
         return this.table_form.columns.insert(index + 1, {
           type: "INT",
           field: "",
-          varcharLength:8,
-          ncharLength:8,
+          length:8,
           typeList: dataType,
           encode: "simple8b", 
           compress: "lz4", 
@@ -484,8 +469,7 @@ export default {
       this.currentData = { 
         field: "", 
         type: "INT",
-        varcharLength:8,
-        ncharLength:8,
+        length:8,
         encode: "simple8b", 
         compress: "lz4", 
         level: "medium", 
@@ -495,14 +479,12 @@ export default {
       let params = null
       let rename_params = null
       let other_params = null
-      if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
+      if(!this.typeHasSpe(column.type) && column.length_old !== column.length) {
         params = {
           operation: "modify column",
           first_field: column.field_old,
-          second_field: column.type === 'VARCHAR' 
-            ? column.type + `(${column.varcharLength})`
-            : column.type === 'NCHAR' 
-            ? column.type + `(${column.ncharLength})` 
+          second_field: VariableTableColumnType.includes(column.type)  
+            ? column.type + `(${column.length})`
             : column.type,
         }
       } 
@@ -513,7 +495,7 @@ export default {
           second_field: column.field, // new_col_name
         };
       }
-      if (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level) {
+      if (this.version_gt_3300 && (column.encode_old !== column.encode || column.compress_old !== column.compress || column.level_old !== column.level)) {
         other_params = {
           operation: "modify column",
           first_field: column.field,
@@ -657,6 +639,16 @@ export default {
           (item) => item.value
         );
       }
+      if (!this.version_gt_3300) {
+        this.table_form.columns = this.table_form.columns.map((item) => {
+          return {
+            ...item,
+            encode: '',
+            compress: '',
+            level: ''
+          }
+        });
+      }
     },
     handleEditTable() {
       this.handleCreateTable();
@@ -677,16 +669,14 @@ export default {
       if (!this.currentData.field || !this.currentData.type) {
         return this.$error(this.$t("data.checkFail"));
       }
-      let second_field = this.currentData.type === 'VARCHAR' 
-        ? this.currentData.type + `(${this.currentData.varcharLength})`
-        : this.currentData.type === 'NCHAR' 
-        ? this.currentData.type + `(${this.currentData.ncharLength})` 
+      let second_field = VariableTableColumnType.includes(this.currentData.type) 
+        ? this.currentData.type + `(${this.currentData.varcharLength})` 
         : this.currentData.type
       let other = `${this.currentData.encode ? ' ENCODE ' + `'${this.currentData.encode}'` : ''}${this.currentData.compress ? ' COMPRESS ' + `'${this.currentData.compress}'` : ''}${this.currentData.level ? ' LEVEL ' + `'${this.currentData.level}'` : ''}`
       let params = {
         operation: "add column",
         first_field: this.currentData.field,
-        second_field: second_field + other,
+        second_field: this.version_gt_3300 ? second_field + other : second_field,
 
       };
       this.columnEdit = false;
@@ -712,6 +702,7 @@ export default {
       }
     },
     handleTypeChange(column, index) {
+      if (this.isEdit) return;
       const data = this.handleEncodeList(column.type)
       const { defaultEncode, defaultCompress } = data
       this.$set(this.table_form.columns[index], "encode", defaultEncode);

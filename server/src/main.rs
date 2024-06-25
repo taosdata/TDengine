@@ -2,10 +2,11 @@ use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
-use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
 use std::{
     fmt::Display,
@@ -139,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
+            .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
             .route("/api/-/captcha", web::get().to(generate_captcha_image))
@@ -230,33 +232,26 @@ async fn main() -> anyhow::Result<()> {
 
     // error reported when configuring only one file, so change it to '||' @zqsong
     let server = if !certificate.is_empty() || !certificate_key.is_empty() {
-        let cert_file = File::open(certificate).expect("Failed to open certificate file");
-        let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
+        let cert_file = File::open(&certificate).expect("Failed to open certificate file");
+        let cert_key_file = File::open(&certificate_key).expect("Failed to open private key file");
 
-        let cert = certs(&mut BufReader::new(cert_file))
-            .map(|result| Certificate(result.unwrap().to_vec()))
-            .collect_vec();
-        let cert_key = PrivateKey(
-            private_key(&mut BufReader::new(cert_key_file))
-                .unwrap()
-                .unwrap()
-                .secret_der()
-                .to_vec(),
-        );
+        let cert = certs(&mut BufReader::new(cert_file)).try_collect()?;
+        let cert_key = private_key(&mut BufReader::new(cert_key_file))?
+            .ok_or_else(|| anyhow::anyhow!("No private key found in file {certificate_key}"))?;
 
         let config = ServerConfig::builder()
-            .with_safe_defaults()
+            // .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert, cert_key)
             .expect("bad certificate/key");
 
         let server = server
-            .bind_rustls((addr, port), config.clone())
+            .bind_rustls_0_23((addr, port), config.clone())
             .with_context(|| format!("Bind address {addr}:{port} error"))?;
 
         if let Some(ipv6) = args.ipv6.as_deref() {
             server
-                .bind_rustls((ipv6, port), config.clone())
+                .bind_rustls_0_23((ipv6, port), config.clone())
                 .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
         } else {
             server
@@ -342,6 +337,7 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
             }
         }
     }
+
     HttpResponse::Ok().json(&profile)
 }
 
@@ -452,18 +448,60 @@ async fn check_verification_code(
             str_phone_email,
             str_verification_code,
             lang_code,
-            body.name.as_ref().unwrap(),
+            body.name.as_ref().unwrap()
         )
         .await;
-        if report_result.is_err() {
-            log::error!(
-                "Failed to upload verification status to cloud: {:?}",
-                report_result.err()
-            );
+
+        match report_result {
+            Ok(200) => {
+                // 尝试用 root 用户获取 taosd 版本信息，上报
+                let taosd_info = query_taosd_info_guess(&args).await;
+                if let Some((cluster_id, taosd_version)) = taosd_info {
+                    let r = verification::report_taosd_info_to_cloud(
+                        args.cloud_open_api.clone(),
+                        str_phone_email,
+                        lang_code,
+                        &cluster_id,
+                        &taosd_version,
+                    ).await;
+                    if r.is_err() {
+                        log::error!("Failed to report the guessed taosd info to cloud: {:?}", r.err());
+                    }
+                }
+            }
+            Ok(code) => {
+                log::error!("Failed to upload verification status, response code: {}", code);
+            }
+            Err(err) => {
+                log::error!("Failed to upload verification status to cloud: {:?}", err);
+            }
         }
     }
 
     HttpResponse::Ok().json(R::success(result))
+}
+
+async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, String)> {
+    let sql = "select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster";
+    match args.query_by_root(sql).await {
+        Ok(ok) => {
+            if let Some(taosd_info) = ok.data.get(0) {
+                let cluster_id = taosd_info.get(0);
+                let taosd_version = taosd_info.get(1);
+                
+                if cluster_id.is_some() && taosd_version.is_some() {
+                   let cluster_id = cluster_id.unwrap().as_i64().unwrap().to_string();
+                   let taosd_version = taosd_version.unwrap().as_str().unwrap().to_string();
+                   return Some((cluster_id, taosd_version));
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Failed to execute sql: {}, err:{:?}", sql, err);
+        }
+    }
+
+    None
 }
 
 // restapi: 上报 taosd 信息
@@ -588,7 +626,7 @@ async fn proxy(
         let mut client_response = HttpResponse::SwitchingProtocols();
         client_response.upgrade("websocket");
         for (header, value) in target_response.headers() {
-            client_response.insert_header((header.to_owned(), value.to_owned()));
+            client_response.insert_header((header.as_str(), value.as_bytes()));
         }
 
         let target_upgrade = target_response
@@ -629,37 +667,51 @@ async fn proxy(
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
         let builder = real_ip_forward(&req, builder);
-        let res = builder
+        builder
             .send()
             .await
-            .map_err(error::ErrorInternalServerError)?;
-        let mut client_resp = HttpResponse::build(res.status());
-        for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection")
-        {
-            client_resp.insert_header((header_name.clone(), header_value.clone()));
-        }
-        Ok(client_resp.streaming(res.bytes_stream()))
+            .map_err(error::ErrorInternalServerError)
+            .map(reqwest_into_http_response)
     }
 }
 
 async fn rest_proxy(
     args: web::Data<Args>,
-    client: web::Data<reqwest::Client>,
-    path: web::Path<String>,
+    _client: web::Data<reqwest::Client>,
+    _path: web::Path<String>,
     req: HttpRequest,
     payload: web::Payload,
 ) -> impl Responder {
-    let x = args.profile.cluster.as_deref().unwrap();
-    let query = req.query_string();
-    let url = if query.is_empty() {
-        format!("{x}/rest/{path}")
-    } else {
-        format!("{x}/rest/{path}?{query}")
-    };
+    // let x = args.profile.cluster.as_deref().unwrap();
+    // let query = req.query_string();
+    // let url = if query.is_empty() {
+    //     format!("{x}/rest/{path}")
+    // } else {
+    //     format!("{x}/rest/{path}?{query}")
+    // };
+    // proxy(req, payload, client, &url).await.map_err(RestErrResponse::new)
 
-    proxy(req, payload, client, &url)
-        .await
-        .map_err(RestErrResponse::new)
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+    let sql = get_body_from_payload(payload).await.unwrap();
+    match args.query(header, &sql).await {
+        Ok(ok) => HttpResponse::Ok().json(ok),
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    }
+}
+
+async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, RestErrResponse> {
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = payload.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+    String::from_utf8(bytes.to_vec()).map_err(|e| {
+        eprintln!("Error converting body bytes to string: {:?}", e);
+        RestErrResponse::new("Error converting body bytes to string")
+    })
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -674,6 +726,74 @@ enum Error {
 
 impl error::ResponseError for Error {}
 
+#[derive(Deserialize)]
+struct ImportRequest {
+    server: String,
+    #[serde(default)]
+    passwords: bool,
+    #[serde(default)]
+    privileges: bool,
+    #[serde(default)]
+    whitelist: bool,
+}
+#[instrument(skip_all)]
+async fn import(
+    args: web::Data<Args>,
+    client: web::Data<reqwest::Client>,
+    req: HttpRequest,
+    import: web::Json<ImportRequest>,
+) -> impl Responder {
+    if args.profile.x_api.is_none() {
+        return Ok(HttpResponse::NotFound().body("taosX API is required"));
+    }
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok());
+    if header.is_none() {
+        return Ok(HttpResponse::Unauthorized().body("Authorization header not found"));
+    }
+    let header = header.unwrap();
+    match args.query(header, "select server_status()").await {
+        Ok(ok) => {
+            if ok.code != Code::SUCCESS {
+                return Ok(HttpResponse::InternalServerError().json(ok));
+            }
+        }
+        Err(err) => return Err(RestErrResponse::new(err)),
+    }
+    let dsn = args.build_dsn(header)?;
+
+    let migrate = serde_json::json!(
+        {
+            "from": import.server,
+            "to": dsn.to_string(),
+            "options": {
+                "passwords": import.passwords,
+                "privileges": import.privileges,
+                "whitelist": import.whitelist
+            }
+        }
+    );
+    let x = args.profile.x_api.as_deref().unwrap();
+    let url = format!("{x}/privileges/migrate");
+
+    client
+        .post(url)
+        .json(&migrate)
+        .send()
+        .await
+        .map_err(RestErrResponse::new)
+        .map(reqwest_into_http_response)
+}
+
+fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
+    let mut client_resp = HttpResponse::build(res.status());
+    for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
+        client_resp.insert_header((header_name.clone(), header_value.clone()));
+    }
+    client_resp.streaming(res.bytes_stream())
+}
 #[instrument(skip_all)]
 async fn x_api(
     args: web::Data<Args>,
@@ -751,6 +871,9 @@ struct Profile {
     #[clap(short, long, env = "EXPLORER_CLUSTER")]
     cluster: Option<String>,
 
+    #[clap(long, env = "EXPLORER_CLUSTER_NATIVE")]
+    cluster_native: Option<String>,
+
     /// External link for Grafana TDinsight dashboard, use direct ip or hostname like: http://grafana:3000/d/tdinsight-3x/tdinsight-for-3-x?orgId=1&refresh=30s
     #[clap(short, long, env = "EXPLORER_DASHBOARD")]
     dashboard: Option<String>,
@@ -766,6 +889,7 @@ struct Profile {
     /// taosX version
     #[clap(skip)]
     version: Option<String>,
+
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
@@ -867,11 +991,9 @@ struct Ssl {
 }
 
 impl Args {
-    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
-        log::info!("SQL: {sql}");
-        //token
+    fn build_dsn(&self, auth: &str) -> Result<Dsn, RestErrResponse> {
         let credentials =
-            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+            Credentials::from_header(auth.to_string()).map_err(RestErrResponse::new)?;
         let mut dsn: Dsn = self
             .profile
             .cluster
@@ -881,10 +1003,26 @@ impl Args {
             .map_err(RestErrResponse::new)?;
         dsn.username = Some(credentials.user_id);
         dsn.password = Some(credentials.password);
+        Ok(dsn)
+    }
+
+    async fn query_inner(&self, dsn: Dsn, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        log::info!("SQL: {sql}");
+
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
 
         log::info!("Got connection, querying");
         let mut set = conn.query(sql).await?;
+        // dml and cud return empty set
+        if set.fields().is_empty() {
+            let affect_rows = set.affected_rows();
+            return Ok(RestOkResponse {
+                code: Code::SUCCESS,
+                column_meta: vec![("affected_rows".to_string(), "int".to_string(), 4)],
+                rows: 1,
+                data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
+            });
+        }
         let column_meta = set
             .fields()
             .iter()
@@ -901,6 +1039,13 @@ impl Args {
                         taos::Value::Timestamp(ts) => {
                             serde_json::Value::String(ts.to_datetime_with_tz().to_rfc3339())
                         }
+                        taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
+                            "\\x{}",
+                            hex::encode(vb).to_uppercase()
+                        )),
+                        taos::Value::Geometry(geo) => {
+                            serde_json::Value::String(parse_geometry_from_bytes(&geo))
+                        }
                         _ => v.to_json_value(),
                     })
                     .collect_vec()
@@ -913,6 +1058,38 @@ impl Args {
             rows: data.len() as _,
             data,
         })
+    }
+
+    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        //token
+        let credentials =
+            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some(credentials.user_id);
+        dsn.password = Some(credentials.password);
+
+        self.query_inner(dsn, sql).await
+    }
+
+    // 开源版想在登录前就获取TDengine版本信息，使用root用户尝试登录获取。
+    async fn query_by_root(&self, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some("root".to_string());
+        dsn.password = Some("taosdata".to_string());
+
+        self.query_inner(dsn, sql).await
     }
 
     async fn renew(
@@ -991,6 +1168,16 @@ impl Args {
         })
     }
 }
+
+/// Parse geometry from bytes to WKT. If failed, return the original bytes.
+fn parse_geometry_from_bytes(geo: &[u8]) -> String {
+    let result = Geometry::new_from_wkb(geo);
+    match result {
+        Ok(geo) => geo.to_wkt_precision(6).unwrap(),
+        Err(_) => format!("{:?}", geo),
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 struct RestOkResponse {
     code: Code,

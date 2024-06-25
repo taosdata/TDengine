@@ -90,7 +90,7 @@ export default {
     DSN() {
       return this.url + "?token=" + this.token;
     },
-     urlPart() {
+    urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },
     restapi(){

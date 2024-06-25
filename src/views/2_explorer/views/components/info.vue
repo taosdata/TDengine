@@ -43,11 +43,11 @@
         </el-table-column>
         <el-table-column :show-overflow-tooltip="true" :label="$t('console.type')" prop="type" min-width="100">
         </el-table-column>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.encode')" prop="encode" width="90px">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.encode')" prop="encode" width="90px" v-if="version_gt_3300">
         </el-table-column>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.compress')" prop="compress" width="180px">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.compress')" prop="compress" width="180px" v-if="version_gt_3300">
         </el-table-column>
-        <el-table-column :show-overflow-tooltip="true" :label="$t('console.level')" prop="level" width="150px">
+        <el-table-column :show-overflow-tooltip="true" :label="$t('console.level')" prop="level" width="150px" v-if="version_gt_3300">
         </el-table-column>
       </el-table>
     </section>
@@ -62,6 +62,7 @@ import { copy } from "@/utils/index";
 import { getStableStructReq } from "@/api/gateway/data/stables";
 import { getTagValue, getMatrixStructReq } from "@/api/gateway/data/tables";
 import { getDSN } from "@/utils/index";
+import VersionMixin from "@/mixins/version";
 const customKey = ["noOperate", "parent", "node-key", "typeName"];
 export default {
   data() {
@@ -76,6 +77,7 @@ export default {
       tableData: []
     };
   },
+  mixins: [VersionMixin],
   computed: {
     infoType() {
       return this.$store.state.console.currentInfoType;

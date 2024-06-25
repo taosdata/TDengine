@@ -82,3 +82,13 @@ export function reportTaosdInfo(data) {
         }
     });
 }
+
+// 导入权限
+export function importTaosInfo(data) {
+    return request({
+        baseURL:process.env.VUE_APP_EXPLORER_API,
+        url: `/import`,
+        method: "post",
+        data,
+    })
+}

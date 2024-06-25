@@ -20,7 +20,8 @@
 
       <div class="login-content" v-if="registered">
         <div class="login-title">
-          <span class="dynamic-title">{{ $t("systemTitle") }}</span>
+          <span class="dynamic-title" v-if="$INDUSTRY">{{ $t("header.power")}}</span>
+          <span class="dynamic-title" v-else>{{ $t("systemTitle") }}</span>
         </div>
         <el-form :model="dynamicValidateForm" ref="dynamicValidateForm" :rules="formRules" label-width="0px"
           class="demo-dynamic">
@@ -131,7 +132,8 @@ import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
 import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha, reportTaosdInfo } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
-import Vue from 'vue'
+import Vue from 'vue';
+import LicenseMixin from "@/mixins/license";
 
 export default {
   name: "Login",
@@ -253,6 +255,7 @@ export default {
       },
     };
   },
+  mixins: [LicenseMixin],
   computed: {
     isLocaleLanguageEn() {
       return this.$i18n.locale.includes('en')
@@ -330,6 +333,7 @@ export default {
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
           await this.getUserAuthority();
+          await this.getGrantsFull();
 
           const [cluster_id, taosd_version] = await Promise.all([this.getClusterID(), this.getVersion()]);
           const phone_email = sessionStorage.getItem("registerKey");
@@ -370,6 +374,10 @@ export default {
             "app/SET_CLUSTER_URL",
             this.dynamicValidateForm.cluster
           );
+        }
+
+        if (res.cluster_native) {
+          localStorage.setItem("native_url", res.cluster_native);
         }
         
         if (res && res.dashboard) {
