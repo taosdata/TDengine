@@ -51,7 +51,8 @@ int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta 
                            SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode, bool ignoreColVals);
 int32_t initTableColSubmitData(STableDataCxt *pTableCxt);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks, bool isRebuild);
-int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
+//int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, SArray** pVgDataBlocks, bool isRebuild, int32_t tbNum);
+int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks, bool append);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);

@@ -370,6 +370,14 @@ int32_t tDecompressData(void                *input,       // input
 int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  TAOS_MULTI_BIND *bind;
+} SBindInfo;
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray);
+
 #endif
 
 #ifdef __cplusplus

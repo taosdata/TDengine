@@ -20,11 +20,13 @@
 #undef TD_MSG_DICT_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_RANGE_CODE_
 #define TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
@@ -32,6 +34,7 @@
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_INFO_
+#undef TD_MSG_TYPE_INFO_
 #undef TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
 #define TD_MSG_RANGE_CODE_
@@ -464,6 +467,8 @@ int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBa
     SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
     if (tSerializeSClientHbReq(&encoder, pReq) < 0) return -1;
   }
+
+  if (tEncodeI64(&encoder, pBatchReq->ipWhiteList) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -488,6 +493,10 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
     SClientHbReq req = {0};
     tDeserializeSClientHbReq(&decoder, &req);
     taosArrayPush(pBatchReq->reqs, &req);
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    tDecodeI64(&decoder, &pBatchReq->ipWhiteList);
   }
 
   tEndDecode(&decoder);
@@ -814,7 +823,6 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
 
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
     if (pReq->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
-
       taosArrayDestroy(pReq->pFields);
       pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SFieldWithOptions));
       SFieldWithOptions field = {0};
@@ -1634,8 +1642,10 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].ip) < 0) return -1;
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].mask) < 0) return -1;
   }
-
   ENCODESQL();
+  if (tEncodeI8(&encoder, pReq->isImport) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->createDb) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1661,8 +1671,12 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)) < 0) return -1;
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)) < 0) return -1;
   }
-
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->createDb) < 0) return -1;
+    if (tDecodeI8(&decoder, &pReq->isImport) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -1810,6 +1824,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   }
   if (tEncodeI64(&encoder, pReq->privileges) < 0) return -1;
   ENCODESQL();
+  if (tEncodeU8(&encoder, pReq->flag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1849,6 +1864,9 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   }
   if (tDecodeI64(&decoder, &pReq->privileges) < 0) return -1;
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeU8(&decoder, &pReq->flag) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4597,6 +4615,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tEncodeCStr(&encoder, pReq->filterTb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->compactId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withFull) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4619,7 +4638,9 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   } else {
     pReq->compactId = -1;
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, (int8_t *)&pReq->withFull) < 0) return -1;
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -7046,6 +7067,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   if (tEncodeI8(&encoder, pReq->taskType) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->explain) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->needFetch) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->compress) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->msgLen) < 0) return -1;
@@ -7086,6 +7108,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   if (tDecodeI8(&decoder, &pReq->taskType) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->explain) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->needFetch) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->compress) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->msgLen) < 0) return -1;
@@ -9728,6 +9751,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
 
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);
+        rows[i] = NULL;
       }
       taosArrayDestroy(pTbData->aRowP);
     }

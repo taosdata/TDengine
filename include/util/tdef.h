@@ -549,6 +549,7 @@ typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
   int32_t primary;
+  int8_t  disable;  // disable create new file
 } SDiskCfg;
 
 typedef struct {

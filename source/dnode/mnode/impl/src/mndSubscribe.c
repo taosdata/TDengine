@@ -618,13 +618,13 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   char cgroup[TSDB_CGROUP_LEN] = {0};
   mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "tmq-reb");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
-  mndTransSetDbName(pTrans, topic, cgroup);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, cgroup);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto END;
@@ -799,6 +799,29 @@ static int32_t initRebOutput(SMqRebOutputObj *rebOutput) {
   return 0;
 }
 
+// This function only works when there are dirty consumers
+static void checkConsumer(SMnode *pMnode, SMqSubscribeObj* pSub){
+  void              *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+    SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
+    if (pConsumer != NULL) {
+      mndReleaseConsumer(pMnode, pConsumer);
+      continue;
+    }
+    mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
+    taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs);
+
+    taosArrayDestroy(pConsumerEp->vgs);
+    taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
+  }
+}
+
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput){
   const char *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, key);
@@ -834,8 +857,9 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     mInfo("[rebalance] sub topic:%s has no consumers sub yet", key);
   } else {
     taosRLockLatch(&pSub->lock);
-    rebInput->oldConsumerNum = taosHashGetSize(pSub->consumerHash);
     rebOutput->pSub = tCloneSubscribeObj(pSub);
+    checkConsumer(pMnode, rebOutput->pSub);
+    rebInput->oldConsumerNum = taosHashGetSize(rebOutput->pSub->consumerHash);
     taosRUnLockLatch(&pSub->lock);
 
     mInfo("[rebalance] sub topic:%s has %d consumers sub till now", key, rebInput->oldConsumerNum);
@@ -908,61 +932,83 @@ END:
 }
 
 static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STrans *pTrans){
-  // iter all vnode to delete handle
-  int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqVgEp       *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
+  void* pIter = NULL;
+  SVgObj* pVgObj = NULL;
+  int32_t ret = 0;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (!mndVgroupInDb(pVgObj, pSub->dbUid)) {
+      sdbRelease(pMnode->pSdb, pVgObj);
+      continue;
+    }
     SMqVDeleteReq *pReq = taosMemoryCalloc(1, sizeof(SMqVDeleteReq));
     if(pReq == NULL){
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      ret = -1;
+      goto END;
     }
-    pReq->head.vgId = htonl(pVgEp->vgId);
-    pReq->vgId = pVgEp->vgId;
+    pReq->head.vgId = htonl(pVgObj->vgId);
+    pReq->vgId = pVgObj->vgId;
     pReq->consumerId = -1;
     memcpy(pReq->subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
-    SVgObj *pVgObj = mndAcquireVgroup(pMnode, pVgEp->vgId);
-    if (pVgObj == NULL) {
-      taosMemoryFree(pReq);
-      terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
-      return -1;
-    }
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgObj);;
     action.pCont = pReq;
     action.contLen = sizeof(SMqVDeleteReq);
     action.msgType = TDMT_VND_TMQ_DELETE_SUB;
+    action.acceptableCode = TSDB_CODE_MND_VGROUP_NOT_EXIST;
 
-    mndReleaseVgroup(pMnode, pVgObj);
+    sdbRelease(pMnode->pSdb, pVgObj);
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
+      ret = -1;
+      goto END;
     }
   }
-  return 0;
+  END:
+  sdbRelease(pMnode->pSdb, pVgObj);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return ret;
 }
 
 static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic){
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
+  int             ret = 0;
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
       break;
     }
 
-    if (strcmp(cgroup, pConsumer->cgroup) == 0 && taosArrayGetSize(pConsumer->currentTopics) == 0) {
-      int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
-      if (code != 0) {
-        sdbRelease(pMnode->pSdb, pConsumer);
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        return code;
+    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
+    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      continue;
+    }
+    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
+      if (strcmp(topic, name) == 0) {
+        int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
+        if (code != 0) {
+          ret = code;
+          goto END;
+        }
       }
     }
+
     sdbRelease(pMnode->pSdb, pConsumer);
   }
-  return 0;
+
+END:
+  sdbRelease(pMnode->pSdb, pConsumer);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return ret;
 }
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
@@ -996,7 +1042,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto end;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_TOPIC_INSIDE, pMsg, "drop-cgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "drop-cgroup");
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     code = -1;
@@ -1004,7 +1050,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-  mndTransSetDbName(pTrans, dropReq.topic, dropReq.cgroup);
+  mndTransSetDbName(pTrans, pSub->dbName, dropReq.cgroup);
   code = mndTransCheckConflict(pMnode, pTrans);
   if (code != 0) {
     goto end;

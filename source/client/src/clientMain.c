@@ -1552,7 +1552,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj, 0);
+  TAOS_STMT *pStmt = stmtInit(pObj, 0, NULL);
 
   releaseTscObj(*(int64_t *)taos);
 
@@ -1567,12 +1567,28 @@ TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj, reqid);
+  TAOS_STMT *pStmt = stmtInit(pObj, reqid, NULL);
 
   releaseTscObj(*(int64_t *)taos);
 
   return pStmt;
 }
+
+TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  TAOS_STMT *pStmt = stmtInit(pObj, options->reqId, options);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return pStmt;
+}
+
 
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
@@ -1829,4 +1845,8 @@ int taos_set_conn_mode(TAOS* taos, int mode, int value) {
       return TSDB_CODE_INVALID_PARA;
   }
   return 0;
+}
+
+char* getBuildInfo(){
+    return buildinfo;
 }

@@ -163,6 +163,31 @@ sql alter table $stb modify column f compress 'zlib'
 sql desc $stb
 sql alter table $stb modify column f compress 'zstd'
 
+
+sql alter table $stb modify column f compress 'zstd' level 'h' 
+sql_error alter table $stb modify column f compress 'zstd' level 'h' 
+
+sql alter table $stb modify column f compress 'lz4' level 'h' 
+sql_error alter table $stb modify column f compress 'lz4' level 'h' 
+
+
+sql alter table $stb modify column f level 'low' 
+sql_error alter table $stb modify column f compress 'lz4' 
+
+sql_error alter table $stb modify column f compress 'lz4' level 'low'  
+
+sql alter table $stb modify column f compress 'zstd' level 'h'  
+
+sql_error alter table $stb modify column f compress 'zstd'  
+sql_error alter table $stb modify column f level 'h'  
+
+
+
+sql alter table $stb modify column f compress 'lz4' 
+
+
+
+
 sql_error alter table $stb modify column d compress 'lz4' # same with init
 sql alter table $stb modify column d compress 'disabled'
 sql desc $stb

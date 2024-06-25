@@ -58,8 +58,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 
   if (pInfo->stage < stage) {
-    stError("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64
-                ", prev:%" PRId64,
+    stError("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64 ", prev:%" PRId64,
             id, upstreamTaskId, vgId, stage, pInfo->stage);
     // record the checkpoint failure id and sent to mnode
     taosThreadMutexLock(&pTask->lock);
@@ -170,13 +169,13 @@ void streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SS
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, taskId);
     if (pTask != NULL) {
       pRsp->status = streamTaskCheckStatus(pTask, pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->stage, &pRsp->oldStage);
-      streamMetaReleaseTask(pMeta, pTask);
 
       SStreamTaskState* pState = streamTaskGetStatus(pTask);
       stDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(reqId:0x%" PRIx64
               ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, pState->name, pRsp->oldStage, pRsp->reqId, pRsp->upstreamTaskId, pRsp->upstreamNodeId,
               pRsp->status);
+      streamMetaReleaseTask(pMeta, pTask);
     } else {
       pRsp->status = TASK_DOWNSTREAM_NOT_READY;
       stDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
@@ -299,12 +298,10 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
 
 int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id) {
   taosThreadMutexLock(&pInfo->checkInfoLock);
-  streamTaskCompleteCheckRsp(pInfo, false, id);
-
   pInfo->stopCheckProcess = 1;
   taosThreadMutexUnlock(&pInfo->checkInfoLock);
 
-  stDebug("s-task:%s set stop check-rsp monit", id);
+  stDebug("s-task:%s set stop check-rsp monitor flag", id);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -438,6 +435,7 @@ int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id) {
     ASSERT(pInfo->startTs > 0);
     stError("s-task:%s already in check procedure, checkTs:%" PRId64 ", start monitor check rsp failed", id,
             pInfo->startTs);
+    pInfo->stopCheckProcess = 0; // disable auto stop of check process
     return TSDB_CODE_FAILED;
   }
 
@@ -509,7 +507,7 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
   if (pOutputInfo->type == TASK_OUTPUT__FIXED_DISPATCH) {
     STaskDispatcherFixed* pDispatch = &pOutputInfo->fixedDispatcher;
-    setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->taskId);
+    setCheckDownstreamReqInfo(&req, p->reqId, pDispatch->taskId, pDispatch->nodeId);
 
     stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " re-send check downstream task:0x%x(vgId:%d) reqId:0x%" PRIx64,
             id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);

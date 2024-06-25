@@ -884,7 +884,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
 
   if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1148,7 +1148,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
 
   if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1414,7 +1414,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   }
 
   if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1766,7 +1766,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
       uint32_t dst = 0;
       updated = tUpdateCompress(pCmpr->alg, p->bytes, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
-      if (updated) pCmpr->alg = dst;
+      if (updated > 0) pCmpr->alg = dst;
       break;
     }
   }
@@ -1774,7 +1774,11 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   if (updated == 0) {
     terrno = TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST;
     return -1;
+  } else if (updated == -1) {
+    terrno = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    return -1;
   }
+
   pNew->colVer++;
 
   return 0;
@@ -1802,7 +1806,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 

@@ -124,7 +124,6 @@ struct SAppInstInfo {
 typedef struct SAppInfo {
   int64_t       startTime;
   char          appName[TSDB_APP_NAME_LEN];
-  char*         ep;
   int32_t       pid;
   int32_t       numOfThreads;
   SHashObj*     pInstMap;
@@ -197,8 +196,10 @@ typedef struct SReqResultInfo {
   uint64_t       current;
   bool           localResultFetched;
   bool           completed;
-  int32_t        precision;
   bool           convertUcs4;
+  char*          decompBuf;
+  int32_t        decompBufSize;
+  int32_t        precision;
   int32_t        payloadLen;
   char*          convertJson;
 } SReqResultInfo;
