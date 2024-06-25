@@ -12675,8 +12675,8 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
   FOREACH(pTagNode, pStmt->pSpecificTags) {
     int32_t idx = -1;
 
-    switch (nodeType(pTagNode)) {
-      case QUERY_NODE_COLUMN: {
+    do {
+      if (QUERY_NODE_COLUMN == nodeType(pTagNode)) {
         SColumnNode* pColNode = (SColumnNode*)pTagNode;
         for (int32_t index = 0; index < numOfTags; index++) {
           if (strlen(pSchema[index].name) == strlen(pColNode->colName) &&
@@ -12695,9 +12695,7 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
           code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TAG_NAME_DUPLICATED, pColNode->colName);
           break;
         }
-        break;
-      }
-      case QUERY_NODE_FUNCTION: {
+      } else if (QUERY_NODE_FUNCTION == nodeType(pTagNode)) {
         SFunctionNode* funcNode = (SFunctionNode*)pTagNode;
         if (strlen("tbname") != strlen(funcNode->functionName) || strcmp("tbname", funcNode->functionName) != 0) {
           code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, funcNode->functionName);
@@ -12710,24 +12708,20 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
           code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TAG_NAME_DUPLICATED, funcNode->functionName);
           break;
         }
-        break;
-      }
-      defalut: {
+      } else {
         code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, "invalid node type");
         break;
       }
-    }
+    } while (0);
 
     if (code) break;
 
     if (taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0) < 0) {
-      parserError("buildTagIndexForBindTags error, failed to put idx");
       code = terrno;
       goto _OUT;
     }
 
     if (NULL == taosArrayPush(pStmt->aTagIndexs, &idx)) {
-      parserError("buildTagIndexForBindTags error, failed to push idx");
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OUT;
     }
