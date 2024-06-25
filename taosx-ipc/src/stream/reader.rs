@@ -459,7 +459,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1024);
+        let (tx, rx) = flume::bounded(0);
         std::thread::spawn(move || {
             for item in self {
                 tx.send(item)?; // send under blocking thread
@@ -468,6 +468,24 @@ impl<R: Read> IpcReader<R> {
         });
         rx.into_stream()
     }
+
+    pub fn into_stream_buffered(
+        self,
+        cap: usize,
+    ) -> impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::bounded(cap);
+        std::thread::spawn(move || {
+            for item in self {
+                tx.send(item)?; // send under blocking thread
+            }
+            Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
+    }
+
     pub fn into_raw_stream(
         self,
     ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>

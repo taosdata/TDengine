@@ -1393,8 +1393,8 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let batch_counter = Arc::new(AtomicU32::new(1));
     let workers = parser.global().concurrent_limit();
 
-    let (msg_tx, msg_rx) = flume::bounded(workers * 4);
-    let (ack_tx, ack_rx) = flume::bounded(workers * 4);
+    let (msg_tx, msg_rx) = flume::bounded(workers);
+    let (ack_tx, ack_rx) = flume::bounded(workers);
 
     let mut writer_set = tokio::task::JoinSet::new();
 
