@@ -4270,7 +4270,13 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   taosArrayClearP(p->pDel, taosMemoryFree);
   taosHashClear(p->pSstTbl[1 - p->idx]);
 
-  TdDirPtr      pDir = taosOpenDir(p->buf);
+  TdDirPtr pDir = taosOpenDir(p->buf);
+  if (pDir == NULL) {
+    terrno = errno;
+    taosThreadRwlockUnlock(&p->rwLock);
+    return -1;
+  }
+
   TdDirEntryPtr de = NULL;
   int8_t        dummy = 0;
   while ((de = taosReadDir(pDir)) != NULL) {
