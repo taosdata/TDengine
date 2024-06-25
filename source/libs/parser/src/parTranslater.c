@@ -12860,6 +12860,8 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
 
     if (readLen == 0) continue;
 
+    if (pLine[0] == '#') continue;
+
     strtolower(pLine, pLine);
     pParseFileCtx->pSql = pLine;
 
