@@ -12,8 +12,8 @@ use tokio::{
     sync::{oneshot, Mutex},
     task::{JoinHandle, JoinSet},
 };
-use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument};
+use tokio_util::sync::{CancellationToken, DropGuard};
+use tracing::{instrument, trace, Instrument};
 
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
@@ -53,9 +53,9 @@ pub struct Scheduler {
     receiver: Receiver<Todo>,
     handle: Mutex<Option<JoinHandle<anyhow::Result<()>>>>,
     abort: tokio::task::AbortHandle,
-    #[allow(dead_code)]
-    task_id: Option<String>,
     pub breakpoints: Option<BreakpointDb>,
+    #[allow(dead_code)]
+    drop_guard: DropGuard,
 }
 
 impl Debug for Scheduler {
@@ -67,6 +67,7 @@ impl Debug for Scheduler {
             .field("opts", &self.opts)
             .field("sender", &self.sender)
             .field("receiver", &self.receiver)
+            .field("drop_guard", &"..")
             .finish()
     }
 }
@@ -392,7 +393,7 @@ async fn worker(
                                             time_range = query.time_range,
                                         );
                                         // set breakpoint
-                                        if let Some(breakpoints) = breakpoints.clone() {
+                                        if let Some(breakpoints) = breakpoints.as_ref() {
                                             if let Some(end) = chunk.end {
                                                 let breakpoint = end.to_string();
                                                 let max_retries = 5;
@@ -546,12 +547,12 @@ async fn worker(
                     {
                         Ok(_) => {
                             // metrics
-                            log::debug!(
-                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
-                                            metrics = metrics,
-                                        );
+                            trace!(
+                                "sync table {table} time_range {time_range} total metrics: {metrics:#}",
+                                table = table.as_str(),
+                                time_range = query.time_range,
+                                metrics = metrics,
+                            );
 
                             break;
                         }
@@ -671,11 +672,12 @@ impl Scheduler {
         metrics: Arc<CoreMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
-        task_id: Option<String>,
         cancellation: CancellationToken,
         breakpoints: Option<BreakpointDb>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
+        let cancellation = cancellation.child_token();
+        let drop_guard = cancellation.clone().drop_guard();
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
         let mut task_set = JoinSet::new();
 
@@ -698,15 +700,12 @@ impl Scheduler {
         }
 
         let handle = tokio::task::spawn(async move {
-            let cancellation = cancellation.child_token();
-            let _drop = cancellation.clone().drop_guard();
             let futures = async {
                 while let Some(_) = task_set.join_next().await.transpose()?.transpose()? {}
                 anyhow::Ok(())
             };
             tokio::select! {
                 res = futures => {
-                    drop(_drop);
                     if let Err(err) = &res {
                         tracing::error!("Scheduler runtime error: {err:#}");
                     }
@@ -730,8 +729,8 @@ impl Scheduler {
             receiver,
             handle: Mutex::new(Some(handle)),
             abort,
-            task_id,
             breakpoints,
+            drop_guard,
         }
     }
 
