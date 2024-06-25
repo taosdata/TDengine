@@ -406,7 +406,6 @@ class TDTestCase:
         finally:
             consumer.close()
 
-
     def consume_TS_4540_Test(self):
         tdSql.execute(f'create database if not exists test')
         tdSql.execute(f'use test')
@@ -469,7 +468,6 @@ class TDTestCase:
         except TmqError:
             tdLog.exit(f"subscribe error")
 
-        print("consume_ts_4544 ok")
         consumer.close()
 
     def consume_ts_4551(self):

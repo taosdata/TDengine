@@ -1622,8 +1622,6 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   char detail[1000] = {0};
   sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
           createReq.sysInfo);
-  sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable, createReq.superUser,
-          createReq.sysInfo);
   char operation[15] = {0};
   if (createReq.isImport == 1) {
     strcpy(operation, "importUser");

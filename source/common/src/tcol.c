@@ -274,7 +274,6 @@ bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRES
 bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) return true;
   strtolower(level, level);
-
   if (1 == strlen(level)) {
     if ('h' == level[0] || 'm' == level[0] || 'l' == level[0]) return true;
   } else {
