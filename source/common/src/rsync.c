@@ -206,7 +206,7 @@ int32_t uploadByRsync(const char* id, const char* path) {
   }
 
 #ifdef WINDOWS
-    char pathTransform[PATH_MAX] = {0};
+  memset(pathTransform, 0, PATH_MAX);
   changeDirFromWindowsToLinux(path, pathTransform);
 
   if (pathTransform[strlen(pathTransform) - 1] != '/') {
