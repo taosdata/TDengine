@@ -21,12 +21,17 @@ addr = "0.0.0.0"
 log_level = "info"
 
 # REST API endpoint to connect to the cluster.
-# You can use either native(taos://localhost:6030) or websocket(http://localhost:6041) methods.
 # This configuration is also the target for data migration tasks.
 # 
 # Default is "http://localhost:6041" - the default endpoint for REST API.
 #
 cluster = "http://localhost:6041"
+
+# native endpoint to connect to the cluster.
+# Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
+# If you enable it, you will get more performance for data migration tasks.
+#
+# cluster_native = "taos://localhost:6030"
 
 # API endpoint for data replication/backup/data sources. No default option.
 #   Set it to API URL like "http://localhost:6050".

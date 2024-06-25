@@ -119,10 +119,8 @@ export default {
     return {
       sysActivateTab: "linux",
       version:localStorage.getItem('agent_version'),
-      code:`Welcome to the TDengine shell from Linux, Client Version:${localStorage.getItem('agent_version')}
-Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
-
-Successfully connect to tdengine.com:8085 in restful mode
+      code:`Welcome to the TDengine Command Line Interface, Client Version:${localStorage.getItem('agent_version')}
+Copyright (c) 2023 by TDengine, Inc. all rights reserved.
 
 taos>`
     };
