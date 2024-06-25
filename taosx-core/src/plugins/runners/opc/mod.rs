@@ -105,7 +105,7 @@ pub async fn opc_to_taos(
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
     config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
-    config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
+    config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
     // create IPC handler
     let connector = match config.opc_type {
@@ -503,7 +503,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
             config.set_temp_filepath("certificate", certificate.as_ref())?;
             config.set_temp_filepath("private_key", private_key.as_ref())?;
             config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
-            config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
+            config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
             opc_datasets_by_command(&config).await?
         }
@@ -644,7 +644,7 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
     config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
-    config.set_temp_filepath("auth_private", auth_private_key.as_ref())?;
+    config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
