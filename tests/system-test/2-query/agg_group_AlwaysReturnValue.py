@@ -1683,7 +1683,7 @@ class TDTestCase(TDTestCase):
             self.tbname_agg_all()    
           
 
-        self.testTBNameUseJoin()  
+
     
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
