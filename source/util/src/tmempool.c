@@ -15,113 +15,188 @@
 
 #define _DEFAULT_SOURCE
 #include "tmempool.h"
+#include "tmempoolInt.h"
 #include "tlog.h"
 #include "tutil.h"
 
-typedef struct {
-  int32_t       numOfFree;  /* number of free slots */
-  int32_t       first;      /* the first free slot  */
-  int32_t       numOfBlock; /* the number of blocks */
-  int32_t       blockSize;  /* block size in bytes  */
-  int32_t      *freeList;   /* the index list       */
-  char         *pool;       /* the actual mem block */
-  TdThreadMutex mutex;
-} pool_t;
+static SArray* gMPoolList;
+static TdThreadOnce  gMPoolInit = PTHREAD_ONCE_INIT;
+static TdThreadMutex gMPoolMutex;
 
-mpool_h taosMemPoolInit(int32_t numOfBlock, int32_t blockSize) {
-  int32_t i;
-  pool_t *pool_p;
-
-  if (numOfBlock <= 1 || blockSize <= 1) {
-    uError("invalid parameter in memPoolInit\n");
-    return NULL;
+int32_t memPoolCheckCfg(SMemPoolCfg* cfg) {
+  if (cfg->chunkSize < MEMPOOL_MIN_CHUNK_SIZE || cfg->chunkSize > MEMPOOL_MAX_CHUNK_SIZE) {
+    uError("invalid memory pool chunkSize:%d", cfg->chunkSize);
+    return TSDB_CODE_INVALID_MEM_POOL_PARAM;
   }
 
-  pool_p = (pool_t *)taosMemoryMalloc(sizeof(pool_t));
-  if (pool_p == NULL) {
-    uError("mempool malloc failed\n");
-    return NULL;
-  } else {
-    memset(pool_p, 0, sizeof(pool_t));
+  if (cfg->evicPolicy <= 0 || cfg->evicPolicy >= E_EVICT_MAX_VALUE) {
+    uError("invalid memory pool evicPolicy:%d", cfg->evicPolicy);
+    return TSDB_CODE_INVALID_MEM_POOL_PARAM;
   }
 
-  pool_p->blockSize = blockSize;
-  pool_p->numOfBlock = numOfBlock;
-  pool_p->pool = (char *)taosMemoryMalloc((size_t)(blockSize * numOfBlock));
-  pool_p->freeList = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * (size_t)numOfBlock);
-
-  if (pool_p->pool == NULL || pool_p->freeList == NULL) {
-    uError("failed to allocate memory\n");
-    taosMemoryFreeClear(pool_p->freeList);
-    taosMemoryFreeClear(pool_p->pool);
-    taosMemoryFreeClear(pool_p);
-    return NULL;
+  if (cfg->threadNum <= 0) {
+    uError("invalid memory pool threadNum:%d", cfg->threadNum);
+    return TSDB_CODE_INVALID_MEM_POOL_PARAM;
   }
 
-  taosThreadMutexInit(&(pool_p->mutex), NULL);
-
-  memset(pool_p->pool, 0, (size_t)(blockSize * numOfBlock));
-  for (i = 0; i < pool_p->numOfBlock; ++i) pool_p->freeList[i] = i;
-
-  pool_p->first = 0;
-  pool_p->numOfFree = pool_p->numOfBlock;
-
-  return (mpool_h)pool_p;
+  return TSDB_CODE_SUCCESS;
 }
 
-char *taosMemPoolMalloc(mpool_h handle) {
-  char   *pos = NULL;
-  pool_t *pool_p = (pool_t *)handle;
-
-  taosThreadMutexLock(&(pool_p->mutex));
-
-  if (pool_p->numOfFree > 0) {
-    pos = pool_p->pool + pool_p->blockSize * (pool_p->freeList[pool_p->first]);
-    pool_p->first++;
-    pool_p->first = pool_p->first % pool_p->numOfBlock;
-    pool_p->numOfFree--;
+int32_t memPoolAddChunkCache(SMemPool* pPool) {
+  if (0 == pPool->chunkCacheUnitNum) {
+    pPool->chunkCacheUnitNum = TMAX(pPool->maxChunkNum / 10, MEMPOOL_CHUNKPOOL_MIN_BATCH_SIZE);
   }
 
-  taosThreadMutexUnlock(&(pool_p->mutex));
-
-  if (pos == NULL) uDebug("mempool: out of memory");
-  return pos;
-}
-
-void taosMemPoolFree(mpool_h handle, char *pMem) {
-  int32_t index;
-  pool_t *pool_p = (pool_t *)handle;
-
-  if (pMem == NULL) return;
-
-  index = (int32_t)(pMem - pool_p->pool) % pool_p->blockSize;
-  if (index != 0) {
-    uError("invalid free address:%p\n", pMem);
-    return;
+  if (NULL == pPool->pChunkCache) {
+    pPool->pChunkCache = taosArrayInit(10, sizeof(SChunkCache));
+    if (NULL == pPool->pChunkCache) {
+      uError("taosArrayInit chunkPool failed");
+      MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
 
-  index = (int32_t)((pMem - pool_p->pool) / pool_p->blockSize);
-  if (index < 0 || index >= pool_p->numOfBlock) {
-    uError("mempool: error, invalid address:%p", pMem);
-    return;
+  SChunkCache* pChunkCache = taosArrayReserve(pPool->pChunkCache, 1);
+  pChunkCache->chunkNum = pPool->chunkCacheUnitNum;
+  pChunkCache->pChunks = taosMemoryCalloc(pChunkCache->chunkNum, sizeof(*pChunkCache->pChunks));
+  if (NULL == pChunkCache->pChunks) {
+    uError("calloc %d chunks in pool failed", pChunkCache->chunkNum);
+    MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  memset(pMem, 0, (size_t)pool_p->blockSize);
+  atomic_add_fetch_64(&pPool->allocChunkCacheNum, pChunkCache->chunkNum);
 
-  taosThreadMutexLock(&pool_p->mutex);
-
-  pool_p->freeList[(pool_p->first + pool_p->numOfFree) % pool_p->numOfBlock] = index;
-  pool_p->numOfFree++;
-
-  taosThreadMutexUnlock(&pool_p->mutex);
+  return TSDB_CODE_SUCCESS;
 }
 
-void taosMemPoolCleanUp(mpool_h handle) {
-  pool_t *pool_p = (pool_t *)handle;
+int32_t memPoolGetChunkCache(SMemPool* pPool, SChunkCache** pCache) {
+  while (true) {
+    SChunkCache* cache = (SChunkCache*)taosArrayGetLast(pPool->pChunkCache);
+    if (NULL != cache && cache->idleOffset < cache->chunkNum) {
+      *pCache = cache;
+      break;
+    }
 
-  taosThreadMutexDestroy(&pool_p->mutex);
-  if (pool_p->pool) taosMemoryFree(pool_p->pool);
-  if (pool_p->freeList) taosMemoryFree(pool_p->freeList);
-  memset(pool_p, 0, sizeof(*pool_p));
-  taosMemoryFree(pool_p);
+    MP_ERR_RET(memPoolAddChunkCache(pPool));
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
+
+int32_t memPoolGetIdleChunkFromCache() {
+
+}
+
+int32_t memPoolEnsureMinFreeChunk(SMemPool* pPool) {
+  if (E_EVICT_ALL == pPool->cfg.evicPolicy) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pPool->freeChunkNum >= pPool->freeChunkReserveNum) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t toAddNum = pPool->freeChunkReserveNum - pPool->freeChunkNum;
+  for (int32_t i = 0; i < toAddNum; ++i) {
+    memPoolGetIdleChunk(pPool);
+  }
+  
+}
+
+int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
+  MP_ERR_RET(memPoolCheckCfg(cfg));
+  
+  memcpy(&pPool->cfg, &cfg, sizeof(cfg));
+  
+  pPool->name = taosStrdup(poolName);
+  if (NULL == pPool->name) {
+    uError("calloc memory pool name %s failed", poolName);
+    MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  pPool->maxChunkNum = cfg->maxSize / cfg->chunkSize;
+  if (pPool->maxChunkNum <= 0) {
+    uError("invalid memory pool max chunk num, maxSize:%" PRId64 ", chunkSize:%d", cfg->maxSize, cfg->chunkSize);
+    return TSDB_CODE_INVALID_MEM_POOL_PARAM;
+  }
+
+  pPool->threadChunkReserveNum = 1;
+  pPool->freeChunkReserveNum = TMIN(cfg->threadNum * pPool->threadChunkReserveNum, pPool->maxChunkNum);
+
+  MP_ERR_RET(memPoolAddChunkCache(pPool));
+
+  MP_ERR_RET(memPoolEnsureMinFreeChunk(pPool));
+}
+
+
+void taosMemPoolModInit(void) {
+  taosThreadMutexInit(&gMPoolMutex, NULL);
+
+  gMPoolList = taosArrayInit(10, POINTER_BYTES);
+}
+
+int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg cfg, void** poolHandle) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SMemPool* pPool = NULL;
+  
+  taosThreadOnce(&gMPoolInit, taosMemPoolModInit);
+  if (NULL == gMPoolList) {
+    uError("init memory pool failed");
+    MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  SMemPool* pPool = taosMemoryCalloc(1, sizeof(SMemPool));
+  if (NULL == pPool) {
+    uError("calloc memory pool failed");
+    MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  pPool->slotId = -1;
+  MP_ERR_JRET(memPoolInit(pPool, poolName, &cfg))
+
+  
+
+_return:
+
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemPoolClose(pPool);
+  }
+
+}
+
+void   *taosMemPoolMalloc(void* poolHandle, int64_t size, char* fileName, int32_t lineNo) {
+
+}
+
+void   *taosMemPoolCalloc(void* poolHandle, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
+
+}
+
+void   *taosMemPoolRealloc(void* poolHandle, void *ptr, int64_t size) {
+
+}
+
+char   *taosMemPoolStrdup(void* poolHandle, const char *ptr) {
+
+}
+
+void    taosMemPoolFree(void* poolHandle, void *ptr) {
+
+}
+
+int32_t taosMemPoolGetMemorySize(void* poolHandle, void *ptr, int64_t* size) {
+
+}
+
+void   *taosMemPoolMallocAlign(void* poolHandle, uint32_t alignment, int64_t size) {
+
+}
+
+void    taosMemPoolClose(void* poolHandle) {
+
+}
+
+void    taosMemPoolModDestroy(void) {
+
+}
+
+
