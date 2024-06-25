@@ -12413,10 +12413,10 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
-                                     const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
-                                     const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
-                                     SVgroupInfo* pVgInfo) {
+static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
+                                        const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
+                                        const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
+                                        SVgroupInfo* pVgInfo) {
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
   req.name = taosStrdup(tableName);
@@ -12436,6 +12436,11 @@ static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbNam
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
   }
 
+  if (!req.name || !req.ctb.stbName || !req.ctb.tagName || (comment && !req.comment)) {
+    tdDestroySVCreateTbReq(&req);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (pTableBatch == NULL) {
     SVgroupCreateTableBatch tBatch = {0};
@@ -12449,6 +12454,8 @@ static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbNam
   } else {  // add to the correct vgroup
     taosArrayPush(pTableBatch->req.pArray, &req);
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SDataType dt, SNode** pCast) {
@@ -12638,9 +12645,9 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
   if (TSDB_CODE_SUCCESS == code) {
     const char* comment = pStmt->pOptions->commentNull ? NULL : pStmt->pOptions->comment;
-    addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pSuperTableMeta->uid, pStmt->useTableName, pStmt->tableName,
-                             tagName, pSuperTableMeta->tableInfo.numOfTags, pTag, pStmt->pOptions->ttl, comment,
-                             pStmt->ignoreExists, &info);
+    code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pSuperTableMeta->uid, pStmt->useTableName,
+                                    pStmt->tableName, tagName, pSuperTableMeta->tableInfo.numOfTags, pTag,
+                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info);
   } else {
     taosMemoryFree(pTag);
   }
@@ -12971,9 +12978,9 @@ static int32_t rewriteCreateSubTableFromFile(STranslateContext* pCxt, SCreateSub
         taosMemoryFree(pData->pTag);
       }
 
-      addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->useDbName, pSuperTableMeta->uid, pStmt->useTableName,
-                               pData->ctbName.tname, pData->aTagNames, pSuperTableMeta->tableInfo.numOfTags,
-                               pData->pTag, TSDB_DEFAULT_TABLE_TTL, NULL, pStmt->ignoreExists, &pData->vg);
+      code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->useDbName, pSuperTableMeta->uid, pStmt->useTableName,
+                                      pData->ctbName.tname, pData->aTagNames, pSuperTableMeta->tableInfo.numOfTags,
+                                      pData->pTag, TSDB_DEFAULT_TABLE_TTL, NULL, pStmt->ignoreExists, &pData->vg);
     }
   }
 
