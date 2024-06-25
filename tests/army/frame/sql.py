@@ -126,8 +126,10 @@ class TDSql:
         except Exception as ex:
             raise(ex)
 
-    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
+    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None, show=False):
         self.sql = sql
+        if show:
+            tdLog.info(sql)
         i=1
         while i <= queryTimes:
             try:

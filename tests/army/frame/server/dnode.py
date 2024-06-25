@@ -582,7 +582,7 @@ class TDDnode:
         if os.system(cmd1) != 0:
             tdLog.exit(cmd1)
 
-        cmd2 = "echo %s %s >> %s" % (option, value, self.cfgPath)
+        cmd2 = "echo %s '%s' >> %s" % (option, value, self.cfgPath)
         if os.system(cmd2) != 0:
             tdLog.exit(cmd2)
 

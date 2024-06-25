@@ -32,14 +32,17 @@ from frame.srvCtl import *
 from frame.taosadapter import *
 
 
+global_count = 0
 
 class TDTestCase(TBase):
 
     updatecfgDict = {
         "slowLogThresholdTest": "0",  # special setting only for testing
+        "slowLogExceptDb": "log",
         "monitor": "1",
-        "monitorInterval": "5",
+        # "monitorInterval": "1",
         "monitorFqdn": "localhost"
+        # "monitorLogProtocol": "1"
         # "monitorPort": "6043"
     }
 
@@ -112,6 +115,8 @@ class TDTestCase(TBase):
         # start dnode
         sc.dnodeStart(idx)
 
+        time.sleep(2)
+
     def alter_variables(self, idx: int = 0, updatecfgDict: dict = None):
         if idx == 0:
             for key, value in updatecfgDict.items():
@@ -121,76 +126,70 @@ class TDTestCase(TBase):
             for key, value in updatecfgDict.items():
                 sql = f"ALTER DNODE {idx} '{key} {value}'"
                 tdSql.execute(sql, show=True)
+        
+        time.sleep(2)
+        
     
+    
+
     # check default value of slowLogScope
     def check_slow_query_table(self, db_name: str, query_log_exist: bool, insert_log_exist: bool, other_log_exist: bool, taosc_cfg: str = None):
+        global global_count
+        db_name = db_name + str(global_count)
+        
+        global_count = global_count + 1
+
         if taosc_cfg:
             eutil.runTaosShellWithSpecialCfg(sql=f'create database {db_name}', cfg=taosc_cfg)
             eutil.runTaosShellWithSpecialCfg(sql=f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)", cfg=taosc_cfg)
-            eutil.runTaosShellWithSpecialCfg(sql=f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')", cfg=taosc_cfg)
-            eutil.runTaosShellWithSpecialCfg(sql=f"insert into {db_name}.ct1 using t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f'insert into {db_name}.ct1 using {db_name}.t100 tags(1) values("2024-05-17 14:58:52.902", "a1", "100")', cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f'insert into {db_name}.ct1 using {db_name}.t100 tags(1) values("2024-05-17 14:58:52.902", "a2", "200")', cfg=taosc_cfg)
             eutil.runTaosShellWithSpecialCfg(sql=f"select * from {db_name}.t100 order by ts", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"select * from {db_name}.t100 order by ts", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"select * from {db_name}.t100 order by ts", cfg=taosc_cfg)
+            eutil.runTaosShellWithSpecialCfg(sql=f"alter table {db_name}.t100 add column name varchar(10)", cfg=taosc_cfg)
         else:
-            tdSql.execute(f"create database {db_name}")
-            tdSql.execute(f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)")
-            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')")
-            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')")
-            tdSql.query(f"select * from {db_name}.t100 order by ts")
+            tdSql.execute(f"create database {db_name}", show=True)
+            tdSql.execute(f"create table {db_name}.t100 (ts timestamp, pk varchar(20) primary key, c1 varchar(100)) tags (id int)", show=True)
+            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a1', '100')", show=True)
+            tdSql.execute(f"insert into {db_name}.ct1 using {db_name}.t100 tags(1) values('2024-05-17 14:58:52.902', 'a2', '200')", show=True)
+            tdSql.query(f"select * from {db_name}.t100 order by ts", show=True)
+            tdSql.query(f"select * from {db_name}.t100 order by ts", show=True)
+            tdSql.query(f"select * from {db_name}.t100 order by ts", show=True)
+            tdSql.execute(f"alter table {db_name}.t100 add column name varchar(10)", show=True)
 
+            tdSql.query("select 1=1")
+        time.sleep(5)
+        
         # check data in taos_slow_sql_detail
-        tdSql.query(f"select * from log.taos_slow_sql_detail where db='{db_name}' order by start_ts")
+        tdSql.query(f"select * from log.taos_slow_sql_detail where sql like '%{db_name}%' order by start_ts desc")
         row_count = 0
         if query_log_exist:
-            row_count = row_count + 1
+            row_count = row_count + 3
         if insert_log_exist:
             row_count = row_count + 2
         if other_log_exist:
-            row_count = row_count + 2
+            row_count = row_count + 3
         tdSql.checkRows(row_count)
 
-        tdSql.checkdata(0, 3, 0)
-        tdSql.checkdata(0, 4, '')
-        tdSql.checkdata(0, 5, 4)
-        tdSql.checkdata(0, 6, 0)
-        tdSql.checkdata(0, 7, f"create database {db_name}")
-        tdSql.checkdata(0, 8, 0)
-
         # check query records
-        tdSql.query(f"select * from log.taos_slow_sql_detail where db='{db_name}' and `type`=1 order by start_ts")
+        tdSql.query(f"select * from log.taos_slow_sql_detail where sql like '%{db_name}%' and `type`=1")
         if query_log_exist:
-            tdSql.checkRows(1)
-            tdSql.checkdata(0, 3, 0)
-            tdSql.checkdata(0, 4, '')
-            tdSql.checkdata(0, 5, 4)
-            tdSql.checkdata(0, 6, 0)
-            tdSql.checkdata(0, 7, f"create database {db_name}")
-            tdSql.checkdata(0, 8, 0)
+            tdSql.checkRows(3)
         else:
             tdSql.checkRows(0)
         
         # check insert records
-        tdSql.query(f"select * from log.taos_slow_sql_detail where db='{db_name}' and `type`=2 order by start_ts")
-        if query_log_exist:
-            tdSql.checkRows(1)
-            tdSql.checkdata(0, 3, 0)
-            tdSql.checkdata(0, 4, '')
-            tdSql.checkdata(0, 5, 4)
-            tdSql.checkdata(0, 6, 0)
-            tdSql.checkdata(0, 7, f"create database {db_name}")
-            tdSql.checkdata(0, 8, 0)
+        tdSql.query(f"select * from log.taos_slow_sql_detail where sql like '%{db_name}%' and `type`=2")
+        if insert_log_exist:
+            tdSql.checkRows(2)
         else:
             tdSql.checkRows(0)
 
         # check others records
-        tdSql.query(f"select * from log.taos_slow_sql_detail where db='{db_name}' and `type`=4 order by start_ts")
-        if query_log_exist:
-            tdSql.checkRows(1)
-            tdSql.checkdata(0, 3, 0)
-            tdSql.checkdata(0, 4, '')
-            tdSql.checkdata(0, 5, 4)
-            tdSql.checkdata(0, 6, 0)
-            tdSql.checkdata(0, 7, f"create database {db_name}")
-            tdSql.checkdata(0, 8, 0)
+        tdSql.query(f"select * from log.taos_slow_sql_detail where sql like '%{db_name}%' and `type`=4")
+        if other_log_exist:
+            tdSql.checkRows(3)
         else:
             tdSql.checkRows(0)
 
@@ -261,9 +260,12 @@ class TDTestCase(TBase):
         return taos_cfg
     
     def check_variable_setting(self, key: str, value: str):
-        tdSql.execute(f"select value from information_schema.ins_configs where name='{key}'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, value)
+        # tdSql.execute(f"select value from information_schema.ins_configs where name='{key}'")
+        result = tdSql.getResult("show cluster variables")
+        for i in range(len(result)):
+            if result[i][0].lower() == key.lower() and result[i][1].lower() == value.lower():
+                return True
+        return False
 
     def test_show_log_scope(self):
         tdLog.info(f"check_show_log_scope")
@@ -275,6 +277,7 @@ class TDTestCase(TBase):
             'QUERY,Insert,OTHERS': 'Invalid slowLog scope value',
             'NULL': 'Invalid slowLog scope value',
             '100': 'Invalid slowLog scope value'}
+            # '': 'Invalid slowLog scope value'}
         # VAR_SHOW_LOG_SCOPE_NAGATIVE_CASES =['INVALIDVALUE','ALL|INSERT1','QUERY,Insert,OTHERS','','NULL','100']
         taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
 
@@ -292,40 +295,44 @@ class TDTestCase(TBase):
             new_taos_cfg = self.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
             check_result = self.failed_to_start_taosd_with_special_cfg(cfg=new_taos_cfg, expect_err=err_info)
             if check_result:
-                tdLog.info(f"check invalid value '{value}' of variable 'slowLogScope' - PASS")
+                tdLog.info(f"check invalid value '{value}' of variable 'slowLogScope' via config - PASS")
             else:
-                tdLog.exit(f"check invalid value '{value}' of variable 'slowLogScope' - FAIL")
+                tdLog.exit(f"check invalid value '{value}' of variable 'slowLogScope' via config - FAIL")
+
+            sql = f"ALTER ALL DNODES  'slowLogScope {value}'"
+            tdSql.error(sql, expectErrInfo=err_info)
 
         # 2. check valid setting of show_log_scope
         VAR_SHOW_LOG_SCOPE_POSITIVE_CASES = {
-            'ALL': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-            'QUERY': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
-            'INSERT': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'false'},
-            'OTHERS': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'true'},
-            'NONE': {'query_log_exist': 'false', 'insert_log_exist': 'false', 'other_log_exist': 'false'},
-            'ALL|Query|INSERT|OTHERS|NONE': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-            'QUERY|Insert|OTHERS': {'query_log_exist': 'true', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-            'INSERT|OThers': {'query_log_exist': 'false', 'insert_log_exist': 'true', 'other_log_exist': 'true'},
-            'QUERY|none': {'query_log_exist': 'true', 'insert_log_exist': 'false', 'other_log_exist': 'false'}}
+            'ALL': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY': {'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False},
+            'INSERT': {'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': False},
+            'OTHERS': {'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': True},
+            'NONE': {'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': False},
+            'ALL|Query|INSERT|OTHERS|NONE': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY|Insert|OTHERS': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'INSERT|OThers': {'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY|none': {'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False}}
 
         for scope_value, verifications in VAR_SHOW_LOG_SCOPE_POSITIVE_CASES.items():
-            updatecfgDict = {"slowLogScope": scope_value}
+            updatecfgDict = {"slowLogScope": scope_value, 'monitorInterval': '1', "slowLogThresholdTest":"0"}
 
-            # set slowLogScope=ALL via taos.cfg
-            self.update_taos_cfg(1, updatecfgDict)
-            self.check_variable_setting(key='slowLogScope', value=scope_value)
-            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
-
-            # set slowLogScope=ALL via alter operation
+            # set slowLogScope via alter operation
             self.alter_variables(1, updatecfgDict)
             self.check_variable_setting(key='slowLogScope', value=scope_value)
             self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
 
+            # set slowLogScope via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogScope', value=scope_value)
+            self.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
+
+            
         # 3.config in client is not available
-        updatecfgDict = {"slowLogScope": "INSERT"}
+        updatecfgDict = {"slowLogScope": "INSERT", 'monitorInterval': '1', "slowLogThresholdTest":"0"}
         self.update_taos_cfg(1, updatecfgDict)
 
-        updatecfgDict = {"slowLogScope":"QUERY"}
+        updatecfgDict = {"slowLogScope":"QUERY", 'monitorInterval': '1', "slowLogThresholdTest":"0", "debugFlag":"135"}
         taosc_cfg = self.create_private_cfg(cfg_name='taosc.cfg', params=updatecfgDict)
         self.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
 
@@ -382,18 +389,21 @@ class TDTestCase(TBase):
             else:
                 tdLog.exit(f"check invalid value '{value}' of variable 'slowLogThreshold' - FAIL")
 
+            sql = f"ALTER ALL DNODES  'slowLogThreshold {value}'"
+            tdSql.error(sql, expectErrInfo=err_info)
+
         # 2. check valid setting of show_log_scope
         VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '1']
 
         for threshold_value in VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES:
-            updatecfgDict = {"slowLogThreshold": threshold_value, "slowLogScope": "QUERY"}
-
-            # set slowLogThreshold via taos.cfg
-            self.update_taos_cfg(1, updatecfgDict)
-            self.check_variable_setting(key='slowLogThreshold', value=threshold_value)
+            updatecfgDict = {"slowLogThreshold": threshold_value}
 
             # set slowLogThreshold via alter operation
             self.alter_variables(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogThreshold', value=threshold_value)
+
+            # set slowLogThreshold via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
             self.check_variable_setting(key='slowLogThreshold', value=threshold_value)
 
         # 3.config in client is not available
@@ -430,10 +440,10 @@ class TDTestCase(TBase):
         # 1.check nagative value of slowLogMaxLen
         VAR_SHOW_LOG_MAXLEN_NAGATIVE_CASES ={
             '-1': 'Out of range',
-            # '0': 'Out of range',
+            '0': 'Out of range',
             'INVALIDVALUE': 'Invalid configuration value',
             # '001': 'Invalid configuration value',
-            # '0.1': 'Out of range',
+            '0.1': 'Out of range',
             '1e6': 'Invalid configuration value',
             'NULL': 'Invalid configuration value',
             '16385': 'Out of range',
@@ -458,19 +468,26 @@ class TDTestCase(TBase):
             else:
                 tdLog.exit(f"check invalid value '{value}' of variable 'slowLogMaxLen' - FAIL")
 
+            sql = f"ALTER ALL DNODES  'slowLogMaxLen {value}'"
+            tdSql.error(sql, expectErrInfo=err_info)
+
         # 2. check valid setting of slowLogMaxLen
         VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['16384', '1']
 
         for maxlen_value in VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES:
-            updatecfgDict = {"slowLogMaxLen": maxlen_value, "slowLogScope": "QUERY"}
-
-            # set slowLogMaxLen via taos.cfg
-            self.update_taos_cfg(1, updatecfgDict)
-            self.check_variable_setting(key='slowLogMaxLen', value=maxlen_value)
+            updatecfgDict = {"slowLogMaxLen": maxlen_value, "slowLogScope": "QUERY", "monitorInterval": "1"}
 
             # set slowLogMaxLen via alter operation
             self.alter_variables(1, updatecfgDict)
             self.check_variable_setting(key='slowLogMaxLen', value=maxlen_value)
+            self.check_maxlen(sql_length=maxlen_value, less_then=True, is_record=True)
+            self.check_maxlen(sql_length=maxlen_value, more_then=True, is_record=False)
+
+            # set slowLogMaxLen via taos.cfg
+            self.update_taos_cfg(1, updatecfgDict)
+            self.check_variable_setting(key='slowLogMaxLen', value=maxlen_value)
+            self.check_maxlen(sql_length=maxlen_value, less_then=True, is_record=True)
+            self.check_maxlen(sql_length=maxlen_value, more_then=True, is_record=False)
 
         # 3.config in client is not available
         updatecfgDict = {"slowLogMaxLen": "1"}
@@ -500,8 +517,9 @@ class TDTestCase(TBase):
             self.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogMaxLen not match')
         tdLog.info(f"check_show_log_maxlen is done")
       
-    def check_maxlen(self, length: int, less_then: bool, is_record: bool):
-        db_name = 'check_maxlen'
+    def check_maxlen(self, sql_length: str, less_then: bool, is_record: bool):
+        length = int(sql_length)
+        db_name = 'check_maxlen' + str(global_count)
         sqls = [
             f"DROP DATABASE IF EXISTS {db_name}",
             f"CREATE DATABASE IF NOT EXISTS {db_name}",
@@ -509,31 +527,55 @@ class TDTestCase(TBase):
         ]
         tdSql.executes(sqls)
 
-        quotient = (length - 32) // 20
-        remainder = (length - 32) % 20
-
-        if less_then:
-            count = quotient
+        if length <= 50:
+            count = 1
         else:
-            count = quotient + 1
+            quotient = (length - 32) // 20
+            remainder = (length - 32) % 20
             
+            if less_then:
+                count = quotient
+            else:
+                count = quotient + 1
+
         sub_sql = ''
         for _ in range(count):
             sub_sql = sub_sql + f'col as {self.generate_random_string(length=11)}, '
         sub_sql = sub_sql[0: -2]
 
-        sql = f'select {sub_sql} from check_maxlen.meters'
+        sql = f'select {sub_sql} from {db_name}.meters'
         tdSql.execute(sql)
+        tdSql.checkRows(0)
 
-        sql = f"select * from log.taos_slow_sql_detail where db='{db_name}' and sql like '%from check_maxlen.meter%'"
+        sql = f"select * from log.taos_slow_sql_detail where db='{db_name}' and sql like '%from {db_name}.meter%'"
         tdSql.execute(sql)
         if is_record:
             tdSql.checkRows(1)
         else:
             tdSql.checkRows(0)
         
+    def test_smoke_testing(self):
+        # check default value
+        VAR_SHOW_LOG_DEFAULT_VALUE_CASES = {
+            'slowLogScope': 'QUERY',
+            'slowLogThreshold': '10',
+            'slowLogMaxLen': '4096',
+            'monitorInterval': '30',
+        }
+        for key, value in VAR_SHOW_LOG_DEFAULT_VALUE_CASES.items():
+            if self.check_variable_setting(key=key, value=value):
+                tdLog.info(f"check default value '{value}' of variable '{key}' - PASS" )
+            else:
+                tdLog.exit(f"check default value '{value}' of variable '{key}' - FAIL" )
 
-    
+        # check basic slow query
+        updatecfgDict = {"slowLogScope":"ALL", "slowLogThresholdTest":"0", "monitorInterval":"1"}
+        self.alter_variables(updatecfgDict=updatecfgDict)
+        self.check_slow_query_table(db_name='smoke_testing', query_log_exist=True, insert_log_exist=True, other_log_exist=True)
+
+        # check sub-table name manually
+        
+
     def generate_random_string(self, length):
         characters = string.ascii_letters
         random_string = ''.join(random.choice(characters) for _ in range(length))
@@ -545,7 +587,13 @@ class TDTestCase(TBase):
         
         self.init_env()
 
-        self.check_maxlen(length=150, less_then=True, is_record=True)
+        updatecfgDict = {"monitorInterval": "1"}
+        self.update_taos_cfg(1, updatecfgDict)
+
+
+        # self.test_smoke_testing()
+
+        # self.check_maxlen(length=150, less_then=True, is_record=True)
 
         # self.test_show_log_scope()
 

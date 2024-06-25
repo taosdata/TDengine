@@ -58,7 +58,9 @@ def runBinFile(fname, command, show=True, timeout=10):
     return frame.eos.runRetList(cmd, timeout=timeout)
 
 # return True if execution runs incorrectly 
-def checkErrorFromBinFile(ret_list: list, expect_err: str):
+def checkErrorFromBinFile(ret_list: list, expect_err: str= None):
+    if not expect_err:
+        expect_err = 'error'
     for value in ret_list:
         if expect_err.lower() in str(value).lower():
             return True
