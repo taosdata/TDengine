@@ -38,7 +38,7 @@
         <span v-if="!inputType.includes(config.type)">{{ data[field] }}</span>
         <span v-if="config.type == 'select'">{{ data[field] }}</span>
         <a v-if="config.type == 'file' || config.type == 'dataset'" @click="handleDownloadFile(data[field])">{{ getFile(data[field]) }}</a>
-        <span v-if="config.type == 'composeAppend'">{{data[field] + data[field + '_type']}}</span>
+        <span v-if="config.type == 'composeAppend'">{{ data[field] ? data[field] + data[field + '_type'] : ''}}</span>
       </template>
 
       <!-- <el-input
