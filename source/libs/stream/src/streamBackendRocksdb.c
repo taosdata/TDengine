@@ -326,9 +326,11 @@ void cleanDir(const char* pPath, const char* id) {
   }
 }
 
-void validateDir(const char* pPath) {
+int32_t createDirIfNotExist(const char* pPath) {
   if (!taosIsDir(pPath)) {
-    taosMulMkDir(pPath);
+    return taosMulMkDir(pPath);
+  } else {
+    return 0;
   }
 }
 
@@ -419,6 +421,9 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
   const char* current = "CURRENT";
   size_t      currLen = strlen(current);
 
+  const char* info = "info";
+  size_t      infoLen = strlen(info);
+
   int32_t code = 0;
   int32_t sLen = strlen(src);
   int32_t dLen = strlen(dst);
@@ -455,6 +460,14 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
         stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       }
+    } else if (strncmp(name, info, strlen(name) <= infoLen ? strlen(name) : infoLen) == 0) {
+      code = copyFiles_create(srcName, dstName, 0);
+      if (code != 0) {
+        code = TAOS_SYSTEM_ERROR(code);
+        stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
+        goto _ERROR;
+      }
+
     } else {
       code = copyFiles_hardlink(srcName, dstName, 0);
       if (code != 0) {
@@ -487,7 +500,7 @@ _ERROR:
 int32_t backendCopyFiles(const char* src, const char* dst) { return backendFileCopyFilesImpl(src, dst); }
 
 static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* checkpointPath, int64_t checkpointId,
-                                          const char* defaultPath) {
+                                          const char* defaultPath, int64_t* processVer) {
   int32_t code = 0;
   cleanDir(defaultPath, pTaskIdStr);
 
@@ -512,34 +525,67 @@ static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* ch
   return code;
 }
 
-int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId, char** dbPrefixPath, char** dbPath) {
-  int32_t code = 0;
+int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId, char** dbPrefixPath, char** dbPath,
+                              int64_t* processVer) {
+  int32_t code = -1;
 
-  char* prefixPath = taosMemoryCalloc(1, strlen(path) + 128);
+  size_t pathLen = strlen(path);
+  char*  prefixPath = NULL;
+  char*  defaultPath = NULL;
+
+  // alloc buf
+  prefixPath = taosMemoryCalloc(1, pathLen + 64);
+  if (prefixPath == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _EXIT;
+  }
+
   sprintf(prefixPath, "%s%s%s", path, TD_DIRSEP, key);
+  code = createDirIfNotExist(prefixPath);
+  if (code != 0) {
+    goto _EXIT;
+  }
 
-  validateDir(prefixPath);
+  defaultPath = taosMemoryCalloc(1, pathLen + 128);
+  if (defaultPath == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _EXIT;
+  }
 
-  char* defaultPath = taosMemoryCalloc(1, strlen(path) + 256);
   sprintf(defaultPath, "%s%s%s", prefixPath, TD_DIRSEP, "state");
+  code = createDirIfNotExist(defaultPath);
+  if (code != 0) {
+    goto _EXIT;
+  }
 
-  validateDir(defaultPath);
-  int32_t pathLen = strlen(path) + 256;
+  // int32_t pathLen = strlen(path) + 48;
+  char* checkpointRoot = taosMemoryCalloc(1, pathLen + 48);
+  if (checkpointRoot == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _EXIT;
+  }
 
-  char* checkpointRoot = taosMemoryCalloc(1, pathLen);
   sprintf(checkpointRoot, "%s%s%s", prefixPath, TD_DIRSEP, "checkpoints");
-
-  validateDir(checkpointRoot);
-  taosMemoryFree(checkpointRoot);
+  code = createDirIfNotExist(checkpointRoot);
+  if (code != 0) {
+    taosMemoryFreeClear(checkpointRoot);
+    goto _EXIT;
+  }
+  taosMemoryFreeClear(checkpointRoot);
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
 
   char* chkptPath = taosMemoryCalloc(1, pathLen);
+  if (chkptPath == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _EXIT;
+  }
+
   if (chkptId > 0) {
     snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
              chkptId);
 
-    code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath);
+    code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath, processVer);
     if (code != 0) {
       code = rebuildFromRemoteCheckpoint(key, chkptPath, chkptId, defaultPath);
     }
@@ -559,7 +605,11 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   *dbPath = defaultPath;
   *dbPrefixPath = prefixPath;
+  return 0;
 
+_EXIT:
+  taosMemoryFree(defaultPath);
+  taosMemoryFree(prefixPath);
   return code;
 }
 
@@ -2216,15 +2266,33 @@ _EXIT:
   return NULL;
 }
 
-STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId) {
+STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* processVer) {
   char* statePath = NULL;
   char* dbPath = NULL;
 
-  if (restoreCheckpointData(path, key, chkptId, &statePath, &dbPath) != 0) {
+  if (restoreCheckpointData(path, key, chkptId, &statePath, &dbPath, processVer) != 0) {
+    stError("failed to restore checkpoint data, path:%s, key:%s, checkpointId: %" PRId64 "reason:%s", path, key,
+            chkptId, tstrerror(terrno));
     return NULL;
   }
 
   STaskDbWrapper* pTaskDb = taskDbOpenImpl(key, statePath, dbPath);
+  if (pTaskDb != NULL) {
+    int64_t chkpId = -1, ver = -1;
+    if (chkpLoadExtraInfo(dbPath, &chkpId, &ver) == 0) {
+      *processVer = ver;
+    } else {
+      if (terrno == TSDB_CODE_OUT_OF_MEMORY) {
+        taskDbDestroy(pTaskDb, false);
+        return NULL;
+      } else {
+        // not info file exists, caller handle this situation
+        terrno = 0;
+        *processVer = -1;
+      }
+    }
+  }
+
   taosMemoryFree(dbPath);
   taosMemoryFree(statePath);
   return pTaskDb;
@@ -2435,7 +2503,8 @@ int32_t streamStateCvtDataFormat(char* path, char* key, void* pCfInst) {
 
   int32_t code = 0;
 
-  STaskDbWrapper* pTaskDb = taskDbOpen(path, key, 0);
+  int64_t         processVer = -1;
+  STaskDbWrapper* pTaskDb = taskDbOpen(path, key, 0, &processVer);
   RocksdbCfInst*  pSrcBackend = pCfInst;
 
   for (int i = 0; i < nCf; i++) {
