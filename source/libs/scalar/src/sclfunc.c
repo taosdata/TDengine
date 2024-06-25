@@ -1235,9 +1235,6 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
   memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
 
-  int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
-  int64_t unit = timeUnit * 1000 / factor;
-
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -1247,201 +1244,27 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     char *input = colDataGetData(pInput[0].columnData, i);
 
     if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-      int32_t ret = convertStringToTimestamp(type, input, TSDB_TIME_PRECISION_NANO, &timeVal);
+      int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
       if (ret != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
-      }
-      // If converted value is less than 10digits in second, use value in second instead
-      int64_t timeValSec = timeVal / 1000000000;
-      if (timeValSec < 1000000000) {
-        timeVal = timeValSec;
       }
     } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
       GET_TYPED_DATA(timeVal, int64_t, type, input);
     } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
       GET_TYPED_DATA(timeVal, int64_t, type, input);
-      int64_t timeValSec = timeVal / factor;
-      if (timeValSec < 1000000000) {
-        timeVal = timeValSec;
-      }
     }
 
     char buf[20] = {0};
     NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
-    int32_t tsDigits = (int32_t)strlen(buf);
 
-    switch (unit) {
-      case 0: { /* 1u or 1b */
-        if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
-            timeVal = timeVal * 1;
-          } else {
-            timeVal = timeVal / 1000 * 1000;
-          }
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor;
-        } else {
-          timeVal = timeVal * 1;
-        }
-        break;
-      }
-      case 1: { /* 1a */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal * 1;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000 * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000 * 1000000;
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor;
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      case 1000: { /* 1s */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal / 1000 * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000000 * 1000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000000 * 1000000000;
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor;
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      case 60000: { /* 1m */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal / 1000 / 60 * 60 * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000000 / 60 * 60 * 1000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000000 / 60 * 60 * 1000000000;
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor / factor / 60 * 60 * factor;
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      case 3600000: { /* 1h */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000000 / 3600 * 3600 * 1000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000000 / 3600 * 3600 * 1000000000;
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor / factor / 3600 * 3600 * factor;
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      case 86400000: { /* 1d */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000)) % (((int64_t)86400) * 1000);
-          } else {
-            timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
-          }
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000)) % (((int64_t)86400) * 1000000);
-          } else {
-            timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
-          }
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000000)) % (((int64_t)86400) * 1000000000);
-          } else {
-            timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
-          }
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          if (ignoreTz) {
-            timeVal = (timeVal - (timeVal + offsetFromTz(timezone, 1)) % (86400L)) * factor;
-          } else {
-            timeVal = timeVal * factor / factor / 86400 * 86400 * factor;
-          }
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      case 604800000: { /* 1w */
-        if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000)) % (((int64_t)604800) * 1000);
-          } else {
-            timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
-          }
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000)) % (((int64_t)604800) * 1000000);
-          } else {
-            timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
-          }
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000000)) % (((int64_t)604800) * 1000000000);
-          } else {
-            timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
-          }
-        } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1)) % (((int64_t)604800L) * factor);
-          } else {
-            timeVal = timeVal * factor / factor / 604800 * 604800 * factor;
-          }	  
-        } else {
-          colDataSetNULL(pOutput->columnData, i);
-          continue;
-        }
-        break;
-      }
-      default: {
-        timeVal = timeVal * 1;
-        break;
-      }
+    // truncate the timestamp to time_unit precision
+    int64_t seconds = timeUnit / TSDB_TICK_PER_SECOND(timePrec);
+    if (ignoreTz && (seconds == 604800 || seconds == 86400)) {
+      timeVal = timeVal - (timeVal + offsetFromTz(timezone, TSDB_TICK_PER_SECOND(timePrec))) % (((int64_t)seconds) * TSDB_TICK_PER_SECOND(timePrec));;
+    } else {
+      timeVal = timeVal / timeUnit * timeUnit;
     }
-
-    // truncate the timestamp to db precision
-    switch (timePrec) {
-      case TSDB_TIME_PRECISION_MILLI: {
-        if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000;
-        }
-        break;
-      }
-      case TSDB_TIME_PRECISION_MICRO: {
-        if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal * 1000;
-        }
-        break;
-      }
-      case TSDB_TIME_PRECISION_NANO: {
-        if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal * 1000000;
-        }
-        break;
-      }
-    }
-
     colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false);
   }
 
