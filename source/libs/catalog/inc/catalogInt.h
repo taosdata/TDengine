@@ -363,7 +363,7 @@ typedef struct SCtgUserAuth {
 } SCtgUserAuth;
 
 typedef struct SCatalog {
-  uint64_t        clusterId;
+  int64_t        clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
   SHashObj*       userCache;  // key:user, value:SCtgUserAuth

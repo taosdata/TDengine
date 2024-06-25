@@ -7254,6 +7254,7 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
   pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq);
@@ -12415,38 +12416,39 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
-                                     const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo,
-                                     SArray* tagName, uint8_t tagNum) {
-  //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
-  //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-  //  strcpy(name.dbname, pStmt->dbName);
-  //  tNameGetFullDbName(&name, dbFName);
-
+static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
+                                        const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
+                                        const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
+                                        SVgroupInfo* pVgInfo) {
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
-  req.name = taosStrdup(pStmt->tableName);
-  req.ttl = pStmt->pOptions->ttl;
-  if (pStmt->pOptions->commentNull == false) {
-    req.comment = taosStrdup(pStmt->pOptions->comment);
-    req.commentLen = strlen(pStmt->pOptions->comment);
+  req.name = taosStrdup(tableName);
+  req.ttl = ttl;
+  if (comment != NULL) {
+    req.comment = taosStrdup(comment);
+    req.commentLen = strlen(comment);
   } else {
     req.commentLen = -1;
   }
   req.ctb.suid = suid;
   req.ctb.tagNum = tagNum;
-  req.ctb.stbName = taosStrdup(sTableNmae);
+  req.ctb.stbName = taosStrdup(sTableName);
   req.ctb.pTag = (uint8_t*)pTag;
   req.ctb.tagName = taosArrayDup(tagName, NULL);
-  if (pStmt->ignoreExists) {
+  if (ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
+  }
+
+  if (!req.name || !req.ctb.stbName || !req.ctb.tagName || (comment && !req.comment)) {
+    tdDestroySVCreateTbReq(&req);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (pTableBatch == NULL) {
     SVgroupCreateTableBatch tBatch = {0};
     tBatch.info = *pVgInfo;
-    strcpy(tBatch.dbName, pStmt->dbName);
+    strcpy(tBatch.dbName, dbName);
 
     tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
     taosArrayPush(tBatch.req.pArray, &req);
@@ -12455,11 +12457,8 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   } else {  // add to the correct vgroup
     taosArrayPush(pTableBatch->req.pArray, &req);
   }
-}
 
-static SDataType schemaToDataType(uint8_t precision, SSchema* pSchema) {
-  SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes, .precision = precision, .scale = 0};
-  return dt;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SDataType dt, SNode** pCast) {
@@ -12648,14 +12647,362 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
-                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags);
+    const char* comment = pStmt->pOptions->commentNull ? NULL : pStmt->pOptions->comment;
+    code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pSuperTableMeta->uid, pStmt->useTableName,
+                                    pStmt->tableName, tagName, pSuperTableMeta->tableInfo.numOfTags, pTag,
+                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info);
   } else {
     taosMemoryFree(pTag);
   }
 
   taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);
+  return code;
+}
+
+static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFileClause* pStmt,
+                                        STableMeta* pSuperTableMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t  numOfTags = getNumOfTags(pSuperTableMeta);
+  SSchema* pSchema = getTableTagSchema(pSuperTableMeta);
+
+  SHashObj* pIdxHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (NULL == pIdxHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  bool      tbnameFound = false;
+
+  SNode* pTagNode;
+  FOREACH(pTagNode, pStmt->pSpecificTags) {
+    int32_t idx = -1;
+
+    do {
+      if (QUERY_NODE_COLUMN == nodeType(pTagNode)) {
+        SColumnNode* pColNode = (SColumnNode*)pTagNode;
+        for (int32_t index = 0; index < numOfTags; index++) {
+          if (strlen(pSchema[index].name) == strlen(pColNode->colName) &&
+              strcmp(pColNode->colName, pSchema[index].name) == 0) {
+            idx = index;
+            break;
+          }
+        }
+
+        if (idx < 0) {
+          code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pColNode->colName);
+          break;
+        }
+
+        if (NULL != taosHashGet(pIdxHash, &idx, sizeof(idx))) {
+          code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TAG_NAME_DUPLICATED, pColNode->colName);
+          break;
+        }
+      } else if (QUERY_NODE_FUNCTION == nodeType(pTagNode)) {
+        SFunctionNode* funcNode = (SFunctionNode*)pTagNode;
+        if (strlen("tbname") != strlen(funcNode->functionName) || strcmp("tbname", funcNode->functionName) != 0) {
+          code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, funcNode->functionName);
+        }
+
+        idx = numOfTags + 1;
+        tbnameFound = true;
+
+        if (NULL != taosHashGet(pIdxHash, &idx, sizeof(idx))) {
+          code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TAG_NAME_DUPLICATED, funcNode->functionName);
+          break;
+        }
+      } else {
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, "invalid node type");
+        break;
+      }
+    } while (0);
+
+    if (code) break;
+
+    if (taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0) < 0) {
+      code = terrno;
+      goto _OUT;
+    }
+
+    if (NULL == taosArrayPush(pStmt->aTagIndexs, &idx)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OUT;
+    }
+  }
+
+  if (!tbnameFound) {
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_ERROR);
+  }
+
+_OUT:
+  taosHashCleanup(pIdxHash);
+  return code;
+}
+
+typedef struct {
+  // refer
+  STableMeta* pSuperTableMeta;
+  SArray*     pTagIndexs;
+  TdFilePtr   fp;
+
+  // containers
+  SHashObj* pTbNameHash;
+  SArray*   aTagNames;
+  bool      tagNameFilled;
+  SArray*   aTagVals;
+  char      tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+
+  // per line
+  const char* pSql;
+  STag*       pTag;
+  SName       ctbName;
+  SVgroupInfo vg;
+} SParseFileContext;
+
+static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgroupInfo* pVgInfo) {
+  SVgroupInfo      vg;
+  SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                           .requestId = pParseCxt->requestId,
+                           .requestObjRefId = pParseCxt->requestRid,
+                           .mgmtEps = pParseCxt->mgmtEpSet};
+
+  int32_t code = catalogGetTableHashVgroup(pParseCxt->pCatalog, &conn, pName, &vg);
+  if (code == TSDB_CODE_SUCCESS) {
+    *pVgInfo = vg;
+  } else {
+    parserError("0x%" PRIx64 " catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s", pParseCxt->requestId,
+                tstrerror(code), pName->dbname, pName->tname);
+  }
+
+  return code;
+}
+
+static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCtx) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int      sz = taosArrayGetSize(pParFileCtx->pTagIndexs);
+  int32_t  numOfTags = getNumOfTags(pParFileCtx->pSuperTableMeta);
+  uint8_t  precision = getTableInfo(pParFileCtx->pSuperTableMeta).precision;
+  SSchema* pSchemas = getTableTagSchema(pParFileCtx->pSuperTableMeta);
+  for (int i = 0; i < sz; i++) {
+    const char* pSql = pParFileCtx->pSql;
+
+    int32_t pos = 0;
+    SToken  token = tStrGetToken(pSql, &pos, true, NULL);
+    pParFileCtx->pSql += pos;
+
+    if (TK_NK_RP == token.type) {
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
+      break;
+    }
+
+    int16_t index = *(int16_t*)taosArrayGet(pParFileCtx->pTagIndexs, i);
+    if (index < numOfTags) {
+      // parse tag
+      const SSchema* pTagSchema = &pSchemas[index];
+
+      code = checkAndTrimValue(&token, pParFileCtx->tmpTokenBuf, pMsgBuf, pTagSchema->type);
+      if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+        code = buildInvalidOperationMsg(pMsgBuf, "not expected row value");
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        SArray* aTagNames = pParFileCtx->tagNameFilled ? NULL : pParFileCtx->aTagNames;
+        code = parseTagValue(pMsgBuf, &pParFileCtx->pSql, precision, (SSchema*)pTagSchema, &token,
+                             pParFileCtx->aTagNames, pParFileCtx->aTagVals, &pParFileCtx->pTag);
+        pParFileCtx->tagNameFilled = true;
+      }
+    } else {
+      // parse tbname
+      code = checkAndTrimValue(&token, pParFileCtx->tmpTokenBuf, pMsgBuf, TSDB_DATA_TYPE_BINARY);
+      if (TK_NK_VARIABLE == token.type) {
+        code = buildInvalidOperationMsg(pMsgBuf, "not expected tbname");
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        bool bFoundTbName = false;
+        code = parseTbnameToken(pMsgBuf, pParFileCtx->ctbName.tname, &token, &bFoundTbName);
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {  // may fail to handle json
+    code = tTagNew(pParFileCtx->aTagVals, 1, false, &pParFileCtx->pTag);
+  }
+
+  return code;
+}
+
+typedef struct {
+  SName       ctbName;
+  SArray*     aTagNames;
+  STag*       pTag;
+  SVgroupInfo vg;
+} SCreateTableData;
+
+static void clearTagValArrayFp(void *data) {
+  STagVal* p = (STagVal*)data;
+  if (IS_VAR_DATA_TYPE(p->type)) {
+    taosMemoryFreeClear(p->pData);
+  }
+}
+
+static void clearCreateTbArrayFp(void *data) {
+  SCreateTableData* p = (SCreateTableData*)data;
+  taosMemoryFreeClear(p->pTag);
+}
+
+static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFileContext* pParseFileCtx,
+                            SArray* aCreateTbData) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  char*   pLine = NULL;
+  int64_t readLen = 0;
+  while (TSDB_CODE_SUCCESS == code && (readLen = taosGetLineFile(pParseFileCtx->fp, &pLine)) != -1) {
+    if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
+      pLine[--readLen] = '\0';
+    }
+
+    if (readLen == 0) continue;
+
+    if (pLine[0] == '#') continue;
+
+    strtolower(pLine, pLine);
+    pParseFileCtx->pSql = pLine;
+
+    code = parseOneStbRow(pMsgBuf, pParseFileCtx);
+
+    if (TSDB_CODE_SUCCESS == code) {
+      if (taosHashGet(pParseFileCtx->pTbNameHash, pParseFileCtx->ctbName.tname,
+                      strlen(pParseFileCtx->ctbName.tname) + 1) != NULL) {
+        taosMemoryFreeClear(pParseFileCtx->pTag);
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_DUPLICATED, pParseFileCtx->ctbName.tname);
+        break;
+      }
+
+      code = taosHashPut(pParseFileCtx->pTbNameHash, pParseFileCtx->ctbName.tname,
+                         strlen(pParseFileCtx->ctbName.tname) + 1, NULL, 0);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = fillVgroupInfo(pParseCxt, &pParseFileCtx->ctbName, &pParseFileCtx->vg);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      SCreateTableData data = {.ctbName = pParseFileCtx->ctbName,
+                               .aTagNames = pParseFileCtx->aTagNames,
+                               .pTag = pParseFileCtx->pTag,
+                               .vg = pParseFileCtx->vg};
+
+      taosArrayPush(aCreateTbData, &data);
+    } else {
+      taosMemoryFreeClear(pParseFileCtx->pTag);
+    }
+
+    taosArrayClearEx(pParseFileCtx->aTagVals, clearTagValArrayFp);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayClearEx(aCreateTbData, clearCreateTbArrayFp);
+  }
+
+  taosMemoryFree(pLine);
+  return code;
+}
+
+static int32_t prepareReadFromFile(SCreateSubTableFromFileClause* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pStmt->fp) {
+    pStmt->fp = taosOpenFile(pStmt->filePath, TD_FILE_READ | TD_FILE_STREAM);
+    if (NULL == pStmt->fp) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _ERR;
+    }
+  }
+
+  if (NULL == pStmt->aCreateTbData) {
+    pStmt->aCreateTbData = taosArrayInit(16, sizeof(SCreateTableData));
+    if (NULL == pStmt->aCreateTbData) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _ERR;
+    }
+  }
+
+  if (NULL == pStmt->aTagIndexs) {
+    pStmt->aTagIndexs = taosArrayInit(pStmt->pSpecificTags->length, sizeof(int16_t));
+    if (!pStmt->aTagIndexs) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _ERR;
+    }
+  }
+
+  return code;
+
+_ERR:
+  taosCloseFile(&pStmt->fp);
+  taosArrayDestroy(pStmt->aCreateTbData);
+  taosArrayDestroy(pStmt->aTagIndexs);
+
+  return code;
+}
+
+static int32_t rewriteCreateSubTableFromFile(STranslateContext* pCxt, SCreateSubTableFromFileClause* pStmt,
+                                             SHashObj* pVgroupHashmap) {
+  int32_t code = 0;
+
+  STableMeta* pSuperTableMeta = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = prepareReadFromFile(pStmt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTagIndexForBindTags(&pCxt->msgBuf, pStmt, pSuperTableMeta);
+  }
+
+  SParseFileContext parseFileCtx = {
+      .pSuperTableMeta = pSuperTableMeta, .fp = pStmt->fp, .pTagIndexs = pStmt->aTagIndexs};
+  parseFileCtx.pTbNameHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  parseFileCtx.aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  parseFileCtx.tagNameFilled = false;
+  parseFileCtx.aTagVals = taosArrayInit(8, sizeof(STagVal));
+  parseFileCtx.pTag = NULL;
+  parseFileCtx.ctbName.type = TSDB_TABLE_NAME_T;
+  parseFileCtx.ctbName.acctId = pCxt->pParseCxt->acctId;
+  strcpy(parseFileCtx.ctbName.dbname, pStmt->useDbName);
+
+  if (NULL == parseFileCtx.aTagNames || NULL == parseFileCtx.aTagVals || NULL == parseFileCtx.pTbNameHash) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OUT;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseCsvFile(&pCxt->msgBuf, pCxt->pParseCxt, &parseFileCtx, pStmt->aCreateTbData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    int sz = taosArrayGetSize(pStmt->aCreateTbData);
+    for (int i = 0; i < sz; i++) {
+      SCreateTableData* pData = taosArrayGet(pStmt->aCreateTbData, i);
+
+      code = collectUseTable(&pData->ctbName, pCxt->pTargetTables);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(pData->pTag);
+      }
+
+      code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->useDbName, pSuperTableMeta->uid, pStmt->useTableName,
+                                      pData->ctbName.tname, pData->aTagNames, pSuperTableMeta->tableInfo.numOfTags,
+                                      pData->pTag, TSDB_DEFAULT_TABLE_TTL, NULL, pStmt->ignoreExists, &pData->vg);
+    }
+  }
+
+_OUT:
+  taosMemoryFreeClear(pSuperTableMeta);
+  taosHashCleanup(parseFileCtx.pTbNameHash);
+  taosArrayDestroy(parseFileCtx.aTagNames);
+  taosArrayDestroy(parseFileCtx.aTagVals);
+
   return code;
 }
 
@@ -12691,8 +13038,13 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
-    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-    code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
+    if (pNode->type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE) {
+      SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+      code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
+    } else {
+      SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
+      code = rewriteCreateSubTableFromFile(pCxt, pClause, pVgroupHashmap);
+    }
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;

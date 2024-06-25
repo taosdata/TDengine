@@ -214,6 +214,18 @@ typedef struct SCreateSubTableClause {
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
+typedef struct SCreateSubTableFromFileClause {
+  ENodeType  type;
+  char       useDbName[TSDB_DB_NAME_LEN];
+  char       useTableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pSpecificTags;
+  char       filePath[PATH_MAX];
+  TdFilePtr  fp;
+  SArray*    aCreateTbData;
+  SArray*    aTagIndexs;
+} SCreateSubTableFromFileClause;
+
 typedef struct SCreateMultiTablesStmt {
   ENodeType  type;
   SNodeList* pSubTables;
