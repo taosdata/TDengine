@@ -507,7 +507,7 @@ export default {
           }
           const type = this.sourceForm.type;
           let dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
-          dsn = type === "tmq" ? dsn : type =='csv' ? type+':'+dsn:type + dsn
+          dsn = type === "tmq" ? dsn : (type === 'csv' ? type + ':' + dsn : type + dsn)
            if (this.sourceForm.type.startsWith('opc') 
               && dsn.includes('csv_config_file')
               && !this.$store.state.app.validOpcFileRes?.valid
