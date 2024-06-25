@@ -303,21 +303,24 @@ impl MqttConnectConfig {
         let ca = self
             .ca
             .as_ref()
-            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
-            .transpose()?
-            .unwrap_or_default();
+            .map(|v| v.as_bytes().to_vec())
+            .ok_or(anyhow::anyhow!(
+                "ca is required if ssl is enabled, please set ca or ca file path"
+            ))?;
         let cert = self
             .cert
             .as_ref()
-            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
-            .transpose()?
-            .unwrap_or_default();
+            .map(|v| v.as_bytes().to_vec())
+            .ok_or(anyhow::anyhow!(
+                "cert is required if ssl is enabled, please set cert or cert file path"
+            ))?;
         let cert_key = self
             .cert_key
             .as_ref()
-            .map(|v| std::fs::read(v).map_err(|err| anyhow::anyhow!("{}", err)))
-            .transpose()?
-            .unwrap_or_default();
+            .map(|v| v.as_bytes().to_vec())
+            .ok_or(anyhow::anyhow!(
+                "cert_key is required if ssl is enabled, please set cert_key or cert_key file path"
+            ))?;
         Ok((ca, cert, cert_key))
     }
 }

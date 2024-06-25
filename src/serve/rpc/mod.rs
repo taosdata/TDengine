@@ -1,8 +1,25 @@
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
+
 use anyhow::Context;
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
+};
+use arrow_flight::{
+    decode::FlightDataDecoder,
+    encode::FlightDataEncoderBuilder,
+    error::FlightError,
+    flight_service_server::{FlightService, FlightServiceServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
@@ -13,26 +30,25 @@ use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    collections::{BTreeMap, HashMap},
-    net::SocketAddr,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
-use taos::IntoDsn;
-use taosx_core::{
-    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
-    PutFileResp, QueryDataSourceResp,
-};
+use taos::{Dsn, IntoDsn};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
+use tracing::{error, info, instrument, warn};
+use uuid::Uuid;
 
+use taosx_core::utils::get_string_content_from_param_value;
+use taosx_core::{
+    get_data_dir, utils::trace::TraceStreamId, CheckResponse, HeartbeatResponse, ListResponse,
+    PutFileResp, QueryDataSourceResp,
+};
+use taosx_ipc::types::SampleResponse;
+use taosx_metrics::MetricsEvents;
+
+use crate::serve::controller::StringSender;
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
@@ -41,17 +57,6 @@ use crate::serve::{
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
 };
-use arrow_flight::{
-    decode::FlightDataDecoder,
-    encode::FlightDataEncoderBuilder,
-    error::FlightError,
-    flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
-};
-use taosx_metrics::MetricsEvents;
-use tracing::{error, info, instrument, warn};
-use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
@@ -269,9 +274,13 @@ async fn action_to_arrow(
         }
         AgentAction::GetSample(dsn, sender) => {
             let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
-            let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                serde_json::to_string(&dsn).unwrap(),
-            ]));
+            // modify dsn params
+            let dsn = modify_dsn_params(dsn).await?.to_string();
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(&dsn)
+                    .map_err(|err| {
+                        anyhow::format_err!("failed to serialize dsn: {err:#}")
+                    })?]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -1083,14 +1092,17 @@ impl FlightService for FlightServiceImpl {
     }
 }
 
-use crate::serve::controller::StringSender;
-use taosx_core::utils::get_string_content_from_param_value;
-use taosx_ipc::types::SampleResponse;
-
 #[instrument(skip(task))]
 async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
-    let mut dsn = task.from.clone().into_dsn()?;
-    tracing::debug!("Dsn before modify: {:?}", dsn);
+    let dsn = modify_dsn_params(task.from.clone()).await?;
+    task.from = dsn.to_string();
+    Ok(())
+}
+
+#[instrument(skip(dsn))]
+async fn modify_dsn_params(dsn: impl IntoDsn) -> anyhow::Result<Dsn> {
+    let mut dsn = dsn.into_dsn()?;
+    tracing::debug!("dsn before modify: {:?}", &dsn);
     let mut map = BTreeMap::new();
     for (k, v) in dsn.params {
         let new_value = if k == "csv_config_file" {
@@ -1106,8 +1118,8 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
         map.insert(k, new_value);
     }
     dsn.params = map;
-    task.from = dsn.to_string();
-    Ok(())
+    tracing::debug!("dsn after modify: {:?}", &dsn);
+    Ok(dsn)
 }
 
 pub fn encode_csv_config_file(v: String) -> anyhow::Result<String> {
@@ -1277,7 +1289,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn server_client() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "INFO");
+        unsafe {
+            std::env::set_var("RUST_LOG", "INFO");
+        }
         tracing_subscriber_init()?;
         let file = NamedTempFile::new().unwrap();
         let path = file.into_temp_path().to_str().unwrap().to_string();

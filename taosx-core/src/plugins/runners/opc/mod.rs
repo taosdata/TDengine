@@ -558,7 +558,7 @@ async fn opc_datasets_by_csv(parser: &CsvParser) -> anyhow::Result<Vec<DataSet>>
 async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataSet>> {
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
-    let mut config_file = tempfile::NamedTempFile::new()?;
+    let mut config_file = NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
@@ -647,7 +647,7 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
     let toml = toml::to_string(&config)?;
-    let mut config_file = tempfile::NamedTempFile::new()?;
+    let mut config_file = NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
 
     tracing::info!(

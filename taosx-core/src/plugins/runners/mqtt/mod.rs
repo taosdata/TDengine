@@ -7,8 +7,10 @@ use anyhow::{bail, Context};
 use chrono::Utc;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use rumqttc::tokio_rustls::rustls;
 use rumqttc::{
-    AsyncClient, Event, Incoming, MqttOptions, QoS, SubscribeFilter, TlsConfiguration, Transport,
+    tokio_rustls, AsyncClient, Event, Incoming, MqttOptions, QoS, SubscribeFilter,
+    TlsConfiguration, Transport,
 };
 use serde_json::json;
 use taos::Dsn;
@@ -19,8 +21,8 @@ use tracing::{instrument, Span};
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
-use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
+use crate::runners::{log_rotation, NoCertificateVerification};
 use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
@@ -368,15 +370,12 @@ async fn get_sample_impl_v3(
     {
         options.set_credentials(username, password);
     }
+
     // ssl
     if MqttConnectConfig::ssl_enabled(dsn) {
         let (ca, client_cert, client_key) = connect_config.ssl()?;
-        let transport = Transport::Tls(TlsConfiguration::Simple {
-            ca,
-            alpn: None,
-            client_auth: Some((client_cert, client_key)),
-        });
-        options.set_transport(transport);
+        let tls_config = build_tls_config(ca, client_cert, client_key)?;
+        options.set_transport(Transport::tls_with_config(tls_config));
     }
 
     // keep alive
@@ -447,12 +446,8 @@ async fn get_sample_impl_v5(
     // ssl
     if MqttConnectConfig::ssl_enabled(dsn) {
         let (ca, client_cert, client_key) = connect_config.ssl()?;
-        let transport = Transport::Tls(rumqttc::TlsConfiguration::Simple {
-            ca,
-            alpn: None,
-            client_auth: Some((client_cert, client_key)),
-        });
-        options.set_transport(transport);
+        let tls_config = build_tls_config(ca, client_cert, client_key)?;
+        options.set_transport(Transport::tls_with_config(tls_config));
     }
     // keep alive
     options.set_keep_alive(connect_config.keep_alive());
@@ -514,6 +509,31 @@ async fn get_sample_impl_v5(
     Ok(payload_list)
 }
 
+fn build_tls_config(
+    ca: Vec<u8>,
+    _client_pem: Vec<u8>,
+    _client_key: Vec<u8>,
+) -> anyhow::Result<TlsConfiguration> {
+    let mut ca = std::io::Cursor::new(ca);
+
+    use itertools::Itertools;
+    let certs: Vec<_> = rustls_pemfile::certs(&mut ca).try_collect().unwrap();
+    let mut root_cert_store = rustls::RootCertStore::empty();
+    root_cert_store.add_parsable_certificates(
+        rustls_native_certs::load_native_certs().expect("could not load platform certs"),
+    );
+    root_cert_store.add_parsable_certificates(certs);
+    let mut rustls_config = tokio_rustls::rustls::ClientConfig::builder()
+        .with_root_certificates(root_cert_store)
+        .with_no_client_auth();
+    rustls_config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(NoCertificateVerification()));
+    let tls_config = TlsConfiguration::Rustls(Arc::new(rustls_config));
+
+    Ok(tls_config)
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -548,7 +568,9 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_valid() {
-        std::env::set_var("PLUGINS_HOME", "../plugins");
+        unsafe {
+            std::env::set_var("PLUGINS_HOME", "../plugins");
+        }
 
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;

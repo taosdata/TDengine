@@ -7,6 +7,10 @@ use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
 use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use itertools::Itertools;
+use rumqttc::tokio_rustls;
+use rumqttc::tokio_rustls::rustls;
+use rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerifier;
+use rumqttc::tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use taos::Dsn;
 
 mod config;
@@ -282,28 +286,90 @@ pub fn get_string_from_param_or_file(
             result.push_str(&config_str);
         }
         for file in files {
-            let f = std::fs::File::open(&file[1..]);
-            if f.is_err() {
-                return Err("file read error".to_string());
+            let f = std::fs::canonicalize(&file[1..])
+                .map_err(|err| format!("failed to read file: {}, cause: {:?}", &file[1..], err))?;
+            match std::fs::File::open(f) {
+                Err(err) => {
+                    return Err(format!(
+                        "failed to read file: {}, cause: {}",
+                        &file[1..],
+                        err
+                    ));
+                }
+                Ok(f) => {
+                    let buf = std::io::BufReader::new(f);
+                    let file_data = buf.lines().collect_vec();
+                    file_data
+                        .iter()
+                        .filter_map(|r| r.as_ref().ok())
+                        .for_each(|v| {
+                            if line_break && !result.is_empty() {
+                                result.push_str("\n");
+                            }
+                            if append_line.is_some() && !result.is_empty() {
+                                result.push_str(append_line.unwrap());
+                            }
+                            result.push_str(v.as_str());
+                        });
+                }
             }
-            let buf = std::io::BufReader::new(f.unwrap());
-            let file_data = buf.lines().collect_vec();
-            file_data
-                .iter()
-                .filter_map(|r| r.as_ref().ok())
-                .for_each(|v| {
-                    if line_break && !result.is_empty() {
-                        result.push_str("\n");
-                    }
-                    if append_line.is_some() && !result.is_empty() {
-                        result.push_str(append_line.unwrap());
-                    }
-                    result.push_str(v.as_str());
-                });
         }
         Ok(Some(result))
     } else {
         Ok(None)
+    }
+}
+
+#[derive(Debug)]
+pub struct NoCertificateVerification();
+
+impl ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<tokio_rustls::rustls::SignatureScheme> {
+        use tokio_rustls::rustls::SignatureScheme::*;
+        vec![
+            RSA_PKCS1_SHA1,
+            ECDSA_SHA1_Legacy,
+            RSA_PKCS1_SHA256,
+            ECDSA_NISTP256_SHA256,
+            RSA_PKCS1_SHA384,
+            ECDSA_NISTP384_SHA384,
+            RSA_PKCS1_SHA512,
+            ECDSA_NISTP521_SHA512,
+            RSA_PSS_SHA256,
+            RSA_PSS_SHA384,
+            RSA_PSS_SHA512,
+            ED25519,
+            ED448,
+        ]
     }
 }
 
