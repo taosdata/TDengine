@@ -1202,7 +1202,8 @@ export default {
       jsonPlaceholder: "请选择要提取的 json 属性，可选项来自于第一条示例数据，请确保其完整性。",
       jsontip: "请输入正确JSON格式",
       texttip:"请输入正确格式文本",
-      mappingvaildtip: "请填写正确的主键，列和tag",
+      mappingvaildtip: "请填写正确的主键列的映射规则",
+      mappingvaildColtip: "请至少填写一个普通列和标签列的映射规则",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
       extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
