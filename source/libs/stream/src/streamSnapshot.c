@@ -24,6 +24,7 @@ enum SBackendFileType {
   ROCKSDB_SST_TYPE = 3,
   ROCKSDB_CURRENT_TYPE = 4,
   ROCKSDB_CHECKPOINT_META_TYPE = 5,
+  ROCKSDB_CHECKPOINT_SELFCHECK_TYPE = 6,
 };
 
 typedef struct SBackendFileItem {
@@ -49,6 +50,7 @@ typedef struct SBackendSnapFiles2 {
   char*   pOptions;
   SArray* pSst;
   char*   pCheckpointMeta;
+  char*   pCheckpointSelfcheck;
   char*   path;
 
   int64_t         checkpointId;
@@ -111,6 +113,7 @@ const char*    ROCKSDB_MAINFEST = "MANIFEST";
 const char*    ROCKSDB_SST = "sst";
 const char*    ROCKSDB_CURRENT = "CURRENT";
 const char*    ROCKSDB_CHECKPOINT_META = "CHECKPOINT";
+const char*    ROCKSDB_CHECKPOINT_SELF_CHECK = "info";
 static int64_t kBlockSize = 64 * 1024;
 
 int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, void* pMeta);
@@ -127,6 +130,7 @@ int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
   int32_t ret = 0;
 
   char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
+   
   sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
 
   ret = taosStatFile(fullname, sz, NULL, NULL);
@@ -148,7 +152,8 @@ int32_t streamDestroyTaskDbSnapInfo(void* arg, SArray* snap) { return taskDbDest
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   if (qDebugFlag & DEBUG_DEBUG) {
-    char* buf = taosMemoryCalloc(1, 512);
+    int16_t cap = 511;
+    char*   buf = taosMemoryCalloc(1, cap + 1);
     sprintf(buf + strlen(buf), "[");
 
     if (pSnapFile->pCurrent) sprintf(buf, "current: %s,", pSnapFile->pCurrent);
@@ -157,10 +162,10 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
     if (pSnapFile->pSst) {
       for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
         char* name = taosArrayGetP(pSnapFile->pSst, i);
-        sprintf(buf + strlen(buf), "%s,", name);
+        if (strlen(buf) + strlen(name) < cap) sprintf(buf + strlen(buf), "%s,", name);
       }
     }
-    sprintf(buf + strlen(buf) - 1, "]");
+    if ((strlen(buf)) < cap) sprintf(buf + strlen(buf) - 1, "]");
 
     stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
            pSnapFile->snapInfo.taskId, buf);
@@ -202,6 +207,13 @@ int32_t snapFileGenMeta(SBackendSnapFile2* pSnapFile) {
   if (streamGetFileSize(pSnapFile->path, item.name, &item.size) == 0) {
     taosArrayPush(pSnapFile->pFileList, &item);
   }
+
+  item.name = pSnapFile->pCheckpointSelfcheck;
+  item.type = ROCKSDB_CHECKPOINT_SELFCHECK_TYPE;
+
+  if (streamGetFileSize(pSnapFile->path, item.name, &item.size) == 0) {
+    taosArrayPush(pSnapFile->pFileList, &item);
+  }
   return 0;
 }
 int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
@@ -229,6 +241,11 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
     if (strlen(name) >= strlen(ROCKSDB_CHECKPOINT_META) &&
         0 == strncmp(name, ROCKSDB_CHECKPOINT_META, strlen(ROCKSDB_CHECKPOINT_META))) {
       pSnapFile->pCheckpointMeta = taosStrdup(name);
+      continue;
+    }
+    if (strlen(name) >= strlen(ROCKSDB_CHECKPOINT_SELF_CHECK) &&
+        0 == strncmp(name, ROCKSDB_CHECKPOINT_SELF_CHECK, strlen(ROCKSDB_CHECKPOINT_SELF_CHECK))) {
+      pSnapFile->pCheckpointSelfcheck = taosStrdup(name);
       continue;
     }
     if (strlen(name) >= strlen(ROCKSDB_SST) &&
@@ -276,6 +293,7 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
   taosMemoryFree(pSnap->pMainfest);
   taosMemoryFree(pSnap->pOptions);
   taosMemoryFree(pSnap->path);
+  taosMemoryFree(pSnap->pCheckpointSelfcheck);
   for (int32_t i = 0; i < taosArrayGetSize(pSnap->pSst); i++) {
     char* sst = taosArrayGetP(pSnap->pSst, i);
     taosMemoryFree(sst);
@@ -298,6 +316,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
   SArray* pSnapInfoSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
   int32_t code = streamCreateTaskDbSnapInfo(pMeta, path, pSnapInfoSet);
   if (code != 0) {
+    stError("failed to do task db snap info, reason:%s", tstrerror(terrno));
     taosArrayDestroy(pSnapInfoSet);
     return -1;
   }
