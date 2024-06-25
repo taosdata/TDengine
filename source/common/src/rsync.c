@@ -171,7 +171,7 @@ int32_t uploadByRsync(const char* id, const char* path) {
   if (path[strlen(path) - 1] != '/') {
 #endif
     snprintf(command, PATH_MAX,
-             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s/ "
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 --exclude=\"*\" %s/ "
              "rsync://%s/checkpoint/%s/",
              tsLogDir,
 #ifdef WINDOWS
@@ -183,7 +183,7 @@ int32_t uploadByRsync(const char* id, const char* path) {
              tsSnodeAddress, id);
   } else {
     snprintf(command, PATH_MAX,
-             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s "
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 --exclude=\"*\" %s "
              "rsync://%s/checkpoint/%s/",
              tsLogDir,
 #ifdef WINDOWS
@@ -195,7 +195,51 @@ int32_t uploadByRsync(const char* id, const char* path) {
              tsSnodeAddress, id);
   }
 
+  // prepare the data directory
   int32_t code = execCommand(command);
+  if (code != 0) {
+      uError("[rsync] s-task:%s prepare checkpoint data in %s to %s failed, code:%d," ERRNO_ERR_FORMAT, id, path,
+             tsSnodeAddress, code, ERRNO_ERR_DATA);
+  } else {
+      int64_t el = (taosGetTimestampMs() - st);
+      uDebug("[rsync] s-task:%s prepare checkpoint data in:%s to %s successfully, elapsed time:%" PRId64 "ms", id, path,
+             tsSnodeAddress, el);
+  }
+
+#ifdef WINDOWS
+  memset(pathTransform, 0, PATH_MAX);
+  changeDirFromWindowsToLinux(path, pathTransform);
+
+  if (pathTransform[strlen(pathTransform) - 1] != '/') {
+#else
+  if (path[strlen(path) - 1] != '/') {
+#endif
+    snprintf(command, PATH_MAX,
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s/ "
+             "rsync://%s/checkpoint/%s/data/",
+             tsLogDir,
+#ifdef WINDOWS
+             pathTransform
+#else
+             path
+#endif
+             ,
+             tsSnodeAddress, id);
+  } else {
+    snprintf(command, PATH_MAX,
+             "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 --bwlimit=100000 %s "
+             "rsync://%s/checkpoint/%s/data/",
+             tsLogDir,
+#ifdef WINDOWS
+             pathTransform
+#else
+             path
+#endif
+             ,
+             tsSnodeAddress, id);
+  }
+
+  code = execCommand(command);
   if (code != 0) {
     uError("[rsync] s-task:%s upload checkpoint data in %s to %s failed, code:%d," ERRNO_ERR_FORMAT, id, path,
            tsSnodeAddress, code, ERRNO_ERR_DATA);
@@ -211,7 +255,7 @@ int32_t uploadByRsync(const char* id, const char* path) {
 // abort from retry if quit
 int32_t downloadRsync(const char* id, const char* path) {
   int64_t st = taosGetTimestampMs();
-  int32_t MAX_RETRY = 60;
+  int32_t MAX_RETRY = 10;
   int32_t times = 0;
   int32_t code = 0;
 
@@ -222,7 +266,7 @@ int32_t downloadRsync(const char* id, const char* path) {
 
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX,
-           "rsync -av --debug=all --log-file=%s/rsynclog --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
+           "rsync -av --debug=all --log-file=%s/rsynclog --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/data/ %s",
            tsLogDir, tsSnodeAddress, id,
 #ifdef WINDOWS
            pathTransform
@@ -259,7 +303,7 @@ int32_t deleteRsync(const char* id) {
 
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX,
-           "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/", tsLogDir,
+           "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/data/", tsLogDir,
            tmp, tsSnodeAddress, id);
 
   code = execCommand(command);
