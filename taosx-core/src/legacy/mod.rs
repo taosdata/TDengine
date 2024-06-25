@@ -1621,7 +1621,7 @@ async fn sync_specified_tables_with_workers(
                 Ok(_) => {
                     if let Some((table, time_range)) = sparse {
                         // set breakpoint async
-                        if let Some(breakpoints) = breakpoints.clone() {
+                        if let Some(breakpoints) = breakpoints.as_ref() {
                             if let Some(end) = time_range.end {
                                 let breakpoint = end.to_string();
                                 if let Err(err) = breakpoints.set(&table, &breakpoint).await {
@@ -1672,20 +1672,20 @@ async fn sync_specified_tables_with_workers(
 
         while let Some(res) = futures.next().await {
             if let Err(err) = res {
-                tracing::warn!("Send table error: {err:#}",);
+                tracing::trace!("Send table error: {err:#}",);
             }
         }
         tracing::info!(tables = todo.tables.len(), "Scanning tables done");
     });
 
-    let breakpoints = scheduler.breakpoints();
+    let breakpoints = scheduler.breakpoints_ref();
     while let Ok(item) = items_rx.recv_async().await {
         let stable = &item.stable;
         let table = &item.table;
 
         if item.mtlf {
             // get breakpoints use breakpoints_get
-            if let Some(breakpoints) = breakpoints.as_ref() {
+            if let Some(breakpoints) = breakpoints {
                 const MAX_RETRIES: usize = 5;
                 let mut retries = MAX_RETRIES;
                 loop {
@@ -3027,7 +3027,6 @@ async fn legacy_to_taos_impl(
         metrics_arc.clone(),
         source_is_v3,
         target_is_v3,
-        task_id.clone(),
         cancel.clone(),
         breakpoints,
     )
@@ -3109,6 +3108,7 @@ async fn legacy_to_taos_impl(
     let schema_polling_pool = from_pool.clone();
     let schema_polling_task_id = task_id.clone();
     let schema_polling_metrics = metrics_arc.clone();
+    let schema_polling_cancellation = cancel.clone();
     let (schema_polling_done, schema_polling_waiter) = tokio::sync::oneshot::channel::<()>();
 
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
@@ -3175,6 +3175,7 @@ async fn legacy_to_taos_impl(
             };
             tokio::select! {
                 _ = schema_polling_waiter => {}
+                _ = schema_polling_cancellation.cancelled() => {}
                 res = handle => {
                     res?;
                 }
@@ -3260,6 +3261,7 @@ async fn legacy_to_taos_impl(
             };
             tokio::select! {
                 _ = schema_polling_waiter => (),
+                _ = schema_polling_cancellation.cancelled() => {}
                 res = handle => {
                     res?;
                 }
