@@ -113,8 +113,17 @@ impl Parse for Json {
                 continue;
             }
             let s = string.value(i);
-            let value = serde_json::from_str::<serde_json::Value>(&s)
-                .map_err(|source| super::ParseError::JsonDeserializeError(s.to_string(), source))?;
+            let value = serde_json::from_str::<serde_json::Value>(&s);
+            let value = match value {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(
+                        "{:#}",
+                        super::ParseError::JsonDeserializeError(s.to_string(), e)
+                    );
+                    JsonValue::Null
+                }
+            };
             match value {
                 JsonValue::Null => (),
                 JsonValue::Object(object) => {
@@ -176,6 +185,13 @@ impl Parse for Json {
                     }
                     Ok(JsonValue::Object(object)) => {
                         vec![(n, Some(JsonValue::Object(object)))]
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "{:#}",
+                            super::ParseError::JsonDeserializeError(str.to_string(), e)
+                        );
+                        vec![(n, None)]
                     }
                     _ => unreachable!(),
                 }
