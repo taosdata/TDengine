@@ -1851,7 +1851,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
 }
 
 void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawLineEnd) {
-  if (tsSlowLogScope & SLOW_LOG_TYPE_INSERT) {
+  if (request->pTscObj->pAppInfo->monitorParas.tsSlowLogScope & SLOW_LOG_TYPE_INSERT) {
     int32_t len = 0;
     int32_t rlen = 0;
     char   *p = NULL;

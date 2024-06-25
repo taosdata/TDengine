@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientStmt.h"
+#include "clientMonitor.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
@@ -55,6 +56,9 @@ void taos_cleanup(void) {
     return;
   }
 
+  monitorClose();
+  taosHashCleanup(appInfo.pInstMap);
+  taosHashCleanup(appInfo.pInstMapByClusterId);
   tscStopCrashReport();
 
   hbMgrCleanUp();
@@ -279,7 +283,6 @@ void taos_close_internal(void *taos) {
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
-  // clientMonitorClose(pTscObj->pAppInfo->instKey);
 
   taosRemoveRef(clientConnRefPool, pTscObj->id);
 }

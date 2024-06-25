@@ -147,7 +147,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
-      destroyAppInst(p);
+      destroyAppInst(&p);
       taosThreadMutexUnlock(&appInfo.mutex);
       taosMemoryFreeClear(key);
       return NULL;
@@ -158,9 +158,6 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
-
-    clientSlowQueryMonitorInit(p->instKey);
-    clientSQLReqMonitorInit(p->instKey);
   } else {
     ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
     // reset to 0 in case of conn with duplicated user key but its user has ever been dropped.
@@ -174,14 +171,14 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
 }
 
-SAppInstInfo* getAppInstInfo(const char* clusterKey) {
-  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
-  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
-    return *ppAppInstInfo;
-  } else {
-    return NULL;
-  }
-}
+//SAppInstInfo* getAppInstInfo(const char* clusterKey) {
+//  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
+//  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
+//    return *ppAppInstInfo;
+//  } else {
+//    return NULL;
+//  }
+//}
 
 void freeQueryParam(SSyncQueryParam* param) {
   if (param == NULL) return;

@@ -22,17 +22,12 @@ const char* selectMonitorHelp = "count for select sql";
 const int   selectMonitorLabelCount = 4;
 const char* selectMonitorLabels[] = {"cluster_id", "sql_type", "username", "result"};
 
-static const char* defaultClusterID = "";
-
-void clientSQLReqMonitorInit(const char* clusterKey) {
-  if (!tsEnableMonitor) return;
-  SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
-  SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-  clusterMonitorInit(clusterKey, epSet, pAppInstInfo->pTransporter);
-  createClusterCounter(clusterKey, selectMonitorName, selectMonitorHelp, selectMonitorLabelCount, selectMonitorLabels);
+void monitorClientSQLReqInit(int64_t clusterId) {
+  monitorCreateClient(clusterId);
+  monitorCreateClientCounter(clusterId, selectMonitorName, selectMonitorHelp, selectMonitorLabelCount, selectMonitorLabels);
 }
 
-void clientSQLReqLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result, int8_t type) {
+void clientSQLReqLog(int64_t clusterId, const char* user, SQL_RESULT_CODE result, int8_t type) {
   const char* typeStr;
   switch (type) {
     case MONITORSQLTYPEDELETE:
@@ -45,12 +40,15 @@ void clientSQLReqLog(const char* clusterKey, const char* user, SQL_RESULT_CODE r
       typeStr = "select";
       break;
   }
-  const char* selectMonitorLabelValues[] = {defaultClusterID, typeStr, user, resultStr(result)};
-  taosClusterCounterInc(clusterKey, selectMonitorName, selectMonitorLabelValues);
+  char clusterIdStr[32] = {0};
+  if (snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId) < 0){
+    uError("failed to generate clusterId:%" PRId64, clusterId);
+  }
+  const char* selectMonitorLabelValues[] = {clusterIdStr, typeStr, user, monitorResultStr(result)};
+  monitorCounterInc(clusterId, selectMonitorName, selectMonitorLabelValues);
 }
 
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type) {
-  if (!tsEnableMonitor) return;
   SQL_RESULT_CODE result = SQL_RESULT_SUCCESS;
   if (TSDB_CODE_SUCCESS != code) {
     result = SQL_RESULT_FAILED;
@@ -65,15 +63,10 @@ void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type) {
     if (pTscObj->pAppInfo == NULL) {
       tscLog("sqlReqLog, not found pAppInfo");
     } else {
-      clientSQLReqLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, type);
+      clientSQLReqLog(pTscObj->pAppInfo->clusterId, pTscObj->user, result, type);
     }
     releaseTscObj(rid);
   } else {
     tscLog("sqlReqLog, not found rid");
   }
-}
-
-void clientMonitorClose(const char* clusterKey) {
-  tscLog("clientMonitorClose, key:%s", clusterKey);
-  clusterMonitorClose(clusterKey);
 }

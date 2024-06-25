@@ -115,10 +115,11 @@ struct SAppInstInfo {
   SArray*            pQnodeList;
   SAppClusterSummary summary;
   SList*             pConnList;  // STscObj linked list
-  uint64_t           clusterId;
+  int64_t            clusterId;
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  SMonitorParas      monitorParas;
 };
 
 typedef struct SAppInfo {
@@ -127,6 +128,7 @@ typedef struct SAppInfo {
   int32_t       pid;
   int32_t       numOfThreads;
   SHashObj*     pInstMap;
+  SHashObj*     pInstMapByClusterId;
   TdThreadMutex mutex;
 } SAppInfo;
 
@@ -350,7 +352,7 @@ void*    createTscObj(const char* user, const char* auth, const char* db, int32_
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
 int32_t  releaseTscObj(int64_t rid);
-void     destroyAppInst(SAppInstInfo* pAppInfo);
+void     destroyAppInst(void* pAppInfo);
 
 uint64_t generateRequestId();
 
@@ -403,7 +405,7 @@ void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
-SAppInstInfo* getAppInstInfo(const char* clusterKey);
+//SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
@@ -441,10 +443,8 @@ void    freeQueryParam(SSyncQueryParam* param);
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
 
-void clientSlowQueryMonitorInit(const char* clusterKey);
-void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 
-void clientSQLReqMonitorInit(const char* clusterKey);
+void slowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 
 enum {
   MONITORSQLTYPESELECT = 0,
@@ -453,8 +453,6 @@ enum {
 };
 
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
-
-void clientMonitorClose(const char* clusterKey);
 
 #ifdef __cplusplus
 }

@@ -70,7 +70,6 @@ class TDTestCase(TBase):
                      "smlTagName tagname",
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
-                     "slowLogScope insert",
                      "timezone tz",
                      "tempDir /var/tmp"
                   ]
