@@ -50,14 +50,23 @@ namespace TDPIConnector.Core
             foreach (var dpEvent in allEvents)
             {
                 string stableName;
-                if (!dpEvent.Value.Attribute.Element.hasTemplate())
+                if (dpEvent.Value.Attribute.Element != null)
                 {
-                    stableName = TableNameConvert.GetSingleElementSuperTableName(dpEvent.Value.Attribute.Element);
+                    if (!dpEvent.Value.Attribute.Element.hasTemplate())
+                    {
+                        stableName = TableNameConvert.GetSingleElementSuperTableName(dpEvent.Value.Attribute.Element);
+                    }
+                    else
+                    {
+                        stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
+                    }
+
                 }
-                else
-                {
-                    stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
+                else { 
+                    log.Error($"element event {dpEvent.Value.Attribute.Name} has no element");
+                    continue;
                 }
+
                 var elementTbName = ElemenetTableConverter.GetTDTableNameForElement(dpEvent.Value.Attribute.Element);
                 var elementUniKey = dpEvent.Value.Attribute.Element.ID.ToString();
                 var tdValue = dpEvent.Value.ToTDValue();

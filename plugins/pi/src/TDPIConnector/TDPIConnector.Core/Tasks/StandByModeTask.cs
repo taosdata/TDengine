@@ -34,7 +34,7 @@ namespace TDPIConnector.Core.Tasks
                             log.Debug("PI Connection error detected: Starting data pipes");
                             this.appService.StartDataPipe();
                             log.Debug("PI Connection error detected: Starting backfilling");
-                            this.appService.StartBackfill();
+                            this.appService.StartBackfillPiPoints();
                             log.Debug("Checking PI Data Archive connection: SUCCESS");
                         }
                         catch (Exception)

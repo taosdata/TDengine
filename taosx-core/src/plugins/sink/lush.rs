@@ -186,11 +186,13 @@ impl From<PIPointModelConfig> for LushModelConfig {
         }
         let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
         for point in config.points {
-            sub_super_mapping.insert(point.point_name, point.super_table);
+            //sub_super_mapping.insert(point.point_name, point.super_table);
+            // 暂不支持点级别配对应的超级表
+            sub_super_mapping.insert(point.super_table.clone(), point.super_table);
         }
         LushModelConfig {
             table_id_column: "point_name".to_string(),
-            super_table_parsers: super_table_parsers,
+            super_table_parsers,
             super_table_sqls,
             super_table_name_mapping: sub_super_mapping,
             skip_null: false,

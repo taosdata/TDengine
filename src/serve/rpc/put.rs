@@ -241,7 +241,7 @@ async fn ipc_stream_writer(
                         );
                         if ipc_error_strategy.will_stop() || last_errors > 10 {
                             let _ = abort_message_tx.send(Err(Status::cancelled(format!(
-                                "IPC worker will be stopped since{err:#}"
+                                "IPC worker will be stopped since {err:#}"
                             ))));
                             let _ = notify_sender.send(
                                 crate::serve::scheduler::agent::AgentNotify::WriterError(

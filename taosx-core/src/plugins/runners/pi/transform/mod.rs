@@ -129,12 +129,18 @@ impl PIPointModelConfig {
                         column_map: "$status".to_string(),
                     },
                 ];
-                // 追加一个固定 TAG
+                // 追加两固定 TAG
                 schema.push(SchemaRow {
                     column_name: "path".to_string(), // 点的路径
                     column_type: ColumnType::TAG,
                     column_data_type: "VARCHAR(200)".to_string(),
                     column_map: "$path".to_string(),
+                });
+                schema.push(SchemaRow {
+                    column_name: "point_name".to_string(), // 点的名称
+                    column_type: ColumnType::TAG,
+                    column_data_type: "VARCHAR(100)".to_string(),
+                    column_map: "$point_name".to_string(),
                 });
                 // 追加内置 Tag 列
                 for (tag_name, _) in tags {
@@ -175,7 +181,7 @@ impl PIPointModelConfig {
             let uom = uom.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
             format!("{}_{}", uom, pi_type)
         } else {
-            format!("pi_{}", pi_type)
+            format!("ts_{}", pi_type)
         }
     }
 
@@ -191,7 +197,7 @@ impl PIPointModelConfig {
                 );
                 PointRow {
                     point_name: point["Name"].as_str().unwrap().to_string(),
-                    super_table: super_table,
+                    super_table,
                 }
             })
             .collect();

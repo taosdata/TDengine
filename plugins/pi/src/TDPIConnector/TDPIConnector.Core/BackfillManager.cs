@@ -38,38 +38,32 @@ namespace TDPIConnector.Core
             this.backfill = new Backfill(tdEngineProxy, piServerManager, piSystemManager);
         }
 
-        public Task BackfillPIPointsFromService(string tdDatabaseName, List<TDTable> piPointTables, DateTime backfillStartLimit)
+        public Task BackfillPIPointsFromService(string tdDatabaseName, List<TDTable> piPointTables, DateTime backfillStartTime, DateTime backfillEndTime)
         {
-            return Task.Run(async () =>
-            {
+            return Task.Run(() => {
                 log.Info("Process backfill, PI Point Mode backfill start...");
                 try
                 {
-                    //backfill points if needed
-                    Dictionary<string, DateTime> pointsTobackfill = await backfill.GetTDTableLastRecordedValueFromPIPoints(tdDatabaseName, piPointTables);
-                    var pointsToBackfillChecked = new Dictionary<PIPointWrapper, DateTime>();
-
-                    DateTime endTime = DateTime.Now;
-
-                    //replace pointsTobackfill with bacfillStartLimit if needed
-                    List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointsTobackfill.Keys.ToList());
-                    foreach (var point in pointsTobackfill)
-                    {
-                        PIPointWrapper piPoint = piPointList.Where(p => p.Name.ToLower() == point.Key.ToLower()).Single();
-                        pointsToBackfillChecked.Add(piPoint, point.Value < backfillStartLimit ? backfillStartLimit : point.Value);
-                    }
-
-
-                    if (pointsToBackfillChecked.Count > 0)
-                    {
-                        backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, endTime);
-                    }
+                    // TODO: 从断点开始 backfill
+                    //var pointsToBackfillChecked = new Dictionary<PIPointWrapper, DateTime>();
+                    //List<string> pointNames = piPointTables.Select(p => p.Name).ToList();
+                    //List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointNames);
+                    //foreach (var point in piPointList)
+                    //{
+                    //    pointsToBackfillChecked.Add(point, backfillStartTime);
+                    //}
+                    //if (pointsToBackfillChecked.Count > 0)
+                    //{
+                    //    backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, backfillEndTime);
+                    //}
+                    backfill.BackfillPIPoints(tdDatabaseName, backfillStartTime, backfillEndTime, piPointTables);
                 }
                 catch (Exception e)
                 {
                     log.Error($"Error backfilling PI Points...{e.Message}");
                 }
                 log.Info("Process backfill, PI Point Mode backfill finshed");
+                return Task.CompletedTask;
             });
         }
 

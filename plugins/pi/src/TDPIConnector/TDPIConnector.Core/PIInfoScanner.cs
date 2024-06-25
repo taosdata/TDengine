@@ -242,10 +242,10 @@ namespace TDPIConnector.Core
         public string GetAFPointTemplateName(AFAttributeWrapper attr)
         {
             if (attr.Uom != null) { 
-                return "TS_" + attr.Type.Name + "_" + attr.Uom; 
+                return attr.Uom + "_" + attr.PIPoint.PointType; 
             } else
             {
-                return "TS_" + attr.Type.Name;
+                return "TS_" + attr.PIPoint.PointType;
             }
         }
         internal string GetScanAFPointInfoByElements(List<AFElementWrapper> elements)
@@ -262,51 +262,38 @@ namespace TDPIConnector.Core
                     existElements.Add(element.ID);
                     foreach (var attr in element.Attributes)
                     {
-                        if (attr.IsTDengineTag() || attr.Unsupported()) continue;
+                        if (attr.IsTDengineTag() || attr.Unsupported() || attr.PIPoint == null) continue;
                         var templateName = GetAFPointTemplateName(attr);
                         if (!existTemplate.Contains(templateName))
                         {
                             existTemplate.Add(templateName);
                             ScanTemplateForAFPoint temp = new ScanTemplateForAFPoint();
                             temp.TemplateName = templateName;
-                            temp.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
-                            temp.Type = attr.Type.Name;
+                            temp.TDType = PointTypeConverter.Convert(attr.PIPoint.PointType);
+                            temp.Type = attr.PIPoint.PointType;
                             temp.UOMABB = attr.Uom;
                             temp.UOM = attr.UomName;
                             temp.Tags = PIPointWrapper.GetPointSavedAttrsType();
                             piInfo.Templates.Add(temp);
                         }
-                        ScanElementSummary e = new ScanElementSummary();
-                        e.ID = element.ID.ToString();
-                        e.Name = element.Name;
-                        e.Path = element.GetPath();
-                        e.TemplateName = element.hasTemplate() ? element.Template.Name: "";
-
-                        if (attr.PIPoint != null)
+                        if (!points.ContainsKey(attr.PIPoint.PointId))
                         {
-                            if (!points.ContainsKey(attr.PIPoint.PointId))
-                            {
-                                ScanAFPoint point = new ScanAFPoint();
-                                point.ID = attr.PIPoint.PointId;
-                                point.Name = attr.PIPoint.Name;
-                                point.Type = attr.Type.Name;
-                                point.TDType = AttributeTypeConverter.Convert(attr.DataReference, attr.Type);
-                                point.UOMABB = attr.Uom;
-                                point.UOM = attr.UomName;
-                                point.Template = templateName;
-                                point.Path = attr.PIPoint.GetPath();
-                                point.Tags = attr.PIPoint.GetPointSavedAttrsValue();
-                                point.Elements.Add(e);
-                                points.Add(attr.PIPoint.PointId, point);
-                            }
-                            else
-                            {
-                                points[attr.PIPoint.PointId].Elements.Add(e);
-                            }
+                            ScanAFPoint point = new ScanAFPoint();
+                            point.ID = attr.PIPoint.PointId;
+                            point.Name = attr.PIPoint.Name;
+                            point.Type = attr.PIPoint.PointType;
+                            point.TDType = PointTypeConverter.Convert(attr.PIPoint.PointType);
+                            point.UOMABB = attr.Uom;
+                            point.UOM = attr.UomName;
+                            point.Template = templateName;
+                            point.Path = attr.PIPoint.GetPath();
+                            point.Tags = attr.PIPoint.GetPointSavedAttrsValue();
+                            points.Add(attr.PIPoint.PointId, point);
                         }
                     }
-                }
+                } 
             }
+
             foreach (var p in points)
             {
                 piInfo.Points.Add(p.Value);

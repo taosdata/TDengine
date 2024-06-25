@@ -137,6 +137,9 @@ namespace TDPIConnector.Core
                 var table = new TDTable(point.Name, point.ID, superTableName, tdColumnType, tagVals);
                 table.Location = point.GetPath();
                 table.ElementPath = pointElementPath.ContainsKey(point.PointId) ? pointElementPath[point.PointId] : "";
+                if (table.ElementPath.Length > 500) { 
+                    table.ElementPath = table.ElementPath.Substring(0, 500);
+                }
                 piPoints.Add(table);
                 log.Info($"Add new table {table.STableName} {table.Name}");
             }

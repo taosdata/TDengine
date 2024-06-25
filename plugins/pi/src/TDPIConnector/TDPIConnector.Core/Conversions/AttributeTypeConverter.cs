@@ -3,6 +3,9 @@ using System;
 
 namespace TDPIConnector.Core.Conversions
 {
+    /// <summary>
+    /// 元素的 value type 转 TDengine 的数据类型
+    /// </summary>
     public class AttributeTypeConverter
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);

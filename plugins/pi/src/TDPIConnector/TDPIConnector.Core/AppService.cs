@@ -154,7 +154,7 @@ namespace TDPIConnector.Core
             if (piPoints != null && piPoints.Count > 0)
             {
                 StartDataPipe();
-                StartBackfill();
+                StartBackfillPiPoints();
                 standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
                 standByModeTask.Start();
                 log.Info("Started");
@@ -205,17 +205,54 @@ namespace TDPIConnector.Core
             var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
             if (hasNewAttribute)
             {
-                ReStartDataPipe();
+                log.Info($"New attribute found in template {template.Name}, we can not handle this event properly now.");
+                // ReStartDataPipe();
             }
         }
-        public void StartBackfill()
+
+        // 单列模式 backfill，包括 AF 单列和 Archive 单列
+        public void StartBackfillPiPoints()
         {
+            var config = AppSettings.tomlConfig;
             try
             {
-                if (AppSettings.tomlConfig.MaxBackfillRangeDays > 0)
+                if (config.ForBackfill)
                 {
-                    BackfillData();
-                    log.Info($"Backfill started successfully.");
+                    DateTimeOffset startTime = config.BackfillStartTime;
+                    DateTimeOffset endTime = config.BackfillEndTime;
+                    if (startTime == null || endTime == null)
+                    {
+                        log.Info($"Backfill start time or end time is not set, will exit.");
+                        return;
+                    }
+                    else if (startTime >= endTime)
+                    {
+                        log.Info($"Backfill start time: {startTime}, end time: {endTime}, will exit.");
+                        return;
+                    }
+                    else
+                    {
+                        log.Info($"Backfill start time: {startTime}, end time: {endTime}");
+                        BackfillPIPoints(startTime.DateTime, endTime.DateTime);
+                        log.Info($"Backfill started successfully.");
+                    }
+
+                }
+                else { 
+                    if (config.MaxBackfillRangeDays > 0)
+                    {
+                        log.Info($"Backfill range is set to {config.MaxBackfillRangeDays} minutes.");
+                        DateTime startTime = DateTime.UtcNow.AddMinutes(-config.MaxBackfillRangeDays);
+                        DateTime endTime = DateTime.UtcNow;
+                        log.Info($"Backfill start time: {startTime}, end time: {endTime}");
+                        BackfillPIPoints(startTime, endTime);
+                        log.Info($"Backfill started successfully.");
+                    }
+                    else
+                    {
+                        log.Info($"Backfill is not enabled.");
+                    }
+                
                 }
             }
             catch (Exception e)
@@ -225,13 +262,9 @@ namespace TDPIConnector.Core
             }
         }
 
-        private void BackfillData()
+        private void BackfillPIPoints(DateTime backfillStartTime, DateTime backfillEndTime)
         {
-            var backfillStartLimit = DateTime.UtcNow.AddMinutes(-AppSettings.tomlConfig.MaxBackfillRangeDays);
-            if (this.piPoints != null && this.piPoints.Count > 0)
-                backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartLimit);
-            if (this.elements != null && this.elements.Count > 0)
-                backfillManager.BackfillAFElementsFromService(AppSettings.tomlConfig.TDDataBase, elements, backfillStartLimit);
+                backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartTime, backfillEndTime);
         }
 
         public void StartDataPipe()
@@ -300,7 +333,7 @@ namespace TDPIConnector.Core
             log.Debug("PI Connection error detected: Starting data pipes");
             StartDataPipe();
             log.Debug("PI Connection error detected: Starting backfilling");
-            StartBackfill();
+            StartBackfillPiPoints();
             log.Debug("Checking PI Data Archive connection: SUCCESS");
         }
         public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
