@@ -443,13 +443,13 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
 
-  if (restored && (pStatus->state != TASK_STATUS__CK)) {
-    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
-            " failed",
-            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
-    taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
+//  if (restored && (pStatus->state != TASK_STATUS__CK)) {
+//    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+//            " failed",
+//            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
+//    taosThreadMutexUnlock(&pTask->lock);
+//    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+//  }
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
