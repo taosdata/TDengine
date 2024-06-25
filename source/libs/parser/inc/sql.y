@@ -392,7 +392,7 @@ create_subtable_clause(A) ::=
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP table_options(G).    { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
 
 create_from_file_clause(A) ::= not_exists_opt(B) USING full_table_name(C)
-  NK_LP tag_list_opt(D) NK_RP NK_STRING(E).                                       { A = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
+  NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { A = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
