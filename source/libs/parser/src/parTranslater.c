@@ -12665,6 +12665,10 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
   SSchema* pSchema = getTableTagSchema(pSuperTableMeta);
 
   SHashObj* pIdxHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (NULL == pIdxHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   bool      tbnameFound = false;
 
   SNode* pTagNode;
@@ -12716,14 +12720,24 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
 
     if (code) break;
 
-    taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0);
-    taosArrayPush(pStmt->aTagIndexs, &idx);
+    if (taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0) < 0) {
+      parserError("buildTagIndexForBindTags error, failed to put idx");
+      code = terrno;
+      goto _OUT;
+    }
+
+    if (NULL == taosArrayPush(pStmt->aTagIndexs, &idx)) {
+      parserError("buildTagIndexForBindTags error, failed to push idx");
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OUT;
+    }
   }
 
   if (!tbnameFound) {
       code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_ERROR);
   }
 
+_OUT:
   taosHashCleanup(pIdxHash);
   return code;
 }
