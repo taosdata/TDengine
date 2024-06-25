@@ -2427,6 +2427,20 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
+  // db.? situation，ensure that the only thing following the '.' mark is '?'
+  char *tbNameAfterDbName = strchr(pTbName->z, '.');
+  if ((tbNameAfterDbName != NULL) && (tbNameAfterDbName + 1 - pTbName->z == pTbName->n - 1) &&
+      (*(tbNameAfterDbName + 1) == '?')) {
+    char *tbName = NULL;
+    int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
+    if (TSDB_CODE_SUCCESS == code) {
+      pTbName->z = tbName;
+      pTbName->n = strlen(tbName);
+    } else {
+      return code;
+    }
+  }
+
   *pHasData = true;
   return TSDB_CODE_SUCCESS;
 }
